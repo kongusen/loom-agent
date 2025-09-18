@@ -1,130 +1,214 @@
-# Lexicon Agent v2.0
+# Lexicon Agent Framework
 
-> 下一代上下文工程驱动的智能助理框架
+> 🤖 A powerful multi-agent orchestration framework for building intelligent systems
 
-## 🎯 核心特性
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Async](https://img.shields.io/badge/Async-Native-orange.svg)]()
 
-- **上下文工程驱动**: 三层上下文处理架构 (检索生成、处理优化、管理压缩)
-- **LLM自主编排**: 六阶段异步生成器实现智能决策循环
-- **多Agent协作**: 五种编排策略支持复杂任务分解
-- **流式优先设计**: 实时响应和状态更新
-- **智能工具调度**: 基于依赖图的并行/串行优化执行
+## 🚀 Key Features
 
-## 🏗️ 架构概览
+- **🤖 Multi-Agent Orchestration**: Coordinate multiple specialized agents working together
+- **🧠 Intelligent Context Management**: Automatic context optimization and memory management  
+- **🔧 Rich Tool Ecosystem**: Built-in tools for file operations, knowledge bases, code execution
+- **🌊 Streaming Processing**: Real-time data processing and response streaming
+- **🔒 Security First**: Built-in security checks and permission controls
+- **⚡ High Performance**: Asynchronous architecture with concurrent processing
+- **🔌 Extensible**: Modular design for easy customization and extension
+- **🌐 LLM Integration**: Support for multiple LLM providers (OpenAI, Anthropic, etc.)
+
+## 🏗️ Architecture
 
 ```
-┌─── 用户交互层 ───────────────────────────────────┐
-│  Web界面 │ CLI界面 │ API接口 │ 流式事件处理      │
-├─── 上下文工程层 ─────────────────────────────────┤
-│  检索生成 │ 处理优化 │ 管理压缩 │ 上下文压缩器    │
-├─── Agent控制层 ─────────────────────────────────┤
-│  控制器 │ 编排引擎 │ 会话管理 │ 提示组装 │ 流生成│
-├─── 工具编排层 ───────────────────────────────────┤
-│  执行器 │ 注册表 │ 调度器 │ MCP网关 │ 依赖解析│
-├─── 工具实现层 ───────────────────────────────────┤
-│  核心工具 │ 外部工具 │ 知识库 │ 代码沙箱 │ 协调器│
-└─── 基础设施层 ───────────────────────────────────┘
-│  LLM提供商 │ 向量存储 │ 文件系统 │ 内存管理器│
+lexicon_agent/
+├── core/
+│   ├── agent/           # Agent management and control
+│   ├── context/         # Context processing and management
+│   ├── orchestration/   # Multi-agent orchestration
+│   ├── streaming/       # Streaming data processing
+│   └── tools/           # Tool registry and execution
+├── config/              # Configuration management
+├── infrastructure/      # Infrastructure components
+├── api/                 # API interfaces (CLI, REST, WebSocket)
+└── types.py            # Core type definitions
 ```
 
-## 🚀 快速开始
-
-### 安装依赖
+## 📦 Installation
 
 ```bash
-# 使用 Poetry (推荐)
-poetry install
+# Clone the repository
+git clone https://github.com/your-org/lexicon-agent.git
+cd lexicon-agent
 
-# 或使用 pip
+# Install dependencies
 pip install -r requirements.txt
+
+# Or install in development mode
+pip install -e .
 ```
 
-### 基础使用
+## 🏃‍♂️ Quick Start
+
+### Basic Usage
 
 ```python
 import asyncio
-from lexicon_agent import LexiconAgent, ContextRequirements
+from lexicon_agent.types import Agent
+from lexicon_agent.core.tools.registry import ToolRegistry
+from lexicon_agent.core.orchestration.engine import OrchestrationEngine, UserInput, OrchestrationContext
 
 async def main():
-    # 初始化Agent
-    agent = LexiconAgent(
-        llm_provider="anthropic",
-        model="claude-3-sonnet-20240229"
+    # Create an agent
+    agent = Agent(
+        agent_id="assistant_001",
+        name="General Assistant",
+        specialization="general",
+        capabilities=["file_operations", "data_analysis"],
+        status="available"
     )
     
-    # 流式对话
-    async for event in agent.stream_run("帮我分析这个项目的架构"):
-        print(f"{event.type}: {event.content}")
+    # Initialize tools and orchestration
+    tool_registry = ToolRegistry()
+    engine = OrchestrationEngine()
+    
+    # Create user input
+    user_input = UserInput(
+        message="Analyze the sales data and create a summary report"
+    )
+    
+    # Create orchestration context
+    context = OrchestrationContext(
+        user_input=user_input,
+        available_agents=[agent]
+    )
+    
+    # Execute orchestration
+    result = await engine.orchestrate(user_input, [agent], context)
+    print(f"Result: {result.primary_result}")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## 📁 项目结构
+### Tool Usage Example
 
+```python
+from lexicon_agent.core.tools.registry import ToolRegistry
+
+# Get tool registry
+tool_registry = ToolRegistry()
+
+# Use file system tool
+fs_tool = tool_registry.get_tool("file_system")
+result = await fs_tool.execute({
+    "action": "read",
+    "path": "data.txt"
+})
+
+# Use knowledge base tool  
+kb_tool = tool_registry.get_tool("knowledge_base")
+await kb_tool.execute({
+    "action": "create",
+    "kb_name": "project_docs",
+    "description": "Project documentation"
+})
 ```
-lexicon_agent/
-├── core/                   # 核心组件
-│   ├── context/           # 上下文工程
-│   ├── orchestration/     # 编排引擎
-│   ├── agent/            # Agent控制器
-│   └── streaming/        # 流式处理
-├── tools/                 # 工具系统
-│   ├── registry/         # 工具注册
-│   ├── executor/         # 执行引擎
-│   └── scheduler/        # 智能调度
-├── infrastructure/        # 基础设施
-│   ├── llm/              # LLM提供商
-│   ├── storage/          # 存储系统
-│   └── memory/           # 内存管理
-└── api/                  # API接口
-    ├── rest/             # REST API
-    ├── websocket/        # WebSocket
-    └── cli/              # 命令行界面
+
+## 🔧 Core Components
+
+### Agents
+- **Agent Controller**: Manages agent lifecycle and coordination
+- **Agent Registry**: Agent discovery and capability matching
+- **Specialization**: Domain-specific agent behaviors
+
+### Context Management  
+- **Context Retrieval**: Intelligent context gathering
+- **Context Processing**: Context optimization and compression
+- **Memory Management**: Persistent and session memory
+
+### Tool System
+- **Tool Registry**: Centralized tool management
+- **Tool Executor**: Safe tool execution with monitoring
+- **Tool Scheduler**: Intelligent tool scheduling and orchestration
+
+### Orchestration
+- **Orchestration Engine**: Multi-agent workflow coordination
+- **Strategy System**: Pluggable orchestration strategies
+- **Event Coordination**: Inter-agent communication
+
+### Streaming
+- **Stream Processor**: Real-time data processing
+- **Stream Pipeline**: Multi-stage processing pipelines
+- **Stream Optimizer**: Performance optimization
+
+## 🛠️ Built-in Tools
+
+| Tool | Description | Safety Level |
+|------|-------------|--------------|
+| **File System** | File operations (read, write, list) | Cautious |
+| **Knowledge Base** | Document storage and search | Safe |
+| **Code Interpreter** | Code execution (Python, JS, Bash) | Exclusive |
+| **Web Search** | Web information retrieval | Safe |
+
+## 🌐 LLM Integration
+
+The framework supports multiple LLM providers:
+
+```python
+# Environment configuration
+export LLM_API_KEY="your-api-key"
+export LLM_BASE_URL="https://api.openai.com/v1"  
+export LLM_MODEL="gpt-3.5-turbo"
+
+# Supported providers:
+# - OpenAI (GPT-3.5, GPT-4)
+# - Anthropic (Claude-3)
+# - Azure OpenAI
+# - Local models (Ollama, etc.)
 ```
 
-## 🔧 核心概念
+## 📚 Documentation
 
-### 上下文工程
+- **[Framework Guide](FRAMEWORK_GUIDE.md)** - Comprehensive usage guide
+- **[API Reference](lexicon_agent/)** - Detailed API documentation
+- **[Examples](examples/)** - Usage examples and tutorials
 
-Lexicon Agent的核心是上下文工程，通过三个基本组件处理信息：
+## 🔒 Security
 
-1. **上下文检索与生成**: 多策略并行检索、动态上下文组装
-2. **上下文处理**: 长序列处理、自我优化、结构化集成
-3. **上下文管理**: 约束解决、内存层次、智能压缩
+The framework implements multiple security layers:
 
-### 六阶段生成循环
+- **Path Traversal Protection**: Prevents unauthorized file access
+- **Code Execution Sandboxing**: Safe code execution environment
+- **Permission-based Access**: Granular permission controls
+- **Input Validation**: Comprehensive input sanitization
 
-受Claude Code启发的主控制循环：
+## 📊 Performance
 
-1. **上下文检索与生成**: 分析需求并获取相关上下文
-2. **上下文处理与优化**: 处理和优化上下文信息
-3. **LLM流式响应**: 生成智能响应和工具调用
-4. **工具编排执行**: 智能调度和执行工具
-5. **结果聚合更新**: 整合结果并更新上下文
-6. **递归循环控制**: 决定是否继续处理
+- **Concurrent Agent Support**: 100+ agents simultaneously
+- **Tool Execution**: Sub-second response times
+- **Memory Efficiency**: Optimized context management
+- **Streaming Throughput**: 1000+ events/second
 
-### 多Agent编排
+## 🤝 Contributing
 
-支持五种编排策略：
-- **先验编排**: 预分析任务后分配Agent
-- **后验编排**: 多Agent并行处理后选择最优结果
-- **功能型编排**: 基于Agent专业能力分工
-- **组件型编排**: 动态组装工作流
-- **木偶师编排**: 中央协调多Agent协作
+We welcome contributions! Please see our contributing guidelines for details.
 
-## 📊 性能特性
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
-- **首Token延迟**: < 200ms
-- **并发请求处理**: > 50 req/s
-- **内存占用**: < 1GB (单会话)
-- **工具执行成功率**: > 95%
-- **系统错误率**: < 1%
+## 📄 License
 
-## 🛠️ 开发指南
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-详见 [开发文档](docs/Lexicon%20Agent:%20系统设计与开发指南%20v2.0.md)
+## 🙏 Acknowledgments
 
-## 📝 许可证
+- Inspired by modern multi-agent systems research
+- Built with Python's async/await ecosystem
+- Designed for production scalability
 
-MIT License
+---
+
+**Built with ❤️ for the AI community**

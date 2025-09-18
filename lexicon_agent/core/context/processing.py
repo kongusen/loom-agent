@@ -215,6 +215,76 @@ class LongSequenceProcessor:
             info_retention = 1.0
         
         return (length_ratio * 0.3 + info_retention * 0.7)
+    
+    async def _truncate_by_importance(self, sequence: ContextSequence, max_length: int) -> ProcessedSequence:
+        """基于重要性截断"""
+        tokens = sequence.tokens
+        content = sequence.content
+        
+        if len(tokens) <= max_length:
+            return ProcessedSequence.from_sequence(sequence)
+        
+        # 简单实现：保留前面和重要部分
+        keep_front = int(max_length * 0.6)
+        keep_back = max_length - keep_front
+        
+        if keep_back > 0:
+            selected_tokens = tokens[:keep_front] + ["..."] + tokens[-keep_back:]
+        else:
+            selected_tokens = tokens[:max_length]
+        
+        processed_content = ' '.join(selected_tokens)
+        token_reduction = 1 - (len(selected_tokens) / len(tokens))
+        
+        return ProcessedSequence(
+            original_sequence=sequence,
+            processed_content=processed_content,
+            token_reduction=token_reduction,
+            quality_score=self._calculate_quality_after_truncation(content, processed_content),
+            processing_methods=["truncate_by_importance"]
+        )
+    
+    async def _summarize_redundant_content(self, sequence: ContextSequence, max_length: int) -> ProcessedSequence:
+        """总结冗余内容"""
+        tokens = sequence.tokens
+        content = sequence.content
+        
+        if len(tokens) <= max_length:
+            return ProcessedSequence.from_sequence(sequence)
+        
+        # 简单实现：保留关键部分并添加总结标记
+        summary_tokens = tokens[:max_length-1] + ["[...summarized]"]
+        processed_content = ' '.join(summary_tokens)
+        token_reduction = 1 - (len(summary_tokens) / len(tokens))
+        
+        return ProcessedSequence(
+            original_sequence=sequence,
+            processed_content=processed_content,
+            token_reduction=token_reduction,
+            quality_score=self._calculate_quality_after_truncation(content, processed_content),
+            processing_methods=["summarize_redundant"]
+        )
+    
+    async def _structure_aware_truncation(self, sequence: ContextSequence, max_length: int) -> ProcessedSequence:
+        """结构感知截断"""
+        tokens = sequence.tokens
+        content = sequence.content
+        
+        if len(tokens) <= max_length:
+            return ProcessedSequence.from_sequence(sequence)
+        
+        # 保持结构完整性的截断
+        selected_tokens = tokens[:max_length]
+        processed_content = ' '.join(selected_tokens)
+        token_reduction = 1 - (len(selected_tokens) / len(tokens))
+        
+        return ProcessedSequence(
+            original_sequence=sequence,
+            processed_content=processed_content,
+            token_reduction=token_reduction,
+            quality_score=self._calculate_quality_after_truncation(content, processed_content),
+            processing_methods=["structure_aware_truncation"]
+        )
 
 
 class SelfOptimizationEngine:

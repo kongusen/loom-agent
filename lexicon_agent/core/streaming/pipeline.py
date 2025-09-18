@@ -245,7 +245,9 @@ class StreamingPipeline:
                 # 执行阶段
                 stage_start = time.time()
                 try:
+                    print(f"DEBUG: Executing stage {stage_id}")
                     stage_result = await self._execute_stage(stage, pipeline_context)
+                    print(f"DEBUG: Stage {stage_id} completed with result: {type(stage_result)}")
                     pipeline_context["stage_results"][stage_id] = stage_result
                     
                     stage_duration = time.time() - stage_start
@@ -345,12 +347,20 @@ class StreamingPipeline:
         """执行单个管道阶段"""
         
         try:
-            # 设置超时
-            result = await asyncio.wait_for(
-                stage.processor(context),
-                timeout=stage.timeout
-            )
-            return result
+            # 检查是否是streaming_response阶段，需要特殊处理AsyncIterator
+            if stage.stage_id == "streaming_response":
+                print(f"DEBUG: Executing streaming response stage: {stage.stage_id}")
+                # 直接调用处理器并返回AsyncIterator
+                result = stage.processor(context)
+                print(f"DEBUG: Streaming response stage returned: {type(result)}")
+                return result
+            else:
+                # 普通阶段的处理
+                result = await asyncio.wait_for(
+                    stage.processor(context),
+                    timeout=stage.timeout
+                )
+                return result
             
         except asyncio.TimeoutError:
             raise TimeoutError(f"Stage {stage.stage_id} timed out after {stage.timeout}s")
@@ -359,11 +369,15 @@ class StreamingPipeline:
             for attempt in range(stage.retry_attempts):
                 try:
                     await asyncio.sleep(0.5 * (attempt + 1))  # 指数退避
-                    result = await asyncio.wait_for(
-                        stage.processor(context),
-                        timeout=stage.timeout
-                    )
-                    return result
+                    if stage.stage_id == "streaming_response":
+                        result = stage.processor(context)
+                        return result
+                    else:
+                        result = await asyncio.wait_for(
+                            stage.processor(context),
+                            timeout=stage.timeout
+                        )
+                        return result
                 except Exception:
                     if attempt == stage.retry_attempts - 1:
                         raise e
@@ -429,9 +443,18 @@ class StreamingPipeline:
         
         request = context["request"]
         
-        # 构建管理上下文（简化实现）
+        # 构建管理上下文
+        from ...types import ProcessedContext
+        
+        # 创建基本的处理上下文
+        processed_context = ProcessedContext(
+            content={"user_message": request.user_message, "timestamp": datetime.now().isoformat()},
+            processing_metadata={"processor": "pipeline", "stage": "context_processing"},
+            optimization_trace=[]
+        )
+        
         managed_context = ManagedContext(
-            active_context=None,  # 需要实际的上下文处理
+            active_context=processed_context,
             management_metadata={"processed_at": datetime.now().isoformat()}
         )
         
@@ -449,13 +472,53 @@ class StreamingPipeline:
         
         request = context["request"]
         
-        # 创建会话上下文（简化实现）
+        # 获取上下文处理的结果
+        context_processing_result = context.get("stage_results", {}).get("context_processing", {})
+        managed_context = context_processing_result.get("managed_context")
+        
+        # 创建基本的会话上下文
+        from ..context.retrieval import TaskContext
+        from ..context.management import SessionConstraints
+        from ...types import SessionState
+        
+        # 创建基本的会话状态
+        session_state = SessionState(
+            session_id=f"session_{request.request_id}",
+            user_id="default_user",
+            conversation_history=[],
+            context_memory={},
+            environment_state={}
+        )
+        
+        # 创建任务上下文
+        task_context = TaskContext(
+            task_type="chat",
+            complexity_level=1,
+            domain="general",
+            metadata={"task_id": f"task_{request.request_id}"}
+        )
+        
+        # 创建会话约束
+        constraints = SessionConstraints(
+            max_memory_mb=512,
+            max_context_items=1000,
+            cache_policy="adaptive",
+            compression_level=1
+        )
+        
         session_context = SessionContext(
-            session_state=None,  # 需要实际的会话状态
-            task_context=None,   # 需要实际的任务上下文
-            constraints=None,    # 需要实际的约束
+            session_state=session_state,
+            task_context=task_context,
+            constraints=constraints,
             available_tools=["file_system", "knowledge_base"]
         )
+        
+        # 如果有managed_context，将其存储到session_state中
+        if managed_context:
+            session_context.session_state.context_memory["current_managed_context"] = {
+                "content": managed_context.active_context.content,
+                "metadata": managed_context.management_metadata
+            }
         
         # 收集处理事件
         events = []
@@ -499,6 +562,7 @@ class StreamingPipeline:
     async def _generate_streaming_response(self, context: Dict[str, Any]) -> AsyncIterator[StreamChunk]:
         """生成流式响应"""
         
+        print("DEBUG: _generate_streaming_response method started")
         request = context["request"]
         
         # 收集所有阶段的结果
@@ -513,22 +577,83 @@ class StreamingPipeline:
             "timestamp": datetime.now().isoformat()
         }
         
-        # 分块发送响应
-        response_text = f"处理完成。您的消息：'{request.user_message}' 已通过完整的处理管道。"
+        # 发送真实的LLM响应
+        core_result = all_results.get("core_processing", {})
+        events = core_result.get("events", [])
         
-        # 模拟流式响应
-        words = response_text.split()
-        for i, word in enumerate(words):
-            yield StreamChunk(
-                chunk_id=f"{request.request_id}_response_{i}",
-                data=word + " ",
-                chunk_type="response_text",
-                metadata={"request_id": request.request_id, "word_index": i},
-                is_final=(i == len(words) - 1)
-            )
+        print(f"DEBUG: core_result = {core_result}")
+        print(f"DEBUG: events count = {len(events)}")
+        
+        if events:
+            # 从AgentController事件中提取响应文本
+            response_parts = []
+            complete_response = ""
             
-            # 模拟流式延迟
-            await asyncio.sleep(0.05)
+            for i, event in enumerate(events):
+                print(f"DEBUG: Event {i} = {event} (type: {type(event)})")
+                # 更灵活的事件类型检查
+                event_type = None
+                if hasattr(event, 'type'):
+                    if hasattr(event.type, 'value'):
+                        event_type = event.type.value
+                    else:
+                        event_type = str(event.type)
+                
+                # 收集响应内容
+                if event_type == "response_delta" and hasattr(event, 'content'):
+                    if isinstance(event.content, str):
+                        response_parts.append(event.content)
+                elif event_type == "response_complete" and hasattr(event, 'content'):
+                    if isinstance(event.content, str):
+                        complete_response = event.content
+                        break  # 完整响应已获得
+                elif hasattr(event, 'content') and isinstance(event.content, str):
+                    # 兜底：任何包含字符串内容的事件
+                    if len(event.content) > 0 and not event.content.startswith('开始') and not event.content.startswith('分析'):
+                        response_parts.append(event.content)
+            
+            # 优先使用完整响应，否则合并片段
+            if complete_response:
+                yield StreamChunk(
+                    chunk_id=f"{request.request_id}_response_complete",
+                    data=complete_response,
+                    chunk_type="response_text",
+                    metadata={"request_id": request.request_id, "complete": True},
+                    is_final=True
+                )
+            elif response_parts:
+                # 流式发送响应片段
+                accumulated_text = ""
+                for i, part in enumerate(response_parts):
+                    accumulated_text += part
+                    yield StreamChunk(
+                        chunk_id=f"{request.request_id}_response_{i}",
+                        data=part,
+                        chunk_type="response_text",
+                        metadata={"request_id": request.request_id, "part_index": i},
+                        is_final=(i == len(response_parts) - 1)
+                    )
+                    await asyncio.sleep(0.001)  # 减少延迟
+            else:
+                # 备用响应
+                fallback_text = f"已处理您的消息：'{request.user_message}'"
+                yield StreamChunk(
+                    chunk_id=f"{request.request_id}_response_fallback",
+                    data=fallback_text,
+                    chunk_type="response_text",
+                    metadata={"request_id": request.request_id, "fallback": True},
+                    is_final=True
+                )
+        else:
+            # 如果没有事件，发送基本响应
+            basic_response = f"收到您的消息：'{request.user_message}'"
+            yield StreamChunk(
+                chunk_id=f"{request.request_id}_response_basic",
+                data=basic_response,
+                chunk_type="response_text",
+                metadata={"request_id": request.request_id, "basic": True},
+                is_final=True
+            )
         
         # 发送最终数据
         yield StreamChunk(

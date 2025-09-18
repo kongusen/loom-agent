@@ -327,13 +327,20 @@ class StreamingProcessor:
         self.max_buffer_size = 1000
         self.processing_timeout = 30.0
         
+        # 启动时间
+        self.startup_time = datetime.now()
+        
         # 统计信息
         self.processing_stats = {
             "total_streams": 0,
             "completed_streams": 0,
             "failed_streams": 0,
             "total_chunks_processed": 0,
-            "average_processing_time": 0.0
+            "average_processing_time": 0.0,
+            "total_processing_time": 0.0,
+            "peak_concurrent_streams": 0,
+            "total_bytes_processed": 0,
+            "average_throughput": 0.0
         }
     
     def register_processor(self, processor_type: str, processor: StreamProcessor):
@@ -394,8 +401,18 @@ class StreamingProcessor:
                 # 更新指标
                 metrics.total_chunks += 1
                 metrics.processed_chunks += 1
-                metrics.bytes_processed += len(str(data))
+                chunk_bytes = len(str(data).encode('utf-8'))
+                metrics.bytes_processed += chunk_bytes
                 metrics.latency_ms = processing_time * 1000
+                
+                # 更新全局统计
+                self.processing_stats["total_processing_time"] += processing_time
+                self.processing_stats["total_bytes_processed"] += chunk_bytes
+                
+                # 更新峰值并发流数量
+                current_streams = len(self.active_streams)
+                if current_streams > self.processing_stats["peak_concurrent_streams"]:
+                    self.processing_stats["peak_concurrent_streams"] = current_streams
                 
                 # 缓冲处理结果
                 if len(self.stream_buffers[stream_id]) < self.max_buffer_size:
@@ -439,6 +456,23 @@ class StreamingProcessor:
                 if total_time > 0:
                     metrics.processing_rate = metrics.processed_chunks / total_time
                     metrics.throughput = metrics.bytes_processed / total_time
+                
+                # 更新全局平均处理时间
+                total_completed = self.processing_stats["completed_streams"]
+                current_avg = self.processing_stats["average_processing_time"]
+                stream_avg_time = total_time / max(1, metrics.processed_chunks)
+                
+                self.processing_stats["average_processing_time"] = (
+                    (current_avg * total_completed + stream_avg_time) / (total_completed + 1)
+                )
+                
+                # 更新平均吞吐量
+                if total_time > 0:
+                    stream_throughput = metrics.bytes_processed / total_time
+                    current_avg_throughput = self.processing_stats["average_throughput"]
+                    self.processing_stats["average_throughput"] = (
+                        (current_avg_throughput * total_completed + stream_throughput) / (total_completed + 1)
+                    )
                 
                 # 移动到完成状态
                 del self.active_streams[stream_id]
@@ -551,10 +585,35 @@ class StreamingProcessor:
         
         # 计算平均处理时间
         if self.processing_stats["completed_streams"] > 0:
-            # 这里需要更复杂的计算，简化处理
-            avg_processing_time = 1.0  # 示例值
+            # 基于当前活跃流的实际处理时间计算
+            total_processing_time = 0.0
+            active_stream_count = 0
+            
+            for metrics in self.active_streams.values():
+                stream_duration = (datetime.now() - metrics.start_time).total_seconds()
+                if stream_duration > 0 and metrics.processed_chunks > 0:
+                    # 计算每个块的平均处理时间
+                    chunk_processing_time = stream_duration / metrics.processed_chunks
+                    total_processing_time += chunk_processing_time
+                    active_stream_count += 1
+            
+            if active_stream_count > 0:
+                avg_processing_time = total_processing_time / active_stream_count
+            else:
+                # 使用历史数据估算
+                avg_processing_time = self.processing_stats.get("average_processing_time", 0.0)
         else:
             avg_processing_time = 0.0
+        
+        # 计算实时性能指标
+        current_throughput = 0.0
+        if active_streams > 0:
+            current_throughput = sum(
+                metrics.throughput for metrics in self.active_streams.values()
+            ) / active_streams
+        
+        # 计算资源利用率
+        resource_utilization = active_streams / self.max_concurrent_streams
         
         return {
             "processing_stats": self.processing_stats,
@@ -562,8 +621,21 @@ class StreamingProcessor:
             "total_buffer_size": total_buffer_size,
             "available_processors": list(self.processors.keys()),
             "max_concurrent_streams": self.max_concurrent_streams,
-            "average_processing_time": avg_processing_time
+            "average_processing_time": avg_processing_time,
+            "current_throughput": current_throughput,
+            "resource_utilization": resource_utilization,
+            "buffer_efficiency": 1.0 - (total_buffer_size / (self.max_buffer_size * max(1, active_streams))),
+            "performance_metrics": {
+                "peak_concurrent_streams": self.processing_stats["peak_concurrent_streams"],
+                "total_bytes_processed": self.processing_stats["total_bytes_processed"],
+                "average_throughput": self.processing_stats["average_throughput"],
+                "uptime_seconds": self._calculate_uptime()
+            }
         }
+    
+    def _calculate_uptime(self) -> float:
+        """计算系统运行时间（秒）"""
+        return (datetime.now() - self.startup_time).total_seconds()
     
     async def health_check(self) -> Dict[str, Any]:
         """健康检查"""

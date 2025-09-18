@@ -169,6 +169,7 @@ class Agent:
     performance_metrics: Dict[str, float] = field(default_factory=dict)
     status: str = "available"  # available, busy, offline
     metadata: Dict[str, Any] = field(default_factory=dict)
+    configuration: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

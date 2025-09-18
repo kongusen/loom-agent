@@ -6,10 +6,22 @@
 
 import json
 import time
+import hashlib
+import tempfile
+import subprocess
+import asyncio
+import os
+import signal
 from typing import Dict, Any, List, Optional, Callable, Set
 from dataclasses import dataclass, field
 from datetime import datetime
 from abc import ABC, abstractmethod
+from pathlib import Path
+
+try:
+    import aiofiles
+except ImportError:
+    aiofiles = None
 
 from ...types import ToolSafetyLevel
 
@@ -130,36 +142,209 @@ class FileSystemTool(BaseTool):
     
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """执行文件系统操作"""
-        
         action = input_data.get("action")
+        
+        if aiofiles is None:
+            return {
+                "action": action,
+                "error": "aiofiles module not available",
+                "success": False
+            }
         path = input_data.get("path", ".")
         
-        if action == "list":
-            # 模拟文件列表
+        try:
+            # 路径安全检查 - 在解析之前先检查原始路径
+            if not self._is_safe_path_input(path):
+                return {
+                    "action": action,
+                    "error": "Path not allowed for security reasons", 
+                    "success": False
+                }
+            
+            safe_path = Path(path).resolve()
+            if not self._is_safe_path(safe_path):
+                return {
+                    "action": action,
+                    "error": "Path not allowed for security reasons",
+                    "success": False
+                }
+            
+            if action == "list":
+                # 真实的文件列表
+                files = []
+                directories = []
+                
+                if safe_path.exists() and safe_path.is_dir():
+                    for item in safe_path.iterdir():
+                        if item.is_file():
+                            files.append({
+                                "name": item.name,
+                                "size": item.stat().st_size,
+                                "modified": item.stat().st_mtime
+                            })
+                        elif item.is_dir():
+                            directories.append({
+                                "name": item.name,
+                                "modified": item.stat().st_mtime
+                            })
+                
+                return {
+                    "action": "list",
+                    "path": str(safe_path),
+                    "files": files,
+                    "directories": directories,
+                    "success": True
+                }
+            
+            elif action == "read":
+                # 真实的文件读取
+                if not safe_path.exists():
+                    return {
+                        "action": "read",
+                        "path": str(safe_path),
+                        "error": "File not found",
+                        "success": False
+                    }
+                
+                if not safe_path.is_file():
+                    return {
+                        "action": "read",
+                        "path": str(safe_path),
+                        "error": "Path is not a file",
+                        "success": False
+                    }
+                
+                try:
+                    async with aiofiles.open(safe_path, 'r', encoding='utf-8') as f:
+                        content = await f.read()
+                except UnicodeDecodeError:
+                    # 如果不是文本文件，读取为二进制
+                    async with aiofiles.open(safe_path, 'rb') as f:
+                        content_bytes = await f.read()
+                        content = f"[Binary file, {len(content_bytes)} bytes]"
+                
+                return {
+                    "action": "read",
+                    "path": str(safe_path),
+                    "content": content,
+                    "size": safe_path.stat().st_size,
+                    "success": True
+                }
+            
+            elif action == "write":
+                content = input_data.get("content", "")
+                mode = input_data.get("mode", "w")  # w for write, a for append
+                
+                # 确保目录存在
+                safe_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                async with aiofiles.open(safe_path, mode, encoding='utf-8') as f:
+                    await f.write(content)
+                
+                return {
+                    "action": "write",
+                    "path": str(safe_path),
+                    "bytes_written": len(content.encode('utf-8')),
+                    "mode": mode,
+                    "success": True
+                }
+            
+            elif action == "delete":
+                if not safe_path.exists():
+                    return {
+                        "action": "delete",
+                        "path": str(safe_path),
+                        "error": "File or directory not found",
+                        "success": False
+                    }
+                
+                if safe_path.is_file():
+                    safe_path.unlink()
+                elif safe_path.is_dir():
+                    safe_path.rmdir()  # Only empty directories
+                
+                return {
+                    "action": "delete",
+                    "path": str(safe_path),
+                    "success": True
+                }
+            
+            elif action == "mkdir":
+                safe_path.mkdir(parents=True, exist_ok=True)
+                return {
+                    "action": "mkdir",
+                    "path": str(safe_path),
+                    "success": True
+                }
+            
+            else:
+                raise ValueError(f"Unsupported action: {action}")
+                
+        except Exception as e:
             return {
-                "action": "list",
+                "action": action,
                 "path": path,
-                "files": ["example1.txt", "example2.py", "example3.md"],
-                "directories": ["subfolder1", "subfolder2"]
+                "error": str(e),
+                "success": False
             }
-        elif action == "read":
-            # 模拟文件读取
-            return {
-                "action": "read", 
-                "path": path,
-                "content": f"Content of file {path}",
-                "size": 1024
-            }
-        elif action == "write":
-            content = input_data.get("content", "")
-            return {
-                "action": "write",
-                "path": path,
-                "bytes_written": len(content),
-                "success": True
-            }
-        else:
-            raise ValueError(f"Unsupported action: {action}")
+    
+    def _is_safe_path_input(self, path_str: str) -> bool:
+        """检查原始路径输入是否安全"""
+        # 检查路径遍历攻击模式
+        if '..' in path_str:
+            return False
+        
+        # 检查绝对路径到敏感目录
+        if path_str.startswith('/etc') or path_str.startswith('/root') or path_str.startswith('/sys'):
+            return False
+        
+        # 检查其他危险模式
+        dangerous_patterns = ['~', '/dev', '/proc', '/bin', '/sbin']
+        for pattern in dangerous_patterns:
+            if pattern in path_str:
+                return False
+        
+        return True
+    
+    def _is_safe_path(self, path: Path) -> bool:
+        """检查路径是否安全"""
+        # 基本安全检查，防止路径遍历攻击
+        try:
+            # 获取当前工作目录
+            cwd = Path.cwd()
+            
+            # 检查是否包含路径遍历模式
+            path_str = str(path)
+            if '..' in path_str or '~' in path_str:
+                return False
+            
+            # 检查解析后的绝对路径
+            resolved_path = path.resolve()
+            resolved_str = str(resolved_path)
+            
+            # 检查是否包含危险模式
+            dangerous_patterns = ['/etc', '/root', '/sys', '/proc', '/dev', '/bin', '/sbin', '/usr/bin', '/usr/sbin']
+            for pattern in dangerous_patterns:
+                if resolved_str.startswith(pattern):
+                    return False
+            
+            # 检查路径是否在允许的范围内（工作目录或用户目录下）
+            try:
+                resolved_path.relative_to(cwd)
+                return True
+            except ValueError:
+                # 如果不在工作目录下，检查是否在用户目录下
+                try:
+                    user_home = Path.home()
+                    resolved_path.relative_to(user_home)
+                    return True
+                except ValueError:
+                    # 路径不在允许的目录范围内
+                    return False
+            
+        except (ValueError, OSError):
+            # 路径解析失败或其他错误，认为不安全
+            return False
     
     def get_input_schema(self) -> Dict[str, Any]:
         return {
@@ -193,40 +378,261 @@ class KnowledgeBaseTool(BaseTool):
     
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """执行知识库操作"""
-        
         action = input_data.get("action")
         kb_name = input_data.get("kb_name", "default")
         
-        if action == "search":
-            query = input_data.get("query", "")
+        # 知识库存储路径
+        kb_dir = Path("knowledge_bases") / kb_name
+        
+        try:
+            if action == "search":
+                query = input_data.get("query", "")
+                limit = input_data.get("limit", 10)
+                
+                if not query.strip():
+                    return {
+                        "action": "search",
+                        "kb_name": kb_name,
+                        "query": query,
+                        "error": "Query cannot be empty",
+                        "success": False
+                    }
+                
+                # 真实的文本搜索实现
+                results = await self._search_knowledge_base(kb_dir, query, limit)
+                
+                return {
+                    "action": "search",
+                    "kb_name": kb_name,
+                    "query": query,
+                    "results": results,
+                    "total_results": len(results),
+                    "success": True
+                }
+            
+            elif action == "add":
+                text = input_data.get("text", "")
+                title = input_data.get("title", "")
+                metadata = input_data.get("metadata", {})
+                
+                if not text.strip():
+                    return {
+                        "action": "add",
+                        "kb_name": kb_name,
+                        "error": "Text cannot be empty",
+                        "success": False
+                    }
+                
+                # 确保知识库目录存在
+                kb_dir.mkdir(parents=True, exist_ok=True)
+                
+                # 生成文档ID
+                doc_id = hashlib.md5(f"{text}{title}{time.time()}".encode()).hexdigest()
+                
+                # 创建文档
+                document = {
+                    "id": doc_id,
+                    "title": title or f"Document {doc_id[:8]}",
+                    "text": text,
+                    "metadata": metadata,
+                    "created_at": datetime.now().isoformat(),
+                    "word_count": len(text.split())
+                }
+                
+                # 保存文档
+                doc_file = kb_dir / f"{doc_id}.json"
+                async with aiofiles.open(doc_file, 'w', encoding='utf-8') as f:
+                    await f.write(json.dumps(document, ensure_ascii=False, indent=2))
+                
+                # 更新索引
+                await self._update_index(kb_dir, document)
+                
+                return {
+                    "action": "add",
+                    "kb_name": kb_name,
+                    "document_id": doc_id,
+                    "title": document["title"],
+                    "text_length": len(text),
+                    "word_count": document["word_count"],
+                    "success": True
+                }
+            
+            elif action == "create":
+                description = input_data.get("description", "")
+                
+                # 创建知识库目录
+                kb_dir.mkdir(parents=True, exist_ok=True)
+                
+                # 创建知识库元数据
+                kb_metadata = {
+                    "name": kb_name,
+                    "description": description,
+                    "created_at": datetime.now().isoformat(),
+                    "document_count": 0,
+                    "last_updated": datetime.now().isoformat()
+                }
+                
+                metadata_file = kb_dir / "metadata.json"
+                async with aiofiles.open(metadata_file, 'w', encoding='utf-8') as f:
+                    await f.write(json.dumps(kb_metadata, ensure_ascii=False, indent=2))
+                
+                # 创建空索引
+                index_file = kb_dir / "index.json"
+                if not index_file.exists():
+                    async with aiofiles.open(index_file, 'w', encoding='utf-8') as f:
+                        await f.write(json.dumps({"documents": [], "terms": {}}, indent=2))
+                
+                return {
+                    "action": "create",
+                    "kb_name": kb_name,
+                    "description": description,
+                    "created": True,
+                    "timestamp": kb_metadata["created_at"],
+                    "success": True
+                }
+            
+            elif action == "list":
+                # 列出知识库中的文档
+                if not kb_dir.exists():
+                    return {
+                        "action": "list",
+                        "kb_name": kb_name,
+                        "documents": [],
+                        "total_count": 0,
+                        "success": True
+                    }
+                
+                documents = []
+                for doc_file in kb_dir.glob("*.json"):
+                    if doc_file.name == "metadata.json" or doc_file.name == "index.json":
+                        continue
+                    
+                    try:
+                        async with aiofiles.open(doc_file, 'r', encoding='utf-8') as f:
+                            doc_content = await f.read()
+                            doc = json.loads(doc_content)
+                            documents.append({
+                                "id": doc["id"],
+                                "title": doc["title"],
+                                "word_count": doc.get("word_count", 0),
+                                "created_at": doc.get("created_at", ""),
+                            })
+                    except Exception:
+                        continue
+                
+                return {
+                    "action": "list",
+                    "kb_name": kb_name,
+                    "documents": documents,
+                    "total_count": len(documents),
+                    "success": True
+                }
+            
+            else:
+                raise ValueError(f"Unsupported action: {action}")
+                
+        except Exception as e:
             return {
-                "action": "search",
+                "action": action,
                 "kb_name": kb_name,
-                "query": query,
-                "results": [
-                    {"id": "doc1", "title": "相关文档1", "score": 0.95},
-                    {"id": "doc2", "title": "相关文档2", "score": 0.87}
-                ],
-                "total_results": 2
+                "error": str(e),
+                "success": False
             }
-        elif action == "add":
-            text = input_data.get("text", "")
-            return {
-                "action": "add",
-                "kb_name": kb_name,
-                "document_id": f"doc_{int(time.time())}",
-                "text_length": len(text),
-                "success": True
+    
+    async def _search_knowledge_base(self, kb_dir: Path, query: str, limit: int) -> List[Dict[str, Any]]:
+        """搜索知识库（简单的TF-IDF实现）"""
+        if not kb_dir.exists():
+            return []
+        
+        query_terms = set(query.lower().split())
+        results = []
+        
+        # 遍历所有文档
+        for doc_file in kb_dir.glob("*.json"):
+            if doc_file.name in ["metadata.json", "index.json"]:
+                continue
+            
+            try:
+                async with aiofiles.open(doc_file, 'r', encoding='utf-8') as f:
+                    doc_content = await f.read()
+                    doc = json.loads(doc_content)
+                
+                # 计算相似度分数
+                text = (doc.get("title", "") + " " + doc.get("text", "")).lower()
+                text_terms = set(text.split())
+                
+                # 简单的相似度计算（Jaccard相似度）
+                intersection = query_terms.intersection(text_terms)
+                union = query_terms.union(text_terms)
+                
+                if union:
+                    score = len(intersection) / len(union)
+                    
+                    if score > 0:  # 只返回有相关性的结果
+                        results.append({
+                            "id": doc["id"],
+                            "title": doc.get("title", ""),
+                            "text": doc.get("text", "")[:200] + "..." if len(doc.get("text", "")) > 200 else doc.get("text", ""),
+                            "score": round(score, 3),
+                            "created_at": doc.get("created_at", ""),
+                            "metadata": doc.get("metadata", {})
+                        })
+            except Exception:
+                continue
+        
+        # 按分数排序并限制结果数量
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return results[:limit]
+    
+    async def _update_index(self, kb_dir: Path, document: Dict[str, Any]):
+        """更新知识库索引"""
+        index_file = kb_dir / "index.json"
+        
+        try:
+            if index_file.exists():
+                async with aiofiles.open(index_file, 'r', encoding='utf-8') as f:
+                    index_content = await f.read()
+                    index = json.loads(index_content)
+            else:
+                index = {"documents": [], "terms": {}}
+            
+            # 添加文档到索引
+            doc_summary = {
+                "id": document["id"],
+                "title": document["title"],
+                "word_count": document["word_count"],
+                "created_at": document["created_at"]
             }
-        elif action == "create":
-            return {
-                "action": "create",
-                "kb_name": kb_name,
-                "created": True,
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            raise ValueError(f"Unsupported action: {action}")
+            
+            # 检查是否已存在
+            existing_idx = None
+            for i, existing_doc in enumerate(index["documents"]):
+                if existing_doc["id"] == document["id"]:
+                    existing_idx = i
+                    break
+            
+            if existing_idx is not None:
+                index["documents"][existing_idx] = doc_summary
+            else:
+                index["documents"].append(doc_summary)
+            
+            # 简单的词汇索引
+            text = (document["title"] + " " + document["text"]).lower()
+            terms = set(text.split())
+            
+            for term in terms:
+                if term not in index["terms"]:
+                    index["terms"][term] = []
+                if document["id"] not in index["terms"][term]:
+                    index["terms"][term].append(document["id"])
+            
+            # 保存索引
+            async with aiofiles.open(index_file, 'w', encoding='utf-8') as f:
+                await f.write(json.dumps(index, ensure_ascii=False, indent=2))
+                
+        except Exception as e:
+            # 索引更新失败不影响文档保存
+            pass
     
     def get_input_schema(self) -> Dict[str, Any]:
         return {
@@ -261,29 +667,248 @@ class CodeInterpreterTool(BaseTool):
     
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """执行代码"""
-        
         language = input_data.get("language", "python")
         code = input_data.get("code", "")
+        timeout = input_data.get("timeout", 30)  # 30秒超时
         
-        # 模拟代码执行
-        if language == "python":
+        if not code.strip():
             return {
-                "language": "python",
+                "language": language,
                 "code": code,
-                "output": "Code execution result",
-                "execution_time": 0.5,
-                "success": True
+                "error": "Code cannot be empty",
+                "success": False
             }
-        elif language == "javascript":
+        
+        start_time = time.time()
+        
+        try:
+            if language == "python":
+                result = await self._execute_python(code, timeout)
+            elif language == "javascript":
+                result = await self._execute_javascript(code, timeout)
+            elif language == "bash":
+                result = await self._execute_bash(code, timeout)
+            else:
+                return {
+                    "language": language,
+                    "code": code,
+                    "error": f"Unsupported language: {language}",
+                    "success": False
+                }
+            
+            execution_time = time.time() - start_time
+            result["execution_time"] = round(execution_time, 3)
+            result["language"] = language
+            result["code"] = code
+            
+            return result
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
             return {
-                "language": "javascript", 
+                "language": language,
                 "code": code,
-                "output": "JS execution result",
-                "execution_time": 0.3,
-                "success": True
+                "error": str(e),
+                "execution_time": round(execution_time, 3),
+                "success": False
             }
-        else:
-            raise ValueError(f"Unsupported language: {language}")
+    
+    async def _execute_python(self, code: str, timeout: int) -> Dict[str, Any]:
+        """执行Python代码"""
+        # 安全检查
+        if self._contains_dangerous_python_code(code):
+            return {
+                "error": "Code contains potentially dangerous operations",
+                "success": False
+            }
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(code)
+            temp_file = f.name
+        
+        try:
+            # 使用subprocess执行代码
+            process = await asyncio.create_subprocess_exec(
+                'python3', temp_file,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=1024*1024  # 1MB limit
+            )
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout
+                )
+                
+                stdout_text = stdout.decode('utf-8') if stdout else ""
+                stderr_text = stderr.decode('utf-8') if stderr else ""
+                
+                return {
+                    "output": stdout_text,
+                    "error": stderr_text if stderr_text else None,
+                    "return_code": process.returncode,
+                    "success": process.returncode == 0
+                }
+                
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return {
+                    "error": f"Code execution timed out after {timeout} seconds",
+                    "success": False
+                }
+        finally:
+            # 清理临时文件
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
+    
+    async def _execute_javascript(self, code: str, timeout: int) -> Dict[str, Any]:
+        """执行JavaScript代码"""
+        # 安全检查
+        if self._contains_dangerous_js_code(code):
+            return {
+                "error": "Code contains potentially dangerous operations",
+                "success": False
+            }
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+            f.write(code)
+            temp_file = f.name
+        
+        try:
+            # 使用node执行代码
+            process = await asyncio.create_subprocess_exec(
+                'node', temp_file,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=1024*1024
+            )
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout
+                )
+                
+                stdout_text = stdout.decode('utf-8') if stdout else ""
+                stderr_text = stderr.decode('utf-8') if stderr else ""
+                
+                return {
+                    "output": stdout_text,
+                    "error": stderr_text if stderr_text else None,
+                    "return_code": process.returncode,
+                    "success": process.returncode == 0
+                }
+                
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return {
+                    "error": f"Code execution timed out after {timeout} seconds",
+                    "success": False
+                }
+        finally:
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
+    
+    async def _execute_bash(self, code: str, timeout: int) -> Dict[str, Any]:
+        """执行Bash代码"""
+        # 安全检查
+        if self._contains_dangerous_bash_code(code):
+            return {
+                "error": "Code contains potentially dangerous operations",
+                "success": False
+            }
+        
+        try:
+            process = await asyncio.create_subprocess_shell(
+                code,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=1024*1024
+            )
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout
+                )
+                
+                stdout_text = stdout.decode('utf-8') if stdout else ""
+                stderr_text = stderr.decode('utf-8') if stderr else ""
+                
+                return {
+                    "output": stdout_text,
+                    "error": stderr_text if stderr_text else None,
+                    "return_code": process.returncode,
+                    "success": process.returncode == 0
+                }
+                
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return {
+                    "error": f"Code execution timed out after {timeout} seconds",
+                    "success": False
+                }
+        except Exception as e:
+            return {
+                "error": str(e),
+                "success": False
+            }
+    
+    def _contains_dangerous_python_code(self, code: str) -> bool:
+        """检查Python代码是否包含危险操作"""
+        dangerous_patterns = [
+            'import os', '__import__', 'exec(', 'eval(',
+            'subprocess', 'system(', 'open(', 'file(',
+            'input(', 'raw_input(', 'compile(',
+            'globals(', 'locals(', 'vars(',
+            'delattr', 'setattr', 'getattr',
+            'remove', 'rmdir', 'unlink'
+        ]
+        
+        code_lower = code.lower()
+        for pattern in dangerous_patterns:
+            if pattern in code_lower:
+                return True
+        return False
+    
+    def _contains_dangerous_js_code(self, code: str) -> bool:
+        """检查JavaScript代码是否包含危险操作"""
+        dangerous_patterns = [
+            'require(', 'process', 'fs.', 'child_process',
+            'eval(', 'Function(', 'setTimeout(', 'setInterval(',
+            'global.', 'window.', 'document.',
+            'XMLHttpRequest', 'fetch('
+        ]
+        
+        code_lower = code.lower()
+        for pattern in dangerous_patterns:
+            if pattern in code_lower:
+                return True
+        return False
+    
+    def _contains_dangerous_bash_code(self, code: str) -> bool:
+        """检查Bash代码是否包含危险操作"""
+        dangerous_patterns = [
+            'rm -rf', 'sudo', 'su ', 'chmod',
+            'curl', 'wget', 'nc ', 'netcat',
+            '/etc/', '/root/', '/sys/', '/proc/',
+            '$(', '`', 'dd ', 'mkfs',
+            'format', 'fdisk', 'mount', 'umount'
+        ]
+        
+        code_lower = code.lower()
+        for pattern in dangerous_patterns:
+            if pattern in code_lower:
+                return True
+        return False
     
     def get_input_schema(self) -> Dict[str, Any]:
         return {

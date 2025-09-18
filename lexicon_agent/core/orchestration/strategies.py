@@ -41,11 +41,12 @@ class TaskAssignment:
     estimated_duration: float = 0.0
     
     
-class BaseOrchestrationStrategy(OrchestrationStrategy):
-    """基础编排策略"""
+class BaseOrchestrationStrategy(ABC):
+    """基础编排策略抽象类"""
     
-    def __init__(self, name: str):
-        self.name = name
+    def __init__(self, strategy_type: OrchestrationStrategy):
+        self.strategy_type = strategy_type
+        self.name = strategy_type.value
         self.execution_history: List[Dict[str, Any]] = []
         self.performance_metrics = {
             "total_executions": 0,
@@ -107,7 +108,7 @@ class PriorOrchestrationStrategy(BaseOrchestrationStrategy):
     """
     
     def __init__(self):
-        super().__init__("prior")
+        super().__init__(OrchestrationStrategy.PRIOR)
     
     async def determine_agent_count(self, task_requirements: Dict[str, Any]) -> int:
         """根据任务复杂度确定智能体数量"""
@@ -298,7 +299,7 @@ class PosteriorOrchestrationStrategy(BaseOrchestrationStrategy):
     """
     
     def __init__(self):
-        super().__init__("posterior")
+        super().__init__(OrchestrationStrategy.POSTERIOR)
     
     async def determine_agent_count(self, task_requirements: Dict[str, Any]) -> int:
         """后处理通常需要较少智能体"""
@@ -512,7 +513,7 @@ class FunctionalOrchestrationStrategy(BaseOrchestrationStrategy):
     """
     
     def __init__(self):
-        super().__init__("functional")
+        super().__init__(OrchestrationStrategy.FUNCTIONAL)
         self.function_registry = {
             "analysis": ["data_analysis", "code_analysis", "content_analysis"],
             "generation": ["code_generation", "content_creation", "response_generation"],
@@ -752,7 +753,7 @@ class ComponentOrchestrationStrategy(BaseOrchestrationStrategy):
     """
     
     def __init__(self):
-        super().__init__("component")
+        super().__init__(OrchestrationStrategy.COMPONENT)
         self.component_types = [
             "input_processing", "context_analysis", "core_logic", 
             "output_formatting", "quality_control"
@@ -943,7 +944,7 @@ class PuppeteerOrchestrationStrategy(BaseOrchestrationStrategy):
     """
     
     def __init__(self):
-        super().__init__("puppeteer")
+        super().__init__(OrchestrationStrategy.PUPPETEER)
         self.control_commands = [
             "delegate_task", "collect_results", "coordinate_timing", 
             "resolve_conflicts", "optimize_performance"
@@ -1183,7 +1184,7 @@ class DefaultOrchestrationStrategy(BaseOrchestrationStrategy):
     """默认编排策略，用于未指定策略时的回退"""
     
     def __init__(self):
-        super().__init__("default")
+        super().__init__(OrchestrationStrategy.FUNCTIONAL)
     
     async def determine_agent_count(self, task_requirements: Dict[str, Any]) -> int:
         return 1  # 默认单智能体

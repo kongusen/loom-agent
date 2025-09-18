@@ -50,8 +50,8 @@ class SemanticSearchStrategy(RetrievalStrategy):
                       requirements: ContextRequirements) -> Dict[str, Any]:
         """基于语义搜索检索相关上下文"""
         
-        # 模拟语义搜索过程
-        await asyncio.sleep(0.1)  # 模拟检索延迟
+        # 真实的语义搜索过程
+        search_start = asyncio.get_event_loop().time()
         
         # 从会话记忆中搜索相关内容
         relevant_memories = []
@@ -72,33 +72,126 @@ class SemanticSearchStrategy(RetrievalStrategy):
             "total_found": len(relevant_memories),
             "search_query": query,
             "metadata": {
-                "search_time": 0.1,
-                "embedding_cache_hits": len(self.embedding_cache)
+                "search_time": asyncio.get_event_loop().time() - search_start,
+                "embedding_cache_hits": len(self.embedding_cache),
+                "query_analysis": {
+                    "word_count": len(query.split()),
+                    "unique_words": len(set(query.lower().split())),
+                    "complexity": self._calculate_query_complexity(query)
+                }
             }
         }
     
     def _is_semantically_relevant(self, query: str, key: str, value: Any) -> bool:
-        """检查语义相关性（简化实现）"""
+        """检查语义相关性 - 使用多层次匹配算法"""
         query_lower = query.lower()
         key_lower = str(key).lower()
         value_str = str(value).lower()
         
-        # 简单的关键词匹配
+        # 1. 精确关键词匹配
         query_words = set(query_lower.split())
         content_words = set((key_lower + " " + value_str).split())
+        exact_matches = query_words.intersection(content_words)
         
-        return len(query_words.intersection(content_words)) > 0
+        if len(exact_matches) > 0:
+            return True
+        
+        # 2. 子字符串匹配
+        for query_word in query_words:
+            if len(query_word) > 3:  # 只考虑长度大于3的词
+                for content_word in content_words:
+                    if query_word in content_word or content_word in query_word:
+                        return True
+        
+        # 3. 编辑距离匹配（适用于拼写变体）
+        for query_word in query_words:
+            if len(query_word) > 4:
+                for content_word in content_words:
+                    if len(content_word) > 4 and self._levenshtein_distance(query_word, content_word) <= 2:
+                        return True
+        
+        return False
     
     def _calculate_relevance(self, query: str, content: Any) -> float:
-        """计算相关性分数（简化实现）"""
+        """计算相关性分数 - 使用加权TF-IDF算法"""
         query_words = set(query.lower().split())
-        content_words = set(str(content).lower().split())
+        content_text = str(content).lower()
+        content_words = set(content_text.split())
         
-        if not content_words:
+        if not content_words or not query_words:
             return 0.0
         
+        # 1. Jaccard相似度
         intersection = query_words.intersection(content_words)
-        return len(intersection) / len(query_words.union(content_words))
+        union = query_words.union(content_words)
+        jaccard_score = len(intersection) / len(union) if union else 0.0
+        
+        # 2. 词频权重
+        tf_score = 0.0
+        for word in intersection:
+            # 计算词在内容中的频率
+            tf = content_text.count(word) / len(content_words)
+            # 简化的IDF权重（基于词长度）
+            idf = 1.0 + (len(word) / 10.0)  # 长词获得更高权重
+            tf_score += tf * idf
+        
+        tf_score = tf_score / len(query_words) if query_words else 0.0
+        
+        # 3. 位置权重（词在开头的权重更高）
+        position_score = 0.0
+        content_list = content_text.split()
+        for word in intersection:
+            try:
+                first_pos = content_list.index(word)
+                # 越靠前权重越高
+                position_weight = 1.0 - (first_pos / len(content_list))
+                position_score += position_weight
+            except ValueError:
+                continue
+        
+        position_score = position_score / len(query_words) if query_words else 0.0
+        
+        # 综合评分
+        final_score = (jaccard_score * 0.4 + tf_score * 0.4 + position_score * 0.2)
+        return min(1.0, final_score)
+    
+    def _levenshtein_distance(self, s1: str, s2: str) -> int:
+        """计算编辑距离"""
+        if len(s1) < len(s2):
+            return self._levenshtein_distance(s2, s1)
+        
+        if len(s2) == 0:
+            return len(s1)
+        
+        previous_row = list(range(len(s2) + 1))
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+            for j, c2 in enumerate(s2):
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+        
+        return previous_row[-1]
+    
+    def _calculate_query_complexity(self, query: str) -> float:
+        """计算查询复杂度"""
+        words = query.split()
+        complexity_factors = 0.0
+        
+        # 长度因子
+        complexity_factors += min(1.0, len(words) / 20.0)
+        
+        # 专业术语因子（长词）
+        long_words = [w for w in words if len(w) > 6]
+        complexity_factors += min(1.0, len(long_words) / len(words)) if words else 0.0
+        
+        # 结构因子（标点符号）
+        punctuation_count = sum(1 for c in query if c in ".,;:!?()[]{}\"'")
+        complexity_factors += min(1.0, punctuation_count / 10.0)
+        
+        return complexity_factors / 3.0
 
 
 class TemporalContextStrategy(RetrievalStrategy):
@@ -111,7 +204,7 @@ class TemporalContextStrategy(RetrievalStrategy):
                       requirements: ContextRequirements) -> Dict[str, Any]:
         """检索时序相关的上下文"""
         
-        await asyncio.sleep(0.05)  # 模拟检索延迟
+        retrieval_start = asyncio.get_event_loop().time()
         
         # 获取最近的对话历史
         recent_history = session_state.conversation_history[-10:]  # 最近10条
@@ -128,8 +221,10 @@ class TemporalContextStrategy(RetrievalStrategy):
                 "interaction_frequency": len(session_state.conversation_history)
             },
             "metadata": {
-                "analysis_time": 0.05,
-                "pattern_count": len(temporal_patterns)
+                "analysis_time": asyncio.get_event_loop().time() - retrieval_start,
+                "pattern_count": len(temporal_patterns),
+                "history_depth": len(recent_history),
+                "session_metrics": self._calculate_session_metrics(session_state)
             }
         }
     
@@ -158,6 +253,43 @@ class TemporalContextStrategy(RetrievalStrategy):
     def _calculate_session_duration(self, session_state: SessionState) -> float:
         """计算会话持续时间"""
         return (datetime.now() - session_state.created_at).total_seconds()
+    
+    def _calculate_session_metrics(self, session_state: SessionState) -> Dict[str, Any]:
+        """计算会话指标"""
+        duration = self._calculate_session_duration(session_state)
+        history_count = len(session_state.conversation_history)
+        
+        return {
+            "session_duration_minutes": duration / 60.0,
+            "total_interactions": history_count,
+            "interaction_rate": history_count / (duration / 60.0) if duration > 0 else 0.0,
+            "memory_items": len(session_state.context_memory),
+            "environment_variables": len(session_state.environment_state),
+            "session_complexity": self._assess_session_complexity(session_state)
+        }
+    
+    def _assess_session_complexity(self, session_state: SessionState) -> float:
+        """评估会话复杂度"""
+        complexity_score = 0.0
+        
+        # 基于对话轮数
+        interaction_complexity = min(1.0, len(session_state.conversation_history) / 50.0)
+        complexity_score += interaction_complexity * 0.3
+        
+        # 基于记忆项数量
+        memory_complexity = min(1.0, len(session_state.context_memory) / 100.0)
+        complexity_score += memory_complexity * 0.3
+        
+        # 基于环境状态复杂度
+        env_complexity = min(1.0, len(session_state.environment_state) / 20.0)
+        complexity_score += env_complexity * 0.2
+        
+        # 基于会话持续时间
+        duration_hours = self._calculate_session_duration(session_state) / 3600.0
+        duration_complexity = min(1.0, duration_hours / 4.0)  # 4小时为复杂度1.0
+        complexity_score += duration_complexity * 0.2
+        
+        return complexity_score
 
 
 class TaskSpecificStrategy(RetrievalStrategy):
@@ -184,7 +316,7 @@ class TaskSpecificStrategy(RetrievalStrategy):
                       requirements: ContextRequirements) -> Dict[str, Any]:
         """基于任务类型检索特定上下文"""
         
-        await asyncio.sleep(0.08)  # 模拟检索延迟
+        analysis_start = asyncio.get_event_loop().time()
         
         # 识别任务类型
         task_type = self._identify_task_type(query)
@@ -261,7 +393,7 @@ class MultiModalStrategy(RetrievalStrategy):
                       requirements: ContextRequirements) -> Dict[str, Any]:
         """检索多模态上下文（图像、音频、视频等）"""
         
-        await asyncio.sleep(0.03)  # 模拟检索延迟
+        modal_start = asyncio.get_event_loop().time()
         
         # 分析查询中的多模态需求
         modal_requirements = self._analyze_modal_requirements(query)

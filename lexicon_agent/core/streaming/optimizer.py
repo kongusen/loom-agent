@@ -138,7 +138,8 @@ class MetricsCollector:
         
         # 计算请求速率
         recent_requests = len([r for r in self.request_counts[-60:]])  # 最近60秒
-        requests_per_second = recent_requests / min(60, len(self.request_counts))
+        time_window = max(1, min(60, len(self.request_counts)))  # 避免除零
+        requests_per_second = recent_requests / time_window
         
         # 计算错误率
         recent_errors = sum(self.error_counts[-60:])
@@ -893,3 +894,35 @@ class PerformanceOptimizer:
     def record_request(self, success: bool = True, timeout: bool = False):
         """记录请求"""
         self.metrics_collector.record_request(success, timeout)
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """性能优化器健康检查"""
+        try:
+            # 检查指标收集器状态
+            metrics = self.metrics_collector.get_current_metrics()
+            
+            # 计算健康分数
+            health_score = 1.0
+            
+            # 检查是否有响应时间异常
+            if metrics.get("average_response_time", 0) > 10000:  # 10秒
+                health_score *= 0.7
+            
+            # 检查错误率
+            error_rate = metrics.get("error_rate", 0)
+            if error_rate > 0.1:  # 10%错误率
+                health_score *= 0.8
+            
+            return {
+                "status": "healthy" if health_score > 0.8 else "degraded" if health_score > 0.5 else "unhealthy",
+                "health_score": health_score,
+                "metrics": metrics,
+                "auto_optimization_enabled": self.auto_optimization_enabled
+            }
+            
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "health_score": 0.0,
+                "error": str(e)
+            }

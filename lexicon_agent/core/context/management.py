@@ -274,7 +274,7 @@ class MemoryHierarchy:
         
         # 清理任务
         self._cleanup_task: Optional[asyncio.Task] = None
-        self._start_cleanup_task()
+        self._cleanup_started = False
     
     async def allocate(self, context: ProcessedContext, 
                       allocation_strategy: AllocationStrategy) -> MemoryAllocation:
@@ -282,23 +282,21 @@ class MemoryHierarchy:
         
         context_id = self._generate_context_id(context)
         
-        allocation = MemoryAllocation()
-        
         # 根据访问模式和重要性分配到不同层次
         if allocation_strategy.priority == 'high':
+            allocation = MemoryAllocation(tier="hot")
             self.hot_memory[context_id] = context
-            allocation.tier = 'hot'
             allocation.allocated_size = len(json.dumps(context.content))
         elif allocation_strategy.priority == 'medium':
             # 使用弱引用存储
+            allocation = MemoryAllocation(tier="warm")
             self.warm_memory[context_id] = context
-            allocation.tier = 'warm'
             allocation.allocated_size = len(json.dumps(context.content))
         else:
             # 压缩存储
             compressed_data = await self._compress_context(context)
+            allocation = MemoryAllocation(tier="cold")
             self.cold_storage[context_id] = compressed_data
-            allocation.tier = 'cold'
             allocation.allocated_size = len(compressed_data)
         
         # 记录分配信息
@@ -424,18 +422,51 @@ class MemoryHierarchy:
     
     def _cleanup_callback(self, context_id: str):
         """清理回调"""
-        asyncio.create_task(self.evict(context_id))
+        try:
+            # Check if there's a running event loop
+            loop = asyncio.get_running_loop()
+            asyncio.create_task(self.evict(context_id))
+        except RuntimeError:
+            # No event loop running, handle cleanup synchronously
+            try:
+                asyncio.run(self.evict(context_id))
+            except:
+                # If async cleanup fails, do simple synchronous cleanup
+                self._sync_cleanup(context_id)
+    
+    def _sync_cleanup(self, context_id: str):
+        """同步清理方法"""
+        try:
+            # Remove from all memory tiers
+            self.hot_memory.pop(context_id, None)
+            self.warm_memory.pop(context_id, None) 
+            self.cold_storage.pop(context_id, None)
+            self.access_stats.pop(context_id, None)
+        except Exception:
+            pass  # Silent fail for cleanup
     
     def _start_cleanup_task(self):
         """启动定期清理任务"""
         
-        async def cleanup_routine():
-            while True:
-                await asyncio.sleep(300)  # 每5分钟清理一次
-                await self._perform_cleanup()
-        
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(cleanup_routine())
+        if self._cleanup_started:
+            return
+            
+        try:
+            # 检查是否有运行的事件循环
+            loop = asyncio.get_running_loop()
+            
+            async def cleanup_routine():
+                while True:
+                    await asyncio.sleep(300)  # 每5分钟清理一次
+                    await self._perform_cleanup()
+            
+            if self._cleanup_task is None or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(cleanup_routine())
+                self._cleanup_started = True
+                
+        except RuntimeError:
+            # 没有运行的事件循环，延迟到后面启动
+            pass
     
     async def _perform_cleanup(self):
         """执行定期清理"""

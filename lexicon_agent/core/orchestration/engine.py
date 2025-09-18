@@ -182,13 +182,30 @@ class AgentSelector:
     def _calculate_workload_score(self, agent: Agent) -> float:
         """计算工作负载分数（负载越低分数越高）"""
         
-        # 简化实现：基于状态
-        if agent.status == "available":
-            return 1.0
-        elif agent.status == "busy":
-            return 0.3
-        else:  # offline
-            return 0.0
+        # 基于状态的基础分数
+        base_score = {
+            "available": 1.0,
+            "busy": 0.3,
+            "offline": 0.0
+        }.get(agent.status, 0.5)
+        
+        # 考虑历史负载数据
+        agent_history = self.agent_performance_history.get(agent.agent_id, [])
+        if len(agent_history) >= 3:
+            # 计算最近的性能趋势
+            recent_scores = agent_history[-3:]
+            trend = (recent_scores[-1] - recent_scores[0]) / len(recent_scores)
+            # 正向趋势提高分数，负向趋势降低分数
+            trend_adjustment = trend * 0.2
+            base_score = max(0.0, min(1.0, base_score + trend_adjustment))
+        
+        # 考虑当前并发任务数量（如果有的话）
+        # 这里假设 agent 对象有 current_task_count 属性
+        if hasattr(agent, 'current_task_count'):
+            task_penalty = min(0.3, agent.current_task_count * 0.1)
+            base_score = max(0.0, base_score - task_penalty)
+        
+        return base_score
     
     async def update_performance(self, agent_id: str, performance_score: float):
         """更新智能体性能记录"""
@@ -616,24 +633,101 @@ class OrchestrationEngine:
     async def orchestrate_tools(self, tool_calls: List[ToolCall],
                               context: ManagedContext,
                               execution_strategy: str = 'smart_parallel') -> AsyncIterator[Dict[str, Any]]:
-        """编排工具执行（简化实现）"""
+        """编排工具执行 - 集成智能工具调度器"""
         
-        # 这里应该集成智能工具调度器，目前提供基础实现
-        for tool_call in tool_calls:
+        # 导入工具系统组件
+        from ..tools import ToolRegistry, IntelligentToolScheduler, ToolExecutor
+        from ..tools.safety import ToolSafetyManager, SecurityContext
+        
+        # 初始化工具系统组件
+        tool_registry = ToolRegistry()
+        safety_manager = ToolSafetyManager()
+        tool_executor = ToolExecutor(tool_registry, safety_manager)
+        tool_scheduler = IntelligentToolScheduler(tool_registry)
+        
+        # 构建执行上下文
+        from ..tools.scheduler import ExecutionContext
+        execution_context = ExecutionContext(
+            managed_context=context,
+            session_constraints=context.constraints if hasattr(context, 'constraints') else {},
+            available_resources={
+                "max_concurrent_tools": 5,
+                "memory_limit_mb": 1024,
+                "cpu_limit_percent": 80.0
+            }
+        )
+        
+        # 创建安全上下文
+        security_context = SecurityContext(
+            user_id=context.session_id if hasattr(context, 'session_id') else None,
+            session_id=context.session_id if hasattr(context, 'session_id') else None,
+            trust_level=0.8,  # 默认信任级别
+            role="user"
+        )
+        
+        try:
+            # 创建执行计划
             yield {
-                "type": "tool_execution_start",
-                "tool_name": tool_call.tool_name,
-                "call_id": tool_call.call_id
+                "type": "orchestration_start",
+                "total_tools": len(tool_calls),
+                "execution_strategy": execution_strategy,
+                "timestamp": datetime.now().isoformat()
             }
             
-            # 模拟工具执行
-            await asyncio.sleep(0.1)
+            execution_plan = await tool_scheduler.schedule_tools(
+                tool_calls, execution_context
+            )
             
             yield {
-                "type": "tool_execution_complete",
-                "tool_name": tool_call.tool_name,
-                "call_id": tool_call.call_id,
-                "result": {"status": "success", "data": "mock_result"}
+                "type": "execution_plan_created",
+                "plan": {
+                    "strategy": execution_plan.strategy.value,
+                    "estimated_duration": execution_plan.estimated_duration,
+                    "execution_groups": len(execution_plan.execution_groups),
+                    "dependencies": len(execution_plan.dependencies)
+                }
+            }
+            
+            # 执行计划
+            completed_tools = 0
+            total_tools = len(tool_calls)
+            
+            async for tool_result in tool_scheduler.execute_plan(execution_plan, execution_context):
+                completed_tools += 1
+                
+                # 输出工具执行结果
+                result_data = {
+                    "type": "tool_execution_complete" if tool_result.error is None else "tool_execution_error",
+                    "tool_name": tool_result.tool_call.tool_name,
+                    "call_id": tool_result.tool_call.call_id,
+                    "execution_time": tool_result.execution_time,
+                    "progress": completed_tools / total_tools,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                if tool_result.error is None:
+                    result_data["result"] = tool_result.result
+                else:
+                    result_data["error"] = str(tool_result.error)
+                    result_data["error_type"] = type(tool_result.error).__name__
+                
+                yield result_data
+            
+            # 输出最终统计
+            scheduling_stats = tool_scheduler.get_scheduling_statistics()
+            yield {
+                "type": "orchestration_complete",
+                "total_tools_executed": completed_tools,
+                "scheduling_statistics": scheduling_stats,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            yield {
+                "type": "orchestration_error",
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "timestamp": datetime.now().isoformat()
             }
     
     async def _analyze_intent(self, user_input: UserInput) -> Dict[str, Any]:
@@ -643,22 +737,55 @@ class OrchestrationEngine:
         if user_input.intent:
             return user_input.intent
         
-        # 简化的意图分析
+        # 高级意图分析
         message = user_input.message.lower()
+        words = message.split()
         
+        # 扩展的意图指示器，包含权重
         intent_indicators = {
-            "analysis": ["analyze", "examine", "study", "investigate", "review"],
-            "creation": ["create", "make", "build", "generate", "write"],
-            "modification": ["update", "change", "modify", "edit", "fix"],
-            "question": ["what", "how", "why", "when", "where", "?"]
+            "analysis": {
+                "primary": ["analyze", "examine", "study", "investigate", "review", "inspect"],
+                "secondary": ["check", "look", "see", "understand", "explore"],
+                "weight": 1.0
+            },
+            "creation": {
+                "primary": ["create", "make", "build", "generate", "write", "develop"],
+                "secondary": ["design", "construct", "produce", "craft"],
+                "weight": 1.2
+            },
+            "modification": {
+                "primary": ["update", "change", "modify", "edit", "fix", "improve"],
+                "secondary": ["adjust", "alter", "revise", "correct"],
+                "weight": 1.1
+            },
+            "question": {
+                "primary": ["what", "how", "why", "when", "where", "which", "who"],
+                "secondary": ["?", "can", "could", "would", "should"],
+                "weight": 0.9
+            },
+            "automation": {
+                "primary": ["automate", "schedule", "run", "execute", "process"],
+                "secondary": ["batch", "bulk", "multiple"],
+                "weight": 1.3
+            }
         }
         
         intent_scores = {}
-        for intent_type, indicators in intent_indicators.items():
-            score = sum(1 for indicator in indicators if indicator in message)
-            intent_scores[intent_type] = score
+        for intent_type, config in intent_indicators.items():
+            primary_matches = sum(2 for indicator in config["primary"] if indicator in words)
+            secondary_matches = sum(1 for indicator in config["secondary"] if indicator in words)
+            
+            # 计算加权分数
+            raw_score = primary_matches + secondary_matches
+            weighted_score = raw_score * config["weight"]
+            intent_scores[intent_type] = weighted_score
         
-        primary_intent = max(intent_scores.items(), key=lambda x: x[1])[0]
+        # 考虑上下文权重（如果有的话）
+        context_boost = self._apply_context_boost(intent_scores, user_input.context)
+        for intent_type in intent_scores:
+            intent_scores[intent_type] += context_boost.get(intent_type, 0)
+        
+        primary_intent = max(intent_scores.items(), key=lambda x: x[1])[0] if intent_scores else "general"
         
         return {
             "primary_intent": primary_intent,
@@ -666,9 +793,13 @@ class OrchestrationEngine:
             "all_scores": intent_scores,
             "complexity_indicators": {
                 "word_count": len(user_input.message.split()),
+                "sentence_count": len([s for s in user_input.message.split('.') if s.strip()]),
                 "has_multiple_sentences": "." in user_input.message,
-                "has_conditionals": any(word in message for word in ["if", "when", "unless"]),
-                "has_comparisons": any(word in message for word in ["than", "versus", "compare"])
+                "has_conditionals": any(word in message for word in ["if", "when", "unless", "provided", "assuming"]),
+                "has_comparisons": any(word in message for word in ["than", "versus", "compare", "better", "worse"]),
+                "has_technical_terms": self._detect_technical_terms(message),
+                "has_multiple_tasks": self._detect_multiple_tasks(user_input.message),
+                "estimated_effort": self._estimate_effort_level(user_input.message)
             }
         }
     
@@ -676,17 +807,32 @@ class OrchestrationEngine:
                                      context: OrchestrationContext) -> 'OrchestrationStrategy':
         """选择编排策略"""
         
-        # 简化的策略选择逻辑
-        complexity_level = len([v for v in intent.get("complexity_indicators", {}).values() if v])
+        # 高级策略选择逻辑
+        complexity_indicators = intent.get("complexity_indicators", {})
+        complexity_level = len([v for v in complexity_indicators.values() if v])
         agent_count = len(context.available_agents)
+        primary_intent = intent.get("primary_intent", "general")
         
-        # 默认策略选择
-        if complexity_level > 3 and agent_count > 3:
+        # 多维度策略选择
+        strategy_factors = {
+            "complexity": complexity_level,
+            "agent_availability": agent_count,
+            "intent_type": primary_intent,
+            "resource_requirements": self._assess_resource_requirements(intent),
+            "collaboration_benefit": self._assess_collaboration_benefit(intent, context)
+        }
+        
+        # 基于因子组合选择策略
+        if strategy_factors["collaboration_benefit"] > 0.8 and agent_count > 3:
             strategy_name = "hierarchical"
-        elif agent_count > 2:
+        elif strategy_factors["complexity"] > 3 and strategy_factors["resource_requirements"] == "high":
             strategy_name = "functional"
+        elif primary_intent in ["analysis", "automation"] and agent_count > 2:
+            strategy_name = "pipeline"
+        elif complexity_level > 2:
+            strategy_name = "adaptive"
         else:
-            strategy_name = "prior"
+            strategy_name = "simple"
         
         # 从注册的策略中获取，如果没有注册则使用默认策略
         if strategy_name in self.orchestration_strategies:
@@ -724,6 +870,119 @@ class OrchestrationEngine:
     def get_performance_metrics(self) -> Dict[str, Any]:
         """获取性能指标"""
         return self.orchestration_metrics.copy()
+    
+    def _apply_context_boost(self, intent_scores: Dict[str, float], context: Dict[str, Any]) -> Dict[str, float]:
+        """基于上下文信息调整意图分数"""
+        boost = {}
+        
+        # 基于历史行为模式
+        if "recent_actions" in context:
+            recent_actions = context["recent_actions"]
+            if any("create" in action for action in recent_actions):
+                boost["creation"] = boost.get("creation", 0) + 0.3
+            if any("analyze" in action for action in recent_actions):
+                boost["analysis"] = boost.get("analysis", 0) + 0.2
+        
+        # 基于会话主题
+        if "session_topic" in context:
+            topic = context["session_topic"].lower()
+            if "development" in topic or "coding" in topic:
+                boost["creation"] = boost.get("creation", 0) + 0.4
+                boost["modification"] = boost.get("modification", 0) + 0.3
+        
+        return boost
+    
+    def _assess_resource_requirements(self, intent: Dict[str, Any]) -> str:
+        """评估资源需求"""
+        complexity_indicators = intent.get("complexity_indicators", {})
+        
+        high_resource_factors = [
+            complexity_indicators.get("word_count", 0) > 100,
+            complexity_indicators.get("sentence_count", 0) > 5,
+            complexity_indicators.get("has_technical_terms", False),
+            complexity_indicators.get("estimated_effort", 0) > 3
+        ]
+        
+        high_count = sum(high_resource_factors)
+        
+        if high_count >= 3:
+            return "high"
+        elif high_count >= 2:
+            return "medium"
+        else:
+            return "low"
+    
+    def _assess_collaboration_benefit(self, intent: Dict[str, Any], context: OrchestrationContext) -> float:
+        """评估协作收益"""
+        benefit_score = 0.0
+        
+        # 基于任务复杂度
+        complexity_level = len([v for v in intent.get("complexity_indicators", {}).values() if v])
+        benefit_score += min(1.0, complexity_level / 5.0) * 0.4
+        
+        # 基于可用智能体的多样性
+        agent_specializations = set(agent.specialization for agent in context.available_agents)
+        diversity_score = min(1.0, len(agent_specializations) / 4.0)
+        benefit_score += diversity_score * 0.3
+        
+        # 基于意图类型
+        primary_intent = intent.get("primary_intent", "")
+        if primary_intent in ["analysis", "automation"]:
+            benefit_score += 0.3
+        
+        return min(1.0, benefit_score)
+    
+    def _detect_technical_terms(self, message: str) -> bool:
+        """检测技术术语"""
+        technical_terms = [
+            "api", "database", "algorithm", "function", "class", "method", "variable",
+            "server", "client", "framework", "library", "module", "package",
+            "deployment", "configuration", "optimization", "debugging", "testing",
+            "authentication", "authorization", "encryption", "protocol", "interface",
+            "analyze", "report", "solution", "production", "monitoring", "rollback",
+            "procedures", "data", "comprehensive", "deploy"
+        ]
+        
+        return any(term in message.lower() for term in technical_terms)
+    
+    def _detect_multiple_tasks(self, message: str) -> bool:
+        """检测多任务指示器"""
+        multi_task_indicators = [
+            " and ", " then ", " after ", " before ", " also ", " additionally ",
+            " furthermore ", " moreover ", " first ", " second ", " next ", " finally ",
+            "1.", "2.", "step ", "phase "
+        ]
+        
+        return any(indicator in message.lower() for indicator in multi_task_indicators)
+    
+    def _estimate_effort_level(self, message: str) -> int:
+        """估算工作量级别 (1-5)"""
+        effort_indicators = {
+            "low": ["simple", "quick", "easy", "basic", "small"],
+            "medium": ["moderate", "standard", "normal", "typical"],
+            "high": ["complex", "detailed", "comprehensive", "extensive", "large"],
+            "very_high": ["enterprise", "production", "scalable", "distributed", "advanced"]
+        }
+        
+        message_lower = message.lower()
+        effort_scores = {}
+        
+        for level, indicators in effort_indicators.items():
+            score = sum(1 for indicator in indicators if indicator in message_lower)
+            effort_scores[level] = score
+        
+        # 基于长度的额外评估
+        word_count = len(message.split())
+        if word_count > 100:
+            effort_scores["high"] = effort_scores.get("high", 0) + 1
+        elif word_count > 200:
+            effort_scores["very_high"] = effort_scores.get("very_high", 0) + 1
+        
+        # 返回最高分对应的级别
+        max_level = max(effort_scores.items(), key=lambda x: x[1])[0] if effort_scores else "low"
+        
+        level_mapping = {"low": 1, "medium": 2, "high": 3, "very_high": 4}
+        return level_mapping.get(max_level, 2)
     
     async def get_orchestration_status(self) -> Dict[str, Any]:
         """获取编排状态"""

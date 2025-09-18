@@ -18,7 +18,15 @@ from .core.tools import ToolRegistry, IntelligentToolScheduler, ToolExecutor
 from .core.streaming import StreamingProcessor, PerformanceOptimizer, StreamingPipeline
 
 # 导出主框架接口
-from .main import LexiconAgent, create_agent, quick_chat
+from .main import (
+    LexiconAgent, 
+    create_agent, 
+    quick_chat,
+    create_development_agent,
+    create_production_agent,
+    create_minimal_agent,
+    create_custom_llm_agent
+)
 
 # 设置包版本
 __version__ = "2.0.0"
@@ -26,6 +34,8 @@ __version__ = "2.0.0"
 __all__ = [
     # 主框架接口
     "LexiconAgent", "create_agent", "quick_chat",
+    "create_development_agent", "create_production_agent", 
+    "create_minimal_agent", "create_custom_llm_agent",
     
     # 主要类型
     "AgentEvent", "AgentEventType", "ToolCall", "ToolResult", 

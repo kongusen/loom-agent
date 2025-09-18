@@ -98,16 +98,38 @@ class StreamingGenerator:
                             available_tools: List[str]) -> AsyncIterator[Dict[str, Any]]:
         """流式生成LLM响应"""
         
+        if not self.llm_provider:
+            yield {"error": "No LLM provider configured"}
+            return
+        
         # 构建消息
         messages = self._build_messages(user_message, context)
         
-        # 流式调用LLM
-        async for chunk in self.llm_provider.stream_chat(
-            messages=messages,
-            model="claude-3-sonnet-20240229",
-            tools=self._format_tools(available_tools)
-        ):
-            yield chunk
+        # 构建工具定义
+        tools = self._format_tools(available_tools) if available_tools else None
+        
+        try:
+            # 流式调用LLM
+            async for chunk in self.llm_provider.generate_stream(
+                messages=messages,
+                tools=tools
+            ):
+                # 转换为框架标准格式
+                yield {
+                    "content": chunk.content,
+                    "type": chunk.chunk_type,
+                    "metadata": chunk.metadata or {},
+                    "is_final": chunk.is_final,
+                    "timestamp": chunk.timestamp.isoformat()
+                }
+                
+        except Exception as e:
+            yield {
+                "error": str(e),
+                "type": "error",
+                "is_final": True,
+                "timestamp": datetime.now().isoformat()
+            }
     
     def _build_messages(self, user_message: str, context: ManagedContext) -> List[Dict[str, Any]]:
         """构建消息列表"""
@@ -404,7 +426,7 @@ class AgentController:
                 metadata={
                     "phase": 2,
                     "compression_ratio": managed_context.active_context.processing_metadata.get("compression_ratio", 1.0),
-                    "memory_tier": managed_context.memory_footprint.get("allocation", {}).get("tier", "unknown")
+                    "memory_tier": getattr(managed_context.memory_footprint.get("allocation", {}), "tier", "unknown")
                 }
             )
             
@@ -433,43 +455,24 @@ class AgentController:
         
         try:
             if not self.streaming_generator:
-                # 简化实现：直接返回文本响应
                 yield AgentEvent(
-                    type=AgentEventType.RESPONSE_DELTA,
-                    content=f"收到您的消息：{user_message}。正在处理中...",
-                    metadata={"phase": 3, "simulated": True}
+                    type=AgentEventType.ERROR,
+                    content="No LLM streaming generator available",
+                    metadata={"phase": 3, "error_type": "missing_component"}
                 )
-                
-                # 模拟工具调用检测
-                if "文件" in user_message or "file" in user_message.lower():
-                    tool_calls = [ToolCall(
-                        tool_name="file_system",
-                        input_data={"action": "list", "path": "."},
-                        safety_level=ToolSafetyLevel.SAFE
-                    )]
-                    
-                    yield AgentEvent(
-                        type=AgentEventType.TOOL_CALL_DETECTED,
-                        content=tool_calls,
-                        metadata={"phase": 3, "tool_count": len(tool_calls)}
-                    )
-                
                 return
             
-            # 获取管理的上下文
-            managed_context_data = session_context.session_state.context_memory.get("current_managed_context")
-            if not managed_context_data:
-                raise ValueError("No managed context found")
-            
-            # 重建管理上下文对象（简化实现）
+            # 创建简化的管理上下文
             from ...types import ManagedContext, ProcessedContext
-            active_context = ProcessedContext(
-                content=managed_context_data["content"],
-                processing_metadata=managed_context_data["metadata"]
+            
+            default_context = ProcessedContext(
+                content={"user_message": user_message, "timestamp": datetime.now().isoformat()},
+                processing_metadata={"source": "agent_controller", "created": datetime.now().isoformat()}
             )
+            
             managed_context = ManagedContext(
-                active_context=active_context,
-                management_metadata=managed_context_data["metadata"]
+                active_context=default_context,
+                management_metadata={"created": datetime.now().isoformat()}
             )
             
             # 流式生成
@@ -481,19 +484,48 @@ class AgentController:
                 available_tools=session_context.available_tools
             ):
                 
-                if stream_event.get("type") == "text_delta":
+                # 检查是否有错误
+                if stream_event.get("error"):
+                    yield AgentEvent(
+                        type=AgentEventType.ERROR,
+                        content=f"LLM Error: {stream_event['error']}",
+                        metadata={"phase": 3, "error_source": "llm_provider"}
+                    )
+                    continue
+                
+                # 处理不同类型的流式事件
+                event_type = stream_event.get("type", "")
+                content = stream_event.get("content", "")
+                
+                if event_type in ["text_delta", "delta", "text"]:
+                    # 文本增量
                     yield AgentEvent(
                         type=AgentEventType.RESPONSE_DELTA,
-                        content=stream_event["content"],
-                        metadata={"phase": 3}
+                        content=content,
+                        metadata={"phase": 3, "event_type": event_type}
                     )
-                elif stream_event.get("type") == "tool_call":
+                elif event_type == "response_complete" or event_type == "complete":
+                    # 完整响应
+                    yield AgentEvent(
+                        type=AgentEventType.RESPONSE_COMPLETE,
+                        content=content,
+                        metadata={"phase": 3, "event_type": event_type}
+                    )
+                elif event_type == "tool_call":
+                    # 工具调用
                     tool_call = ToolCall(
-                        tool_name=stream_event["tool_name"],
-                        input_data=stream_event["input_data"],
+                        tool_name=stream_event.get("tool_name", "unknown"),
+                        input_data=stream_event.get("input_data", {}),
                         safety_level=ToolSafetyLevel.CAUTIOUS
                     )
                     tool_calls_buffer.append(tool_call)
+                elif content and isinstance(content, str) and len(content.strip()) > 0:
+                    # 兜底：任何有内容的事件都当作响应处理
+                    yield AgentEvent(
+                        type=AgentEventType.RESPONSE_DELTA,
+                        content=content,
+                        metadata={"phase": 3, "event_type": event_type or "fallback"}
+                    )
             
             # 如果有工具调用，发出事件
             if tool_calls_buffer:
