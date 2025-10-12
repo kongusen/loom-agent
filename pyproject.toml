@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "lexicon-agent"
-version = "2.0.0"
+name = "loom-agent"
+version = "3.0.0"
 description = "下一代上下文工程驱动的智能助理框架"
 authors = ["Your Name <your.email@example.com>"]
 readme = "README.md"

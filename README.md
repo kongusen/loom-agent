@@ -1,10 +1,9 @@
-# Lexicon Agent Framework
+# Loom Agent Framework
 
-> 🤖 A powerful multi-agent orchestration framework for building intelligent systems
+> 下一代上下文工程驱动的智能助理框架（对标 LangChain），支持工具流水线、RAG、并发调度与流式事件。
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Async](https://img.shields.io/badge/Async-Native-orange.svg)]()
 
 ## 🚀 Key Features
 
@@ -20,25 +19,22 @@
 ## 🏗️ Architecture
 
 ```
-lexicon_agent/
-├── core/
-│   ├── agent/           # Agent management and control
-│   ├── context/         # Context processing and management
-│   ├── orchestration/   # Multi-agent orchestration
-│   ├── streaming/       # Streaming data processing
-│   └── tools/           # Tool registry and execution
-├── config/              # Configuration management
-├── infrastructure/      # Infrastructure components
-├── api/                 # API interfaces (CLI, REST, WebSocket)
-└── types.py            # Core type definitions
+loom/
+├── interfaces/   # 抽象接口 (LLM/Tool/Memory/...)
+├── core/         # 执行内核 (AgentExecutor/ToolPipeline/RAG/...)
+├── components/   # 高层构件 (Agent/Chain/Router/Workflow)
+├── llm/          # LLM 子系统 (config/factory/pool/registry)
+├── builtin/      # 内置 LLM/Tools/Memory/Retriever
+├── patterns/     # 常用模式 (RAG/Multi-Agent)
+└── docs/         # 文档
 ```
 
 ## 📦 Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/lexicon-agent.git
-cd lexicon-agent
+git clone https://github.com/your-org/loom-agent.git
+cd loom-agent
 
 # Install dependencies
 pip install -r requirements.txt
@@ -49,69 +45,31 @@ pip install -e .
 
 ## 🏃‍♂️ Quick Start
 
-### Basic Usage
-
 ```python
 import asyncio
-from lexicon_agent.types import Agent
-from lexicon_agent.core.tools.registry import ToolRegistry
-from lexicon_agent.core.orchestration.engine import OrchestrationEngine, UserInput, OrchestrationContext
+import loom
+from loom.builtin.llms import MockLLM
 
 async def main():
-    # Create an agent
-    agent = Agent(
-        agent_id="assistant_001",
-        name="General Assistant",
-        specialization="general",
-        capabilities=["file_operations", "data_analysis"],
-        status="available"
-    )
-    
-    # Initialize tools and orchestration
-    tool_registry = ToolRegistry()
-    engine = OrchestrationEngine()
-    
-    # Create user input
-    user_input = UserInput(
-        message="Analyze the sales data and create a summary report"
-    )
-    
-    # Create orchestration context
-    context = OrchestrationContext(
-        user_input=user_input,
-        available_agents=[agent]
-    )
-    
-    # Execute orchestration
-    result = await engine.orchestrate(user_input, [agent], context)
-    print(f"Result: {result.primary_result}")
+    agent = loom.agent(llm=MockLLM(responses=["Hello from Loom!"]))
+    print(await agent.ainvoke("Say hello"))
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### Tool Usage Example
+### Tool Usage Example (decorator)
 
 ```python
-from lexicon_agent.core.tools.registry import ToolRegistry
+import loom
+from typing import List
 
-# Get tool registry
-tool_registry = ToolRegistry()
+@loom.tool(description="Sum a list of numbers")
+def sum_list(nums: List[float]) -> float:
+    return sum(nums)
 
-# Use file system tool
-fs_tool = tool_registry.get_tool("file_system")
-result = await fs_tool.execute({
-    "action": "read",
-    "path": "data.txt"
-})
-
-# Use knowledge base tool  
-kb_tool = tool_registry.get_tool("knowledge_base")
-await kb_tool.execute({
-    "action": "create",
-    "kb_name": "project_docs",
-    "description": "Project documentation"
-})
+SumTool = sum_list
+agent = loom.agent(provider="openai", model="gpt-4o", tools=[SumTool()])
 ```
 
 ## 🔧 Core Components
@@ -169,9 +127,10 @@ export LLM_MODEL="gpt-3.5-turbo"
 
 ## 📚 Documentation
 
-- **[Framework Guide](FRAMEWORK_GUIDE.md)** - Comprehensive usage guide
-- **[API Reference](lexicon_agent/)** - Detailed API documentation
-- **[Examples](examples/)** - Usage examples and tutorials
+- Quickstart: `loom/docs/QUICKSTART.md`
+- Framework Overview: `loom/docs/README_LOOM.md`
+- Callbacks Spec: `loom/docs/CALLBACKS_SPEC.md`
+- Examples: `examples/`
 
 ## 🔒 Security
 
