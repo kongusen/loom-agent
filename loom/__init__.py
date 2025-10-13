@@ -12,6 +12,15 @@ from .llm import (
 )
 from .agent import agent, agent_from_env
 from .tooling import tool
+from .agents import AgentSpec, register_agent, list_agent_types, get_agent_by_type
+from .agents.refs import AgentRef, ModelRef, agent_ref, model_ref
+
+try:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("loom-agent")
+except Exception:  # pragma: no cover - best-effort
+    __version__ = "0"
 
 __all__ = [
     "Agent",
@@ -27,4 +36,13 @@ __all__ = [
     "agent",
     "tool",
     "agent_from_env",
+    "AgentSpec",
+    "register_agent",
+    "list_agent_types",
+    "get_agent_by_type",
+    "AgentRef",
+    "ModelRef",
+    "agent_ref",
+    "model_ref",
+    "__version__",
 ]

@@ -4,6 +4,8 @@
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
+[![CI](https://github.com/kongusen/loom-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/kongusen/loom-agent/actions/workflows/ci.yml)
 
 ## 🚀 Key Features
 
@@ -32,16 +34,37 @@ loom/
 ## 📦 Installation
 
 ```bash
-# Clone the repository
+# Option A: install from source (local dev)
 git clone https://github.com/your-org/loom-agent.git
 cd loom-agent
 
-# Install dependencies
-pip install -r requirements.txt
+# Using Poetry (recommended for development)
+poetry install
 
-# Or install in development mode
+# Or using pip (PEP 517 build; editable)
 pip install -e .
+
+# Option B: once published to PyPI (minimal core)
+pip install loom-agent
+
+# Install with extras to enable specific features
+pip install "loom-agent[openai]"          # OpenAI provider
+pip install "loom-agent[anthropic]"       # Anthropic provider
+pip install "loom-agent[retrieval]"       # ChromaDB / Pinecone support
+pip install "loom-agent[web]"             # FastAPI / Uvicorn / WebSockets
+pip install "loom-agent[all]"             # Everything
 ```
+
+### Extras
+
+- `openai`: OpenAI Chat Completions API 客户端
+- `anthropic`: Anthropic Claude 客户端
+- `retrieval`: 向量检索能力（ChromaDB、Pinecone、依赖 numpy）
+- `web`: FastAPI / Uvicorn / WebSockets 相关能力
+- `mcp`: Model Context Protocol 客户端
+- `system`: 系统接口（psutil、docker）
+- `observability`: 结构化日志与缓存（structlog、cachetools）
+- `all`: 打包安装以上全部
 
 ## 🏃‍♂️ Quick Start
 
@@ -58,6 +81,22 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+OpenAI（通过环境变量快速使用）
+
+```bash
+pip install "loom-agent[openai]"
+export LOOM_PROVIDER=openai
+export OPENAI_API_KEY=sk-...
+export LOOM_MODEL=gpt-4o-mini
+python - <<'PY'
+import asyncio, loom
+async def main():
+    a = loom.agent_from_env()
+    print(await a.ainvoke("Say hello in 5 words"))
+asyncio.run(main())
+PY
+```
+
 ### Tool Usage Example (decorator)
 
 ```python
@@ -70,6 +109,28 @@ def sum_list(nums: List[float]) -> float:
 
 SumTool = sum_list
 agent = loom.agent(provider="openai", model="gpt-4o", tools=[SumTool()])
+```
+
+## 📚 Documentation
+
+- Framework User Guide: docs/LOOM_USER_GUIDE.md
+- Systemized Framework Guide: docs/LOOM_FRAMEWORK_GUIDE.md
+- Agent Packs (programmatic): docs/AGENT_PACKS_API.md
+- Permissions & Safe Mode: docs/AGENT_PERMISSIONS.md
+
+### Visual Overview (Mermaid)
+
+```mermaid
+graph TD
+    A[Your App] --> B[Agent]
+    B --> C[AgentExecutor]
+    C --> D[LLM]
+    C --> E[Tool Pipeline]
+    E --> F[Tools]
+    C --> G[(PermissionManager)]
+    G --> H[(PermissionStore)]
+    C --> I[(ContextRetriever)]
+    B --> J[Callbacks] --> K[Logs/Metrics]
 ```
 
 ## 🔧 Core Components
@@ -171,3 +232,35 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Built with ❤️ for the AI community**
+
+## 🚢 Build & Publish
+
+```bash
+# Build wheel and sdist
+poetry build
+
+# Publish to PyPI (requires account and API token)
+poetry publish --username __token__ --password $PYPI_TOKEN
+
+# Or publish to TestPyPI first
+poetry config repositories.testpypi https://test.pypi.org/legacy/
+poetry publish -r testpypi --username __token__ --password $TEST_PYPI_TOKEN
+```
+
+Tip: remove `asyncio` from dependencies if targeting Python 3.11+, as it is built-in.
+
+### GitHub Actions workflows
+
+- CI runs on PR/push: `.github/workflows/ci.yml`
+- Tag-based release to PyPI: push tag `vX.Y.Z` triggers `.github/workflows/release.yml`
+- Tag-based prerelease to TestPyPI: push tag `vX.Y.Z-rcN` triggers `.github/workflows/testpypi.yml`
+
+Required repository secrets:
+- `PYPI_API_TOKEN` for PyPI
+- `TEST_PYPI_API_TOKEN` for TestPyPI
+
+Tag examples:
+```bash
+git tag v3.0.1-rc1 && git push origin v3.0.1-rc1   # TestPyPI
+git tag v3.0.1 && git push origin v3.0.1            # PyPI
+```

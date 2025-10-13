@@ -26,6 +26,8 @@ class Agent:
         max_context_tokens: int = 16000,
         permission_policy: Optional[Dict[str, str]] = None,
         ask_handler=None,
+        safe_mode: bool = False,
+        permission_store=None,
         # Advanced options
         context_retriever=None,
         system_instructions: Optional[str] = None,
@@ -44,20 +46,23 @@ class Agent:
             max_iterations=max_iterations,
             max_context_tokens=max_context_tokens,
             metrics=metrics,
-            # 权限策略（最小实现）：允许通过 policy/ask_handler 定制
-            permission_manager=None if permission_policy is None else None,
+            permission_manager=None,
             system_instructions=system_instructions,
             callbacks=callbacks,
         )
-        # 如果提供了权限策略，则替换为自定义 PermissionManager（延迟导入避免循环）
-        if permission_policy is not None:
-            from loom.core.permissions import PermissionManager
 
-            self.executor.permission_manager = PermissionManager(
-                policy=permission_policy, ask_handler=ask_handler
-            )
-            # 同步更新到流水线
-            self.executor.tool_pipeline.permission_manager = self.executor.permission_manager
+        # 始终构造 PermissionManager（以便支持 safe_mode/持久化）；保持默认语义
+        from loom.core.permissions import PermissionManager
+
+        pm = PermissionManager(
+            policy=permission_policy or {},
+            default="allow",  # 保持默认放行语义
+            ask_handler=ask_handler,
+            safe_mode=safe_mode,
+            permission_store=permission_store,
+        )
+        self.executor.permission_manager = pm
+        self.executor.tool_pipeline.permission_manager = pm
 
     async def run(self, input: str) -> str:
         return await self.executor.execute(input)
