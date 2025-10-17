@@ -1,404 +1,242 @@
-# Loom Agent Framework
+# Loom Agent
 
-> Production-ready Python Agent framework with enterprise-grade reliability and observability
+<div align="center">
 
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+**Production-ready Python Agent framework with enterprise-grade reliability and observability**
+
 [![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
-[![CI](https://github.com/kongusen/loom-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/kongusen/loom-agent/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-18%2F18%20passing-brightgreen.svg)](test_v4_features.py)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-18%2F18%20passing-brightgreen.svg)](tests/)
 
-## ✨ What's New in v4.0.0
+[Documentation](docs/user/user-guide.md) | [API Reference](docs/user/api-reference.md) | [Contributing](CONTRIBUTING.md)
 
-**Loom Agent v4.0.0** is a complete rewrite delivering enterprise-grade features:
+</div>
 
-- **⚡ Real-Time Steering**: Cancel long-running operations in <2s with graceful shutdown
-- **🗜️ Smart Compression**: 70-80% token reduction with LLM-based 8-segment summarization
-- **🔒 Sub-Agent Isolation**: Independent fault boundaries with tool whitelisting
-- **🛡️ Production Resilience**: Auto-retry with exponential backoff + circuit breakers
-- **💾 Persistent Memory**: Three-tier memory system with automatic backups
-- **📊 Full Observability**: JSON structured logging with correlation IDs + real-time metrics
-- **🎯 Model Failover**: Health-aware automatic fallback across multiple LLMs
-- **🚀 10x Performance**: Parallel tool execution with file conflict detection
+---
 
-**Key Metrics**: 99.9%+ availability, 5x longer conversations, 70%+ error auto-recovery
+## 🎯 What is Loom Agent?
 
-## 🚀 Key Features
+Loom Agent is a Python framework for building reliable AI agents with production-grade features like automatic retries, context compression, persistent memory, and comprehensive observability.
 
-### Core Capabilities
-- **🤖 Multi-Agent Orchestration**: Concurrent sub-agents with independent fault boundaries
-- **🧠 Intelligent Context Management**: Automatic compression at 92% threshold, 5x conversation length
-- **🔧 Rich Tool Ecosystem**: Parallel-safe execution with automatic file conflict detection
-- **🌊 Real-Time Control**: Graceful cancellation with correlation ID tracking
-- **🔒 Production Ready**: Circuit breakers, retry policies, error classification
-- **⚡ High Performance**: 10x speedup for read-heavy workloads, concurrent execution
-- **🔌 Extensible**: Modular design with pluggable components
-- **🌐 Multi-LLM Support**: OpenAI, Anthropic, with automatic health-based fallback
+**Key Features:**
 
-### Enterprise Features (v4.0.0)
-- **📊 Structured Logging**: JSON logs ready for Datadog, CloudWatch, Elasticsearch
-- **🎯 System Reminders**: Dynamic runtime hints for memory, errors, compression
-- **💾 Cross-Session Persistence**: Automatic session save/restore with backup rotation
-- **🛡️ Error Resilience**: 8-category error classification with actionable recovery
-- **📈 Real-Time Metrics**: Aggregated performance metrics and health monitoring
-- **🔄 Automatic Failover**: Priority-based model selection with health tracking
-
-## 🏗️ Architecture
-
-```
-loom/
-├── interfaces/   # 抽象接口 (LLM/Tool/Memory/...)
-├── core/         # 执行内核 (AgentExecutor/ToolPipeline/RAG/...)
-├── components/   # 高层构件 (Agent/Chain/Router/Workflow)
-├── llm/          # LLM 子系统 (config/factory/pool/registry)
-├── builtin/      # 内置 LLM/Tools/Memory/Retriever
-├── patterns/     # 常用模式 (RAG/Multi-Agent)
-└── docs/         # 文档
-```
+- 🚀 **Simple API** - Get started with just 3 lines of code
+- 🔧 **Tool System** - Easy decorator-based tool creation
+- 💾 **Persistent Memory** - Cross-session conversation history
+- 📊 **Observability** - Structured logging with correlation IDs
+- 🛡️ **Production Ready** - Circuit breakers, retries, and failover
+- ⚡ **High Performance** - Parallel tool execution and smart context compression
+- 🌐 **Multi-LLM** - OpenAI, Anthropic, and more
 
 ## 📦 Installation
 
 ```bash
-# Option A: install from source (local dev)
-git clone https://github.com/your-org/loom-agent.git
-cd loom-agent
-
-# Using Poetry (recommended for development)
-poetry install
-
-# Or using pip (PEP 517 build; editable)
-pip install -e .
-
-# Option B: once published to PyPI (minimal core)
+# Basic installation
 pip install loom-agent
 
-# Install with extras to enable specific features
-pip install "loom-agent[openai]"          # OpenAI provider
-pip install "loom-agent[anthropic]"       # Anthropic provider
-pip install "loom-agent[retrieval]"       # ChromaDB / Pinecone support
-pip install "loom-agent[web]"             # FastAPI / Uvicorn / WebSockets
-pip install "loom-agent[all]"             # Everything
+# With OpenAI support
+pip install loom-agent[openai]
+
+# With all features
+pip install loom-agent[all]
 ```
 
-### Extras
+**Requirements:** Python 3.11+
 
-- `openai`: OpenAI Chat Completions API 客户端
-- `anthropic`: Anthropic Claude 客户端
-- `retrieval`: 向量检索能力（ChromaDB、Pinecone、依赖 numpy）
-- `web`: FastAPI / Uvicorn / WebSockets 相关能力
-- `mcp`: Model Context Protocol 客户端
-- `system`: 系统接口（psutil、docker）
-- `observability`: 结构化日志与缓存（structlog、cachetools）
-- `all`: 打包安装以上全部
+## 🚀 Quick Start
 
-## 🏃‍♂️ Quick Start
+### Basic Agent
 
-### Basic Agent (Zero Config)
 ```python
 import asyncio
-from loom import Agent
+from loom import agent
 from loom.builtin.llms import MockLLM
 
 async def main():
-    # Zero-config defaults: compression + steering enabled
-    agent = Agent(llm=MockLLM(responses=["Hello from Loom v4.0.0!"]))
-    result = await agent.run("Say hello")
+    # Create an agent
+    my_agent = agent(llm=MockLLM())
+
+    # Run it
+    result = await my_agent.run("Hello, world!")
     print(result)
 
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Production-Ready Agent (with Persistence + Observability)
-```python
-from loom import (
-    Agent,
-    PersistentMemory,
-    ObservabilityCallback,
-    MetricsAggregator,
-)
-from loom.builtin.llms import MockLLM
-
-# 1. Persistent memory for cross-session conversations
-memory = PersistentMemory()
-
-# 2. Observability for production monitoring
-obs_callback = ObservabilityCallback()
-metrics = MetricsAggregator()
-
-# 3. Create production agent
-agent = Agent(
-    llm=MockLLM(),
-    memory=memory,  # Conversations persist across restarts
-    callbacks=[obs_callback, metrics],  # Full observability
-)
-
-# 4. Run with cancellation support
-import asyncio
-cancel_token = asyncio.Event()
-result = await agent.run("Analyze this data", cancel_token=cancel_token)
-
-# 5. Check metrics
-summary = metrics.get_summary()
-print(f"LLM calls: {summary['llm_calls']}")
-print(f"Error rate: {summary.get('errors_per_minute', 0):.2f}/min")
-```
-
-### Enterprise Agent (Full Stack: Failover + Retry + Circuit Breaker)
-```python
-from loom import (
-    Agent,
-    PersistentMemory,
-    ModelPoolLLM,
-    ModelConfig,
-    ObservabilityCallback,
-    MetricsAggregator,
-    RetryPolicy,
-    CircuitBreaker,
-)
-
-# 1. Model pool with automatic failover
-pool_llm = ModelPoolLLM([
-    ModelConfig("gpt-4", gpt4_llm, priority=100),      # Primary
-    ModelConfig("gpt-3.5", gpt35_llm, priority=50),    # Fallback
-])
-
-# 2. Full production stack
-memory = PersistentMemory()
-obs = ObservabilityCallback()
-metrics = MetricsAggregator()
-
-# 3. Resilience components
-retry_policy = RetryPolicy(max_retries=3)
-circuit_breaker = CircuitBreaker()
-
-# 4. Create agent
-agent = Agent(
-    llm=pool_llm,
-    memory=memory,
-    callbacks=[obs, metrics],
-)
-
-# 5. Execute with resilience
-async def robust_run(prompt):
-    return await retry_policy.execute_with_retry(
-        circuit_breaker.call,
-        agent.run,
-        prompt
-    )
-
-result = await robust_run("Your prompt")
-
-# 6. Monitor health
-health = pool_llm.get_health_summary()
-print(f"GPT-4 status: {health['gpt-4']['status']}")
-```
-
-### OpenAI Quick Start (Environment Variables)
-```bash
-pip install "loom-agent[openai]"
-export LOOM_PROVIDER=openai
-export OPENAI_API_KEY=sk-...
-export LOOM_MODEL=gpt-4o-mini
-python - <<'PY'
-import asyncio, loom
-async def main():
-    a = loom.agent_from_env()
-    print(await a.ainvoke("Say hello in 5 words"))
 asyncio.run(main())
-PY
 ```
 
-### Tool Usage Example (decorator)
+### With OpenAI
+
 ```python
-import loom
-from typing import List
+from loom import agent
 
-@loom.tool(description="Sum a list of numbers")
-def sum_list(nums: List[float]) -> float:
-    return sum(nums)
+# Create agent with OpenAI
+my_agent = agent(
+    provider="openai",
+    model="gpt-4",
+    api_key="sk-..."  # or set OPENAI_API_KEY env var
+)
 
-SumTool = sum_list
-agent = loom.agent(provider="openai", model="gpt-4o", tools=[SumTool()])
+result = await my_agent.run("What is the capital of France?")
+print(result)
+```
+
+### Custom Tools
+
+```python
+from loom import agent, tool
+
+@tool()
+def add(a: int, b: int) -> int:
+    """Add two numbers together"""
+    return a + b
+
+my_agent = agent(
+    provider="openai",
+    model="gpt-4",
+    tools=[add()]
+)
+
+result = await my_agent.run("What is 15 plus 27?")
+print(result)
 ```
 
 ## 📚 Documentation
 
-### For Users
-
-- **[Getting Started](docs/user/getting-started.md)** - 5-minute quick start guide
+- **[Getting Started](docs/user/getting-started.md)** - Your first Loom agent in 5 minutes
 - **[User Guide](docs/user/user-guide.md)** - Complete usage documentation
 - **[API Reference](docs/user/api-reference.md)** - Detailed API documentation
-- **[Examples](docs/user/examples/)** - Code examples and patterns
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute
 
-### For Contributors
+## 🛠️ Core Components
 
-- **[Contributing Guide](docs/development/contributing.md)** - How to contribute
-- **[Development Setup](docs/development/development-setup.md)** - Setup dev environment
-- **[Publishing Guide](docs/development/publishing.md)** - Release process
-
-### Release Notes
-
-- **[v0.0.1](releases/v0.0.1.md)** - First public release (Alpha)
-- **[CHANGELOG](CHANGELOG.md)** - Version history
-
-### Visual Overview (Mermaid)
-
-```mermaid
-graph TD
-    A[Your App] --> B[Agent]
-    B --> C[AgentExecutor]
-    C --> D[LLM]
-    C --> E[Tool Pipeline]
-    E --> F[Tools]
-    C --> G[(PermissionManager)]
-    G --> H[(PermissionStore)]
-    C --> I[(ContextRetriever)]
-    B --> J[Callbacks] --> K[Logs/Metrics]
-```
-
-## 🔧 Core Components
-
-### Agents
-- **Agent Controller**: Manages agent lifecycle and coordination
-- **Agent Registry**: Agent discovery and capability matching
-- **Specialization**: Domain-specific agent behaviors
-
-### Context Management  
-- **Context Retrieval**: Intelligent context gathering
-- **Context Processing**: Context optimization and compression
-- **Memory Management**: Persistent and session memory
-
-### Tool System
-- **Tool Registry**: Centralized tool management
-- **Tool Executor**: Safe tool execution with monitoring
-- **Tool Scheduler**: Intelligent tool scheduling and orchestration
-
-### Orchestration
-- **Orchestration Engine**: Multi-agent workflow coordination
-- **Strategy System**: Pluggable orchestration strategies
-- **Event Coordination**: Inter-agent communication
-
-### Streaming
-- **Stream Processor**: Real-time data processing
-- **Stream Pipeline**: Multi-stage processing pipelines
-- **Stream Optimizer**: Performance optimization
-
-## 🛠️ Built-in Tools
-
-| Tool | Description | Safety Level |
-|------|-------------|--------------|
-| **File System** | File operations (read, write, list) | Cautious |
-| **Knowledge Base** | Document storage and search | Safe |
-| **Code Interpreter** | Code execution (Python, JS, Bash) | Exclusive |
-| **Web Search** | Web information retrieval | Safe |
-
-## 🌐 LLM Integration
-
-The framework supports multiple LLM providers:
-
+### Agent Builder
 ```python
-# Environment configuration
-export LLM_API_KEY="your-api-key"
-export LLM_BASE_URL="https://api.openai.com/v1"  
-export LLM_MODEL="gpt-3.5-turbo"
+from loom import agent
 
-# Supported providers:
-# - OpenAI (GPT-3.5, GPT-4)
-# - Anthropic (Claude-3)
-# - Azure OpenAI
-# - Local models (Ollama, etc.)
+my_agent = agent(
+    provider="openai",      # LLM provider
+    model="gpt-4",          # Model name
+    tools=[...],            # Custom tools
+    memory=...,             # Memory system
+    callbacks=[...]         # Observability
+)
 ```
 
+### Tool Decorator
+```python
+from loom import tool
 
-## 🔒 Security
+@tool(description="Fetch weather data")
+def get_weather(city: str) -> dict:
+    return {"temp": 72, "condition": "sunny"}
+```
 
-The framework implements multiple security layers:
+### Memory System
+```python
+from loom import PersistentMemory
 
-- **Path Traversal Protection**: Prevents unauthorized file access
-- **Code Execution Sandboxing**: Safe code execution environment
-- **Permission-based Access**: Granular permission controls
-- **Input Validation**: Comprehensive input sanitization
+memory = PersistentMemory()  # Conversations persist across restarts
+agent = agent(llm=..., memory=memory)
+```
 
-## 📊 Performance & Benchmarks
+### Observability
+```python
+from loom import ObservabilityCallback, MetricsAggregator
 
-### v4.0.0 Performance Metrics
+obs = ObservabilityCallback()
+metrics = MetricsAggregator()
 
-| Feature | Metric | Improvement |
-|---------|--------|-------------|
-| **Parallel Tool Execution** | 10x faster | Read-heavy workloads |
-| **Context Compression** | 70-80% reduction | 5x longer conversations |
-| **Cancellation Response** | <2 seconds | Real-time steering |
-| **Error Auto-Recovery** | 70%+ success | Transient failures |
-| **LLM Call Latency** | 20-30% reduction | Connection pooling |
-| **System Availability** | 99.9%+ uptime | Automatic failover |
-| **Compression Overhead** | <100ms | LLM-based compression |
-| **Steering Overhead** | <1% | When enabled |
+agent = agent(llm=..., callbacks=[obs, metrics])
+```
 
-### Production Readiness
-- **Concurrent Agent Support**: 100+ agents simultaneously with isolation
-- **Tool Execution**: Sub-second response with conflict detection
-- **Memory Efficiency**: Three-tier system with auto-compression
-- **Streaming Throughput**: 1000+ events/second
-- **Fault Tolerance**: Circuit breakers + retry policies
-- **Observability**: Full JSON logging + correlation IDs
+## 🎯 Supported Platforms
+
+- **Python:** 3.11, 3.12
+- **Operating Systems:** Linux, macOS, Windows
+- **LLM Providers:** OpenAI, Anthropic, Ollama
+
+## ⚠️ Alpha Release Notice
+
+**This is v0.0.1 - our first Alpha release!**
+
+While Loom Agent includes production-grade features, this is an early release. You may experience:
+
+- API changes in future versions
+- Incomplete edge case handling
+- Evolving documentation
+
+We welcome your feedback and contributions to help improve the framework!
+
+**What works well:**
+- ✅ Core agent execution
+- ✅ Tool system and decorators
+- ✅ Basic memory and context management
+- ✅ OpenAI integration
+- ✅ Structured logging
+
+**Coming soon:**
+- More LLM provider integrations
+- Enhanced tool library
+- Performance optimizations
+- Additional examples and tutorials
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [Contributing Guide](docs/development/contributing.md) for details.
-
-**Quick Start**:
+We welcome contributions! Here's how to get started:
 
 1. Fork the repository
-2. Set up dev environment: See [Development Setup](docs/development/development-setup.md)
-3. Create a feature branch
-4. Make your changes and add tests
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes and add tests
+4. Run tests: `poetry run pytest`
 5. Submit a pull request
 
-For more details, check out our [full contributing guide](docs/development/contributing.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+## 📊 Project Status
+
+- **Version:** 0.0.1 (Alpha)
+- **Status:** Active Development
+- **Tests:** 18/18 passing ✅
+- **Python:** 3.11+ supported
+
+## 🗺️ Roadmap
+
+### v0.1.0 (Planned)
+- API stabilization
+- More examples and tutorials
+- Performance optimizations
+- Extended documentation
+
+### v0.2.0 (Planned)
+- Additional LLM providers
+- Plugin system
+- Web UI for debugging
+
+### v1.0.0 (Goal)
+- Stable API
+- Production-grade quality
+- Comprehensive documentation
+- Community ecosystem
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 🔗 Links
+
+- **PyPI:** https://pypi.org/project/loom-agent/
+- **GitHub:** https://github.com/kongusen/loom-agent
+- **Issues:** https://github.com/kongusen/loom-agent/issues
+- **Releases:** [v0.0.1](releases/v0.0.1.md)
+
 ## 🙏 Acknowledgments
 
-- Inspired by modern multi-agent systems research
-- Built with Python's async/await ecosystem
-- Designed for production scalability
+Special thanks to the Claude Code project for inspiration and to all early testers and contributors!
 
 ---
 
 **Built with ❤️ for the AI community**
 
-## 🚢 Build & Publish
-
-```bash
-# Build wheel and sdist
-poetry build
-
-# Publish to PyPI (requires account and API token)
-poetry publish --username __token__ --password $PYPI_TOKEN
-
-# Or publish to TestPyPI first
-poetry config repositories.testpypi https://test.pypi.org/legacy/
-poetry publish -r testpypi --username __token__ --password $TEST_PYPI_TOKEN
-```
-
-Tip: remove `asyncio` from dependencies if targeting Python 3.11+, as it is built-in.
-
-### GitHub Actions workflows
-
-- CI runs on PR/push: `.github/workflows/ci.yml`
-- Tag-based release to PyPI: push tag `vX.Y.Z` triggers `.github/workflows/release.yml`
-- Tag-based prerelease to TestPyPI: push tag `vX.Y.Z-rcN` triggers `.github/workflows/testpypi.yml`
-
-Required repository secrets:
-- `PYPI_API_TOKEN` for PyPI
-- `TEST_PYPI_API_TOKEN` for TestPyPI
-
-Tag examples:
-```bash
-git tag v3.0.1-rc1 && git push origin v3.0.1-rc1   # TestPyPI
-git tag v3.0.1 && git push origin v3.0.1            # PyPI
-```
+<div align="center">
+  <sub>If you find Loom Agent useful, please consider giving it a ⭐ on GitHub!</sub>
+</div>
