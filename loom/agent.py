@@ -21,7 +21,7 @@ from .llm.config import LLMConfig, LLMProvider
 from .llm.factory import LLMFactory
 from .callbacks.base import BaseCallback
 from .callbacks.metrics import MetricsCollector
-from .core.event_bus import EventBus
+from .core.steering_control import SteeringControl
 
 
 def agent(
@@ -50,7 +50,7 @@ def agent(
     context_retriever=None,
     system_instructions: Optional[str] = None,
     callbacks: Optional[list[BaseCallback]] = None,
-    event_bus: Optional[EventBus] = None,
+    steering_control: Optional[SteeringControl] = None,
     metrics: Optional[MetricsCollector] = None,
 ) -> _Agent:
     """Create an Agent with minimal parameters.
@@ -91,7 +91,7 @@ def agent(
         context_retriever=context_retriever,
         system_instructions=system_instructions,
         callbacks=callbacks,
-        event_bus=event_bus,
+        steering_control=steering_control,
         metrics=metrics,
     )
 
@@ -114,7 +114,7 @@ def agent_from_env(
     context_retriever=None,
     system_instructions: Optional[str] = None,
     callbacks: Optional[list[BaseCallback]] = None,
-    event_bus: Optional[EventBus] = None,
+    steering_control: Optional[SteeringControl] = None,
     metrics: Optional[MetricsCollector] = None,
 ) -> _Agent:
     """Construct an Agent using provider/model resolved from environment.
@@ -146,7 +146,7 @@ def agent_from_env(
         context_retriever=context_retriever,
         system_instructions=system_instructions,
         callbacks=callbacks,
-        event_bus=event_bus,
+        steering_control=steering_control,
         metrics=metrics,
     )
 

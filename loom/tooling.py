@@ -21,7 +21,7 @@ def tool(
     Example:
         @tool()
         def add(a: int, b: int) -> int:
-            """Add two integers"""
+            # Add two integers
             return a + b
 
         AddTool = add  # class deriving BaseTool

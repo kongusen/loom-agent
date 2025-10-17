@@ -1,7 +1,5 @@
 from .components.agent import Agent
-from .components.chain import Chain
-from .components.router import Router
-from .components.workflow import Workflow
+from .core.subagent_pool import SubAgentPool
 from .llm import (
     LLMConfig,
     LLMProvider,
@@ -15,6 +13,18 @@ from .tooling import tool
 from .agents import AgentSpec, register_agent, list_agent_types, get_agent_by_type
 from .agents.refs import AgentRef, ModelRef, agent_ref, model_ref
 
+# P2 Features - Production Ready
+from .builtin.memory import InMemoryMemory, PersistentMemory
+from .core.error_classifier import ErrorClassifier, RetryPolicy
+from .core.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitState
+
+# P3 Features - Optimization
+from .core.structured_logger import StructuredLogger, get_logger, set_correlation_id
+from .core.system_reminders import SystemReminderManager, get_reminder_manager
+from .callbacks.observability import ObservabilityCallback, MetricsAggregator
+from .llm.model_health import ModelHealthChecker, HealthStatus
+from .llm.model_pool_advanced import ModelPoolLLM, ModelConfig, FallbackChain
+
 try:
     from importlib.metadata import version as _pkg_version
 
@@ -24,9 +34,7 @@ except Exception:  # pragma: no cover - best-effort
 
 __all__ = [
     "Agent",
-    "Chain",
-    "Router",
-    "Workflow",
+    "SubAgentPool",
     "LLMConfig",
     "LLMProvider",
     "LLMCapabilities",
@@ -44,5 +52,26 @@ __all__ = [
     "ModelRef",
     "agent_ref",
     "model_ref",
+    # P2 exports
+    "InMemoryMemory",
+    "PersistentMemory",
+    "ErrorClassifier",
+    "RetryPolicy",
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitState",
+    # P3 exports
+    "StructuredLogger",
+    "get_logger",
+    "set_correlation_id",
+    "SystemReminderManager",
+    "get_reminder_manager",
+    "ObservabilityCallback",
+    "MetricsAggregator",
+    "ModelHealthChecker",
+    "HealthStatus",
+    "ModelPoolLLM",
+    "ModelConfig",
+    "FallbackChain",
     "__version__",
 ]

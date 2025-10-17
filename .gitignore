@@ -169,6 +169,7 @@ htmlcov/
 
 # Development process files (not for public git)
 specs/
+scripts/
 .claude/
 .codex/
 .specify/

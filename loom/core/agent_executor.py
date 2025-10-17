@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from typing import AsyncGenerator, Dict, List, Optional
+from uuid import uuid4
 
-from loom.core.event_bus import EventBus
+from loom.core.steering_control import SteeringControl
 from loom.core.tool_pipeline import ToolExecutionPipeline
 from loom.core.types import Message, StreamEvent, ToolCall
 from loom.core.system_prompt import build_system_prompt
@@ -15,6 +17,7 @@ from loom.callbacks.metrics import MetricsCollector
 import time
 from loom.utils.token_counter import count_messages_tokens
 from loom.callbacks.base import BaseCallback
+from loom.core.errors import ExecutionAbortedError
 
 # RAG support
 try:
@@ -33,26 +36,28 @@ class AgentExecutor:
         memory: BaseMemory | None = None,
         compressor: BaseCompressor | None = None,
         context_retriever: Optional["ContextRetriever"] = None,  # 🆕 RAG support
-        event_bus: EventBus | None = None,
+        steering_control: SteeringControl | None = None,
         max_iterations: int = 50,
         max_context_tokens: int = 16000,
         permission_manager: PermissionManager | None = None,
         metrics: MetricsCollector | None = None,
         system_instructions: Optional[str] = None,
         callbacks: Optional[List[BaseCallback]] = None,
+        enable_steering: bool = False,  # 🆕 US1: Real-time steering
     ) -> None:
         self.llm = llm
         self.tools = tools or {}
         self.memory = memory
         self.compressor = compressor
         self.context_retriever = context_retriever  # 🆕 RAG support
-        self.event_bus = event_bus or EventBus()
+        self.steering_control = steering_control or SteeringControl()
         self.max_iterations = max_iterations
         self.max_context_tokens = max_context_tokens
         self.metrics = metrics or MetricsCollector()
         self.permission_manager = permission_manager or PermissionManager(policy={"default": "allow"})
         self.system_instructions = system_instructions
         self.callbacks = callbacks or []
+        self.enable_steering = enable_steering  # 🆕 US1
         self.tool_pipeline = ToolExecutionPipeline(
             self.tools, permission_manager=self.permission_manager, metrics=self.metrics
         )
@@ -70,9 +75,42 @@ class AgentExecutor:
                 # best-effort; don't fail agent execution on callback errors
                 pass
 
-    async def execute(self, user_input: str) -> str:
-        """非流式执行，包含工具调用的 ReAct 循环（最小实现）。"""
-        await self._emit("request_start", {"input": user_input, "source": "execute", "iteration": 0})
+    async def execute(
+        self,
+        user_input: str,
+        cancel_token: Optional[asyncio.Event] = None,  # 🆕 US1: Cancellation support
+        correlation_id: Optional[str] = None,  # 🆕 US1: Request tracing
+    ) -> str:
+        """非流式执行，包含工具调用的 ReAct 循环（最小实现）。
+
+        Args:
+            user_input: User query/instruction
+            cancel_token: Optional Event to signal cancellation (US1)
+            correlation_id: Optional correlation ID for request tracing (US1)
+
+        Returns:
+            Final agent response (or partial results if cancelled)
+        """
+        # Generate correlation_id if not provided
+        if correlation_id is None:
+            correlation_id = str(uuid4())
+
+        await self._emit("request_start", {
+            "input": user_input,
+            "source": "execute",
+            "iteration": 0,
+            "correlation_id": correlation_id,  # 🆕 US1
+        })
+
+        # Check cancellation before starting
+        if cancel_token and cancel_token.is_set():
+            await self._emit("agent_finish", {
+                "content": "Request cancelled before execution",
+                "source": "execute",
+                "correlation_id": correlation_id,
+            })
+            return "Request cancelled before execution"
+
         history = await self._load_history()
 
         # 🆕 Step 1: RAG - 自动检索相关文档（如果配置了 context_retriever）
@@ -105,7 +143,37 @@ class AgentExecutor:
 
         if not self.llm.supports_tools or not self.tools:
             try:
-                text = await self.llm.generate([m.__dict__ for m in history])
+                # Create LLM task that can be cancelled
+                llm_task = asyncio.create_task(self.llm.generate([m.__dict__ for m in history]))
+
+                # Poll for cancellation while waiting for LLM
+                while not llm_task.done():
+                    if cancel_token and cancel_token.is_set():
+                        llm_task.cancel()
+                        try:
+                            await llm_task
+                        except asyncio.CancelledError:
+                            pass
+                        partial_result = "Execution interrupted during LLM call"
+                        await self._emit("agent_finish", {
+                            "content": partial_result,
+                            "source": "execute",
+                            "correlation_id": correlation_id,
+                            "interrupted": True,
+                        })
+                        return partial_result
+                    await asyncio.sleep(0.1)  # Check every 100ms
+
+                text = await llm_task
+            except asyncio.CancelledError:
+                partial_result = "Execution interrupted during LLM call"
+                await self._emit("agent_finish", {
+                    "content": partial_result,
+                    "source": "execute",
+                    "correlation_id": correlation_id,
+                    "interrupted": True,
+                })
+                return partial_result
             except Exception as e:
                 self.metrics.metrics.total_errors += 1
                 await self._emit("error", {"stage": "llm_generate", "message": str(e)})
@@ -120,11 +188,29 @@ class AgentExecutor:
         iterations = 0
         final_text = ""
         while iterations < self.max_iterations:
+            # 🆕 US1: Check cancellation before each iteration
+            if cancel_token and cancel_token.is_set():
+                partial_result = f"Execution interrupted after {iterations} iterations. Partial progress: {final_text or '(in progress)'}"
+                await self._emit("agent_finish", {
+                    "content": partial_result,
+                    "source": "execute",
+                    "correlation_id": correlation_id,
+                    "interrupted": True,
+                    "iterations_completed": iterations,
+                })
+                return partial_result
+
             try:
                 resp = await self.llm.generate_with_tools([m.__dict__ for m in history], tools_spec)
             except Exception as e:
                 self.metrics.metrics.total_errors += 1
-                await self._emit("error", {"stage": "llm_generate_with_tools", "message": str(e), "source": "execute", "iteration": iterations})
+                await self._emit("error", {
+                    "stage": "llm_generate_with_tools",
+                    "message": str(e),
+                    "source": "execute",
+                    "iteration": iterations,
+                    "correlation_id": correlation_id,  # 🆕 US1
+                })
                 raise
             self.metrics.metrics.llm_calls += 1
             tool_calls = resp.get("tool_calls") or []
@@ -161,7 +247,11 @@ class AgentExecutor:
             final_text = content
             if self.memory:
                 await self.memory.add_message(Message(role="assistant", content=final_text))
-            await self._emit("agent_finish", {"content": final_text, "source": "execute"})
+            await self._emit("agent_finish", {
+                "content": final_text,
+                "source": "execute",
+                "correlation_id": correlation_id,  # 🆕 US1
+            })
             break
 
         return final_text
@@ -268,20 +358,51 @@ class AgentExecutor:
         return await self.memory.get_messages()
 
     async def _maybe_compress(self, history: List[Message]) -> List[Message]:
+        """Check if compression needed and apply if threshold reached.
+
+        US2: Automatic compression at 92% threshold with 8-segment summarization.
+        """
         if not self.compressor:
             return history
+
         tokens_before = count_messages_tokens(history)
+
+        # Check if compression should be triggered (92% threshold)
         if self.compressor.should_compress(tokens_before, self.max_context_tokens):
-            compressed = await self.compressor.compress(history)
+            # Attempt compression
             try:
-                tokens_after = count_messages_tokens(compressed)
-            except Exception:
-                tokens_after = 0
-            await self._emit(
-                "compression_applied",
-                {"before_tokens": tokens_before, "after_tokens": tokens_after},
-            )
-            return compressed
+                compressed_messages, metadata = await self.compressor.compress(history)
+
+                # Update metrics
+                self.metrics.metrics.compressions = getattr(self.metrics.metrics, "compressions", 0) + 1
+                if metadata.key_topics == ["fallback"]:
+                    self.metrics.metrics.compression_fallbacks = getattr(self.metrics.metrics, "compression_fallbacks", 0) + 1
+
+                # Emit compression event with metadata
+                await self._emit(
+                    "compression_applied",
+                    {
+                        "before_tokens": metadata.original_tokens,
+                        "after_tokens": metadata.compressed_tokens,
+                        "compression_ratio": metadata.compression_ratio,
+                        "original_message_count": metadata.original_message_count,
+                        "compressed_message_count": metadata.compressed_message_count,
+                        "key_topics": metadata.key_topics,
+                        "fallback_used": metadata.key_topics == ["fallback"],
+                    },
+                )
+
+                return compressed_messages
+
+            except Exception as e:
+                # Compression failed - continue without compression
+                self.metrics.metrics.total_errors += 1
+                await self._emit("error", {
+                    "stage": "compression",
+                    "message": str(e),
+                })
+                return history
+
         return history
 
     def _serialize_tools(self) -> List[Dict]:

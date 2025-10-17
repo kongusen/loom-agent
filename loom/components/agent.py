@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import AsyncGenerator, Dict, List, Optional
 
 from loom.core.agent_executor import AgentExecutor
@@ -10,7 +11,7 @@ from loom.interfaces.tool import BaseTool
 from loom.interfaces.compressor import BaseCompressor
 from loom.callbacks.base import BaseCallback
 from loom.callbacks.metrics import MetricsCollector
-from loom.core.event_bus import EventBus
+from loom.core.steering_control import SteeringControl
 
 
 class Agent:
@@ -32,9 +33,20 @@ class Agent:
         context_retriever=None,
         system_instructions: Optional[str] = None,
         callbacks: Optional[List[BaseCallback]] = None,
-        event_bus: Optional[EventBus] = None,
+        steering_control: Optional[SteeringControl] = None,
         metrics: Optional[MetricsCollector] = None,
     ) -> None:
+        # v4.0.0: Auto-instantiate CompressionManager (always enabled)
+        if compressor is None:
+            from loom.core.compression_manager import CompressionManager
+            compressor = CompressionManager(
+                llm=llm,
+                max_retries=3,
+                compression_threshold=0.92,
+                target_reduction=0.75,
+                sliding_window_size=20,
+            )
+
         tools_map = {t.name: t for t in (tools or [])}
         self.executor = AgentExecutor(
             llm=llm,
@@ -42,13 +54,14 @@ class Agent:
             memory=memory,
             compressor=compressor,
             context_retriever=context_retriever,
-            event_bus=event_bus,
+            steering_control=steering_control,
             max_iterations=max_iterations,
             max_context_tokens=max_context_tokens,
             metrics=metrics,
             permission_manager=None,
             system_instructions=system_instructions,
             callbacks=callbacks,
+            enable_steering=True,  # v4.0.0: Always enabled
         )
 
         # 始终构造 PermissionManager（以便支持 safe_mode/持久化）；保持默认语义
@@ -64,16 +77,26 @@ class Agent:
         self.executor.permission_manager = pm
         self.executor.tool_pipeline.permission_manager = pm
 
-    async def run(self, input: str) -> str:
-        return await self.executor.execute(input)
+    async def run(
+        self,
+        input: str,
+        cancel_token: Optional[asyncio.Event] = None,  # 🆕 US1
+        correlation_id: Optional[str] = None,  # 🆕 US1
+    ) -> str:
+        return await self.executor.execute(input, cancel_token=cancel_token, correlation_id=correlation_id)
 
     async def stream(self, input: str) -> AsyncGenerator[StreamEvent, None]:
         async for ev in self.executor.stream(input):
             yield ev
 
     # LangChain 风格的别名，便于迁移/调用
-    async def ainvoke(self, input: str) -> str:
-        return await self.run(input)
+    async def ainvoke(
+        self,
+        input: str,
+        cancel_token: Optional[asyncio.Event] = None,  # 🆕 US1
+        correlation_id: Optional[str] = None,  # 🆕 US1
+    ) -> str:
+        return await self.run(input, cancel_token=cancel_token, correlation_id=correlation_id)
 
     async def astream(self, input: str) -> AsyncGenerator[StreamEvent, None]:
         async for ev in self.stream(input):
