@@ -1,10 +1,11 @@
 [tool.poetry]
 name = "loom-agent"
-version = "3.0.1"
-description = "下一代上下文工程驱动的智能助理框架"
+version = "0.0.1"
+description = "Production-ready Python Agent framework with enterprise-grade reliability and observability"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
 license = "MIT"
+packages = [{include = "loom"}]
 
 homepage = "https://github.com/kongusen/loom-agent"
 repository = "https://github.com/kongusen/loom-agent"
@@ -21,12 +22,13 @@ keywords = [
 ]
 
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 3 - Alpha",  # First release - Alpha stage
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Topic :: Software Development :: Libraries",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Framework :: AsyncIO",

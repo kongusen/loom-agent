@@ -166,3 +166,42 @@ cache/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Development process files (not for public git)
+specs/
+.claude/
+.codex/
+.specify/
+
+# Temporary documentation and reports
+*_STATUS.md
+*_REPORT.md
+*_COMPLETE.md
+*_FEATURES.md
+DELIVERABLES.md
+PROJECT_STATUS.md
+PRE_RELEASE_*.md
+READY_TO_*.md
+RELEASE_STEPS_*.md
+QUICK_PUBLISH.md
+DOCUMENTATION_INDEX.md
+V4_FINAL_SUMMARY.md
+
+# Keep only cleaned documentation in docs/
+# Original markdown files (moved to docs/)
+USER_GUIDE.md
+API_REFERENCE.md
+PYPI_PUBLISHING_GUIDE.md
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Poetry lock (keep in repo for reproducibility, comment out if you don't want it)
+# poetry.lock
+
+# Test virtualenvs
+test-*/
+testpypi-*/
+verify-*/
