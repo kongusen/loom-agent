@@ -68,14 +68,25 @@ class MessageQueueItem(BaseModel):
 class CompressionMetadata(BaseModel):
     """Metadata for AU2 8-segment compression (US2)."""
 
-    original_message_count: int = Field(..., ge=1, description="Messages before compression")
-    compressed_message_count: int = Field(..., ge=1, description="Messages after compression")
-    original_token_count: int = Field(..., ge=1, description="Tokens before compression")
-    compressed_token_count: int = Field(..., ge=1, description="Tokens after compression")
+    original_message_count: int = Field(..., ge=0, description="Messages before compression")
+    compressed_message_count: int = Field(..., ge=0, description="Messages after compression")
+    original_token_count: int = Field(..., ge=0, description="Tokens before compression")
+    compressed_token_count: int = Field(..., ge=0, description="Tokens after compression")
     compression_ratio: float = Field(..., ge=0.0, le=1.0, description="Reduction ratio (0.75 = 75%)")
     key_topics: List[str] = Field(default_factory=list, description="Extracted key topics")
     compression_method: str = Field(default="au2_8segment", description="Algorithm used")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Compression time")
+
+    # Backward compatibility aliases
+    @property
+    def original_tokens(self) -> int:
+        """Backward compatibility alias for original_token_count."""
+        return self.original_token_count
+
+    @property
+    def compressed_tokens(self) -> int:
+        """Backward compatibility alias for compressed_token_count."""
+        return self.compressed_token_count
 
 
 # -----------------------------------------------------------------------------

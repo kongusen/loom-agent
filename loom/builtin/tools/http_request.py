@@ -35,6 +35,11 @@ class HTTPRequestTool(BaseTool):
     args_schema = HTTPRequestInput
     is_concurrency_safe = True
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = False  # POST/PUT/DELETE may modify remote state
+    category = "network"  # Network operation
+    requires_confirmation = False  # Usually safe, but depends on usage
+
     def __init__(self, timeout: int = 10) -> None:
         if httpx is None:
             raise ImportError("Please install httpx: pip install httpx")

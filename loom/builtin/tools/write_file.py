@@ -20,6 +20,10 @@ class WriteFileTool(BaseTool):
     description = "写入文本到文件（可能覆盖）"
     args_schema = WriteArgs
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = False
+    category = "destructive"
+
     async def run(self, **kwargs) -> Any:
         args = self.args_schema(**kwargs)  # type: ignore
         p = Path(args.path).expanduser()

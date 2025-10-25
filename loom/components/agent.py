@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
+from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional
 
 from loom.core.agent_executor import AgentExecutor
-from loom.core.types import StreamEvent
+from loom.core.types import StreamEvent, Message
+from loom.core.events import AgentEvent, AgentEventType  # 🆕 Loom 2.0
+from loom.core.turn_state import TurnState  # 🆕 Loom 2.0 tt mode
+from loom.core.execution_context import ExecutionContext  # 🆕 Loom 2.0 tt mode
 from loom.interfaces.llm import BaseLLM
 from loom.interfaces.memory import BaseMemory
 from loom.interfaces.tool import BaseTool
@@ -35,6 +40,7 @@ class Agent:
         callbacks: Optional[List[BaseCallback]] = None,
         steering_control: Optional[SteeringControl] = None,
         metrics: Optional[MetricsCollector] = None,
+        enable_steering: bool = True,  # v4.0.0: Enable steering by default
     ) -> None:
         # v4.0.0: Auto-instantiate CompressionManager (always enabled)
         if compressor is None:
@@ -61,7 +67,7 @@ class Agent:
             permission_manager=None,
             system_instructions=system_instructions,
             callbacks=callbacks,
-            enable_steering=True,  # v4.0.0: Always enabled
+            enable_steering=enable_steering,
         )
 
         # 始终构造 PermissionManager（以便支持 safe_mode/持久化）；保持默认语义
@@ -83,11 +89,121 @@ class Agent:
         cancel_token: Optional[asyncio.Event] = None,  # 🆕 US1
         correlation_id: Optional[str] = None,  # 🆕 US1
     ) -> str:
-        return await self.executor.execute(input, cancel_token=cancel_token, correlation_id=correlation_id)
+        """
+        Execute agent and return final response (backward compatible).
+
+        This method wraps the new execute() streaming API and extracts
+        the final response for backward compatibility.
+
+        Args:
+            input: User input
+            cancel_token: Optional cancellation event
+            correlation_id: Optional correlation ID for tracing
+
+        Returns:
+            Final response text
+        """
+        final_content = ""
+
+        async for event in self.execute(input):
+            # Accumulate LLM deltas
+            if event.type == AgentEventType.LLM_DELTA:
+                final_content += event.content or ""
+
+            # Return on finish
+            elif event.type == AgentEventType.AGENT_FINISH:
+                return event.content or final_content
+
+            # Raise on error
+            elif event.type == AgentEventType.ERROR:
+                if event.error:
+                    raise event.error
+
+        return final_content
+
+    async def execute(
+        self,
+        input: str,
+        cancel_token: Optional[asyncio.Event] = None,
+        correlation_id: Optional[str] = None,
+        working_dir: Optional[Path] = None,
+    ) -> AsyncGenerator[AgentEvent, None]:
+        """
+        Execute agent with streaming events using tt recursive mode (Loom 2.0).
+
+        This is the new unified streaming interface that produces AgentEvent
+        instances for all execution phases. It uses tt (tail-recursive) control
+        loop as the ONLY core execution method.
+
+        Args:
+            input: User input
+            cancel_token: Optional cancellation event
+            correlation_id: Optional correlation ID for tracing
+            working_dir: Optional working directory
+
+        Yields:
+            AgentEvent: Events representing execution progress
+
+        Example:
+            ```python
+            async for event in agent.execute("Your prompt"):
+                if event.type == AgentEventType.LLM_DELTA:
+                    print(event.content, end="", flush=True)
+                elif event.type == AgentEventType.TOOL_PROGRESS:
+                    print(f"\\n[Tool] {event.metadata['status']}")
+                elif event.type == AgentEventType.AGENT_FINISH:
+                    print(f"\\n✓ {event.content}")
+            ```
+        """
+        # Initialize immutable turn state
+        turn_state = TurnState.initial(max_iterations=self.executor.max_iterations)
+
+        # Create execution context
+        context = ExecutionContext.create(
+            working_dir=working_dir,
+            correlation_id=correlation_id,
+            cancel_token=cancel_token,
+        )
+
+        # Create initial message
+        messages = [Message(role="user", content=input)]
+
+        # Delegate to executor's tt recursive control loop
+        async for event in self.executor.tt(messages, turn_state, context):
+            yield event
 
     async def stream(self, input: str) -> AsyncGenerator[StreamEvent, None]:
-        async for ev in self.executor.stream(input):
-            yield ev
+        """
+        Legacy streaming API (backward compatible).
+
+        NOTE: This uses the old StreamEvent type. For new code, use execute()
+        which returns AgentEvent instances.
+
+        This method now converts AgentEvent to StreamEvent for backward compatibility.
+        """
+        # Use tt mode under the hood
+        async for agent_event in self.execute(input):
+            # Convert AgentEvent to legacy StreamEvent
+            if agent_event.type == AgentEventType.LLM_DELTA:
+                yield StreamEvent(
+                    type="llm_delta",
+                    content=agent_event.content or "",
+                )
+            elif agent_event.type == AgentEventType.AGENT_FINISH:
+                yield StreamEvent(
+                    type="agent_finish",
+                    content=agent_event.content or "",
+                )
+            elif agent_event.type == AgentEventType.TOOL_RESULT:
+                yield StreamEvent(
+                    type="tool_result",
+                    content=agent_event.tool_result.content if agent_event.tool_result else "",
+                )
+            elif agent_event.type == AgentEventType.ERROR:
+                yield StreamEvent(
+                    type="error",
+                    content=str(agent_event.error) if agent_event.error else "Unknown error",
+                )
 
     # LangChain 风格的别名，便于迁移/调用
     async def ainvoke(

@@ -33,6 +33,11 @@ class PythonREPLTool(BaseTool):
     args_schema = PythonREPLInput
     is_concurrency_safe = False  # 代码执行不并发安全
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = False  # Code execution may have side effects
+    category = "destructive"  # Potentially dangerous
+    requires_confirmation = True  # Should require user confirmation
+
     async def run(self, code: str, **kwargs: Any) -> str:
         """执行 Python 代码"""
         # 安全性检查 - 禁止危险操作

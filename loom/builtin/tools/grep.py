@@ -22,6 +22,10 @@ class GrepTool(BaseTool):
     description = "在文件或文件集内检索正则匹配"
     args_schema = GrepArgs
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = True
+    category = "general"
+
     async def run(self, **kwargs) -> Any:
         args = self.args_schema(**kwargs)  # type: ignore
         flags = 0

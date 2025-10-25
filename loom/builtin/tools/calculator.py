@@ -18,6 +18,10 @@ class Calculator(BaseTool):
     description = "Evaluate simple arithmetic expressions"
     args_schema = CalcArgs
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = True  # Pure computation, no side effects
+    category = "general"
+
     async def run(self, **kwargs) -> Any:
         expr = kwargs.get("expression", "")
         return str(_safe_eval(expr))

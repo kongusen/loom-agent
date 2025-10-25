@@ -151,8 +151,8 @@ Now compress the conversation above following this exact structure:"""
             return messages, CompressionMetadata(
                 original_message_count=0,
                 compressed_message_count=0,
-                original_tokens=0,
-                compressed_tokens=0,
+                original_token_count=0,
+                compressed_token_count=0,
                 compression_ratio=0.0,
                 key_topics=[],
             )
@@ -163,11 +163,12 @@ Now compress the conversation above following this exact structure:"""
 
         if not compressible:
             # No messages to compress, return as-is
+            token_count = count_messages_tokens(messages)
             return messages, CompressionMetadata(
                 original_message_count=len(messages),
                 compressed_message_count=len(messages),
-                original_tokens=count_messages_tokens(messages),
-                compressed_tokens=count_messages_tokens(messages),
+                original_token_count=token_count,
+                compressed_token_count=token_count,
                 compression_ratio=1.0,
                 key_topics=[],
             )
@@ -201,13 +202,16 @@ Now compress the conversation above following this exact structure:"""
             windowed_messages = self.sliding_window_fallback(compressible, self.sliding_window_size)
             final_messages = system_messages + windowed_messages
             compressed_tokens = count_messages_tokens(windowed_messages)
+            ratio = compressed_tokens / original_tokens if original_tokens > 0 else 0.0
+            # Ensure ratio is clamped to [0.0, 1.0]
+            ratio = min(max(ratio, 0.0), 1.0)
 
             metadata = CompressionMetadata(
                 original_message_count=len(compressible),
                 compressed_message_count=len(windowed_messages),
-                original_tokens=original_tokens,
-                compressed_tokens=compressed_tokens,
-                compression_ratio=compressed_tokens / original_tokens if original_tokens > 0 else 0.0,
+                original_token_count=original_tokens,
+                compressed_token_count=compressed_tokens,
+                compression_ratio=ratio,
                 key_topics=["fallback"],
             )
             return final_messages, metadata
@@ -223,13 +227,16 @@ Now compress the conversation above following this exact structure:"""
 
         # Combine system messages + compressed summary
         final_messages = system_messages + [compressed_message]
+        ratio = compressed_tokens / original_tokens if original_tokens > 0 else 0.0
+        # Ensure ratio is clamped to [0.0, 1.0]
+        ratio = min(max(ratio, 0.0), 1.0)
 
         metadata = CompressionMetadata(
             original_message_count=len(compressible),
             compressed_message_count=1,
-            original_tokens=original_tokens,
-            compressed_tokens=compressed_tokens,
-            compression_ratio=compressed_tokens / original_tokens if original_tokens > 0 else 0.0,
+            original_token_count=original_tokens,
+            compressed_token_count=compressed_tokens,
+            compression_ratio=ratio,
             key_topics=key_topics,
         )
 

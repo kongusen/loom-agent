@@ -33,6 +33,10 @@ class WebSearchTool(BaseTool):
     args_schema = WebSearchInput
     is_concurrency_safe = True
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = True  # Only reads from web, no local side effects
+    category = "network"
+
     def __init__(self) -> None:
         if DDGS is None:
             raise ImportError(

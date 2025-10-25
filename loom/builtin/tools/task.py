@@ -47,6 +47,11 @@ class TaskTool(BaseTool):
     args_schema = TaskInput
     is_concurrency_safe = True
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = False  # Sub-agent may use write tools
+    category = "general"  # Not inherently dangerous, but depends on sub-agent's tools
+    requires_confirmation = False
+
     def __init__(
         self,
         agent_factory: Optional[callable] = None,

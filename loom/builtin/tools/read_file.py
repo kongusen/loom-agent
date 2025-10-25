@@ -19,6 +19,10 @@ class ReadFileTool(BaseTool):
     description = "读取文本文件内容"
     args_schema = ReadArgs
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = True
+    category = "general"
+
     async def run(self, **kwargs) -> Any:
         args = self.args_schema(**kwargs)  # type: ignore
         p = Path(args.path).expanduser()

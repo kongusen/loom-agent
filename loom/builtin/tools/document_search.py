@@ -48,6 +48,11 @@ class DocumentSearchTool(BaseTool):
     """
 
     name = "search_documents"
+
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = True  # Only searches documents, no modifications
+    category = "general"
+
     description = (
         "Search for relevant documents from the knowledge base. "
         "Use this when you need specific information that might be in the documents. "

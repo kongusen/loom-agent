@@ -19,6 +19,10 @@ class GlobTool(BaseTool):
     description = "按模式匹配文件路径"
     args_schema = GlobArgs
 
+    # 🆕 Loom 2.0 - Orchestration attributes
+    is_read_only = True
+    category = "general"
+
     async def run(self, **kwargs) -> Any:
         args = self.args_schema(**kwargs)  # type: ignore
         cwd = Path(args.cwd).expanduser() if args.cwd else Path.cwd()
