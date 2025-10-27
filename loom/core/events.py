@@ -4,6 +4,12 @@ Agent Event System for Loom 2.0
 This module defines the unified event model for streaming agent execution.
 Inspired by Claude Code's event-driven architecture.
 
+新特性 (Loom 0.0.3):
+- 事件过滤和批量处理
+- 智能事件聚合
+- 性能优化的事件流
+- 事件优先级管理
+
 Example:
     ```python
     agent = Agent(llm=llm, tools=tools)
@@ -412,3 +418,243 @@ class EventCollector:
         if finish_events:
             return finish_events[-1].content
         return None
+
+
+class EventFilter:
+    """
+    事件过滤器 - 提供高级事件过滤和批量处理能力
+    
+    新特性 (Loom 0.0.3):
+    - 智能事件过滤
+    - 批量事件处理
+    - 事件聚合和合并
+    - 性能优化的事件流
+    """
+    
+    def __init__(self, 
+                 allowed_types: Optional[List[AgentEventType]] = None,
+                 blocked_types: Optional[List[AgentEventType]] = None,
+                 enable_batching: bool = True,
+                 batch_size: int = 10,
+                 batch_timeout: float = 0.1):
+        """
+        初始化事件过滤器
+        
+        Args:
+            allowed_types: 允许的事件类型列表（None = 全部允许）
+            blocked_types: 阻止的事件类型列表
+            enable_batching: 启用批量处理
+            batch_size: 批量大小
+            batch_timeout: 批量超时时间（秒）
+        """
+        self.allowed_types = allowed_types
+        self.blocked_types = blocked_types or []
+        self.enable_batching = enable_batching
+        self.batch_size = batch_size
+        self.batch_timeout = batch_timeout
+        
+        # 批量处理状态
+        self._batch_buffer: List[AgentEvent] = []
+        self._last_batch_time = time.time()
+    
+    def should_include(self, event: AgentEvent) -> bool:
+        """判断事件是否应该被包含"""
+        # 检查允许的类型
+        if self.allowed_types and event.type not in self.allowed_types:
+            return False
+        
+        # 检查阻止的类型
+        if event.type in self.blocked_types:
+            return False
+        
+        return True
+    
+    def process_event(self, event: AgentEvent) -> List[AgentEvent]:
+        """
+        处理单个事件，可能返回批量事件
+        
+        Returns:
+            处理后的事件列表
+        """
+        if not self.should_include(event):
+            return []
+        
+        if not self.enable_batching:
+            return [event]
+        
+        # 添加到批量缓冲区
+        self._batch_buffer.append(event)
+        
+        # 检查是否需要输出批量事件
+        should_flush = (
+            len(self._batch_buffer) >= self.batch_size or
+            (time.time() - self._last_batch_time) >= self.batch_timeout
+        )
+        
+        if should_flush:
+            return self._flush_batch()
+        
+        return []
+    
+    def _flush_batch(self) -> List[AgentEvent]:
+        """输出批量事件并清空缓冲区"""
+        if not self._batch_buffer:
+            return []
+        
+        # 智能聚合相同类型的事件
+        aggregated_events = self._aggregate_events(self._batch_buffer)
+        
+        # 清空缓冲区
+        self._batch_buffer.clear()
+        self._last_batch_time = time.time()
+        
+        return aggregated_events
+    
+    def _aggregate_events(self, events: List[AgentEvent]) -> List[AgentEvent]:
+        """智能聚合事件"""
+        if not events:
+            return []
+        
+        # 按类型分组
+        events_by_type: Dict[AgentEventType, List[AgentEvent]] = {}
+        for event in events:
+            if event.type not in events_by_type:
+                events_by_type[event.type] = []
+            events_by_type[event.type].append(event)
+        
+        aggregated = []
+        
+        for event_type, type_events in events_by_type.items():
+            if event_type == AgentEventType.LLM_DELTA:
+                # 合并 LLM delta 事件
+                merged_content = "".join(e.content or "" for e in type_events)
+                if merged_content:
+                    # 创建合并的事件
+                    merged_event = AgentEvent(
+                        type=AgentEventType.LLM_DELTA,
+                        content=merged_content,
+                        timestamp=type_events[0].timestamp,
+                        metadata={
+                            "batch_size": len(type_events),
+                            "aggregated": True
+                        }
+                    )
+                    aggregated.append(merged_event)
+            else:
+                # 其他类型的事件保持原样
+                aggregated.extend(type_events)
+        
+        return aggregated
+    
+    def flush_remaining(self) -> List[AgentEvent]:
+        """强制输出剩余的事件"""
+        return self._flush_batch()
+
+
+class EventProcessor:
+    """
+    事件处理器 - 提供高级事件处理能力
+    
+    新特性 (Loom 0.0.3):
+    - 事件优先级管理
+    - 智能事件路由
+    - 事件统计和分析
+    - 性能监控
+    """
+    
+    def __init__(self, 
+                 filters: Optional[List[EventFilter]] = None,
+                 enable_stats: bool = True):
+        """
+        初始化事件处理器
+        
+        Args:
+            filters: 事件过滤器列表
+            enable_stats: 启用统计功能
+        """
+        self.filters = filters or []
+        self.enable_stats = enable_stats
+        
+        # 统计信息
+        self._stats = {
+            "total_events": 0,
+            "filtered_events": 0,
+            "batched_events": 0,
+            "events_by_type": {},
+            "processing_times": []
+        }
+    
+    def process_events(self, events: List[AgentEvent]) -> List[AgentEvent]:
+        """
+        批量处理事件
+        
+        Args:
+            events: 输入事件列表
+            
+        Returns:
+            处理后的事件列表
+        """
+        if not events:
+            return []
+        
+        start_time = time.time()
+        processed_events = []
+        
+        for event in events:
+            # 更新统计
+            if self.enable_stats:
+                self._stats["total_events"] += 1
+                event_type = event.type.value
+                self._stats["events_by_type"][event_type] = \
+                    self._stats["events_by_type"].get(event_type, 0) + 1
+            
+            # 应用过滤器
+            for filter_obj in self.filters:
+                filtered = filter_obj.process_event(event)
+                processed_events.extend(filtered)
+            
+            # 如果没有过滤器，直接添加事件
+            if not self.filters:
+                processed_events.append(event)
+        
+        # 强制刷新所有过滤器的批量缓冲区
+        for filter_obj in self.filters:
+            remaining = filter_obj.flush_remaining()
+            processed_events.extend(remaining)
+        
+        # 更新处理时间统计
+        if self.enable_stats:
+            processing_time = time.time() - start_time
+            self._stats["processing_times"].append(processing_time)
+            self._stats["filtered_events"] = len(processed_events)
+        
+        return processed_events
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """获取处理统计信息"""
+        if not self.enable_stats:
+            return {}
+        
+        avg_processing_time = (
+            sum(self._stats["processing_times"]) / len(self._stats["processing_times"])
+            if self._stats["processing_times"] else 0
+        )
+        
+        return {
+            **self._stats,
+            "average_processing_time": avg_processing_time,
+            "filter_efficiency": (
+                self._stats["filtered_events"] / self._stats["total_events"]
+                if self._stats["total_events"] > 0 else 0
+            )
+        }
+    
+    def reset_stats(self) -> None:
+        """重置统计信息"""
+        self._stats = {
+            "total_events": 0,
+            "filtered_events": 0,
+            "batched_events": 0,
+            "events_by_type": {},
+            "processing_times": []
+        }

@@ -11,7 +11,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional, Any
 from uuid import uuid4
 
 from loom.callbacks.base import BaseCallback
@@ -36,6 +36,52 @@ try:
     from loom.core.context_retriever import ContextRetriever
 except ImportError:
     ContextRetriever = None  # type: ignore
+
+# Unified coordination support
+try:
+    from loom.core.unified_coordination import UnifiedExecutionContext, IntelligentCoordinator
+except ImportError:
+    UnifiedExecutionContext = None  # type: ignore
+    IntelligentCoordinator = None  # type: ignore
+
+
+class TaskHandler:
+    """
+    任务处理器基类
+    
+    开发者可以继承此类来实现自定义的任务处理逻辑
+    """
+    
+    def can_handle(self, task: str) -> bool:
+        """
+        判断是否能处理给定的任务
+        
+        Args:
+            task: 任务描述
+            
+        Returns:
+            bool: 是否能处理此任务
+        """
+        raise NotImplementedError
+    
+    def generate_guidance(
+        self,
+        original_task: str,
+        result_analysis: Dict[str, Any],
+        recursion_depth: int
+    ) -> str:
+        """
+        生成递归指导消息
+        
+        Args:
+            original_task: 原始任务
+            result_analysis: 工具结果分析
+            recursion_depth: 递归深度
+            
+        Returns:
+            str: 生成的指导消息
+        """
+        raise NotImplementedError
 
 
 class AgentExecutor:
@@ -78,6 +124,9 @@ class AgentExecutor:
         system_instructions: Optional[str] = None,
         callbacks: Optional[List[BaseCallback]] = None,
         enable_steering: bool = False,
+        task_handlers: Optional[List[TaskHandler]] = None,
+        unified_context: Optional["UnifiedExecutionContext"] = None,
+        enable_unified_coordination: bool = True,
     ) -> None:
         self.llm = llm
         self.tools = tools or {}
@@ -94,6 +143,15 @@ class AgentExecutor:
         self.system_instructions = system_instructions
         self.callbacks = callbacks or []
         self.enable_steering = enable_steering
+        self.task_handlers = task_handlers or []
+        
+        # Unified coordination
+        self.unified_context = unified_context
+        self.enable_unified_coordination = enable_unified_coordination
+        
+        # Initialize unified coordination if enabled
+        if self.enable_unified_coordination and UnifiedExecutionContext and IntelligentCoordinator:
+            self._setup_unified_coordination()
 
         # Tool execution (legacy pipeline for backward compatibility)
         self.tool_pipeline = ToolExecutionPipeline(
@@ -101,6 +159,80 @@ class AgentExecutor:
             permission_manager=self.permission_manager,
             metrics=self.metrics,
         )
+
+    def _setup_unified_coordination(self):
+        """设置统一协调机制"""
+        if not self.unified_context:
+            # 创建默认的统一执行上下文
+            from loom.core.unified_coordination import CoordinationConfig
+            self.unified_context = UnifiedExecutionContext(
+                execution_id=f"exec_{int(time.time())}",
+                config=CoordinationConfig()  # 使用默认配置
+            )
+        
+        # 集成四大核心能力
+        self._integrate_core_capabilities()
+        
+        # 创建智能协调器
+        self.coordinator = IntelligentCoordinator(self.unified_context)
+        
+        # 设置跨组件引用
+        self._setup_cross_component_references()
+
+    def _integrate_core_capabilities(self):
+        """集成四大核心能力到统一上下文"""
+
+        config = self.unified_context.config
+
+        # 1. 集成 ContextAssembler
+        if not self.unified_context.context_assembler:
+            from loom.core.context_assembly import ContextAssembler
+            self.unified_context.context_assembler = ContextAssembler(
+                max_tokens=self.max_context_tokens,
+                enable_caching=True,
+                cache_size=config.context_cache_size
+            )
+
+        # 2. 集成 TaskTool
+        if "task" in self.tools and not self.unified_context.task_tool:
+            task_tool = self.tools["task"]
+            # 使用配置更新 TaskTool
+            task_tool.pool_size = config.subagent_pool_size
+            task_tool.enable_pooling = True
+            self.unified_context.task_tool = task_tool
+
+        # 3. 集成 EventProcessor
+        if not self.unified_context.event_processor:
+            from loom.core.events import EventFilter, EventProcessor, AgentEventType
+
+            # 创建智能事件过滤器，使用配置值
+            llm_filter = EventFilter(
+                allowed_types=[
+                    AgentEventType.LLM_DELTA,
+                    AgentEventType.TOOL_RESULT,
+                    AgentEventType.AGENT_FINISH
+                ],
+                enable_batching=True,
+                batch_size=config.event_batch_size,
+                batch_timeout=config.event_batch_timeout
+            )
+
+            self.unified_context.event_processor = EventProcessor(
+                filters=[llm_filter],
+                enable_stats=True
+            )
+
+        # 4. 集成 TaskHandlers
+        if not self.unified_context.task_handlers:
+            self.unified_context.task_handlers = self.task_handlers or []
+
+    def _setup_cross_component_references(self):
+        """
+        设置跨组件引用（已简化）
+
+        移除了魔法属性注入，改为通过协调器处理所有跨组件通信
+        """
+        pass  # 跨组件通信现在通过 IntelligentCoordinator 处理
 
         # Tool orchestration (Loom 2.0 - intelligent parallel/sequential execution)
         self.tool_orchestrator = ToolOrchestrator(
@@ -269,40 +401,50 @@ class AgentExecutor:
                 },
             )
 
-        # Assemble system prompt using ContextAssembler
-        assembler = ContextAssembler(max_tokens=self.max_context_tokens)
-
-        # Add base instructions (critical priority)
-        if self.system_instructions:
-            assembler.add_component(
-                name="base_instructions",
-                content=self.system_instructions,
-                priority=ComponentPriority.CRITICAL,
-                truncatable=False,
+        # 使用统一协调的智能上下文组装
+        if self.enable_unified_coordination and hasattr(self, 'coordinator'):
+            # 使用智能协调器进行上下文组装
+            execution_plan = self.coordinator.coordinate_tt_recursion(
+                messages, turn_state, context
             )
+            final_system_prompt = execution_plan.get("context", "")
+            # 使用统一协调器的 assembler
+            assembler = self.unified_context.context_assembler
+        else:
+            # 传统方式组装系统提示
+            assembler = ContextAssembler(max_tokens=self.max_context_tokens)
 
-        # Add RAG context (high priority)
-        if rag_context:
-            assembler.add_component(
-                name="retrieved_context",
-                content=rag_context,
-                priority=ComponentPriority.HIGH,
-                truncatable=True,
-            )
+            # Add base instructions (critical priority)
+            if self.system_instructions:
+                assembler.add_component(
+                    name="base_instructions",
+                    content=self.system_instructions,
+                    priority=ComponentPriority.CRITICAL,
+                    truncatable=False,
+                )
 
-        # Add tool definitions (medium priority)
-        if self.tools:
-            tools_spec = self._serialize_tools()
-            tools_prompt = f"Available tools:\n{json.dumps(tools_spec, indent=2)}"
-            assembler.add_component(
-                name="tool_definitions",
-                content=tools_prompt,
-                priority=ComponentPriority.MEDIUM,
-                truncatable=False,
-            )
+            # Add RAG context (high priority)
+            if rag_context:
+                assembler.add_component(
+                    name="retrieved_context",
+                    content=rag_context,
+                    priority=ComponentPriority.HIGH,
+                    truncatable=True,
+                )
 
-        # Assemble final system prompt
-        final_system_prompt = assembler.assemble()
+            # Add tool definitions (medium priority)
+            if self.tools:
+                tools_spec = self._serialize_tools()
+                tools_prompt = f"Available tools:\n{json.dumps(tools_spec, indent=2)}"
+                assembler.add_component(
+                    name="tool_definitions",
+                    content=tools_prompt,
+                    priority=ComponentPriority.MEDIUM,
+                    truncatable=False,
+                )
+
+            # Assemble final system prompt
+            final_system_prompt = assembler.assemble()
 
         # Inject system prompt into history
         if history and history[0].role == "system":
@@ -442,15 +584,20 @@ class AgentExecutor:
         # Prepare next turn state
         next_state = turn_state.next_turn(compacted=compacted_this_turn)
 
-        # Prepare next turn messages (only new messages, not full history)
-        next_messages = [
-            Message(
-                role="tool",
-                content=r.content,
-                tool_call_id=r.tool_call_id,
+        # Prepare next turn messages with intelligent context guidance
+        next_messages = self._prepare_recursive_messages(
+            messages, tool_results, turn_state, context
+        )
+        
+        # Add tool results
+        for r in tool_results:
+            next_messages.append(
+                Message(
+                    role="tool",
+                    content=r.content,
+                    tool_call_id=r.tool_call_id,
+                )
             )
-            for r in tool_results
-        ]
 
         # Emit recursion event
         yield AgentEvent(
@@ -465,6 +612,130 @@ class AgentExecutor:
         # 🔥 Tail-recursive call
         async for event in self.tt(next_messages, next_state, context):
             yield event
+
+    # ==========================================
+    # Intelligent Recursion Methods
+    # ==========================================
+
+    def _prepare_recursive_messages(
+        self,
+        messages: List[Message],
+        tool_results: List[ToolResult],
+        turn_state: TurnState,
+        context: ExecutionContext,
+    ) -> List[Message]:
+        """
+        智能准备递归调用的消息
+        
+        基于工具结果类型、任务上下文和递归深度，生成合适的用户指导消息
+        """
+        # 分析工具结果
+        result_analysis = self._analyze_tool_results(tool_results)
+        
+        # 获取原始任务
+        original_task = self._extract_original_task(messages)
+        
+        # 生成智能指导消息
+        guidance_message = self._generate_recursion_guidance(
+            original_task, result_analysis, turn_state.turn_counter
+        )
+        
+        return [Message(role="user", content=guidance_message)]
+
+    def _analyze_tool_results(self, tool_results: List[ToolResult]) -> Dict[str, Any]:
+        """分析工具结果类型和质量"""
+        analysis = {
+            "has_data": False,
+            "has_errors": False,
+            "suggests_completion": False,
+            "result_types": [],
+            "completeness_score": 0.0
+        }
+        
+        for result in tool_results:
+            content = result.content.lower()
+            
+            # 检查数据类型
+            if any(keyword in content for keyword in ["data", "found", "retrieved", "table", "schema", "获取到", "表结构", "结构"]):
+                analysis["has_data"] = True
+                analysis["result_types"].append("data")
+                analysis["completeness_score"] += 0.3
+            
+            # 检查错误
+            if any(keyword in content for keyword in ["error", "failed", "exception", "not found"]):
+                analysis["has_errors"] = True
+                analysis["result_types"].append("error")
+            
+            # 检查完成建议
+            if any(keyword in content for keyword in ["complete", "finished", "done", "ready"]):
+                analysis["suggests_completion"] = True
+                analysis["result_types"].append("completion")
+                analysis["completeness_score"] += 0.5
+            
+            # 检查分析结果
+            if any(keyword in content for keyword in ["analysis", "summary", "conclusion", "insights"]):
+                analysis["result_types"].append("analysis")
+                analysis["completeness_score"] += 0.4
+        
+        analysis["completeness_score"] = min(analysis["completeness_score"], 1.0)
+        return analysis
+
+    def _extract_original_task(self, messages: List[Message]) -> str:
+        """从消息历史中提取原始任务"""
+        # 查找第一个用户消息作为原始任务
+        for message in messages:
+            if message.role == "user" and message.content:
+                # 过滤掉系统生成的递归消息
+                if not any(keyword in message.content.lower() for keyword in [
+                    "工具调用已完成", "请基于工具返回的结果", "不要继续调用工具"
+                ]):
+                    return message.content
+        return "处理用户请求"
+
+    def _generate_recursion_guidance(
+        self,
+        original_task: str,
+        result_analysis: Dict[str, Any],
+        recursion_depth: int
+    ) -> str:
+        """生成递归指导消息"""
+        
+        # 使用可扩展的任务处理器
+        if hasattr(self, 'task_handlers') and self.task_handlers:
+            for handler in self.task_handlers:
+                if handler.can_handle(original_task):
+                    return handler.generate_guidance(original_task, result_analysis, recursion_depth)
+        
+        # 默认处理
+        return self._generate_default_guidance(original_task, result_analysis, recursion_depth)
+
+
+    def _generate_default_guidance(
+        self,
+        original_task: str,
+        result_analysis: Dict[str, Any],
+        recursion_depth: int
+    ) -> str:
+        """生成默认的递归指导"""
+        
+        if result_analysis["suggests_completion"] or recursion_depth >= 6:
+            return f"""工具调用已完成。请基于返回的结果完成任务：{original_task}
+
+请提供完整、准确的最终答案。"""
+        
+        elif result_analysis["has_errors"]:
+            return f"""工具执行遇到问题。请重新尝试完成任务：{original_task}
+
+建议：
+- 检查工具参数是否正确
+- 尝试使用不同的工具或方法
+- 如果问题持续，请说明具体错误"""
+        
+        else:
+            return f"""继续处理任务：{original_task}
+
+当前进度：{result_analysis['completeness_score']:.0%}
+建议：使用更多工具收集信息或分析已获得的结果"""
 
     # ==========================================
     # Helper Methods

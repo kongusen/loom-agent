@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.0.2"
+version = "0.0.3"
 description = "Production-ready Python Agent framework with enterprise-grade reliability and observability"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"

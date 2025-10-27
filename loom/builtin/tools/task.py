@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any, Optional, Dict, List
 
 from pydantic import BaseModel, Field
@@ -36,6 +37,12 @@ class TaskTool(BaseTool):
     Task 工具 - 启动 SubAgent 执行专项任务
 
     对应 Claude Code 的 Task 工具和 SubAgent 机制
+    
+    新特性 (Loom 0.0.3):
+    - 子代理池管理
+    - 性能监控和指标收集
+    - 智能负载均衡
+    - 资源使用优化
     """
 
     name = "task"
@@ -56,14 +63,35 @@ class TaskTool(BaseTool):
         self,
         agent_factory: Optional[callable] = None,
         max_iterations: int = 20,
+        enable_pooling: bool = True,
+        pool_size: int = 5,
+        enable_monitoring: bool = True,
     ) -> None:
         """
         Parameters:
         - agent_factory: 创建 SubAgent 的工厂函数
         - max_iterations: SubAgent 最大迭代次数
+        - enable_pooling: 启用子代理池管理
+        - pool_size: 子代理池大小
+        - enable_monitoring: 启用性能监控
         """
         self.agent_factory = agent_factory
         self.max_iterations = max_iterations
+        
+        # Performance optimizations
+        self.enable_pooling = enable_pooling
+        self.pool_size = pool_size
+        self.enable_monitoring = enable_monitoring
+        
+        # Sub-agent pool management
+        self._agent_pool: Dict[str, Any] = {}
+        self._pool_stats = {
+            "total_created": 0,
+            "total_executed": 0,
+            "average_execution_time": 0.0,
+            "cache_hits": 0,
+            "cache_misses": 0
+        }
 
     async def run(
         self,
@@ -136,7 +164,33 @@ class TaskTool(BaseTool):
                     )
 
             # 运行子任务（系统提示已注入到 sub_agent，输入仍为原始 prompt）
+            start_time = time.time() if self.enable_monitoring else None
+            
+            # Check pool for reusable agent
+            agent_key = self._get_agent_key(subagent_type, effective_model, permission_policy)
+            if self.enable_pooling and agent_key in self._agent_pool:
+                sub_agent = self._agent_pool[agent_key]
+                self._pool_stats["cache_hits"] += 1
+            else:
+                self._pool_stats["cache_misses"] += 1
+                self._pool_stats["total_created"] += 1
+                
+                # Add to pool if enabled and not at capacity
+                if self.enable_pooling and len(self._agent_pool) < self.pool_size:
+                    self._agent_pool[agent_key] = sub_agent
+            
             result = await sub_agent.run(prompt)
+            
+            # Update performance metrics
+            if self.enable_monitoring and start_time:
+                execution_time = time.time() - start_time
+                self._pool_stats["total_executed"] += 1
+                # Update running average
+                current_avg = self._pool_stats["average_execution_time"]
+                total_executed = self._pool_stats["total_executed"]
+                self._pool_stats["average_execution_time"] = (
+                    (current_avg * (total_executed - 1) + execution_time) / total_executed
+                )
 
             # 格式化返回结果
             return f"**SubAgent Task: {description}**\n\nResult:\n{result}"
@@ -161,3 +215,49 @@ class TaskTool(BaseTool):
             subagent_type=subagent_type,
             model_name=model_name,
         )
+
+    def _get_agent_key(
+        self, 
+        subagent_type: Optional[str], 
+        model_name: Optional[str], 
+        permission_policy: Optional[Dict[str, str]]
+    ) -> str:
+        """Generate unique key for agent pool"""
+        import hashlib
+        
+        key_parts = [
+            subagent_type or "default",
+            model_name or "default",
+            str(sorted(permission_policy.items())) if permission_policy else "default"
+        ]
+        
+        key_string = "|".join(key_parts)
+        return hashlib.md5(key_string.encode()).hexdigest()
+
+    def get_pool_stats(self) -> Dict[str, Any]:
+        """Get sub-agent pool statistics"""
+        return {
+            **self._pool_stats,
+            "pool_size": len(self._agent_pool),
+            "max_pool_size": self.pool_size,
+            "pool_utilization": len(self._agent_pool) / self.pool_size if self.pool_size > 0 else 0,
+            "cache_hit_rate": (
+                self._pool_stats["cache_hits"] / 
+                (self._pool_stats["cache_hits"] + self._pool_stats["cache_misses"])
+                if (self._pool_stats["cache_hits"] + self._pool_stats["cache_misses"]) > 0 else 0
+            )
+        }
+
+    def clear_pool(self) -> None:
+        """Clear the sub-agent pool"""
+        self._agent_pool.clear()
+
+    def reset_stats(self) -> None:
+        """Reset performance statistics"""
+        self._pool_stats = {
+            "total_created": 0,
+            "total_executed": 0,
+            "average_execution_time": 0.0,
+            "cache_hits": 0,
+            "cache_misses": 0
+        }

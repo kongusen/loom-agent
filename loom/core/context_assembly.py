@@ -10,8 +10,9 @@ overwritten by system prompts.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from enum import IntEnum
 
 
@@ -56,6 +57,9 @@ class ContextAssembler:
     - Token budget management
     - Smart truncation of low-priority components
     - Guarantee high-priority component integrity
+    - Component caching for performance
+    - Dynamic priority adjustment
+    - Context reuse optimization
 
     Example:
         ```python
@@ -85,7 +89,9 @@ class ContextAssembler:
         self,
         max_tokens: int = 16000,
         token_counter: Optional[Callable[[str], int]] = None,
-        token_buffer: float = 0.9  # Use 90% of budget for safety
+        token_buffer: float = 0.9,  # Use 90% of budget for safety
+        enable_caching: bool = True,
+        cache_size: int = 100
     ):
         """
         Initialize the context assembler.
@@ -94,10 +100,19 @@ class ContextAssembler:
             max_tokens: Maximum token budget
             token_counter: Custom token counting function (defaults to simple estimation)
             token_buffer: Safety buffer ratio (0.9 = use 90% of max_tokens)
+            enable_caching: Enable component caching for performance
+            cache_size: Maximum number of cached components
         """
         self.max_tokens = int(max_tokens * token_buffer)
         self.token_counter = token_counter or self._estimate_tokens
         self.components: List[ContextComponent] = []
+        
+        # Performance optimizations
+        self.enable_caching = enable_caching
+        self._component_cache: Dict[str, ContextComponent] = {}
+        self._cache_size = cache_size
+        self._assembly_cache: Optional[str] = None
+        self._last_components_hash: Optional[str] = None
 
     def add_component(
         self,
@@ -127,22 +142,39 @@ class ContextAssembler:
             truncatable=truncatable
         )
         self.components.append(component)
+        
+        # Update cache if enabled
+        if self.enable_caching:
+            self._component_cache[name] = component
+            # Maintain cache size limit
+            if len(self._component_cache) > self._cache_size:
+                # Remove oldest entries (simple LRU)
+                oldest_key = next(iter(self._component_cache))
+                del self._component_cache[oldest_key]
 
     def assemble(self) -> str:
         """
         Assemble the final context from all components.
 
         Strategy:
-        1. Sort components by priority (descending)
-        2. Add components until budget is reached
-        3. Truncate low-priority components if needed
-        4. Merge all components into final string
+        1. Check cache for identical component configuration
+        2. Sort components by priority (descending)
+        3. Add components until budget is reached
+        4. Truncate low-priority components if needed
+        5. Merge all components into final string
 
         Returns:
             Assembled context string
         """
         if not self.components:
             return ""
+
+        # Check cache if enabled
+        if self.enable_caching:
+            current_hash = self._get_components_hash()
+            if (self._assembly_cache is not None and 
+                self._last_components_hash == current_hash):
+                return self._assembly_cache
 
         # Sort by priority (highest first)
         sorted_components = sorted(
@@ -165,7 +197,83 @@ class ContextAssembler:
             header = f"# {component.name.replace('_', ' ').upper()}"
             sections.append(f"{header}\n{component.content}")
 
-        return "\n\n".join(sections)
+        result = "\n\n".join(sections)
+        
+        # Update cache if enabled
+        if self.enable_caching:
+            self._assembly_cache = result
+            self._last_components_hash = self._get_components_hash()
+
+        return result
+
+    def _get_components_hash(self) -> str:
+        """
+        Generate hash for current component configuration
+
+        优化版本：
+        - 使用 blake2b 替代 MD5（更快）
+        - 直接update字节而非拼接字符串
+        - 移除不必要的排序
+        """
+        # 使用 blake2b，比 MD5 更快且安全
+        hasher = hashlib.blake2b(digest_size=16)
+
+        # 直接更新hasher，避免字符串拼接
+        for comp in self.components:
+            hasher.update(comp.name.encode())
+            hasher.update(str(comp.priority).encode())
+            hasher.update(str(comp.token_count).encode())
+            hasher.update(b'1' if comp.truncatable else b'0')
+
+        return hasher.hexdigest()
+
+    def adjust_priority(self, component_name: str, new_priority: int) -> bool:
+        """
+        Dynamically adjust component priority.
+        
+        Args:
+            component_name: Name of the component to adjust
+            new_priority: New priority value
+            
+        Returns:
+            True if component was found and adjusted, False otherwise
+        """
+        for component in self.components:
+            if component.name == component_name:
+                component.priority = new_priority
+                # Clear cache since configuration changed
+                if self.enable_caching:
+                    self._assembly_cache = None
+                    self._last_components_hash = None
+                return True
+        return False
+
+    def get_component_stats(self) -> Dict[str, Any]:
+        """Get statistics about current components"""
+        if not self.components:
+            return {"total_components": 0, "total_tokens": 0}
+        
+        total_tokens = sum(c.token_count for c in self.components)
+        priority_distribution = {}
+        
+        for comp in self.components:
+            priority_distribution[comp.priority] = priority_distribution.get(comp.priority, 0) + 1
+        
+        return {
+            "total_components": len(self.components),
+            "total_tokens": total_tokens,
+            "budget_utilization": total_tokens / self.max_tokens if self.max_tokens > 0 else 0,
+            "priority_distribution": priority_distribution,
+            "cache_enabled": self.enable_caching,
+            "cache_size": len(self._component_cache) if self.enable_caching else 0
+        }
+
+    def clear_cache(self) -> None:
+        """Clear all caches"""
+        if self.enable_caching:
+            self._component_cache.clear()
+            self._assembly_cache = None
+            self._last_components_hash = None
 
     def _truncate_components(
         self,
