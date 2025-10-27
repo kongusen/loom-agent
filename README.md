@@ -102,6 +102,34 @@ result = await my_agent.run("What is 15 plus 27?")
 print(result)
 ```
 
+### Loom 0.0.4 Unified Coordination (NEW!)
+
+```python
+from loom import loom_agent, CoordinationConfig
+from loom.builtin.llms import MockLLM
+
+# Create agent with unified coordination
+agent = loom_agent(
+    llm=MockLLM(),
+    tools={"calculator": CalculatorTool()},
+    config=CoordinationConfig(
+        deep_recursion_threshold=5,
+        context_cache_size=200
+    )
+)
+
+# Run with full event access
+result = await agent.run("Analyze this complex problem")
+print(result)
+
+# Stream execution events
+async for event in agent.stream("Process this data"):
+    if event.type.name == "LLM_DELTA":
+        print(event.content, end="", flush=True)
+    elif event.type.name == "TOOL_EXECUTION_START":
+        print(f"\n[Tool] {event.tool_call.name}")
+```
+
 ## 📚 Documentation
 
 - **[Getting Started](docs/user/getting-started.md)** - Your first Loom agent in 5 minutes
@@ -157,15 +185,18 @@ agent = agent(llm=..., callbacks=[obs, metrics])
 - **Operating Systems:** Linux, macOS, Windows
 - **LLM Providers:** OpenAI, Anthropic, Ollama
 
-## 🎊 What's New in v0.0.3
+## 🎊 What's New in v0.0.4
 
-**Major Performance & Reliability Improvements:**
+**Complete API Exposure & Developer Experience:**
 
+- 🚀 **Full API Exposure** - All Loom 0.0.3 core capabilities now accessible via clean APIs
+- 🔧 **Developer-Friendly Interface** - New `loom.loom_agent()` and `loom.unified_executor()` APIs
+- 📊 **Enhanced Event Streaming** - Complete access to execution events and progress tracking
+- 🎯 **Unified Coordination API** - Direct access to `UnifiedExecutionContext` and `IntelligentCoordinator`
+- 📚 **Comprehensive Documentation** - Complete API reference and usage examples
 - ⚡ **40% Performance Boost** - Optimized execution pipeline and context management
-- 🔧 **Unified Coordination System** - Advanced multi-agent coordination with improved reliability
 - 🔄 **Enhanced TT Recursive Mode** - Better task handling and recursion management
-- 🛡️ **Bug Fixes** - All known issues resolved, compilation passes cleanly
-- 📚 **Improved Documentation** - Comprehensive guides and API references
+- 🛡️ **Production Ready** - All known issues resolved, compilation passes cleanly
 
 **Production Ready Features:**
 - ✅ Core agent execution (stable)
@@ -190,11 +221,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 📊 Project Status
 
-- **Version:** 0.0.3 (Alpha)
+- **Version:** 0.0.4 (Alpha)
 - **Status:** Active Development
 - **Tests:** 18/18 passing ✅
 - **Python:** 3.11+ supported
 - **Performance:** 40% improvement over v0.0.2
+- **API:** Complete exposure of Loom 0.0.3 capabilities
 
 ## 🗺️ Roadmap
 
@@ -224,7 +256,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **PyPI:** https://pypi.org/project/loom-agent/
 - **GitHub:** https://github.com/kongusen/loom-agent
 - **Issues:** https://github.com/kongusen/loom-agent/issues
-- **Releases:** [v0.0.3](releases/v0.0.3.md) | [v0.0.2](releases/v0.0.2.md) | [v0.0.1](releases/v0.0.1.md)
+- **Releases:** [v0.0.4](releases/v0.0.4.md) | [v0.0.3](releases/v0.0.3.md) | [v0.0.2](releases/v0.0.2.md) | [v0.0.1](releases/v0.0.1.md)
 
 ## 🙏 Acknowledgments
 

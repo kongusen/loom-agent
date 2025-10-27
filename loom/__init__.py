@@ -25,6 +25,33 @@ from .callbacks.observability import ObservabilityCallback, MetricsAggregator
 from .llm.model_health import ModelHealthChecker, HealthStatus
 from .llm.model_pool_advanced import ModelPoolLLM, ModelConfig, FallbackChain
 
+# Loom 0.0.3 - Unified Coordination & Performance
+from .core.agent_executor import AgentExecutor, TaskHandler
+from .core.unified_coordination import (
+    UnifiedExecutionContext,
+    IntelligentCoordinator,
+    CoordinationConfig
+)
+from .core.events import (
+    AgentEvent,
+    AgentEventType,
+    EventCollector,
+    EventFilter,
+    EventProcessor,
+    ToolCall,
+    ToolResult
+)
+from .core.turn_state import TurnState
+from .core.execution_context import ExecutionContext
+from .core.context_assembly import (
+    ContextAssembler,
+    ComponentPriority,
+    ContextComponent
+)
+
+# Loom 0.0.3 Developer API
+from .api.v0_0_3 import LoomAgent, loom_agent, unified_executor
+
 try:
     from importlib.metadata import version as _pkg_version
 
@@ -73,5 +100,29 @@ __all__ = [
     "ModelPoolLLM",
     "ModelConfig",
     "FallbackChain",
+    # Loom 0.0.3 exports - Core
+    "AgentExecutor",
+    "TaskHandler",
+    "UnifiedExecutionContext",
+    "IntelligentCoordinator",
+    "CoordinationConfig",
+    # Loom 0.0.3 exports - Events
+    "AgentEvent",
+    "AgentEventType",
+    "EventCollector",
+    "EventFilter",
+    "EventProcessor",
+    "ToolCall",
+    "ToolResult",
+    # Loom 0.0.3 exports - Context & State
+    "TurnState",
+    "ExecutionContext",
+    "ContextAssembler",
+    "ComponentPriority",
+    "ContextComponent",
+    # Loom 0.0.3 Developer API
+    "LoomAgent",
+    "loom_agent",
+    "unified_executor",
     "__version__",
 ]
