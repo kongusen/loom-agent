@@ -49,8 +49,8 @@ from .core.context_assembly import (
     ContextComponent
 )
 
-# Loom 0.0.3 Developer API
-from .api.v0_0_3 import LoomAgent, loom_agent, unified_executor
+# Back-compat alias (prefer `agent`)
+loom_agent = agent
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -120,9 +120,7 @@ __all__ = [
     "ContextAssembler",
     "ComponentPriority",
     "ContextComponent",
-    # Loom 0.0.3 Developer API
-    "LoomAgent",
+    # Back-compat alias
     "loom_agent",
-    "unified_executor",
     "__version__",
 ]

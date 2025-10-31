@@ -1,19 +1,11 @@
-"""Loom Unified API (Version-agnostic)
+"""Loom Unified API (v0.0.5)
 
-This module provides the stable, version-agnostic API for Loom Agent.
-Users should import from here instead of versioned modules.
-
-Example:
-    from loom.api import loom_agent
-    from loom.builtin.llms import OpenAILLM
-
-    agent = loom_agent(llm=OpenAILLM(model="gpt-4"), tools={})
+Prefer `from loom import agent`.
+For compatibility, `loom.api.loom_agent` aliases `loom.agent`.
 """
 
-from .v0_0_3 import LoomAgent, loom_agent, unified_executor
+from ..agent import agent as loom_agent
 
 __all__ = [
-    "LoomAgent",
     "loom_agent",
-    "unified_executor",
 ]

@@ -23,36 +23,29 @@ pip install loom-agent[openai]
 
 ### API 选择
 
-Loom v0.0.5 提供了两种主要的 API 路径：
+Loom v0.0.5 推荐统一使用：
 
-1. **`loom.api.v0_0_3.loom_agent()`** - 统一协调 API（推荐用于 v0.0.5）
-   - 使用 `CoordinationConfig` 进行配置
-   - 提供统一的协调机制
-   - 更适合复杂的多步骤任务
-
-2. **`loom.agent()`** - 便捷构建函数
-   - 支持 `compressor` 参数
-   - 更简单的配置方式
-   - 适合快速原型开发
-
-本文档主要介绍 `loom.api.v0_0_3.loom_agent()` API。
+- **`loom.agent()`**（推荐）
+  - 一致的 v0.0.5 能力与默认安全/控制特性
+  - 支持 `compressor` 与高级选项
+  - 适合原型与生产环境
 
 ### 基础使用
 
 ```python
 import asyncio
-from loom.api.v0_0_3 import loom_agent
+from loom import agent
 from loom.builtin.llms import OpenAILLM
 
 async def main():
     # 创建 Agent（自动启用递归控制和上下文管理）
-    agent = loom_agent(
+    my_agent = agent(
         llm=OpenAILLM(model="gpt-4"),
         tools={}
     )
 
     # 运行任务
-    result = await agent.run("Hello, how are you?")
+    result = await my_agent.run("Hello, how are you?")
     print(result)
 
 asyncio.run(main())

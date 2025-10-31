@@ -52,18 +52,18 @@ pip install loom-agent[all]
 
 ```python
 import asyncio
-from loom.api import loom_agent
+from loom import agent
 from loom.builtin.llms import OpenAILLM
 
 async def main():
     # Create an agent with built-in safety features
-    agent = loom_agent(
+    my_agent = agent(
         llm=OpenAILLM(model="gpt-4"),
         tools={"calculator": CalculatorTool()}
     )
 
     # Run with automatic recursion control and context management
-    result = await agent.run("Calculate the factorial of 5")
+    result = await my_agent.run("Calculate the factorial of 5")
     print(result)
 
 asyncio.run(main())
@@ -110,7 +110,7 @@ async def search_tool(query: str) -> str:
     # Your search logic here
     return f"Results for: {query}"
 
-agent = loom_agent(
+agent = agent(
     llm=OpenAILLM(model="gpt-4"),
     tools={"search": search_tool()}
 )
@@ -130,7 +130,7 @@ monitor = RecursionMonitor(
     error_threshold=0.3          # Lower error tolerance
 )
 
-agent = loom_agent(
+agent = agent(
     llm=OpenAILLM(model="gpt-4"),
     tools=tools,
     recursion_monitor=monitor,   # Custom recursion control
@@ -148,7 +148,7 @@ from loom.builtin.compressor import SimpleCompressor
 # Enable automatic compression for long conversations
 compressor = SimpleCompressor()
 
-agent = loom_agent(
+agent = agent(
     llm=OpenAILLM(model="gpt-4"),
     tools=tools,
     compressor=compressor,        # Enable compression
@@ -199,7 +199,7 @@ Automatically prevents infinite loops and stuck behavior:
 # - Loop patterns in outputs
 # - High error rates
 
-agent = loom_agent(llm=llm, tools=tools)
+agent = agent(llm=llm, tools=tools)
 
 # Monitor recursion control in action
 async for event in agent.stream(prompt):
@@ -225,7 +225,7 @@ Automatically manages context length and ensures data propagation:
 # - Recursion depth hints for LLM guidance
 # - Token usage monitoring
 
-agent = loom_agent(
+agent = agent(
     llm=llm,
     tools=tools,
     compressor=SimpleCompressor(),
@@ -295,7 +295,7 @@ async def calculator(operation: str, a: float, b: float) -> float:
     return ops[operation](a, b)
 
 # Tools are automatically validated and documented
-agent = loom_agent(llm=llm, tools={"calculator": calculator()})
+agent = agent(llm=llm, tools={"calculator": calculator()})
 ```
 
 ## 🛠️ Architecture
@@ -365,7 +365,7 @@ User Input
 ### 1. Multi-Step Analysis
 
 ```python
-agent = loom_agent(llm=llm, tools={
+agent = agent(llm=llm, tools={
     "fetch_data": DataFetchTool(),
     "analyze": AnalysisTool(),
     "generate_report": ReportTool()
@@ -383,7 +383,7 @@ Analyze the sales data:
 ### 2. Research Assistant
 
 ```python
-agent = loom_agent(
+agent = agent(
     llm=llm,
     tools={
         "search": SearchTool(),
@@ -400,7 +400,7 @@ result = await agent.run("Research the history of quantum computing")
 ### 3. Code Analysis
 
 ```python
-agent = loom_agent(llm=llm, tools={
+agent = agent(llm=llm, tools={
     "read_file": FileReadTool(),
     "analyze_code": CodeAnalysisTool(),
     "suggest_improvements": ImprovementTool()
