@@ -21,6 +21,22 @@
 pip install loom-agent[openai]
 ```
 
+### API 选择
+
+Loom v0.0.5 提供了两种主要的 API 路径：
+
+1. **`loom.api.v0_0_3.loom_agent()`** - 统一协调 API（推荐用于 v0.0.5）
+   - 使用 `CoordinationConfig` 进行配置
+   - 提供统一的协调机制
+   - 更适合复杂的多步骤任务
+
+2. **`loom.agent()`** - 便捷构建函数
+   - 支持 `compressor` 参数
+   - 更简单的配置方式
+   - 适合快速原型开发
+
+本文档主要介绍 `loom.api.v0_0_3.loom_agent()` API。
+
 ### 基础使用
 
 ```python
@@ -80,13 +96,21 @@ result = await agent.run("Complex task")
 自动管理消息上下文，确保工具结果传递：
 
 ```python
-from loom.builtin.compressor import SimpleCompressor
+from loom.core.unified_coordination import CoordinationConfig
+
+# 使用 CoordinationConfig 配置上下文管理
+config = CoordinationConfig(
+    deep_recursion_threshold=3,      # 深度递归阈值
+    high_complexity_threshold=0.7,   # 高复杂度阈值
+    max_execution_time=30.0,         # 最大执行时间
+    max_token_usage=0.8              # 最大 token 使用率
+)
 
 agent = loom_agent(
     llm=OpenAILLM(model="gpt-4"),
     tools={"search": SearchTool()},
-    compressor=SimpleCompressor(),    # 启用压缩
-    max_context_tokens=8000            # Token 限制
+    config=config,
+    max_iterations=50                # 最大迭代次数
 )
 
 # 自动功能：
@@ -111,18 +135,19 @@ result = await agent.run("Long multi-step task")
 agent = loom_agent(llm=llm, tools=tools)
 
 # 等同于：
-from loom.core.recursion_control import RecursionMonitor
+from loom.core.unified_coordination import CoordinationConfig
+
+config = CoordinationConfig(
+    deep_recursion_threshold=3,      # 深度递归阈值
+    high_complexity_threshold=0.7,   # 高复杂度阈值
+    max_subagent_count=3             # 最大子代理数量
+)
 
 agent = loom_agent(
     llm=llm,
     tools=tools,
-    enable_recursion_control=True,  # 默认启用
-    recursion_monitor=RecursionMonitor(
-        max_iterations=50,          # 最大迭代次数
-        duplicate_threshold=3,      # 重复工具阈值
-        loop_detection_window=5,    # 循环检测窗口
-        error_threshold=0.5         # 错误率阈值
-    )
+    config=config,
+    max_iterations=50                # 最大迭代次数
 )
 ```
 
@@ -131,26 +156,36 @@ agent = loom_agent(
 根据任务需求调整阈值：
 
 ```python
-from loom.core.recursion_control import RecursionMonitor
+from loom.core.unified_coordination import CoordinationConfig
 
 # 严格模式（快速检测循环）
-strict_monitor = RecursionMonitor(
-    max_iterations=20,       # 较低的最大迭代
-    duplicate_threshold=2,   # 2次重复即终止
-    error_threshold=0.3      # 更低的错误容忍度
+strict_config = CoordinationConfig(
+    deep_recursion_threshold=2,      # 更低的递归深度阈值
+    high_complexity_threshold=0.5,   # 更低的复杂度阈值
+    max_execution_time=15.0,         # 更短的最大执行时间
+    max_subagent_count=1             # 限制子代理数量
 )
 
 agent = loom_agent(
     llm=llm,
     tools=tools,
-    recursion_monitor=strict_monitor
+    config=strict_config,
+    max_iterations=20                # 较低的最大迭代
 )
 
 # 宽松模式（允许更多尝试）
-lenient_monitor = RecursionMonitor(
-    max_iterations=100,      # 更高的最大迭代
-    duplicate_threshold=5,   # 允许更多重复
-    error_threshold=0.7      # 更高的错误容忍度
+lenient_config = CoordinationConfig(
+    deep_recursion_threshold=5,      # 更高的递归深度阈值
+    high_complexity_threshold=0.8,   # 更高的复杂度阈值
+    max_execution_time=60.0,         # 更长的最大执行时间
+    max_subagent_count=5             # 允许更多子代理
+)
+
+agent = loom_agent(
+    llm=llm,
+    tools=tools,
+    config=lenient_config,
+    max_iterations=100               # 更高的最大迭代
 )
 ```
 
@@ -172,15 +207,23 @@ async for event in agent.stream("Complex task"):
         print(f"   工具历史: {tool_history[-5:]}")
 ```
 
-### 禁用递归控制
+### 调整递归控制
 
-某些场景下可能需要禁用：
+通过 `CoordinationConfig` 调整递归控制行为：
 
 ```python
+from loom.core.unified_coordination import CoordinationConfig
+
+# 更严格的递归控制
+config = CoordinationConfig(
+    deep_recursion_threshold=2,      # 深度为2时即触发
+    high_complexity_threshold=0.5    # 复杂度阈值更低
+)
+
 agent = loom_agent(
     llm=llm,
     tools=tools,
-    enable_recursion_control=False  # 完全禁用
+    config=config
 )
 ```
 
@@ -203,26 +246,32 @@ agent = loom_agent(llm=llm, tools=tools)
 # 4. 深度 > 3 时添加递归提示
 ```
 
-### 启用自动压缩
+### 配置上下文管理
 
-长时间对话或多步任务建议启用压缩：
+通过 `CoordinationConfig` 配置上下文管理策略：
 
 ```python
-from loom.builtin.compressor import SimpleCompressor
+from loom.core.unified_coordination import CoordinationConfig
 
-compressor = SimpleCompressor()
+config = CoordinationConfig(
+    deep_recursion_threshold=3,      # 深度递归阈值
+    high_complexity_threshold=0.7,   # 高复杂度阈值
+    context_cache_size=100,           # 上下文组件缓存大小
+    max_token_usage=0.8              # 最大 token 使用率
+)
 
 agent = loom_agent(
     llm=llm,
     tools=tools,
-    compressor=compressor,
-    max_context_tokens=8000  # GPT-4 的合理限制
+    config=config,
+    max_iterations=50
 )
 
-# 自动压缩触发条件：
-# - 消息估算 Token 数 > max_context_tokens
-# - 保留最近的消息和系统消息
-# - 发出 COMPRESSION_APPLIED 事件
+# 自动功能：
+# - 工具结果保证传递到下一轮
+# - Token 使用率监控
+# - 递归深度 > threshold 时调整策略
+# - 智能上下文组装
 ```
 
 ### 监控上下文事件
@@ -444,71 +493,71 @@ async for event in agent.stream(prompt):
 
 ## 高级用法
 
-### 1. 自定义 Compressor
+### 1. 自定义 CoordinationConfig
 
 ```python
-from loom.interfaces.compressor import BaseCompressor
-from loom.core.types import Message
+from loom.core.unified_coordination import CoordinationConfig
 
-class CustomCompressor(BaseCompressor):
-    def should_compress(self, current_tokens: int, max_tokens: int) -> bool:
-        """判断是否需要压缩"""
-        return current_tokens > max_tokens * 0.8  # 80% 时触发
+# 创建自定义配置
+config = CoordinationConfig(
+    # 任务分析阈值
+    deep_recursion_threshold=3,      # 深度递归阈值
+    high_complexity_threshold=0.7,    # 高复杂度阈值
+    completion_score_threshold=0.8,  # 任务完成度阈值
+    
+    # 缓存配置
+    context_cache_size=200,           # 上下文组件缓存大小（增加到200）
+    subagent_pool_size=10,            # 子代理池大小（增加到10）
+    
+    # 事件处理配置
+    event_batch_size=20,              # 事件批处理大小（增加到20）
+    event_batch_timeout=0.1,          # 事件批处理超时时间（增加到0.1秒）
+    
+    # 性能目标
+    max_execution_time=60.0,          # 最大执行时间（增加到60秒）
+    max_token_usage=0.9,              # 最大 token 使用率（增加到90%）
+    min_cache_hit_rate=0.5,           # 最小缓存命中率（降低到50%）
+    max_subagent_count=5             # 最大子代理数量（增加到5）
+)
 
-    async def compress(self, messages: List[Message]):
-        """执行压缩"""
-        # 自定义压缩逻辑
-        # 例如：保留系统消息和最近 N 条消息
-        system_msgs = [m for m in messages if m.role == "system"]
-        recent_msgs = [m for m in messages if m.role != "system"][-5:]
-
-        compressed = system_msgs + recent_msgs
-
-        metadata = CompressorMetadata(
-            original_tokens=len(messages) * 100,  # 估算
-            compressed_tokens=len(compressed) * 100,
-            compression_ratio=len(compressed) / len(messages),
-            original_message_count=len(messages),
-            compressed_message_count=len(compressed),
-            key_topics=["topic1", "topic2"]
-        )
-
-        return compressed, metadata
-
-# 使用自定义 compressor
+# 使用自定义配置
 agent = loom_agent(
     llm=llm,
     tools=tools,
-    compressor=CustomCompressor()
+    config=config
 )
 ```
 
-### 2. 组合 Phase 2 和 Phase 3
+### 2. 组合配置优化
 
 ```python
-from loom.core.recursion_control import RecursionMonitor
-from loom.builtin.compressor import SimpleCompressor
+from loom.core.unified_coordination import CoordinationConfig
 
-# 创建严格的递归控制
-monitor = RecursionMonitor(
-    max_iterations=30,
-    duplicate_threshold=2,
-    error_threshold=0.3
+# 创建优化的配置
+config = CoordinationConfig(
+    # 递归控制
+    deep_recursion_threshold=3,      # 深度递归阈值
+    high_complexity_threshold=0.7,    # 高复杂度阈值
+    
+    # 上下文管理
+    context_cache_size=150,           # 上下文缓存大小
+    max_token_usage=0.85,             # 最大 token 使用率
+    
+    # 事件处理
+    event_batch_size=15,              # 事件批处理大小
+    event_batch_timeout=0.05,         # 事件批处理超时
+    
+    # 性能目标
+    max_execution_time=30.0,          # 最大执行时间
+    max_subagent_count=3              # 最大子代理数量
 )
 
-# 创建压缩器
-compressor = SimpleCompressor()
-
-# 组合使用
+# 使用优化配置
 agent = loom_agent(
     llm=OpenAILLM(model="gpt-4"),
     tools=tools,
-    # 递归控制
-    recursion_monitor=monitor,
-    enable_recursion_control=True,
-    # 上下文管理
-    compressor=compressor,
-    max_context_tokens=6000
+    config=config,
+    max_iterations=30                 # 最大迭代次数
 )
 
 # 监控所有优化
@@ -571,44 +620,64 @@ async for event in agent.stream(prompt):
 ### 1. 递归控制配置
 
 ```python
+from loom.core.unified_coordination import CoordinationConfig
+
 # 短时任务（快速响应）
-quick_monitor = RecursionMonitor(
-    max_iterations=10,
-    duplicate_threshold=2
+quick_config = CoordinationConfig(
+    deep_recursion_threshold=2,      # 较低的递归深度阈值
+    high_complexity_threshold=0.5,   # 较低的复杂度阈值
+    max_execution_time=10.0,         # 较短的最大执行时间
+    max_subagent_count=1             # 限制子代理数量
 )
 
 # 复杂任务（允许更多尝试）
-complex_monitor = RecursionMonitor(
-    max_iterations=50,
-    duplicate_threshold=4,
-    error_threshold=0.6
+complex_config = CoordinationConfig(
+    deep_recursion_threshold=5,      # 较高的递归深度阈值
+    high_complexity_threshold=0.8,   # 较高的复杂度阈值
+    max_execution_time=60.0,         # 较长的最大执行时间
+    max_subagent_count=5             # 允许更多子代理
 )
 
 # 研究任务（最大灵活性）
-research_monitor = RecursionMonitor(
-    max_iterations=100,
-    duplicate_threshold=5,
-    error_threshold=0.7
+research_config = CoordinationConfig(
+    deep_recursion_threshold=10,      # 很高的递归深度阈值
+    high_complexity_threshold=0.9,   # 很高的复杂度阈值
+    max_execution_time=120.0,        # 很长的最大执行时间
+    max_subagent_count=10            # 允许大量子代理
 )
 ```
 
 ### 2. Token 限制设置
 
 ```python
-# 根据 LLM 模型设置合理的限制
-token_limits = {
-    "gpt-3.5-turbo": 4000,      # 4K 上下文
-    "gpt-4": 8000,               # 8K 上下文
-    "gpt-4-32k": 32000,          # 32K 上下文
-    "claude-2": 100000,          # 100K 上下文
+from loom.core.unified_coordination import CoordinationConfig
+
+# 根据 LLM 模型设置合理的配置
+model_configs = {
+    "gpt-3.5-turbo": CoordinationConfig(
+        max_token_usage=0.7,         # 4K 上下文，使用70%
+        context_cache_size=50        # 较小的缓存
+    ),
+    "gpt-4": CoordinationConfig(
+        max_token_usage=0.8,         # 8K 上下文，使用80%
+        context_cache_size=100        # 中等缓存
+    ),
+    "gpt-4-32k": CoordinationConfig(
+        max_token_usage=0.85,        # 32K 上下文，使用85%
+        context_cache_size=200        # 较大缓存
+    ),
+    "claude-2": CoordinationConfig(
+        max_token_usage=0.9,         # 100K 上下文，使用90%
+        context_cache_size=500        # 很大缓存
+    ),
 }
 
 model = "gpt-4"
 agent = loom_agent(
     llm=OpenAILLM(model=model),
     tools=tools,
-    compressor=SimpleCompressor(),
-    max_context_tokens=token_limits[model]
+    config=model_configs[model],
+    max_iterations=50
 )
 ```
 
@@ -642,29 +711,41 @@ except Exception as e:
 ### 4. 性能优化
 
 ```python
+from loom.core.unified_coordination import CoordinationConfig
+
 # 1. 使用并行工具执行（只读工具）
 class SearchTool(BaseTool):
     is_read_only = True  # 标记为只读，允许并行
 
-# 2. 启用压缩（长对话）
-if expected_iterations > 10:
-    compressor = SimpleCompressor()
-else:
-    compressor = None
-
-# 3. 调整递归阈值
+# 2. 根据任务复杂度调整配置
 if task_is_simple:
+    config = CoordinationConfig(
+        deep_recursion_threshold=2,
+        max_subagent_count=1,
+        max_execution_time=10.0
+    )
     max_iterations = 10
 elif task_is_complex:
+    config = CoordinationConfig(
+        deep_recursion_threshold=5,
+        max_subagent_count=5,
+        max_execution_time=60.0,
+        context_cache_size=200
+    )
     max_iterations = 50
 else:
+    config = CoordinationConfig(
+        deep_recursion_threshold=3,
+        max_subagent_count=3,
+        max_execution_time=30.0
+    )
     max_iterations = 30
 
 agent = loom_agent(
     llm=llm,
     tools=tools,
-    compressor=compressor,
-    recursion_monitor=RecursionMonitor(max_iterations=max_iterations)
+    config=config,
+    max_iterations=max_iterations
 )
 ```
 
