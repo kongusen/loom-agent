@@ -65,6 +65,9 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+# Development documentation (not for public)
+docs_dev/
+
 # PyBuilder
 target/
 
@@ -151,6 +154,10 @@ config.json
 .env.local
 .env.production
 .env.development
+
+# PyPI Token (NEVER commit this!)
+.pypi-token
+.pypirc
 
 # Model files (if large)
 models/

@@ -20,6 +20,7 @@ from loom.core.context_assembly import ComponentPriority, ContextAssembler
 from loom.core.events import AgentEvent, AgentEventType, ToolResult
 from loom.core.execution_context import ExecutionContext
 from loom.core.permissions import PermissionManager
+from loom.core.recursion_control import RecursionMonitor, RecursionState
 from loom.core.steering_control import SteeringControl
 from loom.core.tool_orchestrator import ToolOrchestrator
 from loom.core.tool_pipeline import ToolExecutionPipeline
@@ -127,6 +128,9 @@ class AgentExecutor:
         task_handlers: Optional[List[TaskHandler]] = None,
         unified_context: Optional["UnifiedExecutionContext"] = None,
         enable_unified_coordination: bool = True,
+        # Phase 2: Recursion Control
+        enable_recursion_control: bool = True,
+        recursion_monitor: Optional[RecursionMonitor] = None,
     ) -> None:
         self.llm = llm
         self.tools = tools or {}
@@ -144,11 +148,17 @@ class AgentExecutor:
         self.callbacks = callbacks or []
         self.enable_steering = enable_steering
         self.task_handlers = task_handlers or []
-        
+
         # Unified coordination
         self.unified_context = unified_context
         self.enable_unified_coordination = enable_unified_coordination
-        
+
+        # Phase 2: Recursion control
+        self.enable_recursion_control = enable_recursion_control
+        self.recursion_monitor = recursion_monitor or RecursionMonitor(
+            max_iterations=max_iterations
+        )
+
         # Initialize unified coordination if enabled
         if self.enable_unified_coordination and UnifiedExecutionContext and IntelligentCoordinator:
             self._setup_unified_coordination()
@@ -300,6 +310,56 @@ class AgentExecutor:
             turn_id=turn_state.turn_id,
             metadata={"parent_turn_id": turn_state.parent_turn_id},
         )
+
+        # Phase 2: Advanced recursion control (optional)
+        if self.enable_recursion_control:
+            # Build recursion state from turn state
+            recursion_state = RecursionState(
+                iteration=turn_state.turn_counter,
+                tool_call_history=turn_state.tool_call_history,
+                error_count=turn_state.error_count,
+                last_outputs=turn_state.last_outputs
+            )
+
+            # Check for termination conditions
+            termination_reason = self.recursion_monitor.check_termination(
+                recursion_state
+            )
+
+            if termination_reason:
+                # Emit termination event
+                yield AgentEvent(
+                    type=AgentEventType.RECURSION_TERMINATED,
+                    metadata={
+                        "reason": termination_reason.value,
+                        "iteration": turn_state.turn_counter,
+                        "tool_call_history": turn_state.tool_call_history[-5:],
+                        "error_count": turn_state.error_count
+                    }
+                )
+
+                # Add termination message to prompt LLM to finish
+                termination_msg = self.recursion_monitor.build_termination_message(
+                    termination_reason
+                )
+
+                # Add termination guidance as system message
+                messages = messages + [
+                    Message(role="system", content=termination_msg)
+                ]
+
+                # Note: We continue execution but with termination guidance
+                # The LLM will receive the termination message and should wrap up
+
+            # Check for early warnings (not terminating yet, just warning)
+            elif warning_msg := self.recursion_monitor.should_add_warning(
+                recursion_state,
+                warning_threshold=0.8
+            ):
+                # Add warning as system message
+                messages = messages + [
+                    Message(role="system", content=warning_msg)
+                ]
 
         # Base case 1: Maximum recursion depth reached
         if turn_state.is_final:
@@ -581,22 +641,37 @@ class AgentExecutor:
         # Phase 5: Recursive Call (Tail Recursion)
         # ==========================================
 
-        # Prepare next turn state
-        next_state = turn_state.next_turn(compacted=compacted_this_turn)
+        # Phase 2: Track tool calls and errors for recursion control
+        tool_names_called = [tc.name for tc in tc_models]
+        had_tool_errors = any(r.is_error for r in tool_results)
 
-        # Prepare next turn messages with intelligent context guidance
-        next_messages = self._prepare_recursive_messages(
+        # Extract output for loop detection (use first tool result or content)
+        output_sample = None
+        if tool_results:
+            output_sample = tool_results[0].content[:200]  # First 200 chars
+        elif content:
+            output_sample = content[:200]
+
+        # Prepare next turn state with recursion tracking
+        next_state = turn_state.next_turn(
+            compacted=compacted_this_turn,
+            tool_calls=tool_names_called,
+            had_error=had_tool_errors,
+            output=output_sample
+        )
+
+        # Phase 3: Prepare next turn messages with intelligent context guidance
+        # This now includes tool results, compression, and recursion hints
+        next_messages = await self._prepare_recursive_messages(
             messages, tool_results, turn_state, context
         )
-        
-        # Add tool results
-        for r in tool_results:
-            next_messages.append(
-                Message(
-                    role="tool",
-                    content=r.content,
-                    tool_call_id=r.tool_call_id,
-                )
+
+        # Check if compression was applied and emit event
+        if "last_compression" in context.metadata:
+            comp_info = context.metadata.pop("last_compression")
+            yield AgentEvent(
+                type=AgentEventType.COMPRESSION_APPLIED,
+                metadata=comp_info
             )
 
         # Emit recursion event
@@ -606,6 +681,8 @@ class AgentExecutor:
                 "from_turn": turn_state.turn_id,
                 "to_turn": next_state.turn_id,
                 "depth": next_state.turn_counter,
+                "tools_called": tool_names_called,
+                "message_count": len(next_messages),
             },
         )
 
@@ -617,7 +694,7 @@ class AgentExecutor:
     # Intelligent Recursion Methods
     # ==========================================
 
-    def _prepare_recursive_messages(
+    async def _prepare_recursive_messages(
         self,
         messages: List[Message],
         tool_results: List[ToolResult],
@@ -625,22 +702,131 @@ class AgentExecutor:
         context: ExecutionContext,
     ) -> List[Message]:
         """
-        智能准备递归调用的消息
-        
-        基于工具结果类型、任务上下文和递归深度，生成合适的用户指导消息
+        Phase 3: 智能准备递归调用的消息
+
+        确保工具结果正确传递到下一轮，并进行必要的上下文优化
+
+        Args:
+            messages: 当前轮次的消息
+            tool_results: 工具执行结果
+            turn_state: 当前轮次状态
+            context: 执行上下文
+
+        Returns:
+            准备好的下一轮消息列表
         """
-        # 分析工具结果
+        # 1. 分析工具结果（用于生成智能指导）
         result_analysis = self._analyze_tool_results(tool_results)
-        
-        # 获取原始任务
         original_task = self._extract_original_task(messages)
-        
-        # 生成智能指导消息
+
+        # 2. 生成智能指导消息
         guidance_message = self._generate_recursion_guidance(
             original_task, result_analysis, turn_state.turn_counter
         )
-        
-        return [Message(role="user", content=guidance_message)]
+
+        # 3. 构建下一轮消息：用户指导
+        next_messages = [Message(role="user", content=guidance_message)]
+
+        # 4. 添加工具结果消息（关键：确保工具结果被传递）
+        for result in tool_results:
+            next_messages.append(Message(
+                role="tool",
+                content=result.content,
+                tool_call_id=result.tool_call_id,
+                metadata=result.metadata or {}
+            ))
+
+        # 5. Phase 3: 检查上下文长度
+        estimated_tokens = self._estimate_tokens(next_messages)
+        compression_applied = False
+
+        if estimated_tokens > self.max_context_tokens:
+            # 触发压缩（如果有 compressor）
+            if self.compressor:
+                tokens_before = estimated_tokens
+                next_messages = await self._compress_messages(next_messages)
+                tokens_after = self._estimate_tokens(next_messages)
+                compression_applied = True
+
+                # Store compression info for later emission
+                context.metadata["last_compression"] = {
+                    "tokens_before": tokens_before,
+                    "tokens_after": tokens_after,
+                    "trigger": "recursive_message_preparation"
+                }
+
+        # 6. Phase 3: 添加递归深度提示（深度递归时）
+        if turn_state.turn_counter > 3:
+            hint_content = self._build_recursion_hint(
+                turn_state.turn_counter,
+                turn_state.max_iterations
+            )
+
+            hint = Message(
+                role="system",
+                content=hint_content
+            )
+            next_messages.append(hint)
+
+        return next_messages
+
+    def _estimate_tokens(self, messages: List[Message]) -> int:
+        """
+        估算消息列表的 token 数量
+
+        使用简单的启发式方法：字符数 / 4
+        生产环境中应使用具体模型的 tokenizer
+        """
+        return count_messages_tokens(messages)
+
+    async def _compress_messages(
+        self,
+        messages: List[Message]
+    ) -> List[Message]:
+        """
+        压缩消息列表（如果有 compressor）
+
+        这个方法会调用配置的 compressor 来减少上下文长度
+        """
+        if not self.compressor:
+            return messages
+
+        try:
+            compressed, metadata = await self.compressor.compress(messages)
+
+            # Update compression metrics
+            self.metrics.metrics.compressions = (
+                getattr(self.metrics.metrics, "compressions", 0) + 1
+            )
+
+            return compressed
+        except Exception as e:
+            # If compression fails, return original messages
+            self.metrics.metrics.total_errors += 1
+            await self._emit(
+                "error",
+                {"stage": "message_compression", "message": str(e)}
+            )
+            return messages
+
+    def _build_recursion_hint(self, current_depth: int, max_depth: int) -> str:
+        """
+        构建递归深度提示消息
+
+        在深度递归时提醒 LLM 注意进度和避免重复
+        """
+        remaining = max_depth - current_depth
+        progress = (current_depth / max_depth) * 100
+
+        hint = f"""🔄 Recursion Status:
+- Depth: {current_depth}/{max_depth} ({progress:.0f}% of maximum)
+- Remaining iterations: {remaining}
+
+Please review the tool results above and make meaningful progress towards completing the task.
+Avoid calling the same tool repeatedly with the same arguments unless necessary.
+If you have enough information, please provide your final answer."""
+
+        return hint
 
     def _analyze_tool_results(self, tool_results: List[ToolResult]) -> Dict[str, Any]:
         """分析工具结果类型和质量"""

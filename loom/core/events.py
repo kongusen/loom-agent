@@ -114,6 +114,9 @@ class AgentEventType(Enum):
     RECURSION = "recursion"
     """Recursive call initiated (tt mode)"""
 
+    RECURSION_TERMINATED = "recursion_terminated"
+    """Recursion terminated due to loop detection or limits (Phase 2 optimization)"""
+
     AGENT_FINISH = "agent_finish"
     """Agent execution finished successfully"""
 

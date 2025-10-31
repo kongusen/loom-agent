@@ -8,7 +8,7 @@ Inspired by Claude Code's recursive conversation management.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from uuid import uuid4
 
 
@@ -32,6 +32,9 @@ class TurnState:
         compacted: Whether conversation history was compacted this turn
         parent_turn_id: ID of the parent turn (None for initial turn)
         metadata: Additional turn-specific data
+        tool_call_history: History of tool names called (for recursion control)
+        error_count: Number of errors encountered (for recursion control)
+        last_outputs: Recent outputs for loop detection (for recursion control)
 
     Example:
         ```python
@@ -54,6 +57,16 @@ class TurnState:
     parent_turn_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    # Phase 2: Recursion control tracking
+    tool_call_history: List[str] = field(default_factory=list)
+    """History of tool names called (for recursion control)"""
+
+    error_count: int = 0
+    """Number of errors encountered during execution"""
+
+    last_outputs: List[str] = field(default_factory=list)
+    """Recent outputs for loop detection (limited to last 10)"""
+
     @staticmethod
     def initial(max_iterations: int = 10, **metadata) -> TurnState:
         """
@@ -75,7 +88,14 @@ class TurnState:
             metadata=metadata
         )
 
-    def next_turn(self, compacted: bool = False, **metadata_updates) -> TurnState:
+    def next_turn(
+        self,
+        compacted: bool = False,
+        tool_calls: Optional[List[str]] = None,
+        had_error: bool = False,
+        output: Optional[str] = None,
+        **metadata_updates
+    ) -> TurnState:
         """
         Create next turn state (immutable update).
 
@@ -84,6 +104,9 @@ class TurnState:
 
         Args:
             compacted: Whether history was compacted in the next turn
+            tool_calls: New tool calls to add to history
+            had_error: Whether an error occurred in this turn
+            output: Output content to add for loop detection
             **metadata_updates: Updates to metadata (merged with existing)
 
         Returns:
@@ -98,13 +121,33 @@ class TurnState:
         """
         new_metadata = {**self.metadata, **metadata_updates}
 
+        # Update tool call history
+        new_tool_history = list(self.tool_call_history)
+        if tool_calls:
+            new_tool_history.extend(tool_calls)
+        # Keep only last 20 tool calls
+        new_tool_history = new_tool_history[-20:]
+
+        # Update error count
+        new_error_count = self.error_count + (1 if had_error else 0)
+
+        # Update output history for loop detection
+        new_outputs = list(self.last_outputs)
+        if output:
+            new_outputs.append(output)
+        # Keep only last 10 outputs
+        new_outputs = new_outputs[-10:]
+
         return TurnState(
             turn_counter=self.turn_counter + 1,
             turn_id=str(uuid4()),  # New unique ID
             max_iterations=self.max_iterations,
             compacted=compacted,
             parent_turn_id=self.turn_id,  # Link to parent
-            metadata=new_metadata
+            metadata=new_metadata,
+            tool_call_history=new_tool_history,
+            error_count=new_error_count,
+            last_outputs=new_outputs
         )
 
     def with_metadata(self, **kwargs) -> TurnState:
@@ -125,7 +168,10 @@ class TurnState:
             max_iterations=self.max_iterations,
             compacted=self.compacted,
             parent_turn_id=self.parent_turn_id,
-            metadata=new_metadata
+            metadata=new_metadata,
+            tool_call_history=self.tool_call_history,
+            error_count=self.error_count,
+            last_outputs=self.last_outputs
         )
 
     @property
@@ -156,7 +202,10 @@ class TurnState:
             "max_iterations": self.max_iterations,
             "compacted": self.compacted,
             "parent_turn_id": self.parent_turn_id,
-            "metadata": self.metadata
+            "metadata": self.metadata,
+            "tool_call_history": self.tool_call_history,
+            "error_count": self.error_count,
+            "last_outputs": self.last_outputs
         }
 
     @staticmethod
@@ -176,7 +225,10 @@ class TurnState:
             max_iterations=data.get("max_iterations", 10),
             compacted=data.get("compacted", False),
             parent_turn_id=data.get("parent_turn_id"),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
+            tool_call_history=data.get("tool_call_history", []),
+            error_count=data.get("error_count", 0),
+            last_outputs=data.get("last_outputs", [])
         )
 
     def __repr__(self) -> str:
