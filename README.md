@@ -8,6 +8,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-40%2F40%20passing-brightgreen.svg)](tests/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kongusen/loom-agent)
 
 [Documentation](docs/user/user-guide.md) | [API Reference](docs/user/api-reference.md) | [Examples](examples/)
 
@@ -158,6 +159,417 @@ agent = agent(
 # Context automatically compressed when needed
 result = await agent.run("Long task with many iterations")
 ```
+
+---
+
+## 📖 使用指南 (Usage Guide)
+
+### 安装
+
+```bash
+# 基础安装
+pip install loom-agent
+
+# 包含 OpenAI 支持
+pip install loom-agent[openai]
+
+# 包含所有功能
+pip install loom-agent[all]
+```
+
+### 快速开始
+
+#### 方式 1: 使用 `agent()` 函数（推荐）
+
+```python
+import asyncio
+from loom import agent
+from loom.builtin.llms import OpenAILLM
+
+async def main():
+    # 最简单的创建方式
+    my_agent = agent(
+        llm=OpenAILLM(model="gpt-4"),
+        tools={}
+    )
+    
+    # 运行任务
+    result = await my_agent.run("你好，请介绍一下你自己")
+    print(result)
+
+asyncio.run(main())
+```
+
+#### 方式 2: 使用 provider 和 model
+
+```python
+from loom import agent
+
+# 直接指定 provider 和 model
+my_agent = agent(
+    provider="openai",
+    model="gpt-4",
+    api_key="sk-..."  # 或从环境变量读取
+)
+
+result = await my_agent.run("Hello")
+```
+
+#### 方式 3: 从环境变量创建
+
+```bash
+# 设置环境变量
+export OPENAI_API_KEY="sk-..."
+export LOOM_PROVIDER=openai
+export LOOM_MODEL=gpt-4
+```
+
+```python
+from loom import agent_from_env
+
+# 从环境变量自动创建
+my_agent = agent_from_env()
+
+result = await my_agent.run("Hello")
+```
+
+### 核心功能
+
+#### 1. 递归控制（自动防循环）
+
+Loom 自动检测和防止无限循环，无需额外配置：
+
+```python
+from loom import agent
+from loom.builtin.llms import OpenAILLM
+
+# 默认启用递归控制
+agent = agent(
+    llm=OpenAILLM(model="gpt-4"),
+    tools={"search": SearchTool()}
+)
+
+# 自动检测：
+# - 重复工具调用（同一工具连续调用）
+# - 循环模式（输出重复）
+# - 错误率过高
+# - 迭代次数超限
+
+result = await agent.run("复杂任务")
+```
+
+#### 2. 智能上下文管理
+
+自动管理消息上下文，确保工具结果传递：
+
+```python
+from loom import agent
+from loom.builtin.llms import OpenAILLM
+from loom.builtin.compressor import SimpleCompressor
+
+# 启用上下文压缩
+agent = agent(
+    llm=OpenAILLM(model="gpt-4"),
+    tools={"search": SearchTool()},
+    compressor=SimpleCompressor(),
+    max_context_tokens=8000  # Token 阈值
+)
+
+# 自动功能：
+# - 工具结果保证传递到下一轮
+# - Token 超限时自动压缩
+# - 递归深度 > 3 时添加提示
+# - 实时 Token 估算
+
+result = await agent.run("长任务")
+```
+
+#### 3. 事件流式处理
+
+实时监控 Agent 执行过程：
+
+```python
+from loom.core.events import AgentEventType
+
+async for event in agent.stream("分析数据"):
+    match event.type:
+        case AgentEventType.ITERATION_START:
+            print(f"开始迭代 {event.iteration}")
+        
+        case AgentEventType.LLM_DELTA:
+            print(event.content, end="", flush=True)
+        
+        case AgentEventType.TOOL_EXECUTION_START:
+            tool_name = event.metadata.get("tool_name", "unknown")
+            print(f"\n调用工具: {tool_name}")
+        
+        case AgentEventType.TOOL_RESULT:
+            result = event.tool_result
+            print(f"工具结果: {result.content[:100]}...")
+        
+        case AgentEventType.RECURSION_TERMINATED:
+            reason = event.metadata["reason"]
+            print(f"\n⚠️ 检测到循环: {reason}")
+        
+        case AgentEventType.COMPRESSION_APPLIED:
+            saved = event.metadata["tokens_before"] - event.metadata["tokens_after"]
+            print(f"\n📉 压缩节省 {saved} tokens")
+        
+        case AgentEventType.AGENT_FINISH:
+            print(f"\n✅ 完成: {event.content}")
+```
+
+### 工具系统
+
+#### 创建自定义工具
+
+```python
+from loom import tool
+from pydantic import BaseModel, Field
+
+# 方式 1: 使用装饰器
+@tool(description="搜索信息")
+async def search(query: str) -> str:
+    """搜索信息"""
+    # 实现搜索逻辑
+    return f"搜索结果: {query}"
+
+# 方式 2: 使用 Pydantic 参数模型
+class SearchArgs(BaseModel):
+    query: str = Field(description="搜索查询")
+    max_results: int = Field(default=10, description="最大结果数")
+
+@tool(description="高级搜索")
+async def advanced_search(query: str, max_results: int = 10) -> dict:
+    """执行高级搜索"""
+    return {
+        "query": query,
+        "results": ["result1", "result2"],
+        "count": max_results
+    }
+
+# 使用工具
+agent = agent(
+    llm=OpenAILLM(model="gpt-4"),
+    tools={
+        "search": search(),
+        "advanced_search": advanced_search()
+    }
+)
+
+result = await agent.run("搜索 Python 异步编程")
+```
+
+### 高级配置
+
+#### 自定义递归控制
+
+```python
+from loom import agent
+from loom.builtin.llms import OpenAILLM
+from loom.core.unified_coordination import CoordinationConfig
+
+# 创建自定义配置
+config = CoordinationConfig(
+    deep_recursion_threshold=3,      # 深度递归阈值
+    high_complexity_threshold=0.7,   # 高复杂度阈值
+    max_execution_time=30.0,        # 最大执行时间
+    max_token_usage=0.8              # 最大 token 使用率
+)
+
+agent = agent(
+    llm=OpenAILLM(model="gpt-4"),
+    tools={"search": SearchTool()},
+    max_iterations=50
+)
+
+result = await agent.run("复杂多步骤任务")
+```
+
+#### 性能优化配置
+
+```python
+# 根据任务复杂度调整配置
+from loom.core.unified_coordination import CoordinationConfig
+
+# 简单任务（快速响应）
+quick_config = CoordinationConfig(
+    deep_recursion_threshold=2,
+    high_complexity_threshold=0.5,
+    max_execution_time=10.0,
+    max_subagent_count=1
+)
+
+# 复杂任务（允许更多尝试）
+complex_config = CoordinationConfig(
+    deep_recursion_threshold=5,
+    high_complexity_threshold=0.8,
+    max_execution_time=60.0,
+    max_subagent_count=5
+)
+
+# 根据 LLM 模型设置
+model_configs = {
+    "gpt-3.5-turbo": CoordinationConfig(
+        max_token_usage=0.7,      # 4K 上下文，使用 70%
+        context_cache_size=50
+    ),
+    "gpt-4": CoordinationConfig(
+        max_token_usage=0.8,      # 8K 上下文，使用 80%
+        context_cache_size=100
+    ),
+    "gpt-4-32k": CoordinationConfig(
+        max_token_usage=0.85,     # 32K 上下文，使用 85%
+        context_cache_size=200
+    )
+}
+```
+
+### 最佳实践
+
+#### 1. 错误处理
+
+```python
+from loom.core.events import AgentEventType
+
+try:
+    async for event in agent.stream(prompt):
+        if event.type == AgentEventType.ERROR:
+            error = event.error
+            print(f"错误: {error}")
+            # 根据错误类型处理
+        
+        elif event.type == AgentEventType.TOOL_ERROR:
+            tool_name = event.tool_result.tool_name
+            error_msg = event.tool_result.content
+            print(f"工具 {tool_name} 错误: {error_msg}")
+        
+        elif event.type == AgentEventType.RECURSION_TERMINATED:
+            reason = event.metadata["reason"]
+            print(f"检测到循环: {reason}")
+
+except Exception as e:
+    print(f"执行异常: {e}")
+```
+
+#### 2. 实时统计
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class ExecutionStats:
+    iterations: int = 0
+    tool_calls: int = 0
+    compressions: int = 0
+    terminations: int = 0
+    tokens_saved: int = 0
+
+stats = ExecutionStats()
+
+async for event in agent.stream(prompt):
+    if event.type == AgentEventType.ITERATION_START:
+        stats.iterations += 1
+    
+    elif event.type == AgentEventType.TOOL_RESULT:
+        stats.tool_calls += 1
+    
+    elif event.type == AgentEventType.COMPRESSION_APPLIED:
+        stats.compressions += 1
+        stats.tokens_saved += (
+            event.metadata["tokens_before"] -
+            event.metadata["tokens_after"]
+        )
+    
+    elif event.type == AgentEventType.AGENT_FINISH:
+        print(f"\n📊 执行统计:")
+        print(f"   迭代次数: {stats.iterations}")
+        print(f"   工具调用: {stats.tool_calls}")
+        print(f"   压缩次数: {stats.compressions}")
+        print(f"   终止次数: {stats.terminations}")
+        print(f"   节省 Token: {stats.tokens_saved}")
+```
+
+#### 3. 监控和调试
+
+```python
+import logging
+
+# 启用日志
+logging.basicConfig(level=logging.INFO)
+
+# 收集详细事件
+events = []
+async for event in agent.stream(prompt):
+    events.append(event)
+    
+    # 实时输出关键事件
+    if event.type in [
+        AgentEventType.RECURSION_TERMINATED,
+        AgentEventType.COMPRESSION_APPLIED,
+        AgentEventType.TOOL_ERROR,
+        AgentEventType.ERROR
+    ]:
+        print(f"[{event.type.value}] {event.metadata}")
+
+# 事后分析
+print(f"\n总事件数: {len(events)}")
+print(f"迭代次数: {len([e for e in events if e.type == AgentEventType.ITERATION_START])}")
+print(f"工具调用: {len([e for e in events if e.type == AgentEventType.TOOL_RESULT])}")
+```
+
+### 完整示例
+
+```python
+import asyncio
+from loom import agent, tool
+from loom.builtin.llms import OpenAILLM
+from loom.builtin.compressor import SimpleCompressor
+from loom.core.events import AgentEventType
+
+# 定义工具
+@tool(description="计算器")
+async def calculator(operation: str, a: float, b: float) -> float:
+    """执行数学运算"""
+    ops = {
+        "add": lambda x, y: x + y,
+        "subtract": lambda x, y: x - y,
+        "multiply": lambda x, y: x * y,
+        "divide": lambda x, y: x / y if y != 0 else float('inf')
+    }
+    return ops[operation](a, b)
+
+async def main():
+    # 创建 Agent
+    my_agent = agent(
+        llm=OpenAILLM(model="gpt-4"),
+        tools={"calculator": calculator()},
+        compressor=SimpleCompressor(),
+        max_context_tokens=8000,
+        max_iterations=50
+    )
+    
+    # 流式执行并监控
+    async for event in my_agent.stream("计算 (123 + 456) * 789"):
+        if event.type == AgentEventType.LLM_DELTA:
+            print(event.content, end="", flush=True)
+        
+        elif event.type == AgentEventType.TOOL_EXECUTION_START:
+            print(f"\n[工具] {event.metadata['tool_name']}")
+        
+        elif event.type == AgentEventType.AGENT_FINISH:
+            print(f"\n\n✅ 最终结果: {event.content}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 更多资源
+
+- 📚 [完整用户指南](docs/USAGE_GUIDE_V0_0_5.md) - 详细的使用文档
+- 📖 [API 参考](docs/user/api-reference.md) - 完整的 API 文档
+- 🎯 [快速开始](docs/QUICKSTART.md) - 5 分钟上手
+- 💡 [示例代码](examples/) - 更多示例
 
 ## 🎊 What's New in v0.0.5
 
