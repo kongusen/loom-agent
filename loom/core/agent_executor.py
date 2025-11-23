@@ -196,12 +196,34 @@ class AgentExecutor:
 
         # 1. 集成 ContextAssembler
         if not self.unified_context.context_assembler:
-            from loom.core.context_assembly import ContextAssembler
+            from loom.core.context_assembly import ContextAssembler, ComponentPriority
+            import json
+
             self.unified_context.context_assembler = ContextAssembler(
                 max_tokens=self.max_context_tokens,
                 enable_caching=True,
                 cache_size=config.context_cache_size
             )
+
+            # 【关键修复】添加 system_instructions 作为基础组件
+            if self.system_instructions:
+                self.unified_context.context_assembler.add_component(
+                    name="base_instructions",
+                    content=self.system_instructions,
+                    priority=ComponentPriority.CRITICAL,
+                    truncatable=False,
+                )
+
+            # 添加工具定义
+            if self.tools:
+                tools_spec = self._serialize_tools()
+                tools_prompt = f"Available tools:\n{json.dumps(tools_spec, indent=2)}"
+                self.unified_context.context_assembler.add_component(
+                    name="tool_definitions",
+                    content=tools_prompt,
+                    priority=ComponentPriority.MEDIUM,
+                    truncatable=False,
+                )
 
         # 2. 集成 TaskTool
         if "task" in self.tools and not self.unified_context.task_tool:
