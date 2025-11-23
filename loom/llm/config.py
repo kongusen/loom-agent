@@ -76,7 +76,7 @@ class LLMConfig(BaseModel):
     # 可靠性配置
     max_retries: int = Field(default=3, ge=0, description="最大重试次数")
     retry_delay: float = Field(default=1.0, ge=0.0, description="重试延迟（秒）")
-    timeout: float = Field(default=60.0, ge=0.0, description="请求超时时间（秒）")
+    timeout: float = Field(default=120.0, ge=0.0, description="请求超时时间（秒）")
 
     # 额外参数（特定提供商的特殊参数）
     extra_params: Dict[str, Any] = Field(default_factory=dict, description="额外的提供商特定参数")

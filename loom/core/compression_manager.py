@@ -289,7 +289,36 @@ Now compress the conversation above following this exact structure:"""
         lines = []
         for i, msg in enumerate(messages, 1):
             role_label = msg.role.upper()
-            content = msg.content[:500] if len(msg.content) > 500 else msg.content  # Truncate long messages
+
+            # Handle tool messages
+            if msg.role == "tool":
+                content = f"[Tool Result for {msg.tool_call_id}] {msg.content}"
+            else:
+                content = msg.content or ""
+
+            # Truncate long messages
+            if len(content) > 500:
+                content = content[:500] + "..."
+
+            # Handle assistant messages with tool_calls
+            if msg.role == "assistant" and "tool_calls" in msg.metadata:
+                tool_calls = msg.metadata["tool_calls"]
+                if isinstance(tool_calls, list) and tool_calls:
+                    # Add tool call information
+                    tool_info_parts = []
+                    for tc in tool_calls:
+                        if isinstance(tc, dict):
+                            tool_name = tc.get("name", "unknown_tool")
+                            tool_id = tc.get("id", "unknown_id")
+                            tool_info_parts.append(f"{tool_name}({tool_id})")
+
+                    if tool_info_parts:
+                        tool_info = f"[Tool Calls: {', '.join(tool_info_parts)}]"
+                        if content:
+                            content = f"{content} {tool_info}"
+                        else:
+                            content = tool_info
+
             lines.append(f"[{i}] {role_label}: {content}")
 
         return "\n".join(lines)

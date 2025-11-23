@@ -46,7 +46,8 @@ class OpenAIEmbedding(BaseEmbedding):
         model: str = "text-embedding-3-small",
         dimensions: int | None = None,
         base_url: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = 120.0,
+        max_retries: int = 3,
     ):
         """
         Parameters:
@@ -54,7 +55,8 @@ class OpenAIEmbedding(BaseEmbedding):
             model: 模型名称
             dimensions: 向量维度（可选，text-embedding-3-* 支持）
             base_url: API 基础 URL（可选，用于代理）
-            timeout: 请求超时时间（秒）
+            timeout: 请求超时时间（秒），默认120秒
+            max_retries: 最大重试次数，默认3次
         """
         if not OPENAI_AVAILABLE:
             raise ImportError(
@@ -67,7 +69,8 @@ class OpenAIEmbedding(BaseEmbedding):
         self.client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=timeout
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
     async def embed_query(self, text: str) -> List[float]:

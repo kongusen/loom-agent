@@ -23,12 +23,19 @@ class OpenAILLM(BaseLLM):
         base_url: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        timeout: float = 120.0,
+        max_retries: int = 3,
         **kwargs: Any,
     ) -> None:
         if AsyncOpenAI is None:
             raise ImportError("Please install openai package: pip install openai")
 
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
         self._model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -52,8 +59,16 @@ class OpenAILLM(BaseLLM):
         }
         if self.max_tokens:
             params["max_tokens"] = self.max_tokens
+        
+        # 合并 kwargs 中的额外参数
+        params.update(self.kwargs)
 
         response = await self.client.chat.completions.create(**params)
+        
+        # 检查响应是否有效
+        if not response.choices or len(response.choices) == 0:
+            return ""
+        
         return response.choices[0].message.content or ""
 
     async def stream(self, messages: List[Dict]) -> AsyncGenerator[str, None]:
@@ -66,9 +81,16 @@ class OpenAILLM(BaseLLM):
         }
         if self.max_tokens:
             params["max_tokens"] = self.max_tokens
+        
+        # 合并 kwargs 中的额外参数
+        params.update(self.kwargs)
 
         stream = await self.client.chat.completions.create(**params)
         async for chunk in stream:
+            # 检查 choices 是否存在且不为空
+            if not chunk.choices or len(chunk.choices) == 0:
+                continue
+            
             content = chunk.choices[0].delta.content
             if content:
                 yield content
@@ -83,19 +105,35 @@ class OpenAILLM(BaseLLM):
         }
         if self.max_tokens:
             params["max_tokens"] = self.max_tokens
+        
+        # 合并 kwargs 中的额外参数
+        params.update(self.kwargs)
 
         response = await self.client.chat.completions.create(**params)
+        
+        # 检查响应是否有效
+        if not response.choices or len(response.choices) == 0:
+            return {
+                "content": "",
+                "tool_calls": None,
+            }
+        
         message = response.choices[0].message
 
         # 解析工具调用
         tool_calls = []
         if message.tool_calls:
             for tc in message.tool_calls:
+                try:
+                    arguments = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                except json.JSONDecodeError:
+                    arguments = {}
+                
                 tool_calls.append(
                     {
                         "id": tc.id,
                         "name": tc.function.name,
-                        "arguments": json.loads(tc.function.arguments) if tc.function.arguments else {},
+                        "arguments": arguments,
                     }
                 )
 
@@ -117,6 +155,9 @@ class OpenAILLM(BaseLLM):
         }
         if self.max_tokens:
             params["max_tokens"] = self.max_tokens
+        
+        # 合并 kwargs 中的额外参数
+        params.update(self.kwargs)
 
         stream = await self.client.chat.completions.create(**params)
 
@@ -124,6 +165,10 @@ class OpenAILLM(BaseLLM):
         accumulated_tool_calls: Dict[int, Dict] = {}
 
         async for chunk in stream:
+            # 检查 choices 是否存在且不为空
+            if not chunk.choices or len(chunk.choices) == 0:
+                continue
+            
             delta = chunk.choices[0].delta
 
             # 文本增量

@@ -47,6 +47,8 @@ class LLMFactory:
             kwargs: dict[str, Any] = {
                 "model": config.model_name,
                 "temperature": config.temperature,
+                "timeout": config.timeout,
+                "max_retries": config.max_retries,
             }
             if config.max_tokens is not None:
                 kwargs["max_tokens"] = config.max_tokens

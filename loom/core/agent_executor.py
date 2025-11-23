@@ -532,8 +532,10 @@ class AgentExecutor:
             if self.llm.supports_tools and self.tools:
                 # LLM with tool support
                 tools_spec = self._serialize_tools()
+                # Convert messages to API format, handling tool_calls in metadata
+                api_messages = [self._message_to_api_format(m) for m in history]
                 response = await self.llm.generate_with_tools(
-                    [m.__dict__ for m in history], tools_spec
+                    api_messages, tools_spec
                 )
 
                 content = response.get("content", "")
@@ -546,7 +548,9 @@ class AgentExecutor:
             else:
                 # Simple LLM generation (streaming)
                 content_parts = []
-                async for delta in self.llm.stream([m.__dict__ for m in history]):
+                # Convert messages to API format
+                api_messages = [self._message_to_api_format(m) for m in history]
+                async for delta in self.llm.stream(api_messages):
                     content_parts.append(delta)
                     yield AgentEvent(type=AgentEventType.LLM_DELTA, content=delta)
 
@@ -603,6 +607,17 @@ class AgentExecutor:
 
         # Execute tools using ToolOrchestrator
         tool_results: List[ToolResult] = []
+        
+        # Save assistant message with tool_calls to memory first
+        # This is critical: assistant message must come before tool messages
+        assistant_msg = Message(
+            role="assistant",
+            content=content or "",
+            metadata={"tool_calls": tool_calls}  # Store tool_calls in metadata for API conversion
+        )
+        if self.memory:
+            await self.memory.add_message(assistant_msg)
+        
         try:
             async for event in self.tool_orchestrator.execute_batch(tc_models):
                 yield event  # Forward all tool events
@@ -662,8 +677,9 @@ class AgentExecutor:
 
         # Phase 3: Prepare next turn messages with intelligent context guidance
         # This now includes tool results, compression, and recursion hints
+        # Pass assistant message and tool_calls for proper message formatting
         next_messages = await self._prepare_recursive_messages(
-            messages, tool_results, turn_state, context
+            messages, tool_results, tool_calls, content, turn_state, context
         )
 
         # Check if compression was applied and emit event
@@ -698,6 +714,8 @@ class AgentExecutor:
         self,
         messages: List[Message],
         tool_results: List[ToolResult],
+        tool_calls: List[Dict],
+        assistant_content: str,
         turn_state: TurnState,
         context: ExecutionContext,
     ) -> List[Message]:
@@ -705,29 +723,32 @@ class AgentExecutor:
         Phase 3: 智能准备递归调用的消息
 
         确保工具结果正确传递到下一轮，并进行必要的上下文优化
+        关键：必须符合 OpenAI API 的消息格式要求：
+        - assistant 消息（包含 tool_calls）必须紧跟在之前的消息之后
+        - tool 消息必须紧跟在对应的 assistant 消息之后
+        - 不能在 tool 消息前插入新的 user 消息
 
         Args:
             messages: 当前轮次的消息
             tool_results: 工具执行结果
+            tool_calls: 工具调用列表（用于创建 assistant 消息）
+            assistant_content: Assistant 消息的内容
             turn_state: 当前轮次状态
             context: 执行上下文
 
         Returns:
             准备好的下一轮消息列表
         """
-        # 1. 分析工具结果（用于生成智能指导）
-        result_analysis = self._analyze_tool_results(tool_results)
-        original_task = self._extract_original_task(messages)
-
-        # 2. 生成智能指导消息
-        guidance_message = self._generate_recursion_guidance(
-            original_task, result_analysis, turn_state.turn_counter
+        # 1. 首先添加 assistant 消息（包含 tool_calls）
+        # 这是关键：assistant 消息必须在 tool 消息之前
+        assistant_msg = Message(
+            role="assistant",
+            content=assistant_content or "",
+            metadata={"tool_calls": tool_calls}  # Store tool_calls in metadata
         )
+        next_messages = [assistant_msg]
 
-        # 3. 构建下一轮消息：用户指导
-        next_messages = [Message(role="user", content=guidance_message)]
-
-        # 4. 添加工具结果消息（关键：确保工具结果被传递）
+        # 2. 添加工具结果消息（必须紧跟在 assistant 消息之后）
         for result in tool_results:
             next_messages.append(Message(
                 role="tool",
@@ -735,6 +756,20 @@ class AgentExecutor:
                 tool_call_id=result.tool_call_id,
                 metadata=result.metadata or {}
             ))
+        
+        # 3. 如果需要指导信息，在 tool 消息之后添加（作为系统消息）
+        # 这样可以避免违反 API 的消息格式要求
+        result_analysis = self._analyze_tool_results(tool_results)
+        original_task = self._extract_original_task(messages)
+        
+        guidance_message = self._generate_recursion_guidance(
+            original_task, result_analysis, turn_state.turn_counter
+        )
+        
+        # 只有在有指导信息时才添加
+        if guidance_message and guidance_message.strip():
+            # 将指导信息作为系统消息添加到 tool 消息之后
+            next_messages.append(Message(role="system", content=guidance_message))
 
         # 5. Phase 3: 检查上下文长度
         estimated_tokens = self._estimate_tokens(next_messages)
@@ -1009,6 +1044,86 @@ If you have enough information, please provide your final answer."""
             name=raw["name"],
             arguments=raw.get("arguments", {}),
         )
+
+    def _message_to_api_format(self, message: Message) -> Dict:
+        """
+        Convert Message object to OpenAI API format.
+
+        Handles special case: assistant messages with tool_calls in metadata
+        must be converted to API format with tool_calls field.
+
+        According to OpenAI API spec:
+        - When assistant message has tool_calls, content should be null
+        - tool_calls must be at top level, not in metadata
+
+        Args:
+            message: Message object to convert
+
+        Returns:
+            Dict in OpenAI API message format
+        """
+        api_msg = {
+            "role": message.role,
+            "content": message.content or None,
+        }
+
+        # Handle tool messages
+        if message.role == "tool" and message.tool_call_id:
+            api_msg["tool_call_id"] = message.tool_call_id
+
+        # Handle assistant messages with tool_calls
+        # Check if metadata contains tool_calls (metadata is always a dict per Message dataclass)
+        if message.role == "assistant" and "tool_calls" in message.metadata:
+            tool_calls = message.metadata["tool_calls"]
+            if isinstance(tool_calls, list) and tool_calls:  # Validate it's a non-empty list
+                # According to OpenAI API spec, when tool_calls exist, content should be null
+                api_msg["content"] = None
+
+                # Convert tool_calls to OpenAI API format
+                api_tool_calls = []
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue  # Skip invalid tool call entries
+
+                    # Handle arguments: validate and serialize properly
+                    arguments = tc.get("arguments", {})
+                    if isinstance(arguments, str):
+                        # Validate it's valid JSON string, use as-is if valid
+                        try:
+                            json.loads(arguments)  # Validate JSON
+                            arguments_str = arguments
+                        except (json.JSONDecodeError, ValueError):
+                            # Invalid JSON, treat as empty dict
+                            arguments_str = "{}"
+                    elif isinstance(arguments, dict):
+                        # Serialize dict to JSON string
+                        try:
+                            arguments_str = json.dumps(arguments)
+                        except (TypeError, ValueError):
+                            # Fallback to empty dict if serialization fails
+                            arguments_str = "{}"
+                    else:
+                        # Fallback: convert to empty dict
+                        arguments_str = "{}"
+
+                    # Validate required fields exist
+                    tool_id = tc.get("id", "")
+                    tool_name = tc.get("name", "")
+
+                    if tool_id and tool_name:  # Only add valid tool calls
+                        api_tool_calls.append({
+                            "id": tool_id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": arguments_str
+                            }
+                        })
+
+                if api_tool_calls:  # Only add if we have valid tool calls
+                    api_msg["tool_calls"] = api_tool_calls
+
+        return api_msg
 
     async def _emit(self, event_type: str, payload: Dict) -> None:
         """Emit event to callbacks."""
