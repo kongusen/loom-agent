@@ -22,6 +22,12 @@ try:
 except ImportError:
     _has_http_request = False
 
+try:
+    from .exa_search import ExaSearchTool
+    _has_exa_search = True
+except ImportError:
+    _has_exa_search = False
+
 __all__ = ["Calculator", "ReadFileTool", "WriteFileTool", "GlobTool", "GrepTool"]
 
 if _has_web_search:
@@ -30,3 +36,5 @@ if _has_python_repl:
     __all__.append("PythonREPLTool")
 if _has_http_request:
     __all__.append("HTTPRequestTool")
+if _has_exa_search:
+    __all__.append("ExaSearchTool")
