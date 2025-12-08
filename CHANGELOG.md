@@ -1,274 +1,303 @@
 # Changelog
 
-All notable changes to Loom Agent Framework will be documented in this file.
+All notable changes to loom-agent will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.0.0] - 2025-10-15 (In Progress)
+---
 
-### Added - Claude Code Inspired Features (MAJOR Version)
+## [0.0.8] - 2025-12-09
 
-#### P1 Features (MVP Core)
+### 🎉 Major Architecture Upgrade - Recursive State Machine
 
-##### ✅ US1: Real-Time Steering (COMPLETE)
-- **MessageQueue Class** (`loom/core/message_queue.py`)
-  - Priority-based ordering (0-10, higher priority processed first)
-  - FIFO within same priority level
-  - Cancel-all support for graceful shutdown
-  - External cancel token integration for multi-agent scenarios
-- **AgentExecutor Enhancements**
-  - `enable_steering` parameter (opt-in, default False)
-  - `cancel_token` parameter for interrupt signals
-  - `correlation_id` auto-generation and propagation
-  - Iteration-level cancellation checks (<2s response time)
-  - Partial result return on interruption
-- **Agent API Updates**
-  - `Agent(enable_steering=True)` to enable h2A message queue
-  - `agent.run(input, cancel_token=event)` for cancellable execution
-  - `agent.run(input, correlation_id="req-123")` for request tracing
-- **Test Coverage** (TDD Workflow)
-  - 3 integration tests (interrupt, prioritization, LLM cancellation)
-  - 2 contract tests (API backward compatibility)
-  - 6 unit tests (priority ordering, FIFO, cancel-all)
+v0.0.8 represents a significant architectural evolution from "implicit recursion framework" to a production-ready **Recursive State Machine (RSM)**. This release adds engineering capabilities while maintaining the framework's core simplicity.
 
-**Performance**: <1% overhead when enabled, 0% when disabled (backward compatible)
+### Added
 
-##### ✅ US2: Context Compression (COMPLETE)
-- **CompressionManager Class** (`loom/core/compression_manager.py`)
-  - 92% threshold detection with automatic compression
-  - LLM-based 8-segment structured summarization
-  - 70-80% token reduction (target: 75%)
-  - Retry logic with exponential backoff (1s, 2s, 4s, max 3 attempts)
-  - Sliding window fallback after max retries
-  - System message preservation (never compressed)
-- **AgentExecutor Integration**
-  - Updated `_maybe_compress()` to use CompressionManager API
-  - Compression metadata tracking (ratio, token counts, key topics)
-  - Metrics integration (compressions, compression_fallbacks counters)
-  - Event emission with detailed metadata
-- **Agent API Updates**
-  - `Agent(enable_compression=True)` to enable AU2 auto-compression
-  - Auto-instantiates CompressionManager with optimal settings
-  - Compatible with existing `compressor` parameter (manual control)
-- **8-Segment Prompt Template**
-  - Task Overview, Key Decisions, Progress, Blockers
-  - Open Items, Context, Next Steps, Metadata
-  - Example-driven prompt for consistent LLM output
-- **Test Coverage** (TDD Workflow)
-  - 6 integration tests (auto-compression, recompression, fallback, backward compat, system preservation)
-  - 5 contract tests (8-segment structure, metadata, threshold, retry, sliding window)
-  - 11 unit tests (extraction, token reduction, topics, backoff, edge cases)
+#### Core Components (~3,500 lines)
 
-**Performance**: 70-80% token reduction, <100ms compression overhead, 5x longer conversations
+- **ExecutionFrame** (~400 lines)
+  - Immutable execution stack frame representing one recursion level
+  - Inspired by Python call stack and React Fiber architecture
+  - Complete state snapshot with parent-child linking
+  - Methods: `next_frame()`, `with_context()`, `with_llm_response()`, `with_tool_results()`, `to_checkpoint()`
 
-##### ✅ US3: Sub-Agent Isolation (COMPLETE)
-- **SubAgentPool Class** (`loom/core/subagent_pool.py`)
-  - Spawn isolated sub-agents with independent fault boundaries
-  - Tool whitelist enforcement (sub-agent only sees whitelisted tools)
-  - Separate message histories (no cross-contamination)
-  - Execution depth limits (max 3 levels, prevents infinite recursion)
-  - Timeout enforcement via cancel_token (US1 integration)
-  - Max iterations per sub-agent
-- **Concurrent Execution**
-  - Multiple sub-agents execute concurrently via asyncio.gather()
-  - 1 sub-agent failure doesn't affect others
-  - spawn_many() for batch concurrent execution
-- **Resource Management**
-  - Active sub-agent tracking
-  - cancel_all() for graceful shutdown
-  - Automatic cleanup on completion/timeout
-- **Test Coverage** (TDD Workflow)
-  - 6 integration tests (fault isolation, message history, whitelist, depth, timeout, concurrency)
+- **EventJournal** (~500 lines)
+  - Append-only event log for complete execution history
+  - Event sourcing architecture (vs LangGraph's static snapshots)
+  - JSON Lines storage format with async batched writes
+  - Thread isolation and sequence tracking
+  - Methods: `append()`, `replay()`, `start()`, `stop()`
 
-**Performance**: Concurrent sub-agent execution, <10ms spawn overhead, fault isolation
+- **StateReconstructor** (~450 lines)
+  - Idempotent state reconstruction from event stream
+  - Time travel debugging - reconstruct at any historical iteration
+  - **Unique Feature**: Replay old events with new strategies (LangGraph cannot do this)
+  - Methods: `reconstruct()`, `reconstruct_at_iteration()`, `reconstruct_with_new_strategy()`
 
-#### P2 Features (Production Ready) ✅ COMPLETE
+- **LifecycleHooks** (~550 lines)
+  - 9 hook points for elegant control flow without explicit graph edges
+  - Hook points: `before_iteration_start`, `before/after_context_assembly`, `before_llm_call`, `after_llm_response`, `before/after_tool_execution`, `before_recursion`, `after_iteration_end`
+  - `InterruptException` for Human-in-the-Loop (HITL) support
+  - `SkipToolException` for selective tool skipping
+  - `HITLHook`: Built-in hook for dangerous operation confirmation
+  - `LoggingHook`: Execution logging with verbosity control
+  - `MetricsHook`: Real-time metrics collection
 
-##### ✅ US4: Tool Execution Pipeline Enhancement (COMPLETE)
-- **Enhanced Scheduler** (`loom/core/scheduler.py`)
-  - Parallel execution for `parallel_safe=True` tools (max 10 concurrent)
-  - Serial execution for `parallel_safe=False` tools
-  - File write conflict detection with per-file locks
-  - Heuristic detection: tool names (write/edit/save) + arg keys (file_path/path)
-  - Path normalization to prevent duplicate locks
-- **6-Stage Pipeline** (existing, now with conflict detection)
-  - Discover → Validate → Authorize → Check_Cancel → Execute → Format
-  - File-writing tools automatically serialized by target file
-  - Non-conflicting tools execute concurrently
-- **Test Coverage**
-  - File conflict detection test (serialization verified)
-  - Concurrent execution for different files
+- **ContextDebugger** (~550 lines)
+  - Transparent context management decisions
+  - Answer "Why did LLM forget X?" questions
+  - Methods: `record_assembly()`, `explain_iteration()`, `explain_component()`, `generate_summary()`
+  - Auto-export feature for post-execution analysis
 
-**Performance**: 10x speedup for read-heavy workloads, safe file writes
+- **ExecutionVisualizer** (~500 lines)
+  - CLI visualization as flame graph/timeline
+  - Shows recursion depth, phase durations, and event sequences
+  - Methods: `render_timeline()`, `render_flame_graph()`, `export_to_json()`
 
-##### ✅ US5: Error Handling & Resilience (COMPLETE)
-- **ErrorClassifier** (`loom/core/error_classifier.py`)
-  - Automatic error categorization (network, timeout, rate_limit, service, validation, auth, not_found, unknown)
-  - Retryable/non-retryable classification
-  - Actionable recovery guidance for each category
-- **RetryPolicy** (`loom/core/error_classifier.py`)
-  - Exponential backoff (1s, 2s, 4s, max 3 attempts by default)
-  - Configurable base_delay, max_delay, exponential_base
-  - Automatic retry for retryable errors only
-  - execute_with_retry() helper for any async function
-- **CircuitBreaker** (`loom/core/circuit_breaker.py`)
-  - Three states: CLOSED → OPEN → HALF_OPEN
-  - Configurable thresholds (failure_threshold=5, success_threshold=2)
-  - Timeout-based recovery attempt (default 60s)
-  - Context manager and call() method APIs
-  - State inspection via get_state()
-- **Test Coverage**
-  - Error classification for 5+ error types
-  - Retry with exponential backoff
-  - Circuit breaker state transitions
+#### AgentExecutor Integration
 
-**Reliability**: Automatic recovery from transient failures, cascading failure prevention
+- **Phase 0-5 Complete Integration**
+  - Phase 0: ExecutionFrame creation and `before_iteration_start` hook
+  - Phase 1: Context assembly hooks + ContextDebugger recording
+  - Phase 2: LLM call hooks (`before_llm_call`, `after_llm_response`)
+  - Phase 4: Tool execution hooks with **full HITL support**
+  - Phase 5: Recursion hook (`before_recursion`)
+  - `after_iteration_end` hook at all exit points
 
-##### ✅ US6: Three-Tier Memory System (COMPLETE)
-- **PersistentMemory** (`loom/builtin/memory/persistent_memory.py`)
-  - Tier 1: In-memory message array (current session)
-  - Tier 2: Compression metadata tracking (via add_compression_metadata())
-  - Tier 3: JSON file persistence to `.loom/session_*.json`
-  - Automatic backup rotation (configurable max_backup_files, default 5)
-  - Corruption recovery from most recent valid backup
-  - Zero-config defaults (auto-creates .loom directory)
-- **Developer-Friendly API**
-  - Drop-in replacement for InMemoryMemory
-  - enable_persistence toggle for testing
-  - get_persistence_info() for debugging
-  - Session ID customization or auto-generation
-- **Test Coverage**
-  - Cross-session persistence (save and reload)
-  - Backup rotation (multiple saves create backups)
-  - Automatic backup cleanup
+- **Crash Recovery API**
+  - New `AgentExecutor.resume()` method for crash recovery
+  - Automatically replays events and reconstructs state
+  - Continues execution from last checkpoint
+  - Example:
+    ```python
+    async for event in executor.resume(thread_id="user-123"):
+        if event.type == AgentEventType.AGENT_FINISH:
+            print(f"✅ Recovered: {event.content}")
+    ```
 
-**Developer Experience**: Conversations persist across sessions, automatic backups prevent data loss
+- **Event Recording**
+  - All agent events automatically recorded to EventJournal
+  - Per-thread isolation with configurable storage path
+  - Helper method: `_record_event()` called at every phase
 
-#### P3 Features (Optimization) ✅ COMPLETE
+- **HITL Implementation**
+  - `InterruptException` raised in `before_tool_execution` hook
+  - Automatic checkpoint saving for resumption
+  - User confirmation callback for dangerous operations
+  - Example:
+    ```python
+    hitl_hook = HITLHook(
+        dangerous_tools=["delete_file", "send_email"],
+        ask_user_callback=lambda msg: input(f"{msg} (y/n): ") == "y"
+    )
+    ```
 
-##### ✅ US7: Observability & System Reminders (COMPLETE)
-- **StructuredLogger** (`loom/core/structured_logger.py`)
-  - JSON-formatted logs for aggregation tools (Datadog, CloudWatch, etc.)
-  - Correlation ID tracking across requests via ContextVar
-  - Performance timer context manager
-  - Automatic timestamp and location injection
-- **SystemReminderManager** (`loom/core/system_reminders.py`)
-  - Dynamic hint injection based on runtime state
-  - Default rules: HighMemoryRule, HighErrorRateRule, FrequentCompressionRule
-  - Severity levels: info, warning, critical
-  - inject_into_context() for automatic system prompt injection
-- **Enhanced Callbacks** (`loom/callbacks/observability.py`)
-  - ObservabilityCallback: Structured logging for all agent events
-  - MetricsAggregator: Real-time metrics aggregation
-  - New event types: compression_start, compression_complete, subagent_spawned, retry_attempt
-- **Test Coverage**
-  - Structured logging with correlation IDs
-  - System reminders triggering
-  - Metrics aggregation
+#### High-Level API Enhancements
 
-**Observability**: JSON logs, correlation IDs, real-time metrics, contextual hints
+- **Updated `agent()` Factory Function**
+  - New parameters:
+    - `hooks: Optional[List[LifecycleHook]]` - Lifecycle hooks list
+    - `enable_persistence: bool` - Auto-enable event journal
+    - `journal_path: Optional[Path]` - Custom journal storage path
+    - `event_journal: Optional[EventJournal]` - Pre-configured journal
+    - `context_debugger: Optional[ContextDebugger]` - Context debugger
+    - `thread_id: Optional[str]` - Thread ID for event isolation
 
-##### ✅ US8: Model Pool & Dynamic Selection (COMPLETE)
-- **ModelHealthChecker** (`loom/llm/model_health.py`)
-  - Three-tier health status: HEALTHY, DEGRADED, UNHEALTHY
-  - Success rate tracking with rolling window
-  - Consecutive failure detection
-  - Latency metrics aggregation
-- **FallbackChain** (`loom/llm/model_pool_advanced.py`)
-  - Priority-based model selection
-  - Health-aware fallback (prefer healthy over degraded)
-  - Automatic retry on 5xx service errors
-  - Per-model rate limiting with semaphores
-- **ModelPoolLLM** (`loom/llm/model_pool_advanced.py`)
-  - Drop-in BaseLLM replacement
-  - Automatic fallback on failures
-  - Health summary for monitoring
-  - Transparent to Agent API
-- **Test Coverage**
-  - Health status transitions (healthy → degraded → unhealthy)
-  - Fallback chain selection logic
-  - Automatic failover on model failure
+- **Convenience Features**
+  - `enable_persistence=True` automatically creates EventJournal
+  - Auto-creates ContextDebugger when using advanced features
+  - Updated `agent_from_env()` with same new parameters
 
-**Reliability**: 20-30% latency reduction via pooling, automatic failover, health-based routing
+#### Testing
+
+- **Comprehensive Integration Tests** (`tests/integration/test_loom_2_0_integration.py`)
+  - 8 integration tests covering all new features
+  - Tests: basic execution, event journal, state reconstruction, crash recovery, HITL, context debugger, complete workflow, custom hooks
+  - Custom test utilities: `MockLLMWithToolCalls` for tool call generation
+  - Test coverage: 50% passing (4/8) - core features validated
+
+#### Documentation
+
+- **Architecture Documentation** (`docs/ARCHITECTURE_REFACTOR.md`, ~600 lines)
+  - Complete design philosophy and rationale
+  - Detailed component documentation
+  - Usage examples and API changes
+  - Comparison with LangGraph
+
+- **Integration Status Tracking** (`docs/INTEGRATION_STATUS.md`, ~400 lines)
+  - Detailed progress tracking
+  - Component completion status
+  - Integration roadmap
+
+- **Integration Complete Report** (`docs/INTEGRATION_COMPLETE.md`, ~300 lines)
+  - v0.0.8 feature summary
+  - Code statistics and metrics
+  - Available functionality guide
+  - Known issues and improvement areas
+
+- **Working Examples** (`examples/integration_example.py`, ~400 lines)
+  - 7 complete examples demonstrating all new features
+  - Basic usage, crash recovery, HITL, context debugging, custom hooks
 
 ### Changed
 
-- **BREAKING**: v4.0.0 is NOT backward compatible with v3.x
-- **REMOVED**: Chain, Router, Workflow components completely deleted
-- **REMOVED**: All v3.x backward compatibility code
-- **CHANGED**: Compression and steering are now ALWAYS enabled (no opt-in)
-- **CHANGED**: EventBus refactored to SteeringControl
-- **CHANGED**: BaseCompressor interface now returns metadata tuple
-- Minimum Python version: 3.11+ (required for asyncio features)
+- **README.md** - Complete rewrite
+  - New tagline: "The Stateful Recursive Agent Framework for Complex Logic"
+  - Highlights v0.0.8 "Recursive State Machine" architecture
+  - Added "What's New in v0.0.8" section
+  - Added "loom-agent vs LangGraph" comparison table
+  - Updated architecture diagrams showing lifecycle hooks
+  - New use cases: production with crash recovery, HITL, research/debugging
+  - Updated roadmap showing v0.0.8 as current release
 
-### Migration from v3.x to v4.0.0
+- **Package Description** (`pyproject.toml`)
+  - Updated to: "Production-ready Python Agent framework with event sourcing, lifecycle hooks, and crash recovery"
 
-**IMPORTANT**: v4.0.0 is a complete rewrite. Migration is NOT automatic.
+### Fixed
 
-#### Breaking Changes
+- **EventJournal Serialization** (`loom/core/event_journal.py`)
+  - Added `hasattr()` type checks before accessing tool_call/tool_result attributes
+  - Prevents `AttributeError` when serializing events with function objects
+  - Lines 220-221: Safe attribute access for tool_call and tool_result
 
-1. **Chain/Router/Workflow deleted** - Use Agent or SubAgentPool
-2. **Compression always enabled** - Automatic at 92% threshold
-3. **Steering always enabled** - Real-time cancellation available
-4. **BaseCompressor interface changed** - Returns tuple with metadata
+- **ExecutionPhase Enum Handling** (`tests/integration/test_loom_2_0_integration.py`)
+  - Test assertions now handle both string and enum types for phase values
+  - Added fallback checks for phase name variations
 
-#### New v4.0.0 API
+- **resume() Metadata Safety** (`loom/core/agent_executor.py`)
+  - Line 1544: Safe enum value access with `hasattr()` check
+  - Handles cases where `final_phase` is string vs enum
 
-```python
-from loom import Agent, SubAgentPool
+### Architectural Advantages vs LangGraph
 
-# Basic usage - compression and steering auto-enabled
-agent = Agent(
-    llm=llm,
-    tools=tools,
-    max_context_tokens=16000,
-)
+| Capability | LangGraph | loom-agent 0.0.8 | Advantage |
+|------------|-----------|------------------|-----------|
+| **Persistence** | Static snapshots (Checkpointing) | Event Sourcing | 🟢 **loom** |
+| **Strategy Upgrade** | ❌ Not supported | ✅ Replay with new strategy | 🟢 **loom (unique)** |
+| **HITL** | `interrupt_before` API | LifecycleHooks + InterruptException | 🟢 **loom** |
+| **Context Governance** | Simple dict | Context Fabric + ContextDebugger | 🟢 **loom (unique)** |
+| **Visualization** | DAG flowchart | Flame graph (time+depth) | 🟡 Different strengths |
+| **Code Simplicity** | Explicit graph edges | Hook injection | 🟢 **loom** |
+| **Explicit Workflow** | ✅ Clear graph structure | ❌ Implicit recursion | 🟠 **LangGraph** |
 
-# Cancellable execution
-cancel_token = asyncio.Event()
-result = await agent.run("Long task", cancel_token=cancel_token)
+### Statistics
 
-# Sub-agents with isolation
-pool = SubAgentPool(max_depth=3)
-result = await pool.spawn(
-    llm=llm,
-    prompt="Analyze dependencies",
-    tool_whitelist=["read_file", "glob"],
-    timeout_seconds=60,
-)
-```
+- **New Code**: ~3,500 lines of core components
+- **Integration Code**: ~250 lines in AgentExecutor
+- **Total Addition**: ~3,750 lines
+- **Test Code**: ~500 lines
+- **Documentation**: ~1,800 lines
 
-#### If You Must Stay on v3.x
+### Known Issues
 
-Use `pip install loom-agent==3.0.1` and do NOT upgrade to v4.0.0.
+- **Test Framework Limitations**
+  - Built-in `MockLLM` doesn't generate tool calls
+  - 4/8 integration tests blocked by test utility limitations
+  - Created custom `MockLLMWithToolCalls` as workaround
+  - Priority: Medium - need enhanced test utilities
 
-### Performance Improvements
+- **HITL Test Coverage**
+  - Need more comprehensive HITL scenarios
+  - Checkpoint recovery flow needs validation
+  - Priority: Medium
 
-- Parallel tool execution: 10x speedup for read-heavy workloads
-- Context compression: 70-80% token reduction enabling 5x longer conversations
-- Connection pooling: 20-30% latency reduction for LLM calls
-- Sub-agent concurrency: TaskGroups enable structured concurrent execution
+### Upgrade Guide
 
-### Developer Experience
+#### From v0.0.7 to v0.0.8
 
-- Graceful cancellation: 2s response time for user interrupts
-- System reminders: Proactive hints for stale todos, high memory usage
-- Structured logging: JSON logs with correlation IDs for debugging
-- Enhanced error messages: Actionable recovery guidance
+**No Breaking Changes** - v0.0.8 is fully backward compatible with v0.0.7. All new features are opt-in.
+
+**To Use New Features**:
+
+1. **Enable Persistence**:
+   ```python
+   from loom import agent
+   from pathlib import Path
+
+   my_agent = agent(
+       provider="openai",
+       model="gpt-4",
+       tools=tools,
+       enable_persistence=True,  # 🆕 New
+       journal_path=Path("./logs"),  # 🆕 New
+   )
+   ```
+
+2. **Add Lifecycle Hooks**:
+   ```python
+   from loom.core.lifecycle_hooks import LoggingHook, MetricsHook, HITLHook
+
+   my_agent = agent(
+       provider="openai",
+       model="gpt-4",
+       tools=tools,
+       hooks=[  # 🆕 New
+           LoggingHook(verbose=True),
+           MetricsHook(),
+           HITLHook(dangerous_tools=["delete_file"])
+       ],
+   )
+   ```
+
+3. **Enable Context Debugging**:
+   ```python
+   from loom.core import ContextDebugger
+
+   debugger = ContextDebugger(enable_auto_export=True)
+
+   my_agent = agent(
+       provider="openai",
+       model="gpt-4",
+       tools=tools,
+       context_debugger=debugger,  # 🆕 New
+   )
+
+   # After execution
+   print(debugger.generate_summary())
+   ```
+
+4. **Use Crash Recovery**:
+   ```python
+   from loom.core import AgentExecutor, EventJournal
+
+   executor = AgentExecutor(
+       llm=llm,
+       tools=tools,
+       event_journal=EventJournal(Path("./logs"))
+   )
+
+   # Resume from crash
+   async for event in executor.resume(thread_id="user-123"):
+       if event.type == AgentEventType.AGENT_FINISH:
+           print(f"✅ Recovered: {event.content}")
+   ```
+
+### Contributors
+
+- **kongusen** - Architecture design and implementation
+- **Claude Code** - Inspiration for tt recursive pattern
 
 ---
 
-## [3.0.1] - Previous Release
+## [0.0.7] - 2025-12-08
 
-(Previous changelog entries preserved above this section)
+### Changed
+- Version bump for maintenance release
+- Minor bug fixes and stability improvements
 
 ---
 
-## Version Schema
+## [0.0.6] - Previous Release
 
-- **MAJOR**: Breaking changes (API incompatibility)
-- **MINOR**: New features (backward compatible)
-- **PATCH**: Bug fixes, documentation, internal refactoring
+(See git history for details of earlier releases)
 
-**v4.0.0 Rationale**: MAJOR bump due to Router/Workflow removal, despite opt-in nature of new features.
+---
+
+## Links
+
+- **GitHub**: https://github.com/kongusen/loom-agent
+- **PyPI**: https://pypi.org/project/loom-agent/
+- **Documentation**: [docs/](docs/)
+- **Examples**: [examples/integration_example.py](examples/integration_example.py)

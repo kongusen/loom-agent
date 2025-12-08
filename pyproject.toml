@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.0.7"
-description = "Production-ready Python Agent framework with enterprise-grade reliability and observability"
+version = "0.0.8"
+description = "Production-ready Python Agent framework with event sourcing, lifecycle hooks, and crash recovery"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
 license = "MIT"

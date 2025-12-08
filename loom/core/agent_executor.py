@@ -32,6 +32,18 @@ from loom.interfaces.memory import BaseMemory
 from loom.interfaces.tool import BaseTool
 from loom.utils.token_counter import count_messages_tokens
 
+# 🆕 New Architecture Imports
+from loom.core.execution_frame import ExecutionFrame, ExecutionPhase
+from loom.core.event_journal import EventJournal
+from loom.core.context_debugger import ContextDebugger
+from loom.core.state_reconstructor import StateReconstructor
+from loom.core.lifecycle_hooks import (
+    LifecycleHook,
+    HookManager,
+    InterruptException,
+    SkipToolException
+)
+
 # RAG support
 try:
     from loom.core.context_retriever import ContextRetriever
@@ -131,6 +143,11 @@ class AgentExecutor:
         # Phase 2: Recursion Control
         enable_recursion_control: bool = True,
         recursion_monitor: Optional[RecursionMonitor] = None,
+        # 🆕 New Architecture Parameters
+        hooks: Optional[List[LifecycleHook]] = None,
+        event_journal: Optional[EventJournal] = None,
+        context_debugger: Optional[ContextDebugger] = None,
+        thread_id: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.tools = tools or {}
@@ -158,6 +175,13 @@ class AgentExecutor:
         self.recursion_monitor = recursion_monitor or RecursionMonitor(
             max_iterations=max_iterations
         )
+
+        # 🆕 New Architecture Components
+        self.hooks = hooks or []
+        self.hook_manager = HookManager(self.hooks) if self.hooks else None
+        self.event_journal = event_journal
+        self.context_debugger = context_debugger
+        self.thread_id = thread_id or str(uuid4())
 
         # Initialize unified coordination if enabled
         if self.enable_unified_coordination and UnifiedExecutionContext and IntelligentCoordinator:
@@ -277,11 +301,17 @@ class AgentExecutor:
     # CORE METHOD: tt (Tail-Recursive Control Loop)
     # ==========================================
 
+    async def _record_event(self, event: AgentEvent):
+        """Record event to journal if available."""
+        if self.event_journal:
+            await self.event_journal.append(event, thread_id=self.thread_id)
+
     async def tt(
         self,
         messages: List[Message],
-        turn_state: TurnState,
+        turn_state: TurnState,  # Note: Still using TurnState for backward compatibility initially
         context: ExecutionContext,
+        frame: Optional[ExecutionFrame] = None,  # 🆕 New parameter for ExecutionFrame
     ) -> AsyncGenerator[AgentEvent, None]:
         """
         Tail-recursive control loop (inspired by Claude Code).
@@ -326,12 +356,34 @@ class AgentExecutor:
         # ==========================================
         # Phase 0: Recursion Control
         # ==========================================
-        yield AgentEvent(
+
+        # 🆕 Create or update ExecutionFrame
+        if frame is None:
+            # Create initial frame from messages
+            frame = ExecutionFrame(
+                frame_id=turn_state.turn_id,
+                parent_frame_id=turn_state.parent_turn_id,
+                depth=turn_state.turn_counter,
+                phase=ExecutionPhase.INITIAL,
+                messages=[{"role": m.role, "content": m.content} for m in messages],
+                max_iterations=turn_state.max_iterations,
+                tool_call_history=turn_state.tool_call_history,
+                error_count=turn_state.error_count,
+                last_outputs=turn_state.last_outputs
+            )
+
+        # 🆕 Hook: before_iteration_start
+        if self.hook_manager:
+            frame = await self.hook_manager.before_iteration_start(frame)
+
+        event = AgentEvent(
             type=AgentEventType.ITERATION_START,
             iteration=turn_state.turn_counter,
             turn_id=turn_state.turn_id,
             metadata={"parent_turn_id": turn_state.parent_turn_id},
         )
+        await self._record_event(event)
+        yield event
 
         # Phase 2: Advanced recursion control (optional)
         if self.enable_recursion_control:
@@ -399,6 +451,9 @@ class AgentExecutor:
                     "max_iterations": turn_state.max_iterations,
                 },
             )
+            # 🆕 Hook: after_iteration_end
+            if self.hook_manager:
+                frame = await self.hook_manager.after_iteration_end(frame)
             return
 
         # Base case 2: Execution cancelled
@@ -411,12 +466,21 @@ class AgentExecutor:
                 "execution_cancelled",
                 {"correlation_id": context.correlation_id},
             )
+            # 🆕 Hook: after_iteration_end
+            if self.hook_manager:
+                frame = await self.hook_manager.after_iteration_end(frame)
             return
 
         # ==========================================
         # Phase 1: Context Assembly
         # ==========================================
-        yield AgentEvent.phase_start("context_assembly")
+        event = AgentEvent.phase_start("context_assembly")
+        await self._record_event(event)
+        yield event
+
+        # 🆕 Hook: before_context_assembly
+        if self.hook_manager:
+            frame = await self.hook_manager.before_context_assembly(frame)
 
         # Load conversation history from memory
         history = await self._load_history()
@@ -536,7 +600,29 @@ class AgentExecutor:
 
         # Emit context assembly summary
         summary = assembler.get_summary()
-        yield AgentEvent.phase_end(
+
+        # 🆕 Update frame with context
+        frame = frame.with_context(
+            context_snapshot={"system_prompt": final_system_prompt},
+            context_metadata=summary
+        )
+
+        # 🆕 Hook: after_context_assembly
+        context_snapshot = frame.context_snapshot
+        context_metadata = frame.context_metadata
+        if self.hook_manager:
+            result = await self.hook_manager.after_context_assembly(
+                frame, context_snapshot, context_metadata
+            )
+            if result:
+                context_snapshot, context_metadata = result
+                frame = frame.with_context(context_snapshot, context_metadata)
+
+        # 🆕 Record to ContextDebugger
+        if self.context_debugger:
+            self.context_debugger.record_from_frame(frame)
+
+        event = AgentEvent.phase_end(
             "context_assembly",
             tokens_used=summary["total_tokens"],
             metadata={
@@ -544,18 +630,28 @@ class AgentExecutor:
                 "utilization": summary["utilization"],
             },
         )
+        await self._record_event(event)
+        yield event
 
         # ==========================================
         # Phase 2: LLM Call
         # ==========================================
-        yield AgentEvent(type=AgentEventType.LLM_START)
+        event = AgentEvent(type=AgentEventType.LLM_START)
+        await self._record_event(event)
+        yield event
+
+        # 🆕 Hook: before_llm_call
+        api_messages = [self._message_to_api_format(m) for m in history]
+        if self.hook_manager:
+            result = await self.hook_manager.before_llm_call(frame, api_messages)
+            if result:
+                api_messages = result
 
         try:
             if self.llm.supports_tools and self.tools:
                 # LLM with tool support
                 tools_spec = self._serialize_tools()
-                # Convert messages to API format, handling tool_calls in metadata
-                api_messages = [self._message_to_api_format(m) for m in history]
+                # api_messages already created above
                 response = await self.llm.generate_with_tools(
                     api_messages, tools_spec
                 )
@@ -565,26 +661,44 @@ class AgentExecutor:
 
                 # Emit LLM content if available
                 if content:
-                    yield AgentEvent(type=AgentEventType.LLM_DELTA, content=content)
+                    event = AgentEvent(type=AgentEventType.LLM_DELTA, content=content)
+                    await self._record_event(event)
+                    yield event
 
             else:
                 # Simple LLM generation (streaming)
                 content_parts = []
-                # Convert messages to API format
-                api_messages = [self._message_to_api_format(m) for m in history]
+                # api_messages already created above
                 async for delta in self.llm.stream(api_messages):
                     content_parts.append(delta)
-                    yield AgentEvent(type=AgentEventType.LLM_DELTA, content=delta)
+                    event = AgentEvent(type=AgentEventType.LLM_DELTA, content=delta)
+                    await self._record_event(event)
+                    yield event
 
                 content = "".join(content_parts)
                 tool_calls = []
 
-            yield AgentEvent(type=AgentEventType.LLM_COMPLETE)
+            event = AgentEvent(type=AgentEventType.LLM_COMPLETE)
+            await self._record_event(event)
+            yield event
+
+            # 🆕 Update frame with LLM response
+            frame = frame.with_llm_response(content, tool_calls)
+
+            # 🆕 Hook: after_llm_response
+            if self.hook_manager:
+                result = await self.hook_manager.after_llm_response(frame, content, tool_calls)
+                if result:
+                    content, tool_calls = result
+                    frame = frame.with_llm_response(content, tool_calls)
 
         except Exception as e:
             self.metrics.metrics.total_errors += 1
             yield AgentEvent.error(e, llm_failed=True)
             await self._emit("error", {"stage": "llm_call", "message": str(e)})
+            # 🆕 Hook: after_iteration_end
+            if self.hook_manager:
+                frame = await self.hook_manager.after_iteration_end(frame)
             return
 
         self.metrics.metrics.llm_calls += 1
@@ -611,6 +725,10 @@ class AgentExecutor:
                 )
 
             await self._emit("agent_finish", {"content": content})
+
+            # 🆕 Hook: after_iteration_end
+            if self.hook_manager:
+                frame = await self.hook_manager.after_iteration_end(frame)
             return
 
         # ==========================================
@@ -629,7 +747,7 @@ class AgentExecutor:
 
         # Execute tools using ToolOrchestrator
         tool_results: List[ToolResult] = []
-        
+
         # Save assistant message with tool_calls to memory first
         # This is critical: assistant message must come before tool messages
         assistant_msg = Message(
@@ -639,32 +757,135 @@ class AgentExecutor:
         )
         if self.memory:
             await self.memory.add_message(assistant_msg)
-        
+
         try:
-            async for event in self.tool_orchestrator.execute_batch(tc_models):
-                yield event  # Forward all tool events
+            # 🆕 Execute with hook support
+            if self.hook_manager:
+                # Execute tools one by one to support hooks
+                for tc_model in tc_models:
+                    # 🆕 Hook: before_tool_execution (HITL critical point!)
+                    tool_call_dict = {
+                        "id": tc_model.id,
+                        "name": tc_model.name,
+                        "arguments": tc_model.arguments
+                    }
 
-                if event.type == AgentEventType.TOOL_RESULT:
-                    tool_results.append(event.tool_result)
+                    try:
+                        result = await self.hook_manager.before_tool_execution(
+                            frame, tool_call_dict
+                        )
+                        if result:
+                            # Hook modified the tool call
+                            tc_model = self._to_tool_call(result)
 
-                    # Add to memory
-                    tool_msg = Message(
-                        role="tool",
-                        content=event.tool_result.content,
-                        tool_call_id=event.tool_result.tool_call_id,
-                    )
-                    if self.memory:
-                        await self.memory.add_message(tool_msg)
+                    except InterruptException as interrupt:
+                        # 🔥 HITL: Execution interrupted!
+                        event = AgentEvent(
+                            type=AgentEventType.EXECUTION_CANCELLED,
+                            metadata={
+                                "reason": interrupt.reason,
+                                "requires_user_input": interrupt.requires_user_input,
+                                "frame_id": frame.frame_id,
+                                "tool_call": tool_call_dict,
+                                "interrupt": True
+                            }
+                        )
+                        await self._record_event(event)
+                        yield event
 
-                elif event.type == AgentEventType.TOOL_ERROR:
-                    # Collect error results too
-                    if event.tool_result:
+                        # Save checkpoint for resumption
+                        checkpoint_event = AgentEvent(
+                            type=AgentEventType.PHASE_START,
+                            phase="checkpoint",
+                            metadata={
+                                "checkpoint": frame.to_checkpoint(),
+                                "pending_tool_calls": [
+                                    {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                                    for tc in tc_models
+                                ]
+                            }
+                        )
+                        await self._record_event(checkpoint_event)
+
+                        # 🆕 Hook: after_iteration_end
+                        if self.hook_manager:
+                            frame = await self.hook_manager.after_iteration_end(frame)
+
+                        return  # Exit execution, waiting for resumption
+
+                    except SkipToolException:
+                        # Skip this tool
+                        continue
+
+                    # Execute single tool
+                    async for event in self.tool_orchestrator.execute_batch([tc_model]):
+                        await self._record_event(event)
+                        yield event
+
+                        if event.type == AgentEventType.TOOL_RESULT:
+                            tool_results.append(event.tool_result)
+
+                            # 🆕 Hook: after_tool_execution
+                            tool_result_dict = {
+                                "tool_call_id": event.tool_result.tool_call_id,
+                                "tool_name": event.tool_result.tool_name,
+                                "content": event.tool_result.content,
+                                "is_error": event.tool_result.is_error,
+                                "execution_time_ms": event.tool_result.execution_time_ms,
+                                "metadata": event.tool_result.metadata
+                            }
+
+                            result = await self.hook_manager.after_tool_execution(
+                                frame, tool_result_dict
+                            )
+                            if result:
+                                # Hook modified the result - update the tool_result
+                                event.tool_result.content = result.get("content", event.tool_result.content)
+
+                            # Add to memory
+                            tool_msg = Message(
+                                role="tool",
+                                content=event.tool_result.content,
+                                tool_call_id=event.tool_result.tool_call_id,
+                            )
+                            if self.memory:
+                                await self.memory.add_message(tool_msg)
+
+                        elif event.type == AgentEventType.TOOL_ERROR:
+                            # Collect error results too
+                            if event.tool_result:
+                                tool_results.append(event.tool_result)
+
+            else:
+                # No hooks - use batch execution (original behavior)
+                async for event in self.tool_orchestrator.execute_batch(tc_models):
+                    await self._record_event(event)
+                    yield event  # Forward all tool events
+
+                    if event.type == AgentEventType.TOOL_RESULT:
                         tool_results.append(event.tool_result)
+
+                        # Add to memory
+                        tool_msg = Message(
+                            role="tool",
+                            content=event.tool_result.content,
+                            tool_call_id=event.tool_result.tool_call_id,
+                        )
+                        if self.memory:
+                            await self.memory.add_message(tool_msg)
+
+                    elif event.type == AgentEventType.TOOL_ERROR:
+                        # Collect error results too
+                        if event.tool_result:
+                            tool_results.append(event.tool_result)
 
         except Exception as e:
             self.metrics.metrics.total_errors += 1
             yield AgentEvent.error(e, tool_execution_failed=True)
             await self._emit("error", {"stage": "tool_execution", "message": str(e)})
+            # 🆕 Hook: after_iteration_end
+            if self.hook_manager:
+                frame = await self.hook_manager.after_iteration_end(frame)
             return
 
         yield AgentEvent(
@@ -689,6 +910,19 @@ class AgentExecutor:
         elif content:
             output_sample = content[:200]
 
+        # 🆕 Update frame with tool results
+        frame = frame.with_tool_results(
+            tool_results=[{
+                "tool_call_id": r.tool_call_id,
+                "tool_name": r.tool_name,
+                "content": r.content,
+                "is_error": r.is_error,
+                "execution_time_ms": r.execution_time_ms,
+                "metadata": r.metadata or {}
+            } for r in tool_results],
+            had_error=had_tool_errors
+        )
+
         # Prepare next turn state with recursion tracking
         next_state = turn_state.next_turn(
             compacted=compacted_this_turn,
@@ -712,6 +946,15 @@ class AgentExecutor:
                 metadata=comp_info
             )
 
+        # 🆕 Create next frame for recursion
+        next_frame = frame.next_frame(new_messages=next_messages)
+
+        # 🆕 Hook: before_recursion
+        if self.hook_manager:
+            result = await self.hook_manager.before_recursion(frame, next_frame)
+            if result:
+                next_frame = result
+
         # Emit recursion event
         yield AgentEvent(
             type=AgentEventType.RECURSION,
@@ -721,11 +964,13 @@ class AgentExecutor:
                 "depth": next_state.turn_counter,
                 "tools_called": tool_names_called,
                 "message_count": len(next_messages),
+                "from_frame_id": frame.frame_id,
+                "to_frame_id": next_frame.frame_id,
             },
         )
 
-        # 🔥 Tail-recursive call
-        async for event in self.tt(next_messages, next_state, context):
+        # 🔥 Tail-recursive call with frame
+        async for event in self.tt(next_messages, next_state, context, frame=next_frame):
             yield event
 
     # ==========================================
@@ -1227,3 +1472,112 @@ If you have enough information, please provide your final answer."""
                     raise event.error
 
         return final_content
+
+    async def resume(
+        self,
+        thread_id: str,
+        journal: Optional[EventJournal] = None,
+        cancel_token: Optional[asyncio.Event] = None,
+        correlation_id: Optional[str] = None,
+    ) -> AsyncGenerator[AgentEvent, None]:
+        """
+        Resume execution from a crash or interruption.
+
+        This method reconstructs the execution state from the event journal
+        and continues from the last checkpoint.
+
+        Args:
+            thread_id: Thread ID to resume
+            journal: Optional EventJournal instance (uses self.event_journal if not provided)
+            cancel_token: Optional cancellation event
+            correlation_id: Optional correlation ID for tracing
+
+        Yields:
+            AgentEvent: Events from resumed execution
+
+        Example:
+            ```python
+            # After a crash, resume execution
+            executor = AgentExecutor(
+                llm=llm,
+                tools=tools,
+                event_journal=journal
+            )
+
+            async for event in executor.resume(thread_id="user-123"):
+                if event.type == AgentEventType.AGENT_FINISH:
+                    print(f"Resumed and completed: {event.content}")
+            ```
+        """
+        # Use provided journal or fall back to instance journal
+        journal_to_use = journal or self.event_journal
+
+        if not journal_to_use:
+            raise ValueError(
+                "No EventJournal available. Please provide a journal parameter "
+                "or initialize AgentExecutor with event_journal."
+            )
+
+        # 1. Replay events from journal
+        yield AgentEvent(
+            type=AgentEventType.PHASE_START,
+            phase="resume",
+            metadata={"thread_id": thread_id, "status": "replaying_events"}
+        )
+
+        events = await journal_to_use.replay(thread_id=thread_id)
+
+        if not events:
+            raise ValueError(f"No events found for thread_id: {thread_id}")
+
+        # 2. Reconstruct state from events
+        reconstructor = StateReconstructor()
+        frame, metadata = await reconstructor.reconstruct(events)
+
+        yield AgentEvent(
+            type=AgentEventType.PHASE_END,
+            phase="resume",
+            metadata={
+                "thread_id": thread_id,
+                "status": "state_reconstructed",
+                "total_events": metadata.total_events,
+                "final_phase": metadata.final_phase.value if hasattr(metadata.final_phase, 'value') else str(metadata.final_phase) if metadata.final_phase else None,
+                "warnings": metadata.warnings,
+                "reconstruction_time_ms": metadata.reconstruction_time_ms,
+            }
+        )
+
+        # 3. Rebuild TurnState from ExecutionFrame (backward compatibility)
+        turn_state = TurnState(
+            turn_counter=frame.depth,
+            turn_id=frame.frame_id,
+            max_iterations=frame.max_iterations,
+            parent_turn_id=frame.parent_frame_id,
+            tool_call_history=frame.tool_call_history,
+            error_count=frame.error_count,
+            last_outputs=frame.last_outputs
+        )
+
+        # 4. Rebuild messages from frame
+        messages = [Message(role=m["role"], content=m["content"]) for m in frame.messages]
+
+        # 5. Create execution context
+        context = ExecutionContext.create(
+            correlation_id=correlation_id or thread_id,
+            cancel_token=cancel_token,
+        )
+
+        # 6. Continue execution from checkpoint
+        yield AgentEvent(
+            type=AgentEventType.PHASE_START,
+            phase="resume_execution",
+            metadata={
+                "thread_id": thread_id,
+                "from_depth": frame.depth,
+                "from_phase": frame.phase.value,
+            }
+        )
+
+        # Resume from the reconstructed frame
+        async for event in self.tt(messages, turn_state, context, frame=frame):
+            yield event

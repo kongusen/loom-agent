@@ -10,6 +10,7 @@ text = await agent.ainvoke("Hello")
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from .components.agent import Agent as _Agent
@@ -22,6 +23,11 @@ from .llm.factory import LLMFactory
 from .callbacks.base import BaseCallback
 from .callbacks.metrics import MetricsCollector
 from .core.steering_control import SteeringControl
+
+# 🆕 New Architecture Imports
+from .core.lifecycle_hooks import LifecycleHook
+from .core.event_journal import EventJournal
+from .core.context_debugger import ContextDebugger
 
 
 def agent(
@@ -52,6 +58,13 @@ def agent(
     callbacks: Optional[list[BaseCallback]] = None,
     steering_control: Optional[SteeringControl] = None,
     metrics: Optional[MetricsCollector] = None,
+    # 🆕 New Architecture Parameters (loom-agent 2.0)
+    hooks: Optional[List[LifecycleHook]] = None,
+    enable_persistence: bool = False,
+    journal_path: Optional[Path] = None,
+    event_journal: Optional[EventJournal] = None,
+    context_debugger: Optional[ContextDebugger] = None,
+    thread_id: Optional[str] = None,
 ) -> _Agent:
     """Create an Agent with minimal parameters.
 
@@ -59,6 +72,14 @@ def agent(
     1) Use provided `llm`
     2) Build from `config`
     3) Build from `provider` + `model` (+ api_key/base_url)
+
+    New in loom-agent 2.0:
+    - hooks: List of lifecycle hooks for HITL, logging, metrics, etc.
+    - enable_persistence: If True, automatically creates EventJournal for crash recovery
+    - journal_path: Path to store event journal (default: ./logs)
+    - event_journal: Optional explicit EventJournal instance
+    - context_debugger: Optional ContextDebugger for context assembly debugging
+    - thread_id: Optional thread ID for event tracking
     """
 
     if llm is None:
@@ -77,6 +98,18 @@ def agent(
         else:
             raise ValueError("Please provide `llm`, or `config`, or `provider` + `model`.")
 
+    # 🆕 Set up EventJournal if persistence is enabled
+    journal = event_journal
+    if enable_persistence and journal is None:
+        storage_path = journal_path or Path("./logs")
+        journal = EventJournal(storage_path=storage_path)
+
+    # 🆕 Set up ContextDebugger if not provided but useful
+    debugger = context_debugger
+    if debugger is None and (hooks or enable_persistence):
+        # Auto-enable context debugger when using advanced features
+        debugger = ContextDebugger(enable_auto_export=enable_persistence)
+
     return _Agent(
         llm=llm,
         tools=tools,
@@ -93,6 +126,11 @@ def agent(
         callbacks=callbacks,
         steering_control=steering_control,
         metrics=metrics,
+        # 🆕 Pass new parameters to Agent
+        hooks=hooks,
+        event_journal=journal,
+        context_debugger=debugger,
+        thread_id=thread_id,
     )
 
 
@@ -116,6 +154,13 @@ def agent_from_env(
     callbacks: Optional[list[BaseCallback]] = None,
     steering_control: Optional[SteeringControl] = None,
     metrics: Optional[MetricsCollector] = None,
+    # 🆕 New Architecture Parameters (loom-agent 2.0)
+    hooks: Optional[List[LifecycleHook]] = None,
+    enable_persistence: bool = False,
+    journal_path: Optional[Path] = None,
+    event_journal: Optional[EventJournal] = None,
+    context_debugger: Optional[ContextDebugger] = None,
+    thread_id: Optional[str] = None,
 ) -> _Agent:
     """Construct an Agent using provider/model resolved from environment.
 
@@ -148,6 +193,13 @@ def agent_from_env(
         callbacks=callbacks,
         steering_control=steering_control,
         metrics=metrics,
+        # 🆕 Pass new parameters
+        hooks=hooks,
+        enable_persistence=enable_persistence,
+        journal_path=journal_path,
+        event_journal=event_journal,
+        context_debugger=context_debugger,
+        thread_id=thread_id,
     )
 
 
