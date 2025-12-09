@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.9] - 2024-12-09
+
+### Fixed
+
+- **Hooks Parameter Integration**: Fixed missing `hooks` parameter support in `Agent.__init__()` method
+  - Added `hooks`, `event_journal`, `context_debugger`, and `thread_id` parameters to `Agent` class
+  - Ensured proper parameter passing from `loom.agent()` → `Agent.__init__()` → `AgentExecutor.__init__()`
+  - All lifecycle hooks now work correctly throughout the execution chain
+
+### Added
+
+- **Comprehensive Hooks Documentation**: Added detailed hooks usage guide
+  - Complete guide at `docs/HOOKS_USAGE_GUIDE.md` covering all 9 hook points
+  - Detailed examples for built-in hooks (LoggingHook, MetricsHook, HITLHook)
+  - Custom hook implementation examples (Analytics, Permission Control, Rate Limiting, etc.)
+  - Best practices and advanced usage patterns
+  - Complete working examples in `examples/hooks_complete_demo.py`
+
+### Changed
+
+- Improved hooks integration documentation and examples
+- Enhanced developer experience with clearer hook usage patterns
+
+---
+
 ## [0.0.8] - 2025-12-09
 
 ### 🎉 Major Architecture Upgrade - Recursive State Machine

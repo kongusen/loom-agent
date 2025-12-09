@@ -17,6 +17,10 @@ from loom.interfaces.compressor import BaseCompressor
 from loom.callbacks.base import BaseCallback
 from loom.callbacks.metrics import MetricsCollector
 from loom.core.steering_control import SteeringControl
+# 🆕 New Architecture Imports
+from loom.core.lifecycle_hooks import LifecycleHook
+from loom.core.event_journal import EventJournal
+from loom.core.context_debugger import ContextDebugger
 
 
 class Agent:
@@ -41,6 +45,11 @@ class Agent:
         steering_control: Optional[SteeringControl] = None,
         metrics: Optional[MetricsCollector] = None,
         enable_steering: bool = True,  # v4.0.0: Enable steering by default
+        # 🆕 New Architecture Parameters (loom-agent 2.0)
+        hooks: Optional[List[LifecycleHook]] = None,
+        event_journal: Optional[EventJournal] = None,
+        context_debugger: Optional[ContextDebugger] = None,
+        thread_id: Optional[str] = None,
     ) -> None:
         # v4.0.0: Auto-instantiate CompressionManager (always enabled)
         if compressor is None:
@@ -68,6 +77,11 @@ class Agent:
             system_instructions=system_instructions,
             callbacks=callbacks,
             enable_steering=enable_steering,
+            # 🆕 Pass new architecture parameters
+            hooks=hooks,
+            event_journal=event_journal,
+            context_debugger=context_debugger,
+            thread_id=thread_id,
         )
 
         # 始终构造 PermissionManager（以便支持 safe_mode/持久化）；保持默认语义

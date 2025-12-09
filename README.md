@@ -575,7 +575,12 @@ print(debugger.explain_iteration(5))
 
 ## 🗺️ Roadmap
 
-### ✅ v0.0.8 (Current - Recursive State Machine)
+### ✅ v0.0.9 (Current)
+- ✅ Fixed hooks parameter integration in Agent class
+- ✅ Comprehensive hooks usage documentation and examples
+- ✅ Enhanced developer experience with clearer hook patterns
+
+### ✅ v0.0.8 (Recursive State Machine)
 - ✅ ExecutionFrame (执行栈帧)
 - ✅ EventJournal (事件溯源)
 - ✅ LifecycleHooks (生命周期钩子)
@@ -584,7 +589,7 @@ print(debugger.explain_iteration(5))
 - ✅ StateReconstructor (状态重建)
 - ✅ Crash Recovery (崩溃恢复)
 
-### 🔜 v0.0.9 (Planned)
+### 🔜 v0.1.0 (Planned)
 - 📊 Web UI for debugging (基于 FastAPI)
 - 🎨 Enhanced visualizations
 - 🧪 完善测试工具 (MockLLMWithTools)
@@ -619,7 +624,7 @@ Special thanks to:
 - **GitHub**: https://github.com/kongusen/loom-agent
 - **PyPI**: https://pypi.org/project/loom-agent/
 - **Issues**: https://github.com/kongusen/loom-agent/issues
-- **Releases**: [v0.0.8](docs/INTEGRATION_COMPLETE.md) | [v0.0.5](docs_dev/PHASES_2_3_COMBINED_SUMMARY.md)
+- **Releases**: [v0.0.9](CHANGELOG.md) | [v0.0.8](docs/INTEGRATION_COMPLETE.md) | [v0.0.5](docs_dev/PHASES_2_3_COMBINED_SUMMARY.md)
 - **Examples**: [Integration Example](examples/integration_example.py)
 
 ---
