@@ -52,6 +52,7 @@ from uuid import uuid4
 from loom.crew.roles import Role
 from loom.crew.orchestration import Task, OrchestrationPlan, Orchestrator
 from loom.crew.communication import MessageBus, SharedState
+from loom.crew.performance import PerformanceMonitor
 
 if TYPE_CHECKING:
     from loom.components.agent import Agent
@@ -104,6 +105,7 @@ class Crew:
         shared_state: Optional[SharedState] = None,
         enable_delegation: bool = True,
         max_iterations: int = 20,
+        enable_performance_monitoring: bool = True,
     ):
         """
         Initialize crew.
@@ -115,6 +117,7 @@ class Crew:
             shared_state: Shared state for coordination
             enable_delegation: Whether to enable task delegation
             max_iterations: Default max iterations for agents
+            enable_performance_monitoring: Enable performance tracking
         """
         self.roles = roles
         self.llm = llm
@@ -129,6 +132,10 @@ class Crew:
 
         # Orchestrator for executing plans
         self.orchestrator = Orchestrator()
+
+        # Performance monitoring
+        self.enable_performance_monitoring = enable_performance_monitoring
+        self.performance_monitor = PerformanceMonitor() if enable_performance_monitoring else None
 
     def _initialize_members(self):
         """
@@ -186,6 +193,14 @@ class Crew:
                 max_iterations=member.role.max_iterations or self.max_iterations,
             )
 
+            # Record agent creation
+            if self.performance_monitor:
+                self.performance_monitor.record_agent_create(role_name)
+        else:
+            # Record agent reuse
+            if self.performance_monitor:
+                self.performance_monitor.record_agent_reuse(role_name)
+
         return member.agent
 
     def _build_system_instructions(self, role: Role) -> str:
@@ -240,24 +255,41 @@ Use clear task descriptions and specify the target role.
         Raises:
             ValueError: If assigned role not found
         """
-        # Get or create agent for role
-        agent = self._get_or_create_agent(task.assigned_role)
+        # Start performance tracking
+        if self.performance_monitor:
+            self.performance_monitor.start_task(task.id, task.assigned_role)
 
-        # Build full context
-        full_context = {
-            **(context or {}),
-            **task.context,
-            "shared_state": self.shared_state,
-            "message_bus": self.message_bus,
-        }
+        try:
+            # Get or create agent for role
+            agent = self._get_or_create_agent(task.assigned_role)
 
-        # Inject context into prompt
-        prompt_with_context = self._inject_context(task.prompt, full_context)
+            # Build full context
+            full_context = {
+                **(context or {}),
+                **task.context,
+                "shared_state": self.shared_state,
+                "message_bus": self.message_bus,
+            }
 
-        # Execute task
-        result = await agent.run(prompt_with_context)
+            # Inject context into prompt
+            prompt_with_context = self._inject_context(task.prompt, full_context)
 
-        return result
+            # Execute task
+            result = await agent.run(prompt_with_context)
+
+            # Finish performance tracking (success)
+            if self.performance_monitor:
+                self.performance_monitor.finish_task(task.id, success=True)
+
+            return result
+
+        except Exception as e:
+            # Finish performance tracking (failure)
+            if self.performance_monitor:
+                self.performance_monitor.finish_task(
+                    task.id, success=False, error=str(e)
+                )
+            raise
 
     async def kickoff(
         self,
@@ -283,7 +315,29 @@ Use clear task descriptions and specify the target role.
             print(results["task1"])
             ```
         """
-        return await self.orchestrator.execute(plan, self)
+        # Start orchestration tracking
+        if self.performance_monitor:
+            orch_id = self.performance_monitor.start_orchestration()
+
+        import time
+        start_time = time.time()
+
+        try:
+            results = await self.orchestrator.execute(plan, self)
+
+            # Finish orchestration tracking
+            if self.performance_monitor:
+                duration = time.time() - start_time
+                self.performance_monitor.finish_orchestration(duration)
+
+            return results
+
+        except Exception as e:
+            # Record orchestration failure
+            if self.performance_monitor:
+                duration = time.time() - start_time
+                self.performance_monitor.finish_orchestration(duration)
+            raise
 
     def _inject_context(self, prompt: str, context: Dict[str, Any]) -> str:
         """
@@ -342,11 +396,34 @@ Use clear task descriptions and specify the target role.
         Get crew statistics.
 
         Returns:
-            Dict: Statistics including member count, message bus stats, etc.
+            Dict: Statistics including member count, message bus stats,
+                  and performance metrics if enabled
         """
-        return {
+        stats = {
             "total_members": len(self.members),
             "roles": self.list_roles(),
             "message_bus_stats": self.message_bus.get_stats(),
             "enable_delegation": self.enable_delegation,
         }
+
+        # Add performance stats if monitoring enabled
+        if self.performance_monitor:
+            stats["performance"] = self.performance_monitor.get_stats()
+
+        return stats
+
+    def get_performance_summary(self) -> Optional[str]:
+        """
+        Get human-readable performance summary.
+
+        Returns:
+            Optional[str]: Performance summary or None if monitoring disabled
+        """
+        if self.performance_monitor:
+            return self.performance_monitor.get_summary()
+        return None
+
+    def reset_performance_stats(self) -> None:
+        """Reset performance statistics"""
+        if self.performance_monitor:
+            self.performance_monitor.reset()

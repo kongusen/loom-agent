@@ -62,10 +62,133 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable, Set, TYPE_CHECKING
+from typing import Dict, List, Optional, Any, Callable, Set, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from loom.crew.crew import Crew
+
+
+# ============================================================================
+# Condition Helpers for Advanced Conditional Orchestration
+# ============================================================================
+
+
+class ConditionBuilder:
+    """
+    Builder for creating complex conditional logic.
+
+    Provides helper methods for creating AND, OR, NOT conditions
+    for task execution.
+
+    Example:
+        ```python
+        # Simple condition
+        has_research = lambda ctx: "research_data" in ctx
+
+        # Complex condition: AND
+        has_both = ConditionBuilder.and_all([
+            lambda ctx: "research_data" in ctx,
+            lambda ctx: ctx.get("quality_score", 0) > 0.8
+        ])
+
+        # Complex condition: OR
+        has_either = ConditionBuilder.or_any([
+            lambda ctx: "plan_a" in ctx,
+            lambda ctx: "plan_b" in ctx
+        ])
+
+        # Complex condition: NOT
+        no_errors = ConditionBuilder.not_(
+            lambda ctx: ctx.get("has_errors", False)
+        )
+        ```
+    """
+
+    @staticmethod
+    def and_all(conditions: List[Callable[[Dict[str, Any]], bool]]) -> Callable:
+        """
+        Create AND condition (all must be true).
+
+        Args:
+            conditions: List of condition functions
+
+        Returns:
+            Callable: Combined condition function
+        """
+        def combined(context: Dict[str, Any]) -> bool:
+            return all(cond(context) for cond in conditions)
+        return combined
+
+    @staticmethod
+    def or_any(conditions: List[Callable[[Dict[str, Any]], bool]]) -> Callable:
+        """
+        Create OR condition (at least one must be true).
+
+        Args:
+            conditions: List of condition functions
+
+        Returns:
+            Callable: Combined condition function
+        """
+        def combined(context: Dict[str, Any]) -> bool:
+            return any(cond(context) for cond in conditions)
+        return combined
+
+    @staticmethod
+    def not_(condition: Callable[[Dict[str, Any]], bool]) -> Callable:
+        """
+        Create NOT condition (negate).
+
+        Args:
+            condition: Condition function to negate
+
+        Returns:
+            Callable: Negated condition function
+        """
+        def combined(context: Dict[str, Any]) -> bool:
+            return not condition(context)
+        return combined
+
+    @staticmethod
+    def key_exists(key: str) -> Callable:
+        """
+        Create condition checking if key exists in context.
+
+        Args:
+            key: Context key to check
+
+        Returns:
+            Callable: Condition function
+        """
+        return lambda ctx: key in ctx
+
+    @staticmethod
+    def key_equals(key: str, value: Any) -> Callable:
+        """
+        Create condition checking if key equals value.
+
+        Args:
+            key: Context key to check
+            value: Expected value
+
+        Returns:
+            Callable: Condition function
+        """
+        return lambda ctx: ctx.get(key) == value
+
+    @staticmethod
+    def key_in_list(key: str, values: List[Any]) -> Callable:
+        """
+        Create condition checking if key value is in list.
+
+        Args:
+            key: Context key to check
+            values: List of allowed values
+
+        Returns:
+            Callable: Condition function
+        """
+        return lambda ctx: ctx.get(key) in values
 
 
 class OrchestrationMode(Enum):
@@ -392,19 +515,84 @@ class Orchestrator:
         crew: "Crew",
     ) -> Dict[str, Any]:
         """
-        Execute tasks based on runtime conditions.
+        Execute tasks based on runtime conditions with detailed tracking.
 
-        Similar to sequential execution but emphasizes condition checking.
+        In CONDITIONAL mode, tasks are executed sequentially but with
+        detailed condition evaluation and skip tracking. This mode is
+        useful for workflows where task execution depends on previous results.
+
+        Enhancements:
+        - Detailed condition evaluation logging
+        - Skip reason tracking
+        - Conditional statistics
 
         Args:
             plan: Orchestration plan
             crew: Crew instance
 
         Returns:
-            Dict[str, Any]: Task results
+            Dict[str, Any]: Task results including skip information
+
+        Example:
+            ```python
+            # Define conditional task
+            task = Task(
+                id="analyze_if_errors",
+                description="Analyze errors",
+                prompt="Analyze error logs",
+                assigned_role="researcher",
+                condition=lambda ctx: ctx.get("has_errors", False)
+            )
+            ```
         """
-        # Conditional execution is essentially sequential with condition emphasis
-        return await self._execute_sequential(plan, crew)
+        results: Dict[str, Any] = {}
+        skipped_tasks: List[str] = []
+        executed_tasks: List[str] = []
+
+        sorted_tasks = self._topological_sort(plan.tasks)
+
+        for task in sorted_tasks:
+            # Evaluate condition
+            should_execute = task.should_execute(plan.shared_context)
+
+            if not should_execute:
+                # Track skipped task
+                skipped_tasks.append(task.id)
+                results[task.id] = {
+                    "status": "skipped",
+                    "reason": "condition_not_met",
+                    "task_description": task.description,
+                }
+                continue
+
+            # Track executed task
+            executed_tasks.append(task.id)
+
+            # Build task context with dependency results
+            task_context = self._build_task_context(task, results, plan.shared_context)
+
+            # Execute task
+            result = await crew.execute_task(task, context=task_context)
+            results[task.id] = {
+                "status": "completed",
+                "result": result,
+                "task_description": task.description,
+            }
+
+            # Update shared context
+            if task.output_key:
+                plan.shared_context[task.output_key] = result
+
+        # Add execution statistics to shared context
+        plan.shared_context["_conditional_stats"] = {
+            "total_tasks": len(sorted_tasks),
+            "executed": len(executed_tasks),
+            "skipped": len(skipped_tasks),
+            "executed_task_ids": executed_tasks,
+            "skipped_task_ids": skipped_tasks,
+        }
+
+        return results
 
     async def _execute_hierarchical(
         self,
@@ -412,12 +600,20 @@ class Orchestrator:
         crew: "Crew",
     ) -> Dict[str, Any]:
         """
-        Execute tasks in hierarchical mode (manager delegates).
+        Execute tasks in hierarchical mode with manager coordination.
 
-        In hierarchical mode, the manager role coordinates task execution
-        and delegation to appropriate team members.
+        In HIERARCHICAL mode, a manager agent coordinates the workflow by:
+        1. Reviewing the orchestration plan
+        2. Delegating tasks to appropriate team members using the delegate tool
+        3. Monitoring progress and collecting results
+        4. Producing a final summary
 
-        Note: This mode requires a "manager" role in the crew.
+        This mode requires a "manager" role in the crew with delegation enabled.
+
+        Enhancements:
+        - Manager creates coordination plan
+        - Uses DelegateTool for team coordination
+        - Collects and synthesizes team outputs
 
         Args:
             plan: Orchestration plan
@@ -428,16 +624,81 @@ class Orchestrator:
 
         Raises:
             ValueError: If no manager role found in crew
+
+        Example:
+            ```python
+            # Manager coordinates the team
+            plan = OrchestrationPlan(
+                tasks=[research_task, develop_task, qa_task],
+                mode=OrchestrationMode.HIERARCHICAL
+            )
+            results = await orchestrator.execute(plan, crew)
+            ```
         """
         # Check if crew has a manager role
         if "manager" not in crew.members:
             raise ValueError(
-                "Hierarchical mode requires a 'manager' role in the crew"
+                "Hierarchical mode requires a 'manager' role in the crew. "
+                "Add a manager role with delegation=True to use this mode."
             )
 
-        # For now, delegate to sequential execution
-        # Future enhancement: Create a meta-task for the manager to coordinate
-        return await self._execute_sequential(plan, crew)
+        # Build delegation plan for manager
+        task_summaries = []
+        for task in plan.tasks:
+            summary = {
+                "task_id": task.id,
+                "description": task.description,
+                "assigned_role": task.assigned_role,
+                "dependencies": task.dependencies,
+                "has_condition": task.condition is not None,
+            }
+            task_summaries.append(summary)
+
+        # Create manager coordination prompt
+        import json
+        tasks_json = json.dumps(task_summaries, indent=2)
+
+        manager_prompt = f"""You are the team manager coordinating a multi-agent workflow.
+
+**Orchestration Plan**:
+{tasks_json}
+
+**Your Tasks**:
+1. Review the task list and dependencies
+2. Coordinate task execution by delegating to appropriate team members
+3. Ensure dependencies are respected (delegate dependent tasks only after their dependencies complete)
+4. Use the `delegate` tool to assign tasks to team members
+5. Collect results from all tasks
+6. Provide a summary of the overall workflow outcome
+
+**Available Team Members**: {', '.join(crew.list_roles())}
+
+**Execution Mode**: Hierarchical (you coordinate all tasks)
+
+Please begin by delegating the first independent tasks."""
+
+        # Get manager agent
+        manager_agent = crew._get_or_create_agent("manager")
+
+        # Execute manager coordination
+        manager_result = await manager_agent.run(manager_prompt)
+
+        # Parse manager result to extract task results
+        # Note: In a more advanced implementation, we would parse the manager's
+        # delegation actions and map them back to task IDs
+        results: Dict[str, Any] = {
+            "_manager_coordination": {
+                "status": "completed",
+                "result": manager_result,
+                "mode": "hierarchical",
+                "coordinated_tasks": len(plan.tasks),
+            }
+        }
+
+        # Add summary to shared context
+        plan.shared_context["_hierarchical_summary"] = manager_result
+
+        return results
 
     def _topological_sort(self, tasks: List[Task]) -> List[Task]:
         """

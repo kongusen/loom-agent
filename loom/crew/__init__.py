@@ -74,7 +74,8 @@ from loom.crew.orchestration import (
     Task,
     OrchestrationPlan,
     OrchestrationMode,
-    Orchestrator
+    Orchestrator,
+    ConditionBuilder,
 )
 
 # Phase 3: Communication
@@ -87,6 +88,9 @@ from loom.crew.communication import (
 
 # Phase 4: Crew
 from loom.crew.crew import Crew, CrewMember
+
+# Performance Monitoring (Phase 8)
+from loom.crew.performance import PerformanceMonitor, TaskExecutionMetrics, AgentPoolStats
 
 __all__ = [
     # Core version
@@ -102,6 +106,7 @@ __all__ = [
     "OrchestrationPlan",
     "OrchestrationMode",
     "Orchestrator",
+    "ConditionBuilder",
 
     # Communication (Phase 3)
     "AgentMessage",
@@ -112,4 +117,9 @@ __all__ = [
     # Crew (Phase 4)
     "Crew",
     "CrewMember",
+
+    # Performance (Phase 8)
+    "PerformanceMonitor",
+    "TaskExecutionMetrics",
+    "AgentPoolStats",
 ]

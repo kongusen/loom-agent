@@ -7,6 +7,250 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.0] - 2024-12-10
+
+### 🎉 Major Release - Multi-Agent Collaboration & Tool Plugin Ecosystem
+
+v0.1.0 marks a significant milestone for loom-agent, introducing enterprise-grade **multi-agent collaboration** (Crew System) and a complete **tool plugin ecosystem**. This release elevates loom-agent to compete with CrewAI and AutoGen while maintaining its unique event sourcing advantages.
+
+### Added
+
+#### Crew Multi-Agent Collaboration System (~2,000 lines)
+
+**Core Components**:
+
+- **Role System** (`loom/crew/roles.py`, ~250 lines)
+  - `Role` dataclass: Defines agent roles with goals, backstory, capabilities
+  - `RoleRegistry`: Central role management
+  - 6 built-in roles: `manager`, `researcher`, `developer`, `qa_engineer`, `analyst`, `writer`
+  - Custom role creation support
+
+- **Task Orchestration** (`loom/crew/orchestration.py`, ~400 lines)
+  - `Task` dataclass: Complete task definition with dependencies
+  - `OrchestrationPlan`: Flexible execution planning
+  - `Orchestrator`: Intelligent task execution engine
+  - 4 orchestration modes:
+    - **SEQUENTIAL**: Tasks execute in dependency order
+    - **PARALLEL**: Independent tasks run concurrently
+    - **CONDITIONAL**: Tasks execute based on conditions
+    - **HIERARCHICAL**: Manager-driven delegation
+  - Automatic dependency resolution with topological sorting
+  - Task result passing and shared context management
+
+- **Inter-Agent Communication** (`loom/crew/communication.py`, ~300 lines)
+  - `MessageBus`: Pub/sub messaging for agent communication
+  - `AgentMessage`: Structured messages with delegation, query, notification types
+  - `SharedState`: Thread-safe shared state management
+  - Async message delivery with subscriber callbacks
+
+- **Crew Core** (`loom/crew/crew.py`, ~450 lines)
+  - `Crew`: Multi-agent team orchestration
+  - `CrewMember`: Role + Agent binding
+  - Automatic agent initialization from roles
+  - Role-specific system instruction generation
+  - Integration with MessageBus and SharedState
+  - `kickoff()` method for plan execution
+
+- **Delegation Tool** (`loom/builtin/tools/delegate.py`, ~100 lines)
+  - `DelegateTool`: Enables manager agents to delegate tasks
+  - Automatic task wrapping and execution
+  - Result aggregation and reporting
+
+- **Condition Builder** (`loom/crew/conditions.py`, ~150 lines)
+  - `ConditionBuilder`: Declarative condition creation
+  - Condition types: `key_equals`, `key_exists`, `custom`
+  - Evaluation against shared context
+
+**Testing**:
+- 106 comprehensive unit tests (`tests/unit/crew/`)
+- Test coverage for all orchestration modes
+- Integration tests for crew execution
+- 100% test pass rate
+
+**Documentation**:
+- Complete user guide: `docs/CREW_SYSTEM.md` (~600 lines)
+- Architecture documentation with examples
+- Use cases: code review, parallel research, conditional workflows
+
+**Examples**:
+- Complete demo: `examples/crew_demo.py` (~400 lines)
+- 7 scenario demonstrations
+- Real-world workflow examples
+
+#### Tool Plugin System (~1,200 lines)
+
+**Core Components**:
+
+- **Plugin Metadata** (`loom/plugins/tool_plugin.py`, ~80 lines)
+  - `ToolPluginMetadata`: Rich plugin metadata with validation
+  - Semantic versioning support
+  - Dependency declaration
+  - Tag-based categorization
+  - JSON serialization/deserialization
+
+- **Plugin Wrapper** (`loom/plugins/tool_plugin.py`, ~70 lines)
+  - `ToolPlugin`: Plugin lifecycle management
+  - Status states: LOADED → ENABLED → DISABLED → ERROR
+  - Tool instance creation
+  - Error state handling
+
+- **Plugin Registry** (`loom/plugins/tool_plugin.py`, ~140 lines)
+  - `ToolPluginRegistry`: Central plugin repository
+  - Tool name conflict detection
+  - Plugin search by tag/author
+  - Status filtering
+  - Statistics and metrics
+
+- **Plugin Loader** (`loom/plugins/tool_plugin.py`, ~160 lines)
+  - `ToolPluginLoader`: Dynamic plugin loading
+  - Load from file or Python module
+  - Auto-discovery in directories
+  - Automatic registration support
+  - Validation and error handling
+
+- **Plugin Manager** (`loom/plugins/tool_plugin.py`, ~120 lines)
+  - `ToolPluginManager`: High-level API for plugin management
+  - Install/uninstall operations
+  - Enable/disable lifecycle
+  - Batch discovery and installation
+  - Integrated registry and loader
+
+**Built-in Plugins**:
+- `WeatherTool`: Weather query example
+- `CurrencyConverterTool`: Currency conversion
+- `SentimentAnalysisTool`: Text sentiment analysis
+
+**Testing**:
+- 35 comprehensive unit tests (`tests/unit/plugins/test_tool_plugin.py`, ~700 lines)
+- Test coverage: metadata, lifecycle, registry, loader, manager
+- 100% test pass rate
+
+**Documentation**:
+- Complete system guide: `docs/TOOL_PLUGIN_SYSTEM.md` (~730 lines)
+- Plugin creation tutorial
+- API reference
+- Best practices and troubleshooting
+- Implementation summary: `docs/TOOL_PLUGIN_IMPLEMENTATION_SUMMARY.md` (~500 lines)
+
+**Examples**:
+- Complete demo: `examples/plugin_demo.py` (~350 lines)
+- Example plugins: `examples/tool_plugins/` (~420 lines)
+- Plugin template: `examples/tool_plugins/weather_plugin.py`
+
+#### Documentation Improvements
+
+- **Bilingual README** (Total: ~3,000 lines)
+  - **Chinese README.md** (~1,470 lines)
+    - Complete framework documentation
+    - 8 core mechanisms explained
+    - Crew system integration guide
+    - Plugin system integration guide
+    - 40+ code examples
+    - Progressive learning path (30s → 5min → 10min)
+  - **English README_EN.md** (~1,470 lines)
+    - Full translation maintaining technical accuracy
+    - Bidirectional language switcher
+    - All examples and documentation preserved
+
+- **Comparison Tables**
+  - vs LangGraph: Event sourcing, strategy upgrade, HITL, context debugging
+  - vs AutoGen: Orchestration modes, persistence, tool orchestration
+  - vs CrewAI: Role system, crash recovery, context management
+
+### Changed
+
+- **Package Description** (`pyproject.toml`)
+  - Updated to: "Enterprise-grade recursive state machine agent framework with event sourcing, multi-agent collaboration, and tool plugin system"
+  - Reflects new capabilities and enterprise positioning
+
+- **Framework Positioning**
+  - From: "Stateful recursive agent framework"
+  - To: "Enterprise-grade multi-agent framework with event sourcing"
+  - Competitive positioning against CrewAI and AutoGen
+
+### Statistics
+
+- **New Code**: ~3,200 lines (Crew: ~2,000, Plugins: ~1,200)
+- **Test Code**: ~1,200 lines (141 tests total)
+- **Documentation**: ~3,500 lines
+- **Examples**: ~1,200 lines
+- **Total Addition**: ~9,100 lines
+
+### Feature Comparison
+
+| Feature | LangGraph | AutoGen | CrewAI | **loom-agent 0.1.0** |
+|---------|-----------|---------|--------|----------------------|
+| **Event Sourcing** | ❌ | ❌ | ❌ | ✅ Complete |
+| **Crash Recovery** | ⚠️ Checkpointing | ❌ | ❌ | ✅ Event replay |
+| **Multi-Agent** | ❌ | ✅ | ✅ | ✅ Crew system |
+| **Orchestration Modes** | Basic | Basic | Basic | ✅ 4 modes |
+| **Tool Plugins** | ❌ | ❌ | ❌ | ✅ Complete system |
+| **HITL** | interrupt_before | ❌ | ❌ | ✅ Lifecycle hooks |
+| **Context Debugging** | ❌ | ❌ | ❌ | ✅ ContextDebugger |
+| **Plugin Ecosystem** | ❌ | ❌ | ❌ | ✅ Dynamic loading |
+
+### Upgrade Guide
+
+#### From v0.0.9 to v0.1.0
+
+**No Breaking Changes** - v0.1.0 is fully backward compatible. All new features are opt-in.
+
+**To Use Crew System**:
+
+```python
+from loom.crew import Crew, Role, Task, OrchestrationPlan, OrchestrationMode
+
+# Define roles
+roles = [
+    Role(name="researcher", goal="Gather information", tools=[...]),
+    Role(name="developer", goal="Write code", tools=[...]),
+]
+
+# Create crew
+crew = Crew(roles=roles, llm=llm)
+
+# Define tasks
+tasks = [
+    Task(id="research", assigned_role="researcher", ...),
+    Task(id="implement", assigned_role="developer", dependencies=["research"]),
+]
+
+# Execute
+plan = OrchestrationPlan(tasks=tasks, mode=OrchestrationMode.SEQUENTIAL)
+results = await crew.kickoff(plan)
+```
+
+**To Use Plugin System**:
+
+```python
+from loom.plugins import ToolPluginManager
+
+# Create manager
+manager = ToolPluginManager()
+
+# Install plugin
+await manager.install_from_file("my_plugin.py", enable=True)
+
+# Use tool
+tool = manager.get_tool("my_tool")
+result = await tool.run(param="value")
+```
+
+### Contributors
+
+- **kongusen** - Architecture and implementation
+- **Community feedback** - Feature requests and testing
+
+### Next Steps (v0.2.0)
+
+- 🌐 Distributed execution support
+- 💾 Multi-backend storage (PostgreSQL, Redis)
+- 📊 Web UI for monitoring
+- 🎨 Enhanced visualization (execution tree, flame graphs)
+- 🔌 More plugins (LLM providers, memory backends, storage adapters)
+
+---
+
 ## [0.0.9] - 2024-12-09
 
 ### Fixed

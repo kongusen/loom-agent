@@ -362,13 +362,34 @@ class TestOrchestrator:
         orchestrator = Orchestrator()
         results = await orchestrator.execute(plan, mock_crew)
 
+        # Task 1 should be completed
         assert "t1" in results
-        assert "t2" not in results  # Skipped due to condition
+        assert results["t1"]["status"] == "completed"
+
+        # Task 2 should be skipped (now appears in results with status='skipped')
+        assert "t2" in results
+        assert results["t2"]["status"] == "skipped"
+
+        # Only task1 should have been executed
         assert mock_crew.execute_task.call_count == 1
 
     @pytest.mark.asyncio
     async def test_execute_hierarchical(self, mock_crew):
         """Test hierarchical execution"""
+        # Add manager to members
+        mock_crew.members = {
+            "manager": MagicMock(),
+            "developer": MagicMock()
+        }
+
+        # Mock list_roles and _get_or_create_agent
+        mock_crew.list_roles = MagicMock(return_value=["manager", "developer"])
+
+        # Mock manager agent
+        mock_manager_agent = MagicMock()
+        mock_manager_agent.run = AsyncMock(return_value="Manager coordinated all tasks")
+        mock_crew._get_or_create_agent = MagicMock(return_value=mock_manager_agent)
+
         task1 = Task(id="t1", description="T1", prompt="P1", assigned_role="developer")
 
         plan = OrchestrationPlan(
@@ -379,8 +400,9 @@ class TestOrchestrator:
         orchestrator = Orchestrator()
         results = await orchestrator.execute(plan, mock_crew)
 
-        assert "t1" in results
-        assert mock_crew.execute_task.call_count == 1
+        # Should have manager coordination result
+        assert "_manager_coordination" in results
+        assert results["_manager_coordination"]["status"] == "completed"
 
     @pytest.mark.asyncio
     async def test_execute_hierarchical_no_manager_raises(self, mock_crew):

@@ -3,6 +3,8 @@ from .read_file import ReadFileTool
 from .write_file import WriteFileTool
 from .glob import GlobTool
 from .grep import GrepTool
+from .task import TaskTool
+from .delegate import DelegateTool
 
 try:
     from .web_search import WebSearchTool
@@ -22,7 +24,15 @@ try:
 except ImportError:
     _has_http_request = False
 
-__all__ = ["Calculator", "ReadFileTool", "WriteFileTool", "GlobTool", "GrepTool"]
+__all__ = [
+    "Calculator",
+    "ReadFileTool",
+    "WriteFileTool",
+    "GlobTool",
+    "GrepTool",
+    "TaskTool",
+    "DelegateTool",
+]
 
 if _has_web_search:
     __all__.append("WebSearchTool")
