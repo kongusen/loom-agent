@@ -32,17 +32,10 @@ class ToolResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
-class StreamEvent:
-    type: str  # text_delta | tool_calls_start | tool_result | agent_finish | error | aborted
-    content: Optional[str] = None
-    tool_calls: Optional[List[ToolCall]] = None
-    result: Optional[ToolResult] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 # =============================================================================
-# Phase 2: Foundation Types for Claude Code Enhancements (v4.0.0)
+# Phase 2: Foundation Types for Claude Code Enhancements (v0.1.1)
 # =============================================================================
 
 

@@ -21,9 +21,10 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, AsyncGenerator
 
 from loom.core.types import Message, CompressionMetadata
+from loom.core.events import AgentEvent, AgentEventType
 from loom.interfaces.llm import BaseLLM
 from loom.utils.token_counter import count_messages_tokens
 
@@ -129,26 +130,49 @@ Now compress the conversation above following this exact structure:"""
         threshold_tokens = int(max_tokens * self.compression_threshold)
         return current_tokens >= threshold_tokens
 
-    async def compress(
+    async def compress_stream(
         self, messages: List[Message]
-    ) -> Tuple[List[Message], CompressionMetadata]:
-        """Compress conversation history using 8-segment LLM summarization.
+    ) -> AsyncGenerator[AgentEvent, None]:
+        """
+        Compress conversation history with streaming events (CORE METHOD).
 
-        Process:
-        1. Separate system messages (never compress)
-        2. Extract user/assistant messages for compression
-        3. Attempt LLM compression with retry logic
-        4. Fall back to sliding window after max_retries failures
-        5. Return compressed messages + metadata
+        This is the core streaming implementation. The convenience method
+        compress() consumes this stream internally.
+
+        Process (with events):
+        1. Emit COMPRESSION_START
+        2. Separate system messages (never compress)
+        3. For each retry attempt:
+           - Emit COMPRESSION_PROGRESS
+           - Attempt LLM compression
+        4. On max retries: Emit COMPRESSION_FALLBACK, use sliding window
+        5. Emit COMPRESSION_COMPLETE with results
 
         Args:
             messages: Full conversation history
 
-        Returns:
-            Tuple of (compressed_messages, compression_metadata)
+        Yields:
+            AgentEvent: Streaming events:
+                - COMPRESSION_START: Compression started
+                - COMPRESSION_PROGRESS: Retry attempt progress
+                - COMPRESSION_FALLBACK: Falling back to sliding window
+                - COMPRESSION_COMPLETE: Compression finished
+                - COMPRESSION_ERROR: Compression failed
+
+        Example:
+            ```python
+            async for event in compression_manager.compress_stream(messages):
+                if event.type == AgentEventType.COMPRESSION_START:
+                    print(f"Compressing {event.metadata['original_tokens']} tokens...")
+                elif event.type == AgentEventType.COMPRESSION_PROGRESS:
+                    print(f"Retry {event.metadata['attempt']}/{event.metadata['max_retries']}")
+                elif event.type == AgentEventType.COMPRESSION_COMPLETE:
+                    print(f"Compressed to {event.metadata['compressed_tokens']} tokens")
+            ```
         """
         if not messages:
-            return messages, CompressionMetadata(
+            # Empty messages - return immediately
+            empty_metadata = CompressionMetadata(
                 original_message_count=0,
                 compressed_message_count=0,
                 original_token_count=0,
@@ -156,6 +180,15 @@ Now compress the conversation above following this exact structure:"""
                 compression_ratio=0.0,
                 key_topics=[],
             )
+            yield AgentEvent(
+                type=AgentEventType.COMPRESSION_COMPLETE,
+                metadata={
+                    "compressed_messages": messages,
+                    "compression_metadata": empty_metadata,
+                    "method": "none"
+                }
+            )
+            return
 
         # Separate system messages (preserve) from compressible messages
         system_messages = [m for m in messages if m.role == "system"]
@@ -164,7 +197,7 @@ Now compress the conversation above following this exact structure:"""
         if not compressible:
             # No messages to compress, return as-is
             token_count = count_messages_tokens(messages)
-            return messages, CompressionMetadata(
+            metadata = CompressionMetadata(
                 original_message_count=len(messages),
                 compressed_message_count=len(messages),
                 original_token_count=token_count,
@@ -172,10 +205,31 @@ Now compress the conversation above following this exact structure:"""
                 compression_ratio=1.0,
                 key_topics=[],
             )
+            yield AgentEvent(
+                type=AgentEventType.COMPRESSION_COMPLETE,
+                metadata={
+                    "compressed_messages": messages,
+                    "compression_metadata": metadata,
+                    "method": "none"
+                }
+            )
+            return
 
         # Count tokens
         original_tokens = count_messages_tokens(compressible)
         target_tokens = int(original_tokens * self.target_reduction)
+
+        # Emit start event
+        yield AgentEvent(
+            type=AgentEventType.COMPRESSION_START,
+            metadata={
+                "original_message_count": len(compressible),
+                "original_tokens": original_tokens,
+                "target_tokens": target_tokens,
+                "target_reduction": self.target_reduction,
+                "max_retries": self.max_retries
+            }
+        )
 
         # Attempt LLM compression with retry logic
         compressed_summary = None
@@ -183,27 +237,71 @@ Now compress the conversation above following this exact structure:"""
 
         for attempt in range(1, self.max_retries + 1):
             try:
+                # Emit progress event
+                yield AgentEvent(
+                    type=AgentEventType.COMPRESSION_PROGRESS,
+                    metadata={
+                        "attempt": attempt,
+                        "max_retries": self.max_retries,
+                        "method": "llm",
+                        "status": "attempting"
+                    }
+                )
+
                 compressed_summary, key_topics = await self._llm_compress(
                     compressible, original_tokens, target_tokens
                 )
                 break  # Success
+
             except Exception as e:
                 if attempt < self.max_retries:
                     # Exponential backoff: 1s, 2s, 4s
                     backoff_delay = 2 ** (attempt - 1)
+
+                    yield AgentEvent(
+                        type=AgentEventType.COMPRESSION_PROGRESS,
+                        metadata={
+                            "attempt": attempt,
+                            "max_retries": self.max_retries,
+                            "method": "llm",
+                            "status": "retry",
+                            "error": str(e),
+                            "backoff_delay": backoff_delay
+                        }
+                    )
+
                     await asyncio.sleep(backoff_delay)
                 else:
-                    # Max retries exhausted - fall back to sliding window
+                    # Max retries exhausted - will fall back
                     compressed_summary = None
                     key_topics = ["fallback"]
 
+                    yield AgentEvent(
+                        type=AgentEventType.COMPRESSION_PROGRESS,
+                        metadata={
+                            "attempt": attempt,
+                            "max_retries": self.max_retries,
+                            "method": "llm",
+                            "status": "failed",
+                            "error": str(e)
+                        }
+                    )
+
         # Fall back to sliding window if LLM compression failed
         if compressed_summary is None:
+            yield AgentEvent(
+                type=AgentEventType.COMPRESSION_FALLBACK,
+                metadata={
+                    "reason": "llm_compression_failed",
+                    "fallback_method": "sliding_window",
+                    "window_size": self.sliding_window_size
+                }
+            )
+
             windowed_messages = self.sliding_window_fallback(compressible, self.sliding_window_size)
             final_messages = system_messages + windowed_messages
             compressed_tokens = count_messages_tokens(windowed_messages)
             ratio = compressed_tokens / original_tokens if original_tokens > 0 else 0.0
-            # Ensure ratio is clamped to [0.0, 1.0]
             ratio = min(max(ratio, 0.0), 1.0)
 
             metadata = CompressionMetadata(
@@ -214,7 +312,19 @@ Now compress the conversation above following this exact structure:"""
                 compression_ratio=ratio,
                 key_topics=["fallback"],
             )
-            return final_messages, metadata
+
+            yield AgentEvent(
+                type=AgentEventType.COMPRESSION_COMPLETE,
+                metadata={
+                    "compressed_messages": final_messages,
+                    "compression_metadata": metadata,
+                    "method": "sliding_window",
+                    "original_tokens": original_tokens,
+                    "compressed_tokens": compressed_tokens,
+                    "reduction_ratio": ratio
+                }
+            )
+            return
 
         # LLM compression succeeded - create compressed message
         compressed_message = Message(
@@ -228,7 +338,6 @@ Now compress the conversation above following this exact structure:"""
         # Combine system messages + compressed summary
         final_messages = system_messages + [compressed_message]
         ratio = compressed_tokens / original_tokens if original_tokens > 0 else 0.0
-        # Ensure ratio is clamped to [0.0, 1.0]
         ratio = min(max(ratio, 0.0), 1.0)
 
         metadata = CompressionMetadata(
@@ -240,7 +349,62 @@ Now compress the conversation above following this exact structure:"""
             key_topics=key_topics,
         )
 
-        return final_messages, metadata
+        yield AgentEvent(
+            type=AgentEventType.COMPRESSION_COMPLETE,
+            metadata={
+                "compressed_messages": final_messages,
+                "compression_metadata": metadata,
+                "method": "llm",
+                "original_tokens": original_tokens,
+                "compressed_tokens": compressed_tokens,
+                "reduction_ratio": ratio,
+                "key_topics": key_topics
+            }
+        )
+
+    async def compress(
+        self, messages: List[Message]
+    ) -> Tuple[List[Message], CompressionMetadata]:
+        """
+        Compress conversation history (convenience wrapper).
+
+        This method consumes compress_stream() internally and returns
+        the final result. Use this when you don't need real-time progress updates.
+
+        For streaming progress updates, use compress_stream() directly.
+
+        Args:
+            messages: Full conversation history
+
+        Returns:
+            Tuple of (compressed_messages, compression_metadata)
+
+        Example:
+            ```python
+            compressed_msgs, metadata = await manager.compress(messages)
+            print(f"Reduced {metadata.original_token_count} → {metadata.compressed_token_count} tokens")
+            ```
+        """
+        compressed_messages = []
+        compression_metadata = None
+
+        async for event in self.compress_stream(messages):
+            if event.type == AgentEventType.COMPRESSION_COMPLETE:
+                compressed_messages = event.metadata.get("compressed_messages", [])
+                compression_metadata = event.metadata.get("compression_metadata")
+
+        # Fallback to empty metadata if something went wrong
+        if compression_metadata is None:
+            compression_metadata = CompressionMetadata(
+                original_message_count=0,
+                compressed_message_count=0,
+                original_token_count=0,
+                compressed_token_count=0,
+                compression_ratio=0.0,
+                key_topics=[],
+            )
+
+        return compressed_messages, compression_metadata
 
     async def _llm_compress(
         self, messages: List[Message], original_tokens: int, target_tokens: int

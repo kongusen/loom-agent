@@ -1,7 +1,7 @@
-# Loom Agent v4.0.0 API 参考文档
+# Loom Agent v0.1.1 API 参考文档
 
-**版本**: v4.0.0
-**最后更新**: 2025-10-16
+**版本**: v0.1.1
+**最后更新**: 2025-12-12
 
 ---
 
@@ -52,7 +52,7 @@ agent = Agent(
 | `llm` | `BaseLLM` | 必需 | 语言模型实例 |
 | `tools` | `List[BaseTool]` | `None` | Agent可用的工具列表 |
 | `memory` | `BaseMemory` | `InMemoryMemory()` | 内存管理系统 |
-| `compressor` | `BaseCompressor` | 自动创建 | 上下文压缩器（v4.0.0自动启用） |
+| `compressor` | `BaseCompressor` | 自动创建 | 上下文压缩器（v0.1.1自动启用） |
 | `max_iterations` | `int` | `50` | 最大执行迭代次数 |
 | `max_context_tokens` | `int` | `16000` | 最大上下文token限制 |
 | `permission_policy` | `Dict[str, str]` | `None` | 工具权限策略 |
@@ -73,8 +73,8 @@ agent = Agent(
 
 **参数**:
 - `input` (str): 用户输入
-- `cancel_token` (asyncio.Event): 取消令牌（v4.0.0新增）
-- `correlation_id` (str): 请求追踪ID（v4.0.0新增）
+- `cancel_token` (asyncio.Event): 取消令牌（v0.1.1新增）
+- `correlation_id` (str): 请求追踪ID（v0.1.1新增）
 
 **返回**:
 - `str`: Agent的响应
@@ -95,26 +95,6 @@ result = await agent.run(
 ##### `async ainvoke(input: str, cancel_token: Optional[asyncio.Event] = None, correlation_id: Optional[str] = None) -> str`
 
 `run()` 的别名，兼容LangChain风格API。
-
-##### `async stream(input: str) -> AsyncGenerator[StreamEvent, None]`
-
-流式执行Agent任务，逐步返回事件。
-
-**返回**:
-- `AsyncGenerator[StreamEvent]`: 事件流
-
-**示例**:
-```python
-async for event in agent.stream("讲个故事"):
-    if event.type == "text":
-        print(event.content, end="")
-    elif event.type == "tool_call":
-        print(f"\n[工具调用: {event.tool_name}]")
-```
-
-##### `async astream(input: str) -> AsyncGenerator[StreamEvent, None]`
-
-`stream()` 的别名，兼容LangChain风格API。
 
 ##### `get_metrics() -> Dict`
 
@@ -914,21 +894,27 @@ MessageRole.ASSISTANT   # 助手消息
 MessageRole.TOOL        # 工具返回消息
 ```
 
-### `StreamEvent` 类
+### `AgentEvent` 类
 
-流式事件。
+实时事件流（新架构）。
 
 ```python
-from loom.core.types import StreamEvent
+from loom.core.events import AgentEvent, AgentEventType
 
-event = StreamEvent(
-    type: str,
-    content: Optional[str] = None,
-    tool_name: Optional[str] = None,
-    tool_input: Optional[dict] = None,
-    tool_output: Optional[Any] = None
-)
+# AgentEvent通过execute()方法产生
+async for event in agent.execute("任务"):
+    if event.type == AgentEventType.LLM_DELTA:
+        print(event.content, end="")
+    elif event.type == AgentEventType.TOOL_RESULT:
+        print(f"\n工具: {event.tool_result.tool_name}")
 ```
+
+**事件类型**:
+- `LLM_DELTA`: LLM文本增量
+- `TOOL_RESULT`: 工具执行结果
+- `AGENT_FINISH`: 任务完成
+- `ERROR`: 错误事件
+
 
 ---
 
@@ -1034,9 +1020,9 @@ print(pool_llm.get_health_summary())
 ## 更多资源
 
 - [用户指南](USER_GUIDE.md) - 详细使用教程
-- [功能总览](V4_FINAL_SUMMARY.md) - v4.0.0所有特性
+- [功能总览](V4_FINAL_SUMMARY.md) - v0.1.1所有特性
 - [示例代码](examples/) - 更多示例
 
 ---
 
-**Loom Agent v4.0.0 API Reference**
+**Loom Agent v0.1.1 API Reference**

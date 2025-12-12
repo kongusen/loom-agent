@@ -9,13 +9,13 @@ from loom.core.types import Message, CompressionMetadata
 class BaseCompressor(ABC):
     """Context compression interface (US2-compatible).
 
-    Updated in v4.0.0 to return compression metadata alongside compressed messages.
+    Updated in v0.1.1 to return compression metadata alongside compressed messages.
 
     Migration Note:
         Old interface (v3.0.1):
             async def compress(self, messages) -> List[Message]
 
-        New interface (v4.0.0):
+        New interface (v0.1.1):
             async def compress(self, messages) -> Tuple[List[Message], CompressionMetadata]
 
     For custom compressor implementations, update your compress() method to return

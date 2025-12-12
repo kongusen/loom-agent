@@ -259,6 +259,7 @@ asyncio.run(main())
 
 ```python
 from loom import agent
+from loom.core.events import AgentEventType
 import asyncio
 
 async def main():
@@ -268,10 +269,13 @@ async def main():
         api_key="sk-..."
     )
 
-    # 流式输出
-    async for chunk in my_agent.stream("写一首诗"):
-        print(chunk, end="", flush=True)
-    print()  # 换行
+    # 流式输出 - 实时显示生成内容
+    async for event in my_agent.execute("写一首诗"):
+        if event.type == AgentEventType.LLM_DELTA:
+            print(event.content, end="", flush=True)
+        elif event.type == AgentEventType.AGENT_FINISH:
+            print()  # 换行
+            break
 
 asyncio.run(main())
 ```
@@ -369,18 +373,17 @@ agent(
 ### 运行Agent
 
 ```python
-# 异步运行
+# 非流式运行（简单方便）
 result = await my_agent.run("prompt")
 
-# 流式输出
-async for chunk in my_agent.stream("prompt"):
-    print(chunk)
+# 流式输出（实时反馈）
+from loom.core.events import AgentEventType
 
-# 带回调
-async def on_tool_call(tool_name, args):
-    print(f"Calling {tool_name} with {args}")
-
-result = await my_agent.run("prompt", callbacks={"on_tool_call": on_tool_call})
+async for event in my_agent.execute("prompt"):
+    if event.type == AgentEventType.LLM_DELTA:
+        print(event.content, end="")
+    elif event.type == AgentEventType.TOOL_RESULT:
+        print(f"\n[工具: {event.tool_result.tool_name}]")
 ```
 
 ---

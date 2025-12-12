@@ -28,6 +28,7 @@ from loom.core.turn_state import TurnState
 from loom.core.types import Message, ToolCall
 from loom.interfaces.compressor import BaseCompressor
 from loom.interfaces.llm import BaseLLM
+from loom.utils.stream_accumulator import safe_string_concat
 from loom.interfaces.memory import BaseMemory
 from loom.interfaces.tool import BaseTool
 from loom.utils.token_counter import count_messages_tokens
@@ -148,7 +149,14 @@ class AgentExecutor:
         event_journal: Optional[EventJournal] = None,
         context_debugger: Optional[ContextDebugger] = None,
         thread_id: Optional[str] = None,
+        # 🎯 LLM Event Validation (开发/测试环境)
+        debug: bool = False,
+        validate_events: bool = False,
     ) -> None:
+        # Validate LLM implements Protocol
+        from loom.interfaces.llm import validate_llm
+        validate_llm(llm, name="llm")
+
         self.llm = llm
         self.tools = tools or {}
         self.memory = memory
@@ -165,6 +173,10 @@ class AgentExecutor:
         self.callbacks = callbacks or []
         self.enable_steering = enable_steering
         self.task_handlers = task_handlers or []
+
+        # Debug and validation
+        self.debug = debug
+        self.validate_events = validate_events or debug  # debug模式自动启用验证
 
         # Unified coordination
         self.unified_context = unified_context
@@ -648,36 +660,58 @@ class AgentExecutor:
                 api_messages = result
 
         try:
-            if self.llm.supports_tools and self.tools:
-                # LLM with tool support
-                tools_spec = self._serialize_tools()
-                # api_messages already created above
-                response = await self.llm.generate_with_tools(
-                    api_messages, tools_spec
-                )
+            # ==========================================
+            # Unified LLM Call using stream()
+            # ==========================================
+            # Use stream() for ALL LLM calls (with or without tools)
+            # This provides consistent streaming behavior and supports JSON mode
+            #
+            # Protocol Design:
+            # - llm.stream() yields LLMEvent dictionaries
+            # - Supports text, tools, and JSON mode in one interface
+            # - No branching logic needed
 
-                content = response.get("content", "")
-                tool_calls = response.get("tool_calls", [])
+            tools_spec = self._serialize_tools() if self.tools else None
+            content_parts = []
+            tool_calls = []
+            finish_reason = None
 
-                # Emit LLM content if available
-                if content:
-                    event = AgentEvent(type=AgentEventType.LLM_DELTA, content=content)
-                    await self._record_event(event)
-                    yield event
+            async for llm_event in self.llm.stream(
+                messages=api_messages,
+                tools=tools_spec,
+                response_format=None  # Future: support JSON mode parameter
+            ):
+                # 🎯 Validate event format in debug/test mode
+                if self.validate_events:
+                    from loom.interfaces.llm import validate_llm_event
+                    validate_llm_event(llm_event, strict=self.debug)
 
-            else:
-                # Simple LLM generation (streaming)
-                content_parts = []
-                # api_messages already created above
-                async for delta in self.llm.stream(api_messages):
-                    content_parts.append(delta)
-                    event = AgentEvent(type=AgentEventType.LLM_DELTA, content=delta)
-                    await self._record_event(event)
-                    yield event
+                # Handle content deltas
+                if llm_event.get("type") == "content_delta":
+                    delta_content = llm_event["content"]
+                    content_parts.append(delta_content)
 
-                content = "".join(content_parts)
-                tool_calls = []
+                    # Emit AgentEvent for real-time streaming
+                    agent_event = AgentEvent(
+                        type=AgentEventType.LLM_DELTA,
+                        content=delta_content
+                    )
+                    await self._record_event(agent_event)
+                    yield agent_event
 
+                # Handle tool calls (emitted at end of stream)
+                elif llm_event.get("type") == "tool_calls":
+                    tool_calls = llm_event["tool_calls"]
+
+                # Handle finish event
+                elif llm_event.get("type") == "finish":
+                    finish_reason = llm_event.get("finish_reason", "stop")
+                    # Track finish_reason for metrics/debugging
+
+            # Reconstruct full content from accumulated parts
+            content = safe_string_concat(content_parts)
+
+            # Emit completion event
             event = AgentEvent(type=AgentEventType.LLM_COMPLETE)
             await self._record_event(event)
             yield event

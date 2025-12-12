@@ -1,6 +1,6 @@
-# Loom Agent v4.0.0 用户使用指南
+# Loom Agent v0.1.1 用户使用指南
 
-**版本**: v4.0.0
+**版本**: v0.1.1
 **最后更新**: 2025-10-16
 
 ---
@@ -212,12 +212,16 @@ my_agent = Agent(
 result = await my_agent.run("你好，介绍一下你自己")
 result = await my_agent.ainvoke("同上")  # LangChain风格别名
 
-# 方式2: 流式输出
-async for event in my_agent.stream("讲个故事"):
-    if event.type == "text":
-        print(event.content, end="", flush=True)
+# 方式2: 流式输出（实时事件流）
+from loom.core.events import AgentEventType
 
-# 方式3: 带取消令牌（v4.0.0新特性）
+async for event in my_agent.execute("讲个故事"):
+    if event.type == AgentEventType.LLM_DELTA:
+        print(event.content, end="", flush=True)
+    elif event.type == AgentEventType.AGENT_FINISH:
+        break
+
+# 方式3: 带取消令牌（v0.1.1新特性）
 import asyncio
 
 cancel_token = asyncio.Event()
@@ -317,7 +321,7 @@ my_agent = agent(
 
 ### 工具并发执行
 
-v4.0.0支持自动并发执行工具（10x性能提升）：
+v0.1.1支持自动并发执行工具（10x性能提升）：
 
 ```python
 @tool(concurrency_safe=True)  # 默认为True
@@ -502,7 +506,7 @@ print(f"备份数量: {info['backup_count']}")
 
 ### 上下文压缩
 
-v4.0.0自动压缩功能（92%阈值触发）：
+v0.1.1自动压缩功能（92%阈值触发）：
 
 ```python
 from loom import Agent
@@ -656,7 +660,7 @@ logger.log_performance("llm_call", duration_ms=234.5, tokens=150)
 
 ## 高级特性
 
-### 1. 实时取消（v4.0.0）
+### 1. 实时取消（v0.1.1）
 
 ```python
 import asyncio
@@ -753,13 +757,17 @@ my_agent = agent(
 ### 6. 流式输出
 
 ```python
-async for event in my_agent.stream("讲个长故事"):
-    if event.type == "text":
+from loom.core.events import AgentEventType
+
+async for event in my_agent.execute("讲个长故事"):
+    if event.type == AgentEventType.LLM_DELTA:
         print(event.content, end="", flush=True)
-    elif event.type == "tool_call":
-        print(f"\n[调用工具: {event.tool_name}]")
-    elif event.type == "tool_result":
-        print(f"[工具返回: {event.result}]")
+    elif event.type == AgentEventType.TOOL_EXECUTION_START:
+        print(f"\n[调用工具: {event.metadata.get('tool_name')}]")
+    elif event.type == AgentEventType.TOOL_RESULT:
+        print(f"[工具返回: {event.tool_result.content}]")
+    elif event.type == AgentEventType.AGENT_FINISH:
+        break
 ```
 
 ---
@@ -910,25 +918,26 @@ async def chat(request: QueryRequest):
 
 ```python
 from fastapi.responses import StreamingResponse
+from loom.core.events import AgentEventType
 
 @app.get("/chat/stream")
 async def chat_stream(query: str):
     async def event_generator():
-        async for event in my_agent.stream(query):
-            if event.type == "text":
+        async for event in my_agent.execute(query):
+            if event.type == AgentEventType.LLM_DELTA:
                 yield f"data: {event.content}\n\n"
+            elif event.type == AgentEventType.AGENT_FINISH:
+                yield "data: [DONE]\n\n"
+                break
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream"
-    )
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 ```
 
 ---
 
 ## 下一步
 
-- 查看 [V4_FINAL_SUMMARY.md](V4_FINAL_SUMMARY.md) 了解v4.0.0所有特性
+- 查看 [V4_FINAL_SUMMARY.md](V4_FINAL_SUMMARY.md) 了解v0.1.1所有特性
 - 查看 [examples/](examples/) 目录获取更多示例
 - 查看 [CHANGELOG.md](CHANGELOG.md) 了解版本变化
 - 查看 [P2_FEATURES.md](P2_FEATURES.md) 了解生产级特性
@@ -942,4 +951,4 @@ async def chat_stream(query: str):
 
 ---
 
-**Happy Coding with Loom Agent v4.0.0!** 🎉
+**Happy Coding with Loom Agent v0.1.1!** 🎉

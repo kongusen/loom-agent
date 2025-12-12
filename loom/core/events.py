@@ -139,6 +139,102 @@ class AgentEventType(Enum):
     RECOVERY_FAILED = "recovery_failed"
     """Error recovery failed"""
 
+    # ===== Crew Events =====
+    CREW_START = "crew_start"
+    """Crew execution started"""
+
+    CREW_TASK_START = "crew_task_start"
+    """A crew task has started execution"""
+
+    CREW_TASK_COMPLETE = "crew_task_complete"
+    """A crew task has completed successfully"""
+
+    CREW_TASK_ERROR = "crew_task_error"
+    """A crew task failed with an error"""
+
+    CREW_AGENT_ASSIGNED = "crew_agent_assigned"
+    """An agent was assigned to a task"""
+
+    CREW_DELEGATION = "crew_delegation"
+    """A task was delegated from one agent to another"""
+
+    CREW_COMPLETE = "crew_complete"
+    """Crew execution completed successfully"""
+
+    CREW_ERROR = "crew_error"
+    """Crew execution failed"""
+
+    # ===== Memory Events =====
+    MEMORY_ADD_START = "memory_add_start"
+    """Memory add operation started"""
+
+    MEMORY_ADD_COMPLETE = "memory_add_complete"
+    """Memory add operation completed"""
+
+    MEMORY_LOAD_START = "memory_load_start"
+    """Memory load operation started"""
+
+    MEMORY_MESSAGES_LOADED = "memory_messages_loaded"
+    """Messages loaded from memory"""
+
+    MEMORY_CLEAR_START = "memory_clear_start"
+    """Memory clear operation started"""
+
+    MEMORY_CLEAR_COMPLETE = "memory_clear_complete"
+    """Memory cleared"""
+
+    MEMORY_SAVE_START = "memory_save_start"
+    """Saving memory to disk"""
+
+    MEMORY_SAVE_COMPLETE = "memory_save_complete"
+    """Memory saved successfully"""
+
+    MEMORY_ERROR = "memory_error"
+    """Memory operation failed"""
+
+    # ===== Enhanced Context Events =====
+    # Note: CONTEXT_ASSEMBLY_START and CONTEXT_ASSEMBLY_COMPLETE already exist above
+    CONTEXT_COMPONENT_INCLUDED = "context_component_included"
+    """Component included in context"""
+
+    CONTEXT_COMPONENT_EXCLUDED = "context_component_excluded"
+    """Component excluded from context"""
+
+    CONTEXT_COMPONENT_TRUNCATED = "context_component_truncated"
+    """Component truncated due to token limits"""
+
+    CONTEXT_ADD_START = "context_add_start"
+    """Context component addition started"""
+
+    CONTEXT_ADD_COMPLETE = "context_add_complete"
+    """Context component addition completed"""
+
+    CONTEXT_CLEAR_START = "context_clear_start"
+    """Context clearing started"""
+
+    CONTEXT_CLEAR_COMPLETE = "context_clear_complete"
+    """Context clearing completed"""
+
+    CONTEXT_ADJUST_PRIORITY = "context_adjust_priority"
+    """Component priority adjusted"""
+
+    # ===== Enhanced Compression Events =====
+    # Note: COMPRESSION_APPLIED already exists above as legacy event
+    COMPRESSION_START = "compression_start"
+    """Context compression started"""
+
+    COMPRESSION_PROGRESS = "compression_progress"
+    """Compression progress update"""
+
+    COMPRESSION_COMPLETE = "compression_complete"
+    """Compression completed successfully"""
+
+    COMPRESSION_FALLBACK = "compression_fallback"
+    """Fell back to sliding window compression"""
+
+    COMPRESSION_ERROR = "compression_error"
+    """Compression operation failed"""
+
 
 @dataclass
 class ToolCall:
@@ -401,9 +497,16 @@ class EventCollector:
         return [e for e in self.events if e.type == event_type]
 
     def get_llm_content(self) -> str:
-        """Reconstruct full LLM output from LLM_DELTA events"""
+        """
+        Reconstruct full LLM output from LLM_DELTA events
+
+        使用类型安全的方式连接，支持混合类型内容
+        """
+        from loom.utils.stream_accumulator import safe_string_concat
+
         deltas = self.filter(AgentEventType.LLM_DELTA)
-        return "".join(e.content or "" for e in deltas)
+        content_parts = [e.content for e in deltas if e.content is not None]
+        return safe_string_concat(content_parts)
 
     def get_tool_results(self) -> List[ToolResult]:
         """Get all tool results"""
@@ -529,8 +632,12 @@ class EventFilter:
         
         for event_type, type_events in events_by_type.items():
             if event_type == AgentEventType.LLM_DELTA:
-                # 合并 LLM delta 事件
-                merged_content = "".join(e.content or "" for e in type_events)
+                # 合并 LLM delta 事件 - 使用类型安全的方式
+                from loom.utils.stream_accumulator import safe_string_concat
+
+                content_parts = [e.content for e in type_events if e.content is not None]
+                merged_content = safe_string_concat(content_parts)
+
                 if merged_content:
                     # 创建合并的事件
                     merged_event = AgentEvent(

@@ -46,13 +46,14 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from typing import Dict, List, Optional, Any, TYPE_CHECKING, AsyncGenerator
 from uuid import uuid4
 
 from loom.crew.roles import Role
-from loom.crew.orchestration import Task, OrchestrationPlan, Orchestrator
+from loom.crew.orchestration import Task, OrchestrationPlan, Orchestrator, OrchestrationMode
 from loom.crew.communication import MessageBus, SharedState
 from loom.crew.performance import PerformanceMonitor
+from loom.core.events import AgentEvent, AgentEventType
 
 if TYPE_CHECKING:
     from loom.components.agent import Agent
@@ -237,31 +238,70 @@ Use clear task descriptions and specify the target role.
 
         return instructions
 
-    async def execute_task(
+    async def execute_task_stream(
         self,
         task: Task,
         context: Optional[Dict[str, Any]] = None,
-    ) -> str:
+    ) -> AsyncGenerator[AgentEvent, None]:
         """
-        Execute a single task.
+        Execute a single task with streaming events (Core Implementation).
+
+        This is the core streaming implementation. All task execution
+        flows through this method.
 
         Args:
             task: Task to execute
             context: Optional execution context
 
-        Returns:
-            str: Task result
+        Yields:
+            AgentEvent: Streaming execution events including:
+                - CREW_TASK_START: Task execution started
+                - CREW_AGENT_ASSIGNED: Agent assigned to task
+                - All agent execution events (LLM_DELTA, TOOL_*, etc.)
+                - CREW_TASK_COMPLETE: Task completed successfully
+                - CREW_TASK_ERROR: Task failed
 
         Raises:
             ValueError: If assigned role not found
+
+        Example:
+            ```python
+            async for event in crew.execute_task_stream(task):
+                if event.type == AgentEventType.CREW_TASK_START:
+                    print(f"Starting task: {event.metadata['task_id']}")
+                elif event.type == AgentEventType.LLM_DELTA:
+                    print(event.content, end="", flush=True)
+                elif event.type == AgentEventType.CREW_TASK_COMPLETE:
+                    print(f"\\nTask completed: {event.content}")
+            ```
         """
         # Start performance tracking
         if self.performance_monitor:
             self.performance_monitor.start_task(task.id, task.assigned_role)
 
+        # Emit task start event
+        yield AgentEvent(
+            type=AgentEventType.CREW_TASK_START,
+            metadata={
+                "task_id": task.id,
+                "task_prompt": task.prompt,
+                "assigned_role": task.assigned_role,
+            }
+        )
+
         try:
             # Get or create agent for role
             agent = self._get_or_create_agent(task.assigned_role)
+
+            # Emit agent assigned event
+            yield AgentEvent(
+                type=AgentEventType.CREW_AGENT_ASSIGNED,
+                metadata={
+                    "task_id": task.id,
+                    "role": task.assigned_role,
+                    "agent_id": self.members[task.assigned_role].agent_id,
+                }
+            )
 
             # Build full context
             full_context = {
@@ -274,16 +314,42 @@ Use clear task descriptions and specify the target role.
             # Inject context into prompt
             prompt_with_context = self._inject_context(task.prompt, full_context)
 
-            # Execute task
-            result = await agent.run(prompt_with_context)
+            # Stream agent execution
+            result_content = ""
+            async for event in agent.execute(prompt_with_context):
+                # Forward agent events
+                yield event
+
+                # Collect final result from AGENT_FINISH event
+                if event.type == AgentEventType.AGENT_FINISH and event.content:
+                    result_content = event.content
+
+            # Emit task complete event
+            yield AgentEvent(
+                type=AgentEventType.CREW_TASK_COMPLETE,
+                content=result_content,
+                metadata={
+                    "task_id": task.id,
+                    "assigned_role": task.assigned_role,
+                }
+            )
 
             # Finish performance tracking (success)
             if self.performance_monitor:
                 self.performance_monitor.finish_task(task.id, success=True)
 
-            return result
-
         except Exception as e:
+            # Emit task error event
+            yield AgentEvent(
+                type=AgentEventType.CREW_TASK_ERROR,
+                error=e,
+                metadata={
+                    "task_id": task.id,
+                    "assigned_role": task.assigned_role,
+                    "error_message": str(e),
+                }
+            )
+
             # Finish performance tracking (failure)
             if self.performance_monitor:
                 self.performance_monitor.finish_task(
@@ -291,12 +357,173 @@ Use clear task descriptions and specify the target role.
                 )
             raise
 
+    async def execute_task(
+        self,
+        task: Task,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Execute a single task (non-streaming convenience method).
+
+        This method internally calls execute_task_stream() and collects
+        the final result. For real-time progress updates, use
+        execute_task_stream() directly.
+
+        Args:
+            task: Task to execute
+            context: Optional execution context
+
+        Returns:
+            str: Task result
+
+        Raises:
+            ValueError: If assigned role not found
+        """
+        result_content = ""
+
+        async for event in self.execute_task_stream(task, context):
+            # Collect final result
+            if event.type == AgentEventType.CREW_TASK_COMPLETE and event.content:
+                result_content = event.content
+
+        return result_content
+
+    async def kickoff_stream(
+        self,
+        plan: OrchestrationPlan,
+    ) -> AsyncGenerator[AgentEvent, None]:
+        """
+        Start crew execution with streaming events (Core Implementation).
+
+        This is the core streaming implementation for crew orchestration.
+        All crew execution flows through this method.
+
+        Args:
+            plan: Orchestration plan with tasks
+
+        Yields:
+            AgentEvent: Streaming execution events including:
+                - CREW_START: Crew execution started
+                - CREW_TASK_START: Each task starting
+                - All task execution events (forwarded from execute_task_stream)
+                - CREW_TASK_COMPLETE: Each task completing
+                - CREW_COMPLETE: Crew execution completed
+                - CREW_ERROR: Crew execution failed
+
+        Example:
+            ```python
+            plan = OrchestrationPlan(tasks=[task1, task2], mode=OrchestrationMode.SEQUENTIAL)
+
+            async for event in crew.kickoff_stream(plan):
+                if event.type == AgentEventType.CREW_START:
+                    print("Crew started")
+                elif event.type == AgentEventType.CREW_TASK_START:
+                    print(f"Task {event.metadata['task_id']} starting")
+                elif event.type == AgentEventType.LLM_DELTA:
+                    print(event.content, end="", flush=True)
+                elif event.type == AgentEventType.CREW_COMPLETE:
+                    print("\\nCrew completed")
+            ```
+        """
+        # Start orchestration tracking
+        if self.performance_monitor:
+            orch_id = self.performance_monitor.start_orchestration()
+
+        import time
+        start_time = time.time()
+
+        # Emit crew start event
+        yield AgentEvent(
+            type=AgentEventType.CREW_START,
+            metadata={
+                "plan_mode": plan.mode.value,
+                "total_tasks": len(plan.tasks),
+                "task_ids": [t.id for t in plan.tasks],
+            }
+        )
+
+        try:
+            # Execute orchestration plan with streaming
+            results: Dict[str, Any] = {}
+
+            # Delegate to orchestrator's execute method, but forward events
+            # For now, we implement sequential mode inline for streaming support
+            if plan.mode == OrchestrationMode.SEQUENTIAL:
+                # Topological sort for dependency order
+                sorted_tasks = self.orchestrator._topological_sort(plan.tasks)
+
+                for task in sorted_tasks:
+                    # Check condition
+                    if not task.should_execute(plan.shared_context):
+                        continue
+
+                    # Build task context with dependency results
+                    task_context = self.orchestrator._build_task_context(
+                        task, results, plan.shared_context
+                    )
+
+                    # Stream task execution
+                    task_result = ""
+                    async for event in self.execute_task_stream(task, context=task_context):
+                        # Forward all task events
+                        yield event
+
+                        # Collect task result
+                        if event.type == AgentEventType.CREW_TASK_COMPLETE and event.content:
+                            task_result = event.content
+
+                    # Store result
+                    results[task.id] = task_result
+
+                    # Update shared context
+                    if task.output_key:
+                        plan.shared_context[task.output_key] = task_result
+
+            else:
+                # For other modes, use non-streaming orchestrator
+                # (can be enhanced later for full streaming support)
+                results = await self.orchestrator.execute(plan, self)
+
+            # Emit crew complete event
+            yield AgentEvent(
+                type=AgentEventType.CREW_COMPLETE,
+                metadata={
+                    "results": results,
+                    "total_tasks": len(plan.tasks),
+                    "completed_tasks": len(results),
+                }
+            )
+
+            # Finish orchestration tracking
+            if self.performance_monitor:
+                duration = time.time() - start_time
+                self.performance_monitor.finish_orchestration(duration)
+
+        except Exception as e:
+            # Emit crew error event
+            yield AgentEvent(
+                type=AgentEventType.CREW_ERROR,
+                error=e,
+                metadata={
+                    "error_message": str(e),
+                }
+            )
+
+            # Record orchestration failure
+            if self.performance_monitor:
+                duration = time.time() - start_time
+                self.performance_monitor.finish_orchestration(duration)
+            raise
+
     async def kickoff(
         self,
         plan: OrchestrationPlan,
     ) -> Dict[str, Any]:
         """
-        Start crew execution with orchestration plan.
+        Start crew execution (non-streaming convenience method).
+
+        This method internally calls kickoff_stream() and collects
+        the results. For real-time progress updates, use kickoff_stream() directly.
 
         Args:
             plan: Orchestration plan with tasks
@@ -315,29 +542,14 @@ Use clear task descriptions and specify the target role.
             print(results["task1"])
             ```
         """
-        # Start orchestration tracking
-        if self.performance_monitor:
-            orch_id = self.performance_monitor.start_orchestration()
+        results: Dict[str, Any] = {}
 
-        import time
-        start_time = time.time()
+        async for event in self.kickoff_stream(plan):
+            # Collect results from CREW_COMPLETE event
+            if event.type == AgentEventType.CREW_COMPLETE and event.metadata.get("results"):
+                results = event.metadata["results"]
 
-        try:
-            results = await self.orchestrator.execute(plan, self)
-
-            # Finish orchestration tracking
-            if self.performance_monitor:
-                duration = time.time() - start_time
-                self.performance_monitor.finish_orchestration(duration)
-
-            return results
-
-        except Exception as e:
-            # Record orchestration failure
-            if self.performance_monitor:
-                duration = time.time() - start_time
-                self.performance_monitor.finish_orchestration(duration)
-            raise
+        return results
 
     def _inject_context(self, prompt: str, context: Dict[str, Any]) -> str:
         """

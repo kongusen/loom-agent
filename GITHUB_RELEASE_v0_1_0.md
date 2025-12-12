@@ -1,8 +1,24 @@
-# 🎉 loom-agent v0.1.0 - Multi-Agent Collaboration & Tool Plugin Ecosystem
+# 🎉 loom-agent v0.1.0 - Major Architecture Overhaul
 
 **Release Date**: December 10, 2024
 
-We're thrilled to announce **loom-agent v0.1.0**, a major milestone release introducing enterprise-grade **multi-agent collaboration** (Crew System) and a complete **tool plugin ecosystem**. This release positions loom-agent as a production-ready framework competing with CrewAI and AutoGen, while maintaining our unique **event sourcing** and **crash recovery** advantages.
+> ⚠️ **IMPORTANT: This is a major breaking release with significant architectural changes**
+>
+> v0.1.0 includes a complete redesign of the LLM interface and Agent API for better simplicity and consistency. Please read the [Migration Guide](docs/MIGRATION_GUIDE_V0_1.md) before upgrading.
+>
+> **Key Breaking Changes:**
+> - LLM interface: 4 methods → 1 unified `stream()` method
+> - Agent API: Multiple streaming methods → single `execute()` method
+> - Event system: `StreamEvent` removed → unified `LLMEvent` + `AgentEvent`
+> - LLM implementation: ABC inheritance → Protocol-based (no inheritance needed)
+
+We're thrilled to announce **loom-agent v0.1.0**, a groundbreaking release featuring:
+
+1. **🏗️ Core Architecture Redesign** - Simplified, unified APIs for LLM and Agent interfaces
+2. **🤝 Multi-Agent Collaboration** - Enterprise-grade Crew system competing with CrewAI and AutoGen
+3. **🔌 Tool Plugin Ecosystem** - Extensible plugin architecture for custom tools
+
+This release maintains our unique **event sourcing** and **crash recovery** advantages while dramatically improving developer experience.
 
 ---
 

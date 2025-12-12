@@ -110,7 +110,7 @@ class SubAgentPool:
         # Filter tools by whitelist
         filtered_tools = self._apply_tool_whitelist(tools, tool_whitelist)
 
-        # Create isolated sub-agent (compression always enabled in v4.0.0)
+        # Create isolated sub-agent (compression always enabled in v0.1.1)
         subagent_id = str(uuid4())
         subagent = Agent(
             llm=llm,

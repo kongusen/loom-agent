@@ -22,11 +22,13 @@ from typing import List, Optional
 from datetime import datetime
 import asyncio
 
+from typing import AsyncGenerator
+
 from loom.core.types import Message
-from loom.interfaces.memory import BaseMemory
+from loom.core.events import AgentEvent, AgentEventType
 
 
-class PersistentMemory(BaseMemory):
+class PersistentMemory:
     """Three-tier memory with automatic persistence.
 
     Example:
@@ -206,23 +208,257 @@ class PersistentMemory(BaseMemory):
 
         return False
 
-    async def add_message(self, message: Message) -> None:
-        """Add message to memory and persist."""
-        async with self._lock:
-            self._messages.append(message)
-            self._save_to_disk()
+    # ===== Core Streaming Methods (Stream-First Architecture) =====
 
-    async def get_messages(self) -> List[Message]:
-        """Get all messages from memory."""
-        async with self._lock:
-            return self._messages.copy()
+    async def add_message_stream(
+        self, message: Message
+    ) -> AsyncGenerator[AgentEvent, None]:
+        """
+        Add message to memory with streaming events (CORE METHOD).
+
+        Includes persistence events for disk I/O operations.
+
+        Args:
+            message: Message to add to memory
+
+        Yields:
+            AgentEvent: Streaming events:
+                - MEMORY_ADD_START: Operation started
+                - MEMORY_SAVE_START: Saving to disk (if persistence enabled)
+                - MEMORY_SAVE_COMPLETE: Saved successfully
+                - MEMORY_ADD_COMPLETE: Message added
+                - MEMORY_ERROR: Operation failed
+
+        Example:
+            ```python
+            async for event in memory.add_message_stream(msg):
+                if event.type == AgentEventType.MEMORY_SAVE_START:
+                    print("Saving to disk...")
+                elif event.type == AgentEventType.MEMORY_ADD_COMPLETE:
+                    print(f"Added message {event.metadata['message_index']}")
+            ```
+        """
+        # Emit start event
+        yield AgentEvent(
+            type=AgentEventType.MEMORY_ADD_START,
+            metadata={
+                "role": message.role,
+                "content_length": len(message.content) if message.content else 0,
+                "persistence_enabled": self.enable_persistence
+            }
+        )
+
+        try:
+            async with self._lock:
+                # Add message to memory
+                self._messages.append(message)
+
+                # Persist to disk if enabled
+                if self.enable_persistence:
+                    yield AgentEvent(
+                        type=AgentEventType.MEMORY_SAVE_START,
+                        metadata={
+                            "file": str(self._get_memory_file()),
+                            "auto_backup": self.auto_backup
+                        }
+                    )
+
+                    self._save_to_disk()
+
+                    yield AgentEvent(
+                        type=AgentEventType.MEMORY_SAVE_COMPLETE,
+                        metadata={
+                            "file": str(self._get_memory_file()),
+                            "message_count": len(self._messages)
+                        }
+                    )
+
+            # Emit complete event
+            yield AgentEvent(
+                type=AgentEventType.MEMORY_ADD_COMPLETE,
+                metadata={
+                    "message_index": len(self._messages) - 1,
+                    "total_messages": len(self._messages),
+                    "role": message.role,
+                    "persisted": self.enable_persistence
+                }
+            )
+
+        except Exception as e:
+            yield AgentEvent(
+                type=AgentEventType.MEMORY_ERROR,
+                error=e,
+                metadata={
+                    "operation": "add_message",
+                    "error_message": str(e)
+                }
+            )
+            raise
+
+    async def get_messages_stream(
+        self, limit: Optional[int] = None
+    ) -> AsyncGenerator[AgentEvent, None]:
+        """
+        Get messages from memory with streaming events (CORE METHOD).
+
+        Args:
+            limit: Optional limit on number of messages to return
+
+        Yields:
+            AgentEvent: Streaming events:
+                - MEMORY_LOAD_START: Load started
+                - MEMORY_MESSAGES_LOADED: Messages loaded (contains messages in metadata)
+                - MEMORY_ERROR: Load failed
+
+        Example:
+            ```python
+            async for event in memory.get_messages_stream(limit=10):
+                if event.type == AgentEventType.MEMORY_MESSAGES_LOADED:
+                    messages = event.metadata["messages"]
+                    print(f"Loaded {len(messages)} messages")
+            ```
+        """
+        # Emit start event
+        yield AgentEvent(
+            type=AgentEventType.MEMORY_LOAD_START,
+            metadata={
+                "limit": limit,
+                "total_available": len(self._messages),
+                "session_id": self.session_id
+            }
+        )
+
+        try:
+            async with self._lock:
+                # Get messages (apply limit if specified)
+                if limit is not None:
+                    messages = self._messages[-limit:] if limit > 0 else []
+                else:
+                    messages = self._messages.copy()
+
+            # Emit loaded event with messages
+            yield AgentEvent(
+                type=AgentEventType.MEMORY_MESSAGES_LOADED,
+                metadata={
+                    "messages": messages,
+                    "count": len(messages),
+                    "total": len(self._messages),
+                    "limit": limit,
+                    "session_id": self.session_id
+                }
+            )
+
+        except Exception as e:
+            yield AgentEvent(
+                type=AgentEventType.MEMORY_ERROR,
+                error=e,
+                metadata={
+                    "operation": "get_messages",
+                    "error_message": str(e)
+                }
+            )
+            raise
+
+    async def clear_stream(self) -> AsyncGenerator[AgentEvent, None]:
+        """
+        Clear all messages from memory with streaming events (CORE METHOD).
+
+        Args:
+            None
+
+        Yields:
+            AgentEvent: Streaming events:
+                - MEMORY_CLEAR_START: Clear started
+                - MEMORY_SAVE_START: Saving cleared state (if persistence enabled)
+                - MEMORY_SAVE_COMPLETE: Saved successfully
+                - MEMORY_CLEAR_COMPLETE: All messages cleared
+                - MEMORY_ERROR: Clear failed
+
+        Example:
+            ```python
+            async for event in memory.clear_stream():
+                if event.type == AgentEventType.MEMORY_CLEAR_START:
+                    print("Clearing memory...")
+                elif event.type == AgentEventType.MEMORY_CLEAR_COMPLETE:
+                    print("Memory cleared")
+            ```
+        """
+        # Emit start event
+        messages_before = len(self._messages)
+        yield AgentEvent(
+            type=AgentEventType.MEMORY_CLEAR_START,
+            metadata={
+                "messages_count": messages_before,
+                "compression_metadata_count": len(self._compression_metadata)
+            }
+        )
+
+        try:
+            async with self._lock:
+                # Clear messages and metadata
+                self._messages.clear()
+                self._compression_metadata.clear()
+
+                # Persist cleared state if enabled
+                if self.enable_persistence:
+                    yield AgentEvent(
+                        type=AgentEventType.MEMORY_SAVE_START,
+                        metadata={
+                            "file": str(self._get_memory_file()),
+                            "operation": "clear"
+                        }
+                    )
+
+                    self._save_to_disk()
+
+                    yield AgentEvent(
+                        type=AgentEventType.MEMORY_SAVE_COMPLETE,
+                        metadata={
+                            "file": str(self._get_memory_file()),
+                            "message_count": 0
+                        }
+                    )
+
+            # Emit complete event
+            yield AgentEvent(
+                type=AgentEventType.MEMORY_CLEAR_COMPLETE,
+                metadata={
+                    "messages_cleared": messages_before,
+                    "messages_remaining": len(self._messages),
+                    "persisted": self.enable_persistence
+                }
+            )
+
+        except Exception as e:
+            yield AgentEvent(
+                type=AgentEventType.MEMORY_ERROR,
+                error=e,
+                metadata={
+                    "operation": "clear",
+                    "error_message": str(e)
+                }
+            )
+            raise
+
+    # ===== Convenience Wrappers =====
+
+    async def add_message(self, message: Message) -> None:
+        """Add message to memory and persist (convenience wrapper)."""
+        async for event in self.add_message_stream(message):
+            pass  # Just consume the stream
+
+    async def get_messages(self, limit: Optional[int] = None) -> List[Message]:
+        """Get messages from memory (convenience wrapper)."""
+        messages = []
+        async for event in self.get_messages_stream(limit):
+            if event.type == AgentEventType.MEMORY_MESSAGES_LOADED:
+                messages = event.metadata.get("messages", [])
+        return messages
 
     async def clear(self) -> None:
-        """Clear all messages from memory."""
-        async with self._lock:
-            self._messages.clear()
-            self._compression_metadata.clear()
-            self._save_to_disk()
+        """Clear all messages from memory (convenience wrapper)."""
+        async for event in self.clear_stream():
+            pass  # Just consume the stream
 
     async def set_messages(self, messages: List[Message]) -> None:
         """Replace all messages in memory.

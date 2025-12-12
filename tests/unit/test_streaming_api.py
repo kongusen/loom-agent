@@ -22,8 +22,8 @@ from loom.interfaces.tool import BaseTool
 # Mock Classes
 # ============================================================================
 
-class MockStreamingLLM(BaseLLM):
-    """Mock LLM that supports streaming."""
+class MockStreamingLLM:
+    """Mock LLM that implements BaseLLM Protocol."""
 
     def __init__(self, response_text: str = "Test response", has_tools: bool = False):
         self.response_text = response_text
@@ -35,41 +35,40 @@ class MockStreamingLLM(BaseLLM):
         """Return mock model name."""
         return "mock-llm-v1"
 
-    @property
-    def supports_tools(self) -> bool:
-        """Return whether this mock supports tools."""
-        return self.has_tools
-
-    async def generate(self, messages: List[Dict]) -> str:
-        """Non-streaming generation."""
-        self.call_count += 1
-        return self.response_text
-
-    async def stream(self, messages: List[Dict]) -> AsyncGenerator[str, None]:
-        """Stream LLM response as string deltas."""
-        self.call_count += 1
-
-        # Stream text character by character
-        for char in self.response_text:
-            yield char
-
-    async def generate_with_tools(
+    async def stream(
         self,
         messages: List[Dict],
-        tools: Optional[List[Dict]] = None
-    ) -> Dict:
-        """Generation with tool support."""
+        tools: Optional[List[Dict]] = None,
+        response_format: Optional[Dict] = None,
+        **kwargs
+    ) -> AsyncGenerator[Dict, None]:
+        """Unified streaming interface - yields LLMEvent dictionaries."""
         self.call_count += 1
 
-        return {
-            "content": self.response_text,
-            "tool_calls": [] if not self.has_tools else [
-                {
-                    "id": "call_1",
-                    "name": "test_tool",
-                    "arguments": {"query": "test"}
-                }
-            ]
+        # Stream text character by character as content_delta events
+        for char in self.response_text:
+            yield {
+                "type": "content_delta",
+                "content": char
+            }
+
+        # If tools enabled, emit tool_calls event
+        if self.has_tools and tools:
+            yield {
+                "type": "tool_calls",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "name": "test_tool",
+                        "arguments": {"query": "test"}
+                    }
+                ]
+            }
+
+        # Always emit finish event
+        yield {
+            "type": "finish",
+            "finish_reason": "tool_calls" if (self.has_tools and tools) else "stop"
         }
 
 
@@ -330,16 +329,6 @@ class TestBackwardCompatibility:
 
         assert isinstance(result, str)
         assert result == "Alias test"
-
-    @pytest.mark.asyncio
-    async def test_stream_legacy_method(self):
-        """Test legacy stream() method still exists."""
-        llm = MockStreamingLLM("Legacy")
-        agent = Agent(llm=llm, tools=[])
-
-        # stream() should exist (even if it uses old StreamEvent)
-        assert hasattr(agent, 'stream')
-        assert callable(agent.stream)
 
     @pytest.mark.asyncio
     async def test_run_returns_final_content(self):
