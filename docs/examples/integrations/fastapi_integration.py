@@ -61,7 +61,7 @@ class SessionInfo(BaseModel):
 app = FastAPI(
     title="Loom Agent API",
     description="Production-ready agent API with streaming support",
-    version="0.1.1"
+    version="0.1.6"
 )
 
 
