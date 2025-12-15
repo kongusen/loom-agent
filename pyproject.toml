@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.1.6"
-description = "Enterprise-grade recursive state machine agent framework with event sourcing, multi-agent collaboration, and tool plugin system"
+version = "0.1.8"
+description = "Enterprise-grade recursive state machine agent framework with event sourcing, multi-agent collaboration, hierarchical memory, and RAG integration"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
 license = "MIT"
@@ -39,22 +39,9 @@ classifiers = [
 python = "^3.11"
 pydantic = "^2.5.0"
 
-# Optional runtime deps (install via extras)
+# LLM 支持（可选）
 openai = {version = "^1.6.0", optional = true}
 anthropic = {version = "^0.7.0", optional = true}
-chromadb = {version = "^0.4.0", optional = true}
-pinecone-client = {version = ">=2.2,<4.0", optional = true}
-fastapi = {version = "^0.104.0", optional = true}
-uvicorn = {extras = ["standard"], version = "^0.24.0", optional = true}
-websockets = {version = "^12.0", optional = true}
-numpy = {version = "^1.24.0", optional = true}
-structlog = {version = "^23.2.0", optional = true}
-weakref-tools = {version = "^1.0.0", optional = true}
-asyncio-throttle = {version = "^1.0.2", optional = true}
-cachetools = {version = "^5.3.0", optional = true}
-psutil = {version = "^5.9.0", optional = true}
-docker = {version = "^7.0.0", optional = true}
-mcp = {version = "^0.2.0", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
@@ -89,27 +76,6 @@ warn_return_any = true
 warn_unused_configs = true
 
 [tool.poetry.extras]
-openai = ["openai"]
-anthropic = ["anthropic"]
-retrieval = ["chromadb", "pinecone-client", "numpy"]
-web = ["fastapi", "uvicorn", "websockets"]
-system = ["psutil", "docker"]
-mcp = ["mcp"]
-observability = ["structlog", "cachetools"]
-all = [
-  "openai",
-  "anthropic",
-  "chromadb",
-  "pinecone-client",
-  "numpy",
-  "fastapi",
-  "uvicorn",
-  "websockets",
-  "psutil",
-  "docker",
-  "mcp",
-  "structlog",
-  "cachetools",
-  "weakref-tools",
-  "asyncio-throttle",
-]
+llm = ["openai"]         # 支持主流 LLM（OpenAI, DeepSeek, Qwen, Kimi 等）
+anthropic = ["anthropic"] # 支持 Anthropic Claude
+all = ["openai", "anthropic"]

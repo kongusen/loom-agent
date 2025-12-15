@@ -53,7 +53,7 @@ from typing_extensions import runtime_checkable
 # Import will be resolved at runtime to avoid circular dependency
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from loom.core.types import Message
+    from loom.core.message import Message  # Unified Message architecture
     from loom.core.events import AgentEvent
 
 
@@ -362,6 +362,143 @@ class BaseMemory(Protocol):
             path: Path to load memory from
         """
         return None
+
+    # ===== Optional RAG Methods (v0.1.8) =====
+
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        filters: Optional[Dict[str, Any]] = None,
+        tier: Optional[str] = None,
+    ) -> str:
+        """
+        Semantically retrieve relevant memories (optional method).
+
+        This method enables RAG (Retrieval-Augmented Generation) support.
+        Implementations with vector search capabilities should override this
+        to provide semantic retrieval. Default implementation returns empty string.
+
+        Args:
+            query: Query text for retrieval
+            top_k: Number of results to return
+            filters: Optional metadata filters
+            tier: Optional memory tier filter
+                  ('ephemeral', 'working', 'session', 'longterm')
+
+        Returns:
+            str: Formatted retrieval results (typically XML structure)
+                 Empty string if retrieval not supported or no results
+
+        Example:
+            ```python
+            from loom.builtin.memory import HierarchicalMemory
+
+            memory = HierarchicalMemory(embedding=..., vector_store=...)
+
+            # Retrieve relevant memories
+            results = await memory.retrieve(
+                query="user's programming experience",
+                top_k=3,
+                tier="longterm"
+            )
+
+            # Results in XML format:
+            # <retrieved_memory>
+            # <memory tier="longterm" relevance="0.92">
+            # User is a Python developer with 5 years experience
+            # </memory>
+            # </retrieved_memory>
+            ```
+
+        Note:
+            Implementations without vector search (e.g., InMemoryMemory)
+            can return empty string. This is backward compatible.
+        """
+        return ""  # Default: retrieval not supported
+
+    async def add_to_longterm(
+        self,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Add content to long-term memory (optional method).
+
+        This method enables persistent, cross-session knowledge storage.
+        Implementations with hierarchical memory should override this.
+        Default implementation is a no-op.
+
+        Args:
+            content: Content to store in long-term memory
+            metadata: Optional metadata (user profile, tags, etc.)
+
+        Example:
+            ```python
+            from loom.builtin.memory import HierarchicalMemory
+
+            memory = HierarchicalMemory(...)
+
+            # Add user preference to long-term memory
+            await memory.add_to_longterm(
+                "User prefers concise answers",
+                metadata={"type": "user_preference"}
+            )
+
+            # Add user profile
+            await memory.add_to_longterm(
+                "User is a Python developer with 5 years experience",
+                metadata={"type": "user_profile"}
+            )
+            ```
+
+        Note:
+            Implementations without long-term storage can ignore this.
+            This is backward compatible.
+        """
+        pass  # Default: not supported
+
+    async def get_by_tier(
+        self,
+        tier: str,
+        limit: Optional[int] = None,
+    ) -> List["Message"]:
+        """
+        Get memories by tier (optional method).
+
+        This method enables tier-based memory access for hierarchical
+        memory systems. Default implementation returns empty list.
+
+        Args:
+            tier: Memory tier to retrieve from
+                  ('ephemeral', 'working', 'session', 'longterm')
+            limit: Optional limit on number of messages
+
+        Returns:
+            List[Message]: Messages from the specified tier
+                          Empty list if tier not supported
+
+        Example:
+            ```python
+            from loom.builtin.memory import HierarchicalMemory
+
+            memory = HierarchicalMemory(...)
+
+            # Get recent working memories
+            working = await memory.get_by_tier("working", limit=5)
+
+            # Get all long-term memories
+            longterm = await memory.get_by_tier("longterm")
+
+            # Get ephemeral (tool) memories
+            ephemeral = await memory.get_by_tier("ephemeral")
+            ```
+
+        Note:
+            Implementations without tiered memory can return empty list.
+            This is backward compatible.
+        """
+        return []  # Default: tier not supported
 
 
 # ===== Utility Functions =====

@@ -1,0 +1,15 @@
+metadata:
+  name: data_processor
+  description: Process and transform structured data (CSV, JSON, Excel)
+  category: tools
+  version: 1.0.0
+  author: Loom Team
+  tags:
+    - data
+    - processing
+    - transformation
+    - ETL
+  dependencies: []
+  enabled: true
+
+quick_guide: Use pandas for tabular data, json module for JSON, and openpyxl for Excel. Check resources/transformation_patterns.json for common operations like filtering, aggregation, and merging.

@@ -1,9 +1,12 @@
-"""内置 Embedding 实现"""
+"""
+Embeddings - Text embedding models for vector search
+
+Provides embedding adapters for converting text to vectors:
+- OpenAIEmbedding: OpenAI embedding API
+"""
 
 from loom.builtin.embeddings.openai_embedding import OpenAIEmbedding
 
-try:
-    from loom.builtin.embeddings.sentence_transformers_embedding import SentenceTransformersEmbedding
-    __all__ = ["OpenAIEmbedding", "SentenceTransformersEmbedding"]
-except ImportError:
-    __all__ = ["OpenAIEmbedding"]
+__all__ = [
+    "OpenAIEmbedding",
+]

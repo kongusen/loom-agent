@@ -1,66 +1,129 @@
-from enum import Enum
+"""
+Loom 错误处理
+
+定义所有 Loom 框架使用的异常类型
+"""
+
+from __future__ import annotations
+from typing import Optional, Any
 
 
-class ErrorCategory(Enum):
-    """Error classification for retry logic (T018 - US5)."""
+class LoomError(Exception):
+    """Loom 框架的基础异常类"""
 
-    NETWORK_ERROR = "network_error"  # httpx.TimeoutException, httpx.ConnectError - retryable
-    TIMEOUT_ERROR = "timeout_error"  # asyncio.TimeoutError - retryable
-    RATE_LIMIT_ERROR = "rate_limit_error"  # 429 responses - retryable with backoff
-    VALIDATION_ERROR = "validation_error"  # Pydantic ValidationError - non-retryable
-    PERMISSION_ERROR = "permission_error"  # PermissionDeniedError - non-retryable
-    AUTHENTICATION_ERROR = "authentication_error"  # 401/403 - non-retryable
-    SERVICE_ERROR = "service_error"  # 5xx errors - retryable
-    NOT_FOUND_ERROR = "not_found_error"  # 404, ToolNotFoundError - non-retryable
-    UNKNOWN_ERROR = "unknown_error"  # Catch-all - non-retryable by default
-
-
-class LoomException(Exception):
-    """Base exception for Loom framework."""
-
-    def __init__(self, message: str, category: ErrorCategory = ErrorCategory.UNKNOWN_ERROR) -> None:
+    def __init__(self, message: str, details: Optional[dict] = None):
+        self.message = message
+        self.details = details or {}
         super().__init__(message)
-        self.category = category
+
+    def __str__(self) -> str:
+        if self.details:
+            details_str = ", ".join(f"{k}={v}" for k, v in self.details.items())
+            return f"{self.message} ({details_str})"
+        return self.message
 
 
-class ToolNotFoundError(LoomException):
-    """Tool not found in registry."""
+class AgentError(LoomError):
+    """Agent 相关错误"""
 
-    def __init__(self, message: str) -> None:
-        super().__init__(message, category=ErrorCategory.NOT_FOUND_ERROR)
-
-
-class ToolValidationError(LoomException):
-    """Tool argument validation failed."""
-
-    def __init__(self, message: str) -> None:
-        super().__init__(message, category=ErrorCategory.VALIDATION_ERROR)
+    pass
 
 
-class PermissionDeniedError(LoomException):
-    """Permission check failed."""
+class ExecutionError(AgentError):
+    """Agent 执行错误"""
 
-    def __init__(self, message: str) -> None:
-        super().__init__(message, category=ErrorCategory.PERMISSION_ERROR)
-
-
-class ToolExecutionTimeout(LoomException):
-    """Tool execution exceeded timeout."""
-
-    def __init__(self, message: str) -> None:
-        super().__init__(message, category=ErrorCategory.TIMEOUT_ERROR)
-
-
-class ExecutionAbortedError(LoomException):
-    """Execution aborted by user."""
-
-    def __init__(self, message: str) -> None:
-        super().__init__(message, category=ErrorCategory.UNKNOWN_ERROR)
+    def __init__(
+        self,
+        message: str,
+        agent_name: Optional[str] = None,
+        details: Optional[dict] = None,
+    ):
+        super().__init__(message, details)
+        self.agent_name = agent_name
 
 
-class RecursionLimitError(LoomException):
-    """Sub-agent recursion depth exceeded (US3)."""
+class ToolError(AgentError):
+    """工具执行错误"""
 
-    def __init__(self, message: str) -> None:
-        super().__init__(message, category=ErrorCategory.VALIDATION_ERROR)
+    def __init__(
+        self,
+        message: str,
+        tool_name: Optional[str] = None,
+        tool_args: Optional[dict] = None,
+        details: Optional[dict] = None,
+    ):
+        super().__init__(message, details)
+        self.tool_name = tool_name
+        self.tool_args = tool_args or {}
 
+
+class RecursionError(AgentError):
+    """递归深度超限错误"""
+
+    def __init__(self, message: str, current_depth: int, max_depth: int):
+        super().__init__(
+            message, details={"current_depth": current_depth, "max_depth": max_depth}
+        )
+        self.current_depth = current_depth
+        self.max_depth = max_depth
+
+
+class ContextError(LoomError):
+    """Context 管理错误"""
+
+    pass
+
+
+class CompressionError(ContextError):
+    """Context 压缩错误"""
+
+    pass
+
+
+class MemoryError(ContextError):
+    """Memory 相关错误"""
+
+    pass
+
+
+class LLMError(LoomError):
+    """LLM 相关错误"""
+
+    def __init__(
+        self,
+        message: str,
+        llm_name: Optional[str] = None,
+        status_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
+        super().__init__(message, details)
+        self.llm_name = llm_name
+        self.status_code = status_code
+
+
+class ValidationError(LoomError):
+    """参数验证错误"""
+
+    def __init__(self, message: str, field: Optional[str] = None, value: Any = None):
+        super().__init__(message, details={"field": field, "value": value})
+        self.field = field
+        self.value = value
+
+
+class ConfigurationError(LoomError):
+    """配置错误"""
+
+    pass
+
+
+# 向后兼容的别名
+class ToolExecutionError(ToolError):
+    """工具执行错误（向后兼容）"""
+
+    pass
+
+
+class MaxRecursionDepthExceeded(RecursionError):
+    """递归深度超限（向后兼容）"""
+
+    pass

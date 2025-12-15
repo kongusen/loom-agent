@@ -1,770 +1,196 @@
 """
-Agent Event System for Loom 2.0
+Loom Events - 事件系统
 
-This module defines the unified event model for streaming agent execution.
-Inspired by Claude Code's event-driven architecture.
-
-新特性 (Loom 0.0.3):
-- 事件过滤和批量处理
-- 智能事件聚合
-- 性能优化的事件流
-- 事件优先级管理
-
-Example:
-    ```python
-    agent = Agent(llm=llm, tools=tools)
-
-    async for event in agent.execute("Search for TODO comments"):
-        if event.type == AgentEventType.LLM_DELTA:
-            print(event.content, end="", flush=True)
-        elif event.type == AgentEventType.TOOL_PROGRESS:
-            print(f"\\nTool: {event.metadata['tool_name']}")
-        elif event.type == AgentEventType.AGENT_FINISH:
-            print(f"\\n✓ {event.content}")
-    ```
+定义框架内的事件类型，用于流式输出和观测
 """
 
+from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, Any, List
-import time
-import uuid
+from typing import Any, Dict, Optional
+from datetime import datetime
 
 
-class AgentEventType(Enum):
-    """
-    Agent event types for different execution phases.
+class AgentEventType(str, Enum):
+    """Agent 事件类型枚举"""
 
-    Event Categories:
-    - Phase Events: Lifecycle events for execution phases
-    - Context Events: Context assembly and management
-    - RAG Events: Retrieval-augmented generation events
-    - LLM Events: Language model interaction events
-    - Tool Events: Tool execution and progress
-    - Agent Events: High-level agent state changes
-    - Error Events: Error handling and recovery
-    """
+    # Agent 执行事件
+    AGENT_START = "agent_start"
+    AGENT_END = "agent_end"
+    AGENT_ERROR = "agent_error"
 
-    # ===== Phase Events =====
-    PHASE_START = "phase_start"
-    """A new execution phase has started"""
-
-    PHASE_END = "phase_end"
-    """An execution phase has completed"""
-
-    # ===== Context Events =====
-    CONTEXT_ASSEMBLY_START = "context_assembly_start"
-    """Starting to assemble system context"""
-
-    CONTEXT_ASSEMBLY_COMPLETE = "context_assembly_complete"
-    """System context assembly completed"""
-
-    COMPRESSION_APPLIED = "compression_applied"
-    """Conversation history was compressed"""
-
-    # ===== RAG Events =====
-    RETRIEVAL_START = "retrieval_start"
-    """Starting document retrieval"""
-
-    RETRIEVAL_PROGRESS = "retrieval_progress"
-    """Progress update during retrieval (documents found)"""
-
-    RETRIEVAL_COMPLETE = "retrieval_complete"
-    """Document retrieval completed"""
-
-    # ===== LLM Events =====
+    # LLM 事件
     LLM_START = "llm_start"
-    """LLM call initiated"""
+    LLM_STREAM_CHUNK = "llm_stream_chunk"
+    LLM_END = "llm_end"
+    LLM_ERROR = "llm_error"
 
-    LLM_DELTA = "llm_delta"
-    """Streaming text chunk from LLM"""
-
-    LLM_COMPLETE = "llm_complete"
-    """LLM call completed"""
-
-    LLM_TOOL_CALLS = "llm_tool_calls"
-    """LLM requested tool calls"""
-
-    # ===== Tool Events =====
-    TOOL_CALLS_START = "tool_calls_start"
-    """Starting to execute tool calls"""
-
-    TOOL_EXECUTION_START = "tool_execution_start"
-    """Individual tool execution started"""
-
-    TOOL_PROGRESS = "tool_progress"
-    """Progress update from tool execution"""
-
-    TOOL_RESULT = "tool_result"
-    """Tool execution completed with result"""
-
+    # 工具事件
+    TOOL_START = "tool_start"
+    TOOL_END = "tool_end"
     TOOL_ERROR = "tool_error"
-    """Tool execution failed"""
 
-    TOOL_CALLS_COMPLETE = "tool_calls_complete"
-    """All tool calls completed (batch execution finished)"""
-
-    # ===== Agent Events =====
-    ITERATION_START = "iteration_start"
-    """New agent iteration started (for recursive loops)"""
-
-    ITERATION_END = "iteration_end"
-    """Agent iteration completed"""
-
-    RECURSION = "recursion"
-    """Recursive call initiated (tt mode)"""
-
-    RECURSION_TERMINATED = "recursion_terminated"
-    """Recursion terminated due to loop detection or limits (Phase 2 optimization)"""
-
-    AGENT_FINISH = "agent_finish"
-    """Agent execution finished successfully"""
-
-    MAX_ITERATIONS_REACHED = "max_iterations_reached"
-    """Maximum iteration limit reached"""
-
-    EXECUTION_CANCELLED = "execution_cancelled"
-    """Execution was cancelled via cancel_token"""
-
-    # ===== Error Events =====
-    ERROR = "error"
-    """Error occurred during execution"""
-
-    RECOVERY_ATTEMPT = "recovery_attempt"
-    """Attempting to recover from error"""
-
-    RECOVERY_SUCCESS = "recovery_success"
-    """Error recovery succeeded"""
-
-    RECOVERY_FAILED = "recovery_failed"
-    """Error recovery failed"""
-
-    # ===== Crew Events =====
-    CREW_START = "crew_start"
-    """Crew execution started"""
-
-    CREW_TASK_START = "crew_task_start"
-    """A crew task has started execution"""
-
-    CREW_TASK_COMPLETE = "crew_task_complete"
-    """A crew task has completed successfully"""
-
-    CREW_TASK_ERROR = "crew_task_error"
-    """A crew task failed with an error"""
-
-    CREW_AGENT_ASSIGNED = "crew_agent_assigned"
-    """An agent was assigned to a task"""
-
-    CREW_DELEGATION = "crew_delegation"
-    """A task was delegated from one agent to another"""
-
-    CREW_COMPLETE = "crew_complete"
-    """Crew execution completed successfully"""
-
-    CREW_ERROR = "crew_error"
-    """Crew execution failed"""
-
-    # ===== Memory Events =====
+    # Memory 事件
     MEMORY_ADD_START = "memory_add_start"
-    """Memory add operation started"""
-
-    MEMORY_ADD_COMPLETE = "memory_add_complete"
-    """Memory add operation completed"""
-
+    MEMORY_ADD_END = "memory_add_end"
     MEMORY_LOAD_START = "memory_load_start"
-    """Memory load operation started"""
-
-    MEMORY_MESSAGES_LOADED = "memory_messages_loaded"
-    """Messages loaded from memory"""
-
+    MEMORY_LOAD_END = "memory_load_end"
     MEMORY_CLEAR_START = "memory_clear_start"
-    """Memory clear operation started"""
+    MEMORY_CLEAR_END = "memory_clear_end"
 
-    MEMORY_CLEAR_COMPLETE = "memory_clear_complete"
-    """Memory cleared"""
+    # RAG 事件（v0.1.8 新增）
+    MEMORY_RETRIEVE_START = "memory_retrieve_start"
+    MEMORY_RETRIEVE_COMPLETE = "memory_retrieve_complete"
+    MEMORY_VECTORIZE_START = "memory_vectorize_start"
+    MEMORY_VECTORIZE_COMPLETE = "memory_vectorize_complete"
 
-    MEMORY_SAVE_START = "memory_save_start"
-    """Saving memory to disk"""
+    # Ephemeral Memory 事件（v0.1.8 新增）
+    EPHEMERAL_ADD = "ephemeral_add"
+    EPHEMERAL_CLEAR = "ephemeral_clear"
 
-    MEMORY_SAVE_COMPLETE = "memory_save_complete"
-    """Memory saved successfully"""
-
-    MEMORY_ERROR = "memory_error"
-    """Memory operation failed"""
-
-    # ===== Enhanced Context Events =====
-    # Note: CONTEXT_ASSEMBLY_START and CONTEXT_ASSEMBLY_COMPLETE already exist above
-    CONTEXT_COMPONENT_INCLUDED = "context_component_included"
-    """Component included in context"""
-
-    CONTEXT_COMPONENT_EXCLUDED = "context_component_excluded"
-    """Component excluded from context"""
-
-    CONTEXT_COMPONENT_TRUNCATED = "context_component_truncated"
-    """Component truncated due to token limits"""
-
-    CONTEXT_ADD_START = "context_add_start"
-    """Context component addition started"""
-
-    CONTEXT_ADD_COMPLETE = "context_add_complete"
-    """Context component addition completed"""
-
-    CONTEXT_CLEAR_START = "context_clear_start"
-    """Context clearing started"""
-
-    CONTEXT_CLEAR_COMPLETE = "context_clear_complete"
-    """Context clearing completed"""
-
-    CONTEXT_ADJUST_PRIORITY = "context_adjust_priority"
-    """Component priority adjusted"""
-
-    # ===== Enhanced Compression Events =====
-    # Note: COMPRESSION_APPLIED already exists above as legacy event
+    # 压缩事件
     COMPRESSION_START = "compression_start"
-    """Context compression started"""
+    COMPRESSION_END = "compression_end"
 
-    COMPRESSION_PROGRESS = "compression_progress"
-    """Compression progress update"""
-
-    COMPRESSION_COMPLETE = "compression_complete"
-    """Compression completed successfully"""
-
-    COMPRESSION_FALLBACK = "compression_fallback"
-    """Fell back to sliding window compression"""
-
-    COMPRESSION_ERROR = "compression_error"
-    """Compression operation failed"""
+    # 通用事件
+    INFO = "info"
+    WARNING = "warning"
+    DEBUG = "debug"
 
 
-@dataclass
-class ToolCall:
-    """Represents a tool invocation request from the LLM"""
-
-    id: str
-    """Unique identifier for this tool call"""
-
-    name: str
-    """Name of the tool to execute"""
-
-    arguments: Dict[str, Any]
-    """Arguments to pass to the tool"""
-
-    def __post_init__(self):
-        if not self.id:
-            self.id = f"call_{uuid.uuid4().hex[:8]}"
-
-
-@dataclass
-class ToolResult:
-    """Represents the result of a tool execution"""
-
-    tool_call_id: str
-    """ID of the tool call this result corresponds to"""
-
-    tool_name: str
-    """Name of the tool that was executed"""
-
-    content: str
-    """Result content (or error message)"""
-
-    is_error: bool = False
-    """Whether this result represents an error"""
-
-    execution_time_ms: Optional[float] = None
-    """Time taken to execute the tool in milliseconds"""
-
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    """Additional metadata about the execution"""
-
-
-@dataclass
+@dataclass(frozen=True)
 class AgentEvent:
     """
-    Unified event model for agent execution streaming.
+    Agent 事件
 
-    All components in Loom 2.0 produce AgentEvent instances to communicate
-    their state and progress. This enables:
-    - Real-time progress updates to users
-    - Fine-grained control over execution flow
-    - Debugging and observability
-    - Flexible consumption patterns
+    用于流式输出和观测性。
 
     Attributes:
-        type: The type of event (see AgentEventType)
-        timestamp: Unix timestamp when event was created
-        phase: Optional execution phase name (e.g., "context", "retrieval", "llm")
-        content: Optional text content (for LLM deltas, final responses)
-        tool_call: Optional tool call request
-        tool_result: Optional tool execution result
-        error: Optional exception that occurred
-        metadata: Additional event-specific data
-        iteration: Current iteration number (for recursive loops)
-        turn_id: Unique ID for this conversation turn
+        type: 事件类型
+        data: 事件数据
+        timestamp: 事件时间戳
+        agent_name: Agent 名称（可选）
+        metadata: 额外元数据
     """
 
     type: AgentEventType
-    """The type of this event"""
-
-    timestamp: float = field(default_factory=time.time)
-    """Unix timestamp when this event was created"""
-
-    # ===== Optional Fields (based on event type) =====
-
-    phase: Optional[str] = None
-    """Execution phase name (e.g., 'context_assembly', 'tool_execution')"""
-
-    content: Optional[str] = None
-    """Text content (for LLM_DELTA, AGENT_FINISH, etc.)"""
-
-    tool_call: Optional[ToolCall] = None
-    """Tool call request (for LLM_TOOL_CALLS, TOOL_EXECUTION_START)"""
-
-    tool_result: Optional[ToolResult] = None
-    """Tool execution result (for TOOL_RESULT, TOOL_ERROR)"""
-
-    error: Optional[Exception] = None
-    """Exception that occurred (for ERROR events)"""
-
+    data: Optional[Dict[str, Any]] = None
+    timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
+    agent_name: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
-    """Additional event-specific data"""
 
-    # ===== Tracking Fields =====
-
-    iteration: Optional[int] = None
-    """Current iteration number (for recursive agent loops)"""
-
-    turn_id: Optional[str] = None
-    """Unique identifier for this conversation turn"""
-
-    def __post_init__(self):
-        """Generate turn_id if not provided"""
-        if self.turn_id is None:
-            self.turn_id = f"turn_{uuid.uuid4().hex[:12]}"
-
-    # ===== Convenience Constructors =====
-
-    @classmethod
-    def phase_start(cls, phase: str, **metadata) -> "AgentEvent":
-        """Create a PHASE_START event"""
-        return cls(
-            type=AgentEventType.PHASE_START,
-            phase=phase,
-            metadata=metadata
-        )
-
-    @classmethod
-    def phase_end(cls, phase: str, **metadata) -> "AgentEvent":
-        """Create a PHASE_END event"""
-        return cls(
-            type=AgentEventType.PHASE_END,
-            phase=phase,
-            metadata=metadata
-        )
-
-    @classmethod
-    def llm_delta(cls, content: str, **metadata) -> "AgentEvent":
-        """Create an LLM_DELTA event for streaming text"""
-        return cls(
-            type=AgentEventType.LLM_DELTA,
-            content=content,
-            metadata=metadata
-        )
-
-    @classmethod
-    def tool_progress(
-        cls,
-        tool_name: str,
-        status: str,
-        **metadata
-    ) -> "AgentEvent":
-        """Create a TOOL_PROGRESS event"""
-        return cls(
-            type=AgentEventType.TOOL_PROGRESS,
-            metadata={"tool_name": tool_name, "status": status, **metadata}
-        )
-
-    @classmethod
-    def tool_result(
-        cls,
-        tool_result: ToolResult,
-        **metadata
-    ) -> "AgentEvent":
-        """Create a TOOL_RESULT event"""
-        return cls(
-            type=AgentEventType.TOOL_RESULT,
-            tool_result=tool_result,
-            metadata=metadata
-        )
-
-    @classmethod
-    def agent_finish(cls, content: str, **metadata) -> "AgentEvent":
-        """Create an AGENT_FINISH event"""
-        return cls(
-            type=AgentEventType.AGENT_FINISH,
-            content=content,
-            metadata=metadata
-        )
-
-    @classmethod
-    def error(cls, error: Exception, **metadata) -> "AgentEvent":
-        """Create an ERROR event"""
-        return cls(
-            type=AgentEventType.ERROR,
-            error=error,
-            metadata=metadata
-        )
-
-    # ===== Utility Methods =====
-
-    def is_terminal(self) -> bool:
-        """Check if this event signals execution completion"""
-        return self.type in {
-            AgentEventType.AGENT_FINISH,
-            AgentEventType.MAX_ITERATIONS_REACHED,
-            AgentEventType.ERROR
-        }
-
-    def is_llm_content(self) -> bool:
-        """Check if this event contains LLM-generated content"""
-        return self.type in {
-            AgentEventType.LLM_DELTA,
-            AgentEventType.LLM_COMPLETE,
-            AgentEventType.AGENT_FINISH
-        }
-
-    def is_tool_event(self) -> bool:
-        """Check if this is a tool-related event"""
-        return self.type.value.startswith("tool_")
-
-    def __repr__(self) -> str:
-        """Human-readable representation"""
-        parts = [f"AgentEvent({self.type.value}"]
-
-        if self.phase:
-            parts.append(f"phase={self.phase}")
-
-        if self.content:
-            preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
-            parts.append(f"content='{preview}'")
-
-        if self.tool_call:
-            parts.append(f"tool={self.tool_call.name}")
-
-        # Access instance variable directly to avoid class method with same name
-        tool_result_instance = self.__dict__.get('tool_result')
-        if tool_result_instance and isinstance(tool_result_instance, ToolResult):
-            parts.append(f"tool={tool_result_instance.tool_name}")
-
-        if self.error:
-            parts.append(f"error={type(self.error).__name__}")
-
-        if self.iteration is not None:
-            parts.append(f"iter={self.iteration}")
-
-        return ", ".join(parts) + ")"
-
-
-# ===== Event Consumer Helpers =====
-
-class EventCollector:
-    """
-    Helper class to collect and filter events during agent execution.
-
-    Example:
-        ```python
-        collector = EventCollector()
-
-        async for event in agent.execute(prompt):
-            collector.add(event)
-
-        # Get all LLM content
-        llm_text = collector.get_llm_content()
-
-        # Get all tool results
-        tool_results = collector.get_tool_results()
-        ```
-    """
-
-    def __init__(self):
-        self.events: List[AgentEvent] = []
-
-    def add(self, event: AgentEvent):
-        """Add an event to the collection"""
-        self.events.append(event)
-
-    def filter(self, event_type: AgentEventType) -> List[AgentEvent]:
-        """Get all events of a specific type"""
-        return [e for e in self.events if e.type == event_type]
-
-    def get_llm_content(self) -> str:
-        """
-        Reconstruct full LLM output from LLM_DELTA events
-
-        使用类型安全的方式连接，支持混合类型内容
-        """
-        from loom.utils.stream_accumulator import safe_string_concat
-
-        deltas = self.filter(AgentEventType.LLM_DELTA)
-        content_parts = [e.content for e in deltas if e.content is not None]
-        return safe_string_concat(content_parts)
-
-    def get_tool_results(self) -> List[ToolResult]:
-        """Get all tool results"""
-        result_events = self.filter(AgentEventType.TOOL_RESULT)
-        return [e.tool_result for e in result_events if e.tool_result]
-
-    def get_errors(self) -> List[Exception]:
-        """Get all errors that occurred"""
-        error_events = self.filter(AgentEventType.ERROR)
-        return [e.error for e in error_events if e.error]
-
-    def get_final_response(self) -> Optional[str]:
-        """Get the final agent response"""
-        finish_events = self.filter(AgentEventType.AGENT_FINISH)
-        if finish_events:
-            return finish_events[-1].content
-        return None
-
-
-class EventFilter:
-    """
-    事件过滤器 - 提供高级事件过滤和批量处理能力
-    
-    新特性 (Loom 0.0.3):
-    - 智能事件过滤
-    - 批量事件处理
-    - 事件聚合和合并
-    - 性能优化的事件流
-    """
-    
-    def __init__(self, 
-                 allowed_types: Optional[List[AgentEventType]] = None,
-                 blocked_types: Optional[List[AgentEventType]] = None,
-                 enable_batching: bool = True,
-                 batch_size: int = 10,
-                 batch_timeout: float = 0.1):
-        """
-        初始化事件过滤器
-        
-        Args:
-            allowed_types: 允许的事件类型列表（None = 全部允许）
-            blocked_types: 阻止的事件类型列表
-            enable_batching: 启用批量处理
-            batch_size: 批量大小
-            batch_timeout: 批量超时时间（秒）
-        """
-        self.allowed_types = allowed_types
-        self.blocked_types = blocked_types or []
-        self.enable_batching = enable_batching
-        self.batch_size = batch_size
-        self.batch_timeout = batch_timeout
-        
-        # 批量处理状态
-        self._batch_buffer: List[AgentEvent] = []
-        self._last_batch_time = time.time()
-    
-    def should_include(self, event: AgentEvent) -> bool:
-        """判断事件是否应该被包含"""
-        # 检查允许的类型
-        if self.allowed_types and event.type not in self.allowed_types:
-            return False
-        
-        # 检查阻止的类型
-        if event.type in self.blocked_types:
-            return False
-        
-        return True
-    
-    def process_event(self, event: AgentEvent) -> List[AgentEvent]:
-        """
-        处理单个事件，可能返回批量事件
-        
-        Returns:
-            处理后的事件列表
-        """
-        if not self.should_include(event):
-            return []
-        
-        if not self.enable_batching:
-            return [event]
-        
-        # 添加到批量缓冲区
-        self._batch_buffer.append(event)
-        
-        # 检查是否需要输出批量事件
-        should_flush = (
-            len(self._batch_buffer) >= self.batch_size or
-            (time.time() - self._last_batch_time) >= self.batch_timeout
-        )
-        
-        if should_flush:
-            return self._flush_batch()
-        
-        return []
-    
-    def _flush_batch(self) -> List[AgentEvent]:
-        """输出批量事件并清空缓冲区"""
-        if not self._batch_buffer:
-            return []
-        
-        # 智能聚合相同类型的事件
-        aggregated_events = self._aggregate_events(self._batch_buffer)
-        
-        # 清空缓冲区
-        self._batch_buffer.clear()
-        self._last_batch_time = time.time()
-        
-        return aggregated_events
-    
-    def _aggregate_events(self, events: List[AgentEvent]) -> List[AgentEvent]:
-        """智能聚合事件"""
-        if not events:
-            return []
-        
-        # 按类型分组
-        events_by_type: Dict[AgentEventType, List[AgentEvent]] = {}
-        for event in events:
-            if event.type not in events_by_type:
-                events_by_type[event.type] = []
-            events_by_type[event.type].append(event)
-        
-        aggregated = []
-        
-        for event_type, type_events in events_by_type.items():
-            if event_type == AgentEventType.LLM_DELTA:
-                # 合并 LLM delta 事件 - 使用类型安全的方式
-                from loom.utils.stream_accumulator import safe_string_concat
-
-                content_parts = [e.content for e in type_events if e.content is not None]
-                merged_content = safe_string_concat(content_parts)
-
-                if merged_content:
-                    # 创建合并的事件
-                    merged_event = AgentEvent(
-                        type=AgentEventType.LLM_DELTA,
-                        content=merged_content,
-                        timestamp=type_events[0].timestamp,
-                        metadata={
-                            "batch_size": len(type_events),
-                            "aggregated": True
-                        }
-                    )
-                    aggregated.append(merged_event)
-            else:
-                # 其他类型的事件保持原样
-                aggregated.extend(type_events)
-        
-        return aggregated
-    
-    def flush_remaining(self) -> List[AgentEvent]:
-        """强制输出剩余的事件"""
-        return self._flush_batch()
-
-
-class EventProcessor:
-    """
-    事件处理器 - 提供高级事件处理能力
-    
-    新特性 (Loom 0.0.3):
-    - 事件优先级管理
-    - 智能事件路由
-    - 事件统计和分析
-    - 性能监控
-    """
-    
-    def __init__(self, 
-                 filters: Optional[List[EventFilter]] = None,
-                 enable_stats: bool = True):
-        """
-        初始化事件处理器
-        
-        Args:
-            filters: 事件过滤器列表
-            enable_stats: 启用统计功能
-        """
-        self.filters = filters or []
-        self.enable_stats = enable_stats
-        
-        # 统计信息
-        self._stats = {
-            "total_events": 0,
-            "filtered_events": 0,
-            "batched_events": 0,
-            "events_by_type": {},
-            "processing_times": []
-        }
-    
-    def process_events(self, events: List[AgentEvent]) -> List[AgentEvent]:
-        """
-        批量处理事件
-        
-        Args:
-            events: 输入事件列表
-            
-        Returns:
-            处理后的事件列表
-        """
-        if not events:
-            return []
-        
-        start_time = time.time()
-        processed_events = []
-        
-        for event in events:
-            # 更新统计
-            if self.enable_stats:
-                self._stats["total_events"] += 1
-                event_type = event.type.value
-                self._stats["events_by_type"][event_type] = \
-                    self._stats["events_by_type"].get(event_type, 0) + 1
-            
-            # 应用过滤器
-            for filter_obj in self.filters:
-                filtered = filter_obj.process_event(event)
-                processed_events.extend(filtered)
-            
-            # 如果没有过滤器，直接添加事件
-            if not self.filters:
-                processed_events.append(event)
-        
-        # 强制刷新所有过滤器的批量缓冲区
-        for filter_obj in self.filters:
-            remaining = filter_obj.flush_remaining()
-            processed_events.extend(remaining)
-        
-        # 更新处理时间统计
-        if self.enable_stats:
-            processing_time = time.time() - start_time
-            self._stats["processing_times"].append(processing_time)
-            self._stats["filtered_events"] = len(processed_events)
-        
-        return processed_events
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """获取处理统计信息"""
-        if not self.enable_stats:
-            return {}
-        
-        avg_processing_time = (
-            sum(self._stats["processing_times"]) / len(self._stats["processing_times"])
-            if self._stats["processing_times"] else 0
-        )
-        
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
         return {
-            **self._stats,
-            "average_processing_time": avg_processing_time,
-            "filter_efficiency": (
-                self._stats["filtered_events"] / self._stats["total_events"]
-                if self._stats["total_events"] > 0 else 0
-            )
+            "type": self.type.value if isinstance(self.type, Enum) else self.type,
+            "data": self.data,
+            "timestamp": self.timestamp,
+            "agent_name": self.agent_name,
+            "metadata": self.metadata,
         }
-    
-    def reset_stats(self) -> None:
-        """重置统计信息"""
-        self._stats = {
-            "total_events": 0,
-            "filtered_events": 0,
-            "batched_events": 0,
-            "events_by_type": {},
-            "processing_times": []
-        }
+
+    def __str__(self) -> str:
+        """用户友好的字符串表示"""
+        agent_str = f" [{self.agent_name}]" if self.agent_name else ""
+        return f"Event[{self.type.value}{agent_str}]"
+
+
+# ============================================================================
+# 便捷工厂函数
+# ============================================================================
+
+
+def create_agent_start_event(agent_name: str, message: str) -> AgentEvent:
+    """创建 Agent 开始事件"""
+    return AgentEvent(
+        type=AgentEventType.AGENT_START,
+        agent_name=agent_name,
+        data={"message": message},
+    )
+
+
+def create_agent_end_event(agent_name: str, message: str) -> AgentEvent:
+    """创建 Agent 结束事件"""
+    return AgentEvent(
+        type=AgentEventType.AGENT_END,
+        agent_name=agent_name,
+        data={"message": message},
+    )
+
+
+def create_llm_chunk_event(chunk: str, agent_name: Optional[str] = None) -> AgentEvent:
+    """创建 LLM 流式输出事件"""
+    return AgentEvent(
+        type=AgentEventType.LLM_STREAM_CHUNK,
+        agent_name=agent_name,
+        data={"chunk": chunk},
+    )
+
+
+def create_tool_start_event(
+    tool_name: str, args: Dict[str, Any], agent_name: Optional[str] = None
+) -> AgentEvent:
+    """创建工具开始事件"""
+    return AgentEvent(
+        type=AgentEventType.TOOL_START,
+        agent_name=agent_name,
+        data={"tool_name": tool_name, "args": args},
+    )
+
+
+def create_tool_end_event(
+    tool_name: str, result: Any, agent_name: Optional[str] = None
+) -> AgentEvent:
+    """创建工具结束事件"""
+    return AgentEvent(
+        type=AgentEventType.TOOL_END,
+        agent_name=agent_name,
+        data={"tool_name": tool_name, "result": str(result)},
+    )
+
+
+def create_agent_error_event(
+    agent_name: str, error: Exception, context: Optional[Dict[str, Any]] = None
+) -> AgentEvent:
+    """创建 Agent 错误事件"""
+    return AgentEvent(
+        type=AgentEventType.AGENT_ERROR,
+        agent_name=agent_name,
+        data={
+            "error": str(error),
+            "error_type": type(error).__name__,
+            "context": context or {},
+        },
+    )
+
+
+def create_llm_start_event(agent_name: str, data: Optional[Dict[str, Any]] = None) -> AgentEvent:
+    """创建 LLM 开始事件"""
+    return AgentEvent(
+        type=AgentEventType.LLM_START,
+        agent_name=agent_name,
+        data=data or {},
+    )
+
+
+def create_llm_end_event(agent_name: str, data: Optional[Dict[str, Any]] = None) -> AgentEvent:
+    """创建 LLM 结束事件"""
+    return AgentEvent(
+        type=AgentEventType.LLM_END,
+        agent_name=agent_name,
+        data=data or {},
+    )
+
+
+__all__ = [
+    "AgentEventType",
+    "AgentEvent",
+    "create_agent_start_event",
+    "create_agent_end_event",
+    "create_agent_error_event",
+    "create_llm_start_event",
+    "create_llm_end_event",
+    "create_llm_chunk_event",
+    "create_tool_start_event",
+    "create_tool_end_event",
+]

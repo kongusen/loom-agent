@@ -1,42 +1,15 @@
-from .calculator import Calculator
-from .read_file import ReadFileTool
-from .write_file import WriteFileTool
-from .glob import GlobTool
-from .grep import GrepTool
-from .task import TaskTool
-from .delegate import DelegateTool
+"""
+Loom Builtin Tools - 工具构建能力
 
-try:
-    from .web_search import WebSearchTool
-    _has_web_search = True
-except ImportError:
-    _has_web_search = False
+提供工具构建能力，而非预设工具：
+- @tool: 装饰器，将函数转换为工具
+- ToolBuilder: 工具构建器，流式 API
+- MCP 兼容（待实现）
+"""
 
-try:
-    from .python_repl import PythonREPLTool
-    _has_python_repl = True
-except ImportError:
-    _has_python_repl = False
-
-try:
-    from .http_request import HTTPRequestTool
-    _has_http_request = True
-except ImportError:
-    _has_http_request = False
+from loom.builtin.tools.builder import tool, ToolBuilder
 
 __all__ = [
-    "Calculator",
-    "ReadFileTool",
-    "WriteFileTool",
-    "GlobTool",
-    "GrepTool",
-    "TaskTool",
-    "DelegateTool",
+    "tool",
+    "ToolBuilder",
 ]
-
-if _has_web_search:
-    __all__.append("WebSearchTool")
-if _has_python_repl:
-    __all__.append("PythonREPLTool")
-if _has_http_request:
-    __all__.append("HTTPRequestTool")

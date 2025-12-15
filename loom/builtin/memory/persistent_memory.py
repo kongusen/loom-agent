@@ -24,7 +24,7 @@ import asyncio
 
 from typing import AsyncGenerator
 
-from loom.core.types import Message
+from loom.core.message import Message  # Unified Message architecture
 from loom.core.events import AgentEvent, AgentEventType
 
 

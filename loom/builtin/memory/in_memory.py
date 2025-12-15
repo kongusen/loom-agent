@@ -8,7 +8,7 @@ for implementing custom memory backends.
 Example:
     ```python
     from loom.builtin.memory import InMemoryMemory
-    from loom.core.types import Message
+    from loom.core.message import Message
 
     memory = InMemoryMemory()
 
@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import List, Optional, AsyncGenerator
 
-from loom.core.types import Message
+from loom.core.message import Message  # Unified Message architecture
 from loom.core.events import AgentEvent, AgentEventType
 
 

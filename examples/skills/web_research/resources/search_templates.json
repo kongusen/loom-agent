@@ -1,0 +1,54 @@
+{
+  "search_templates": {
+    "academic": {
+      "pattern": "site:edu OR site:arxiv.org {topic}",
+      "example": "site:edu OR site:arxiv.org machine learning transformers"
+    },
+    "news": {
+      "pattern": "{topic} after:{date}",
+      "example": "AI regulation after:2024-01-01"
+    },
+    "technical_docs": {
+      "pattern": "{topic} documentation OR tutorial OR guide",
+      "example": "FastAPI documentation OR tutorial OR guide"
+    },
+    "comparisons": {
+      "pattern": "{option1} vs {option2} pros cons",
+      "example": "PostgreSQL vs MySQL pros cons"
+    },
+    "troubleshooting": {
+      "pattern": "{error_message} stackoverflow OR github",
+      "example": "ModuleNotFoundError numpy stackoverflow OR github"
+    }
+  },
+  "best_practices": [
+    {
+      "practice": "Query Refinement",
+      "description": "Start broad, then narrow with additional keywords",
+      "example": "Start with 'web scraping' → 'web scraping python beautifulsoup'"
+    },
+    {
+      "practice": "Source Diversity",
+      "description": "Gather from multiple types of sources (blogs, docs, forums)",
+      "example": "Mix official docs, Stack Overflow, and blog tutorials"
+    },
+    {
+      "practice": "Recency Filtering",
+      "description": "Use date filters for time-sensitive topics",
+      "example": "Add 'after:2024-01-01' for recent information"
+    },
+    {
+      "practice": "Cross-Validation",
+      "description": "Verify information across multiple sources",
+      "example": "Check if 3+ sources agree on key facts"
+    }
+  ],
+  "common_use_cases": [
+    "Competitive analysis",
+    "Technology evaluation",
+    "Market research",
+    "Fact-checking",
+    "Literature review",
+    "Trend analysis"
+  ]
+}

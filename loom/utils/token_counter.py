@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from loom.core.types import Message
+from loom.core.message import Message  # Unified Message architecture
 
 
 def estimate_tokens(text: str) -> int:

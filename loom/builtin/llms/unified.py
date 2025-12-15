@@ -1,0 +1,280 @@
+"""
+统一 LLM - 支持所有 OpenAI 兼容的提供商
+
+这个类使用 OpenAI SDK，但可以配置不同的 base_url 来支持各种兼容提供商。
+
+支持的提供商：
+- OpenAI (原生)
+- DeepSeek, Qwen, Kimi, 智谱, 豆包, 零一万物（国产主流模型）
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any, AsyncGenerator, Dict, List, Optional
+
+from loom.interfaces.llm import LLMEvent
+from loom.utils.stream_accumulator import OpenAIStreamAccumulator
+from loom.builtin.llms.providers import (
+    OPENAI_COMPATIBLE_PROVIDERS,
+    get_provider_info,
+    is_openai_compatible,
+)
+
+try:
+    from openai import AsyncOpenAI
+except ImportError:
+    AsyncOpenAI = None  # type: ignore
+
+
+class UnifiedLLM:
+    """
+    统一 LLM - 支持所有 OpenAI 兼容的提供商
+
+    **支持的提供商**：
+    - OpenAI (原生)
+    - DeepSeek (深度求索)
+    - Qwen (阿里通义千问)
+    - Kimi (月之暗面)
+    - 智谱 GLM
+    - 豆包 (字节跳动)
+    - 零一万物 Yi
+
+    Example::
+
+        # 使用 OpenAI
+        llm = UnifiedLLM(provider="openai", api_key="sk-...")
+
+        # 使用 DeepSeek
+        llm = UnifiedLLM(provider="deepseek", api_key="sk-...")
+
+        # 使用通义千问
+        llm = UnifiedLLM(provider="qwen", api_key="sk-...")
+
+        # 指定模型
+        llm = UnifiedLLM(
+            provider="openai",
+            api_key="sk-...",
+            model="gpt-4-turbo"
+        )
+
+        # 自定义 base_url（适配其他兼容服务）
+        llm = UnifiedLLM(
+            provider="openai",
+            api_key="sk-...",
+            base_url="https://your-proxy.com/v1"
+        )
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        provider: str = "openai",
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        timeout: float = 120.0,
+        max_retries: int = 3,
+        **kwargs: Any,
+    ) -> None:
+        """
+        初始化统一 LLM
+
+        Args:
+            api_key: API 密钥
+            provider: 提供商名称（openai, deepseek, qwen, kimi, zhipu, doubao, yi）
+            model: 模型名称（可选，使用默认模型）
+            base_url: API 基础 URL（可选，使用默认 URL）
+            temperature: 采样温度 0-2 (default: 0.7)
+            max_tokens: 最大生成 token 数 (default: None, 无限制)
+            timeout: 请求超时时间（秒） (default: 120.0)
+            max_retries: 最大重试次数 (default: 3)
+            **kwargs: 其他 OpenAI API 参数
+
+        Raises:
+            ValueError: 如果提供商不支持或不兼容 OpenAI 格式
+            ImportError: 如果未安装 openai 包
+
+        Example::
+
+            # 最简单的使用
+            llm = UnifiedLLM(provider="openai", api_key="sk-...")
+
+            # 完整配置
+            llm = UnifiedLLM(
+                provider="deepseek",
+                api_key="sk-...",
+                model="deepseek-chat",
+                temperature=0.3,
+                max_tokens=2000,
+                top_p=0.9,
+            )
+        """
+        if AsyncOpenAI is None:
+            raise ImportError(
+                "OpenAI package not installed. "
+                "Install it with: pip install openai"
+            )
+
+        # 验证提供商
+        if not is_openai_compatible(provider):
+            raise ValueError(
+                f"提供商 '{provider}' 不支持或不兼容 OpenAI 格式。\n"
+                f"支持的提供商: {', '.join(OPENAI_COMPATIBLE_PROVIDERS.keys())}"
+            )
+
+        # 获取提供商配置
+        provider_config = get_provider_info(provider)
+        if not provider_config:
+            raise ValueError(f"无法找到提供商配置: {provider}")
+
+        self.provider = provider
+        self._model = model or provider_config["default_model"]
+
+        # 处理 base_url
+        if provider == "custom":
+            # 自定义提供商必须指定 base_url
+            if not base_url:
+                raise ValueError(
+                    "使用自定义提供商时必须指定 base_url。\n"
+                    "示例: UnifiedLLM(provider='custom', base_url='https://your-api.com/v1', api_key='...', model='...')"
+                )
+            self._base_url = base_url
+        else:
+            # 其他提供商使用配置的 base_url，但允许覆盖
+            self._base_url = base_url or provider_config["base_url"]
+
+        # 创建 OpenAI 客户端
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=self._base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.kwargs = kwargs
+
+    @property
+    def model_name(self) -> str:
+        """返回模型名称（包含提供商信息）"""
+        return f"{self.provider}/{self._model}"
+
+    async def stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
+    ) -> AsyncGenerator[LLMEvent, None]:
+        """
+        统一流式生成接口
+
+        实现了 BaseLLM Protocol 的 stream() 方法，支持：
+        - 文本流式生成
+        - 工具调用 (function calling)
+        - JSON 模式 (structured output)
+
+        Args:
+            messages: OpenAI 格式消息列表
+            tools: 可选的工具定义
+            response_format: 可选的响应格式
+            **kwargs: 额外的参数（会覆盖初始化时的参数）
+
+        Yields:
+            LLMEvent: 标准事件流
+                - {"type": "content_delta", "content": "..."}
+                - {"type": "tool_calls", "tool_calls": [...]}
+                - {"type": "finish", "finish_reason": "stop"}
+
+        Example::
+
+            # 文本生成
+            async for event in llm.stream(messages):
+                if event["type"] == "content_delta":
+                    print(event["content"], end="")
+                elif event["type"] == "finish":
+                    print(f"\\nDone: {event['finish_reason']}")
+
+            # 工具调用
+            async for event in llm.stream(messages, tools=tools):
+                if event["type"] == "tool_calls":
+                    for tc in event["tool_calls"]:
+                        print(f"Tool: {tc['name']}")
+        """
+        # 构建请求参数
+        params = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": True,
+        }
+
+        if self.max_tokens:
+            params["max_tokens"] = self.max_tokens
+
+        # 添加 tools
+        if tools:
+            params["tools"] = tools
+
+        # 添加 response_format (JSON mode)
+        if response_format:
+            params["response_format"] = response_format
+
+        # 合并额外参数 (kwargs 优先级更高)
+        merged_kwargs = {**self.kwargs, **kwargs}
+        params.update(merged_kwargs)
+
+        # 创建流式请求
+        stream = await self.client.chat.completions.create(**params)
+
+        # 使用 OpenAIStreamAccumulator 处理混合类型和工具调用
+        accumulator = OpenAIStreamAccumulator(mode='auto')
+        finish_reason = None
+
+        # 流式处理
+        async for chunk in stream:
+            accumulator.add(chunk)
+
+            # 检查 chunk 有效性
+            if not chunk.choices or len(chunk.choices) == 0:
+                continue
+
+            choice = chunk.choices[0]
+            delta = choice.delta
+            finish_reason = choice.finish_reason
+
+            # 实时产出 content deltas
+            if delta.content:
+                content = delta.content
+
+                # 处理混合类型 (dict, str, etc.)
+                if isinstance(content, dict):
+                    content = json.dumps(content)
+                elif not isinstance(content, str):
+                    content = str(content)
+
+                yield {
+                    "type": "content_delta",
+                    "content": content
+                }
+
+        # 流结束后，产出 tool_calls (如果有)
+        tool_calls = accumulator.get_tool_calls()
+        if tool_calls:
+            yield {
+                "type": "tool_calls",
+                "tool_calls": tool_calls
+            }
+
+        # 产出 finish 事件
+        yield {
+            "type": "finish",
+            "finish_reason": finish_reason or ("tool_calls" if tool_calls else "stop")
+        }
+
+    def __repr__(self) -> str:
+        """字符串表示"""
+        return f"UnifiedLLM(provider={self.provider}, model={self._model}, temperature={self.temperature})"

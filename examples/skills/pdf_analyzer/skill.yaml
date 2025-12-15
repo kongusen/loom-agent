@@ -1,0 +1,15 @@
+metadata:
+  name: pdf_analyzer
+  description: Analyze and extract information from PDF documents
+  category: analysis
+  version: 1.0.0
+  author: Loom Team
+  tags:
+    - pdf
+    - document
+    - analysis
+    - extraction
+  dependencies: []
+  enabled: true
+
+quick_guide: Use PyPDF2 or pdfplumber to extract text, tables, and metadata from PDF files. Check resources/examples.json for common patterns.

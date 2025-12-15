@@ -70,7 +70,7 @@ from loom import agent
 
 async def main():
     # Create Agent (auto-reads OPENAI_API_KEY from environment)
-    my_agent = agent(
+    my_my_agent = loom.agent(
         provider="openai",
         model="gpt-4",
         system_instructions="You are a helpful assistant."
@@ -90,7 +90,7 @@ from loom import agent
 from loom.builtin.tools import ReadFileTool, GlobTool, GrepTool
 
 # Create Agent with tools
-code_agent = agent(
+code_my_agent = loom.agent(
     provider="openai",
     model="gpt-4",
     tools=[ReadFileTool(), GlobTool(), GrepTool()],
@@ -119,7 +119,7 @@ hitl_hook = HITLHook(
 )
 
 # Create production-grade Agent
-production_agent = agent(
+production_my_agent = loom.agent(
     provider="openai",
     model="gpt-4",
     tools=[WriteFileTool(), BashTool()],
@@ -252,7 +252,7 @@ from pathlib import Path
 journal = EventJournal(storage_path=Path("./logs"))
 
 # Create Agent (automatically logs all events)
-my_agent = agent(
+my_my_agent = loom.agent(
     llm=llm,
     tools=tools,
     event_journal=journal,
@@ -363,7 +363,7 @@ class MetricsHook(LifecycleHook):
 # Usage
 metrics = MetricsHook()
 
-my_agent = agent(
+my_my_agent = loom.agent(
     llm=llm,
     tools=tools,
     hooks=[metrics]  # Inject hook
@@ -393,7 +393,7 @@ hitl = HITLHook(
     ask_user_callback=lambda msg: input(f"{msg} (y/n): ") == "y"
 )
 
-my_agent = agent(
+my_my_agent = loom.agent(
     llm=llm,
     tools=all_tools,
     hooks=[hitl]
@@ -414,7 +414,7 @@ logging_hook = LoggingHook(
     log_file=Path("./agent.log")
 )
 
-my_agent = agent(
+my_my_agent = loom.agent(
     llm=llm,
     tools=tools,
     hooks=[logging_hook]
@@ -589,7 +589,7 @@ from loom.core import ContextDebugger
 
 debugger = ContextDebugger(enable_auto_export=True)
 
-my_agent = agent(
+my_my_agent = loom.agent(
     llm=llm,
     tools=tools,
     context_debugger=debugger  # Enable debugger
@@ -1067,7 +1067,7 @@ result = await weather_tool.run(location="Tokyo")
 print(result)  # "Weather in Tokyo: 22°C"
 
 # Use in Agent
-my_agent = agent(
+my_my_agent = loom.agent(
     llm=llm,
     tools=[weather_tool]
 )
@@ -1185,7 +1185,7 @@ Detailed documentation: [docs/TOOL_PLUGIN_SYSTEM.md](docs/TOOL_PLUGIN_SYSTEM.md)
 
 ```python
 # Enterprise-grade reliability Agent
-production_agent = agent(
+production_my_agent = loom.agent(
     provider="openai",
     model="gpt-4",
     tools=production_tools,
@@ -1243,7 +1243,7 @@ results = await crew.kickoff(plan)
 # Enable full debugging
 debugger = ContextDebugger(enable_auto_export=True)
 
-research_agent = agent(
+research_my_agent = loom.agent(
     llm=llm,
     tools=research_tools,
     context_debugger=debugger,
