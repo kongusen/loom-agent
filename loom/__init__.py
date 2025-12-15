@@ -36,7 +36,7 @@ response = await agent.run(message)
 print(response.content)
 ```
 
-版本：v0.1.9
+版本：v0.1.10
 """
 
 from typing import List, Optional, Union, Dict, Any
@@ -244,7 +244,7 @@ from loom.interfaces import (
 # Version - 版本信息
 # ============================================================================
 
-__version__ = "0.1.9"
+__version__ = "0.1.10"
 __author__ = "Loom Team"
 
 # ============================================================================
