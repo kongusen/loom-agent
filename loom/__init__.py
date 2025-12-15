@@ -36,7 +36,7 @@ response = await agent.run(message)
 print(response.content)
 ```
 
-版本：v0.1.6
+版本：v0.1.9
 """
 
 from typing import List, Optional, Union, Dict, Any
