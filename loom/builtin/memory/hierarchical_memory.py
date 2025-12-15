@@ -10,7 +10,7 @@ Implements human-like memory hierarchy:
 
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any, AsyncGenerator, Literal
+from typing import List, Optional, Dict, Any, AsyncGenerator, Literal, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +23,7 @@ from loom.core.events import AgentEvent, AgentEventType
 from loom.interfaces.embedding import BaseEmbedding
 from loom.interfaces.vector_store import BaseVectorStore
 from loom.interfaces.retriever import Document
+from loom.interfaces.llm import BaseLLM
 
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,16 @@ class HierarchicalMemory:
         auto_promote: bool = True,
         working_memory_size: int = 10,
         session_memory_size: int = 100,
+        # v0.1.9: Smart promotion
+        enable_smart_promotion: bool = False,
+        summarization_llm: Optional[BaseLLM] = None,
+        summarization_threshold: int = 100,
+        min_promotion_length: int = 50,
+        # v0.1.9: Async vectorization
+        enable_async_vectorization: bool = True,
+        vectorization_batch_size: int = 10,
+        # v0.1.9: Ephemeral memory debug mode
+        enable_ephemeral_debug: bool = False,
     ):
         """
         Initialize hierarchical memory.
@@ -173,6 +184,19 @@ class HierarchicalMemory:
             auto_promote: Auto-promote Working → Long-term
             working_memory_size: Max size of Working Memory
             session_memory_size: Max size of Session Memory
+
+            # v0.1.9: Smart promotion (optional)
+            enable_smart_promotion: Enable LLM-based summarization before promotion
+            summarization_llm: LLM for summarization (gpt-4o-mini recommended)
+            summarization_threshold: Content length threshold for summarization
+            min_promotion_length: Minimum content length to consider for promotion
+
+            # v0.1.9: Async vectorization (optional)
+            enable_async_vectorization: Enable background vectorization (non-blocking)
+            vectorization_batch_size: Batch size for vectorization processing
+
+            # v0.1.9: Debug mode (optional)
+            enable_ephemeral_debug: Enable detailed logging for ephemeral memory operations
         """
         self.embedding = embedding
         self.vector_store = vector_store
@@ -181,6 +205,22 @@ class HierarchicalMemory:
         self.auto_promote = auto_promote
         self.working_memory_size = working_memory_size
         self.session_memory_size = session_memory_size
+
+        # v0.1.9: Smart promotion settings
+        self.enable_smart_promotion = enable_smart_promotion
+        self.summarization_llm = summarization_llm
+        self.summarization_threshold = summarization_threshold
+        self.min_promotion_length = min_promotion_length
+
+        # v0.1.9: Async vectorization settings
+        self.enable_async_vectorization = enable_async_vectorization
+        self.vectorization_batch_size = vectorization_batch_size
+        self._vectorization_queue: Optional[asyncio.Queue] = None
+        self._vectorization_worker_task: Optional[asyncio.Task] = None
+        self._shutdown_flag = False
+
+        # v0.1.9: Debug mode
+        self.enable_ephemeral_debug = enable_ephemeral_debug
 
         # Four-tier storage
         self._ephemeral: Dict[str, MemoryEntry] = {}
@@ -211,11 +251,20 @@ class HierarchicalMemory:
             self._ensure_persist_dir()
             self._load_from_disk()
 
+        # v0.1.9: Start background vectorization worker
+        if self.enable_async_vectorization and self.embedding:
+            self._vectorization_queue = asyncio.Queue()
+            self._vectorization_worker_task = asyncio.create_task(
+                self._vectorization_worker()
+            )
+            logger.info("[HierarchicalMemory] Started background vectorization worker")
+
         logger.info(
             f"[HierarchicalMemory] Initialized with "
             f"embedding={'yes' if embedding else 'no'}, "
             f"vector_store={'yes' if vector_store else 'no'}, "
-            f"persistence={enable_persistence}"
+            f"persistence={enable_persistence}, "
+            f"async_vectorization={enable_async_vectorization}"
         )
 
     # ===== Core Stream-First Methods (BaseMemory Protocol) =====
@@ -532,43 +581,270 @@ class HierarchicalMemory:
             metadata: Metadata (tool_name, status, etc.)
         """
         async with self._lock:
-            self._ephemeral[key] = MemoryEntry(
+            entry = MemoryEntry(
                 id=key,
                 content=content,
                 tier="ephemeral",
                 timestamp=datetime.now().timestamp(),
                 metadata=metadata or {},
             )
+            self._ephemeral[key] = entry
 
-        logger.debug(
-            f"[HierarchicalMemory] Added ephemeral: {key}"
-        )
+        # v0.1.9: Enhanced debug logging
+        if self.enable_ephemeral_debug:
+            logger.info(
+                f"[HierarchicalMemory][DEBUG] Added ephemeral: key={key}, "
+                f"content_length={len(content)}, content_preview={content[:100]}, "
+                f"metadata={metadata}, total_ephemeral={len(self._ephemeral)}"
+            )
+        else:
+            logger.debug(f"[HierarchicalMemory] Added ephemeral: {key}")
 
     async def get_ephemeral(self, key: str) -> Optional[str]:
-        """Get ephemeral memory content by key."""
+        """Get ephemeral memory content by key (v0.1.9 优化：增强调试)."""
         async with self._lock:
             entry = self._ephemeral.get(key)
-            return entry.content if entry else None
+            result = entry.content if entry else None
+
+        # v0.1.9: Enhanced debug logging
+        if self.enable_ephemeral_debug:
+            if entry:
+                logger.info(
+                    f"[HierarchicalMemory][DEBUG] Get ephemeral: key={key}, "
+                    f"found=True, content_length={len(result)}, "
+                    f"content_preview={result[:100]}, metadata={entry.metadata}"
+                )
+            else:
+                logger.info(
+                    f"[HierarchicalMemory][DEBUG] Get ephemeral: key={key}, found=False"
+                )
+
+        return result
 
     async def clear_ephemeral(self, key: Optional[str] = None) -> None:
         """
-        Clear ephemeral memory.
+        Clear ephemeral memory (v0.1.9 优化：增强调试).
 
         Args:
             key: Specific key to clear (None = clear all)
         """
         async with self._lock:
             if key:
+                entry = self._ephemeral.get(key)
                 self._ephemeral.pop(key, None)
-                logger.debug(f"[HierarchicalMemory] Cleared ephemeral: {key}")
+
+                # v0.1.9: Enhanced debug logging
+                if self.enable_ephemeral_debug:
+                    if entry:
+                        logger.info(
+                            f"[HierarchicalMemory][DEBUG] Cleared ephemeral: key={key}, "
+                            f"existed=True, content_length={len(entry.content)}, "
+                            f"metadata={entry.metadata}, remaining={len(self._ephemeral)}"
+                        )
+                    else:
+                        logger.info(
+                            f"[HierarchicalMemory][DEBUG] Cleared ephemeral: key={key}, "
+                            f"existed=False"
+                        )
+                else:
+                    logger.debug(f"[HierarchicalMemory] Cleared ephemeral: {key}")
             else:
                 count = len(self._ephemeral)
+
+                # v0.1.9: Capture details before clearing (for debug mode)
+                if self.enable_ephemeral_debug:
+                    details = [
+                        f"{k}: {len(v.content)} chars, metadata={v.metadata}"
+                        for k, v in self._ephemeral.items()
+                    ]
+                    logger.info(
+                        f"[HierarchicalMemory][DEBUG] Clearing all ephemeral ({count} entries):\n"
+                        + "\n".join(f"  - {d}" for d in details)
+                    )
+
                 self._ephemeral.clear()
-                logger.debug(
-                    f"[HierarchicalMemory] Cleared all ephemeral ({count} entries)"
+
+                if not self.enable_ephemeral_debug:
+                    logger.debug(
+                        f"[HierarchicalMemory] Cleared all ephemeral ({count} entries)"
+                    )
+
+    def dump_ephemeral_state(self) -> Dict[str, Any]:
+        """
+        Dump current ephemeral memory state for debugging (v0.1.9 新增).
+
+        Returns:
+            Dictionary with ephemeral state details
+
+        Example:
+            ```python
+            state = memory.dump_ephemeral_state()
+            print(json.dumps(state, indent=2))
+            ```
+        """
+        return {
+            "total_entries": len(self._ephemeral),
+            "entries": [
+                {
+                    "key": key,
+                    "content_length": len(entry.content),
+                    "content_preview": entry.content[:100] + "..." if len(entry.content) > 100 else entry.content,
+                    "tier": entry.tier,
+                    "timestamp": entry.timestamp,
+                    "metadata": entry.metadata,
+                }
+                for key, entry in self._ephemeral.items()
+            ],
+        }
+
+    async def shutdown(self, timeout: float = 5.0) -> None:
+        """
+        Gracefully shutdown background workers (v0.1.9 新增)
+
+        Flushes pending vectorization tasks before shutting down.
+
+        Args:
+            timeout: Maximum time to wait for pending tasks (seconds)
+        """
+        if not self.enable_async_vectorization:
+            return
+
+        self._shutdown_flag = True
+        logger.info("[HierarchicalMemory] Shutting down background workers...")
+
+        # Wait for worker to finish pending tasks
+        if self._vectorization_worker_task:
+            try:
+                await asyncio.wait_for(
+                    self._vectorization_worker_task,
+                    timeout=timeout
                 )
+                logger.info("[HierarchicalMemory] Background workers shut down successfully")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"[HierarchicalMemory] Worker shutdown timed out after {timeout}s, "
+                    "some vectorization tasks may be incomplete"
+                )
+                self._vectorization_worker_task.cancel()
 
     # ===== Private Helper Methods =====
+
+    async def _vectorization_worker(self) -> None:
+        """
+        Background worker for async vectorization (v0.1.9 新增)
+
+        Processes vectorization tasks from the queue in batches to:
+        - Avoid blocking main execution flow
+        - Batch embed API calls for efficiency
+        - Handle vectorization errors gracefully
+        """
+        logger.info("[HierarchicalMemory] Vectorization worker started")
+
+        while not self._shutdown_flag:
+            try:
+                # Collect batch of tasks (with timeout to allow checking shutdown flag)
+                batch = []
+                try:
+                    # Wait for first task (with timeout)
+                    first_task = await asyncio.wait_for(
+                        self._vectorization_queue.get(),
+                        timeout=1.0
+                    )
+                    batch.append(first_task)
+
+                    # Collect additional tasks up to batch_size (non-blocking)
+                    while len(batch) < self.vectorization_batch_size:
+                        try:
+                            task = self._vectorization_queue.get_nowait()
+                            batch.append(task)
+                        except asyncio.QueueEmpty:
+                            break
+
+                except asyncio.TimeoutError:
+                    # No tasks available, continue loop to check shutdown flag
+                    continue
+
+                # Process batch
+                if batch:
+                    await self._process_vectorization_batch(batch)
+
+            except Exception as e:
+                logger.error(f"[HierarchicalMemory] Vectorization worker error: {e}")
+                # Continue processing despite errors
+
+        # Flush remaining tasks on shutdown
+        logger.info("[HierarchicalMemory] Flushing remaining vectorization tasks...")
+        remaining = []
+        while not self._vectorization_queue.empty():
+            try:
+                task = self._vectorization_queue.get_nowait()
+                remaining.append(task)
+            except asyncio.QueueEmpty:
+                break
+
+        if remaining:
+            logger.info(f"[HierarchicalMemory] Processing {len(remaining)} remaining tasks")
+            await self._process_vectorization_batch(remaining)
+
+        logger.info("[HierarchicalMemory] Vectorization worker stopped")
+
+    async def _process_vectorization_batch(
+        self, batch: List[Tuple[MemoryEntry, Document]]
+    ) -> None:
+        """
+        Process a batch of vectorization tasks (v0.1.9 新增)
+
+        Args:
+            batch: List of (entry, document) tuples to vectorize
+        """
+        if not batch:
+            return
+
+        entries = [item[0] for item in batch]
+        documents = [item[1] for item in batch]
+
+        # Batch embed all documents
+        try:
+            contents = [entry.content for entry in entries]
+            embeddings = await self.embedding.embed_documents(contents)
+
+            # Update entries and add to vector store
+            for entry, embedding, doc in zip(entries, embeddings, documents):
+                entry.embedding = embedding
+
+                # Add to vector store
+                if self.vector_store:
+                    try:
+                        await self.vector_store.add_vectors(
+                            vectors=[embedding],
+                            documents=[doc],
+                        )
+                        self._vector_index[entry.id] = entry.id
+                    except Exception as e:
+                        logger.warning(
+                            f"[HierarchicalMemory] Failed to add to vector store: {e}"
+                        )
+
+            logger.debug(
+                f"[HierarchicalMemory] Vectorized batch of {len(batch)} entries"
+            )
+
+        except Exception as e:
+            logger.error(f"[HierarchicalMemory] Batch vectorization failed: {e}")
+            # Fallback: try individual vectorization
+            for entry, doc in zip(entries, documents):
+                try:
+                    entry.embedding = await self.embedding.embed_query(entry.content)
+                    if self.vector_store and entry.embedding:
+                        await self.vector_store.add_vectors(
+                            vectors=[entry.embedding],
+                            documents=[doc],
+                        )
+                        self._vector_index[entry.id] = entry.id
+                except Exception as e2:
+                    logger.warning(
+                        f"[HierarchicalMemory] Individual vectorization failed: {e2}"
+                    )
 
     async def _extract_to_working(self, message: Message) -> None:
         """Extract key information from message to Working Memory."""
@@ -591,38 +867,210 @@ class HierarchicalMemory:
             if self.auto_promote and len(oldest.content) > 100:
                 await self._promote_to_longterm(oldest)
 
+    def _is_trivial(self, content: str) -> bool:
+        """
+        Check if content is trivial (v0.1.9 新增)
+
+        Filter out low-value content like:
+        - Single-word responses ("好的", "谢谢", "OK")
+        - Pure greetings
+        - Acknowledgments without substance
+
+        Args:
+            content: Content to check
+
+        Returns:
+            True if content is trivial and should not be promoted
+        """
+        if not content:
+            return True
+
+        # Remove whitespace for comparison
+        clean_content = content.strip()
+
+        # Too short to be meaningful
+        if len(clean_content) < self.min_promotion_length:
+            return True
+
+        # Common trivial patterns (case-insensitive)
+        trivial_patterns = {
+            # Chinese
+            "好的", "好", "谢谢", "明白", "了解", "收到",
+            "是的", "对", "嗯", "哦", "啊", "呀",
+            # English
+            "ok", "okay", "thanks", "thank you", "got it",
+            "yes", "no", "sure", "great", "cool",
+            # Punctuation only
+            ".", "!", "?", "...", "。", "！", "？",
+        }
+
+        return clean_content.lower() in trivial_patterns
+
+    def _should_summarize(self, content: str) -> bool:
+        """
+        Check if content should be summarized (v0.1.9 新增)
+
+        Long, verbose content benefits from summarization before
+        being stored in long-term memory.
+
+        Args:
+            content: Content to check
+
+        Returns:
+            True if content exceeds threshold and should be summarized
+        """
+        if not self.enable_smart_promotion:
+            return False
+
+        if not self.summarization_llm:
+            return False
+
+        return len(content) > self.summarization_threshold
+
+    async def _summarize_for_longterm(self, content: str) -> str:
+        """
+        Summarize content for long-term storage (v0.1.9 新增)
+
+        Uses lightweight LLM (gpt-4o-mini recommended) to extract
+        1-3 key facts from verbose content.
+
+        Args:
+            content: Original content
+
+        Returns:
+            Summarized content (high-density facts)
+
+        Raises:
+            Exception: If LLM call fails (caller should handle)
+        """
+        if not self.summarization_llm:
+            return content
+
+        # Summarization prompt
+        system_prompt = """你是一个记忆摘要助手。请从以下内容中提取1-3条关键事实，用于长期记忆存储。
+
+要求：
+- 只保留最重要的信息
+- 去除冗余和客套话
+- 使用简洁的陈述句
+- 每条事实不超过30字
+- 如果内容本身就很简洁，可以原样返回
+
+输出格式（每行一条事实）：
+- 事实1
+- 事实2
+- 事实3"""
+
+        user_prompt = f"请摘要以下内容：\n\n{content}"
+
+        # Call LLM for summarization
+        from loom.core.message import Message
+
+        messages = [
+            Message(role="system", content=system_prompt),
+            Message(role="user", content=user_prompt),
+        ]
+
+        # Collect response
+        summary_parts = []
+        async for event in self.summarization_llm.stream(messages=messages):
+            if event["type"] == "content_delta":
+                summary_parts.append(event["content"])
+
+        summary = "".join(summary_parts).strip()
+
+        # Fallback to original if summarization failed
+        if not summary or len(summary) < 10:
+            logger.warning("Summarization produced empty result, using original content")
+            return content
+
+        logger.debug(f"[HierarchicalMemory] Summarized {len(content)} chars -> {len(summary)} chars")
+        return summary
+
     async def _promote_to_longterm(self, entry: MemoryEntry) -> None:
-        """Promote Working Memory entry to Long-term."""
+        """
+        Promote Working Memory entry to Long-term (v0.1.9 优化：智能晋升)
+
+        Workflow:
+        1. Filter trivial content (low-value responses)
+        2. Check minimum length requirement
+        3. Optional: Summarize verbose content using LLM
+        4. Vectorize and store
+
+        Args:
+            entry: MemoryEntry to promote
+        """
+        # 1. Filter trivial content (v0.1.9 新增)
+        if self._is_trivial(entry.content):
+            logger.debug(
+                f"[HierarchicalMemory] Skipped trivial content: {entry.content[:50]}..."
+            )
+            return
+
+        # 2. Check minimum length (v0.1.9 新增)
+        if len(entry.content) < self.min_promotion_length:
+            logger.debug(
+                f"[HierarchicalMemory] Skipped short content ({len(entry.content)} chars)"
+            )
+            return
+
+        # 3. Smart summarization (v0.1.9 新增)
+        original_content = entry.content
+        if self._should_summarize(entry.content):
+            try:
+                summarized = await self._summarize_for_longterm(entry.content)
+                entry.content = summarized
+                entry.metadata["original_length"] = len(original_content)
+                entry.metadata["summarized"] = True
+                logger.debug(
+                    f"[HierarchicalMemory] Summarized: {len(original_content)} -> {len(summarized)} chars"
+                )
+            except Exception as e:
+                logger.warning(f"Summarization failed: {e}, using original content")
+                # Continue with original content
+
+        # 4. Update tier
         entry.tier = "longterm"
 
-        # Vectorize if not already
-        if self.embedding and not entry.embedding:
-            try:
-                entry.embedding = await self.embedding.embed_query(entry.content)
-            except Exception as e:
-                logger.warning(f"Failed to vectorize promoted entry: {e}")
-
+        # 5. Store in long-term memory first (before vectorization)
         self._longterm.append(entry)
 
-        # Add to vector store
-        if self.vector_store and entry.embedding:
-            try:
-                doc = Document(
-                    content=entry.content,
-                    metadata=entry.metadata,
-                    doc_id=entry.id,
-                )
-                await self.vector_store.add_vectors(
-                    vectors=[entry.embedding],
-                    documents=[doc],
-                )
-                self._vector_index[entry.id] = entry.id
-            except Exception as e:
-                logger.warning(f"Failed to add promoted entry to vector store: {e}")
+        # 6. Vectorize (v0.1.9 优化：异步向量化支持)
+        if self.embedding and not entry.embedding:
+            doc = Document(
+                content=entry.content,
+                metadata=entry.metadata,
+                doc_id=entry.id,
+            )
 
-        logger.debug(
-            f"[HierarchicalMemory] Promoted to long-term: {entry.content[:50]}..."
-        )
+            if self.enable_async_vectorization and self._vectorization_queue:
+                # Queue for background vectorization (non-blocking)
+                self._vectorization_queue.put_nowait((entry, doc))
+                logger.debug(
+                    f"[HierarchicalMemory] Queued for vectorization: {entry.content[:50]}..."
+                )
+            else:
+                # Synchronous vectorization (blocking, original behavior)
+                try:
+                    entry.embedding = await self.embedding.embed_query(entry.content)
+
+                    # Add to vector store
+                    if self.vector_store and entry.embedding:
+                        await self.vector_store.add_vectors(
+                            vectors=[entry.embedding],
+                            documents=[doc],
+                        )
+                        self._vector_index[entry.id] = entry.id
+
+                    logger.debug(
+                        f"[HierarchicalMemory] Promoted to long-term: {entry.content[:50]}..."
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to vectorize promoted entry: {e}")
+        else:
+            logger.debug(
+                f"[HierarchicalMemory] Promoted to long-term: {entry.content[:50]}..."
+            )
 
     async def _keyword_retrieve(
         self,

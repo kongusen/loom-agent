@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 from typing import List, Optional
-from loom.core.message import Message
+from loom.core.message import Message, get_message_history
 from loom.core.errors import ContextError
 from loom.interfaces.memory import BaseMemory
 from loom.interfaces.compressor import BaseCompressor
@@ -109,13 +109,8 @@ class ContextManager:
             raise ContextError(f"Failed to prepare context: {str(e)}") from e
 
     def _get_history(self, message: Message) -> List[Message]:
-        """获取消息历史"""
-        # 如果 message 有历史，返回历史
-        if hasattr(message, "history") and message.history:
-            return message.history
-
-        # 否则，只返回当前消息
-        return [message]
+        """获取消息历史（v0.1.9: 使用安全提取）"""
+        return get_message_history(message)
 
     def _need_compression(self, messages: List[Message]) -> bool:
         """

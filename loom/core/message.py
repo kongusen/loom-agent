@@ -18,7 +18,7 @@ Loom Agent v0.1.5 的核心消息架构，支持：
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional, Dict, Any, List, Union, Literal
 from uuid import uuid4
 from enum import Enum
@@ -262,6 +262,9 @@ class Message:
     timestamp: float = field(default_factory=time.time)
     parent_id: Optional[str] = None
 
+    # 对话历史（v0.1.9 新增：正式字段，替代影子属性）
+    history: Optional[List["Message"]] = field(default=None, repr=False)
+
     def __post_init__(self):
         """验证消息字段"""
         # 验证 role
@@ -318,7 +321,7 @@ class Message:
 
     def with_history(self, history: List[Message]) -> Message:
         """
-        创建带有历史记录的新消息
+        创建带有历史记录的新消息（v0.1.9 优化：使用 dataclass replace）
 
         这个方法用于为消息附加完整的对话历史。
 
@@ -326,30 +329,14 @@ class Message:
             history: 完整的消息历史列表（包括当前消息）
 
         Returns:
-            带有历史记录属性的新消息
+            带有历史记录的新消息（immutable）
 
         Note:
-            这个方法通过添加 history 属性来附加历史记录，
-            而不是修改原始消息（保持不可变性）。
+            v0.1.9 起使用 dataclasses.replace() 而不是 object.__setattr__()，
+            确保类型安全和正确的序列化行为。
         """
-        # 创建一个新的 Message 对象，并添加 history 属性
-        # 由于 Message 是 frozen dataclass，我们需要使用 object.__setattr__
-        new_msg = Message(
-            role=self.role,
-            content=self.content,
-            tool_calls=self.tool_calls,
-            tool_call_id=self.tool_call_id,
-            name=self.name,
-            metadata=self.metadata,
-            id=self.id,
-            timestamp=self.timestamp,
-            parent_id=self.parent_id,
-        )
-
-        # 添加 history 属性
-        object.__setattr__(new_msg, "history", history)
-
-        return new_msg
+        # 使用 dataclasses.replace() 创建不可变副本
+        return replace(self, history=history)
 
     def get_text_content(self) -> str:
         """
@@ -382,12 +369,19 @@ class Message:
 
     # ===== 序列化 =====
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, include_history: bool = True) -> Dict[str, Any]:
         """
-        序列化为字典
+        序列化为字典（v0.1.9 优化：支持 history）
+
+        Args:
+            include_history: 是否包含对话历史（默认 True）
+                注意：只序列化一层 history，避免指数级增长
 
         Returns:
             消息的字典表示
+
+        Note:
+            v0.1.9 起正确序列化 history 字段，确保持久化不丢失上下文。
         """
         # 序列化 content
         if isinstance(self.content, str):
@@ -400,7 +394,8 @@ class Message:
         if self.tool_calls:
             tool_calls_data = [tc.to_dict() for tc in self.tool_calls]
 
-        return {
+        # 基础数据
+        data = {
             "role": self.role,
             "content": content_data,
             "name": self.name,
@@ -412,16 +407,25 @@ class Message:
             "metadata": self.metadata,
         }
 
+        # 序列化 history（只序列化一层，不递归）
+        if include_history and self.history:
+            data["history"] = [m.to_dict(include_history=False) for m in self.history]
+
+        return data
+
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> Message:
         """
-        从字典反序列化
+        从字典反序列化（v0.1.9 优化：恢复 history）
 
         Args:
             data: 包含消息字段的字典
 
         Returns:
-            Message 对象
+            Message 对象（包含完整 history）
+
+        Note:
+            v0.1.9 起正确恢复 history 字段，确保反序列化不丢失上下文。
         """
         # 反序列化 content
         content_data = data["content"]
@@ -445,6 +449,11 @@ class Message:
         if data.get("tool_calls"):
             tool_calls = [ToolCall.from_dict(tc) for tc in data["tool_calls"]]
 
+        # 反序列化 history（递归）
+        history = None
+        if data.get("history"):
+            history = [Message.from_dict(h) for h in data["history"]]
+
         return Message(
             role=data["role"],
             content=content,
@@ -455,6 +464,7 @@ class Message:
             timestamp=data["timestamp"],
             parent_id=data.get("parent_id"),
             metadata=data.get("metadata", {}),
+            history=history,  # v0.1.9 新增：恢复 history
         )
 
     def to_openai_format(self) -> Dict[str, Any]:
@@ -638,6 +648,96 @@ def create_tool_message(
 # ===== 对话树工具函数 =====
 
 
+def get_message_history(message: Message) -> List[Message]:
+    """
+    安全提取消息历史（v0.1.9 新增）
+
+    这个函数取代了代码库中所有 hasattr() 检查模式，
+    提供统一、安全的 history 提取方式。
+
+    Args:
+        message: 要提取历史的消息
+
+    Returns:
+        消息历史列表：
+        - 如果 message.history 存在且有效：返回 history 的防御性副本
+        - 如果 message.history 为 None 或空：返回 [message]
+
+    Raises:
+        ValueError: 如果 history 存在但类型无效
+
+    Example:
+        >>> msg = create_user_message("Hello").with_history([msg1, msg2])
+        >>> history = get_message_history(msg)
+        >>> # history 是 [msg1, msg2] 的副本
+
+        >>> msg = create_user_message("Hello")  # 无 history
+        >>> history = get_message_history(msg)
+        >>> # history 是 [msg]
+
+    Note:
+        - 返回防御性副本，防止外部修改
+        - v0.1.9 起 history 是正式字段，不再使用 hasattr() 检查
+    """
+    # v0.1.9 起 history 是正式字段，始终存在（可能为 None）
+    if message.history is None:
+        return [message]
+
+    # 类型验证
+    if not isinstance(message.history, list):
+        raise ValueError(
+            f"Invalid history type: expected List[Message], "
+            f"got {type(message.history).__name__}"
+        )
+
+    # 空列表
+    if not message.history:
+        return [message]
+
+    # 验证所有元素都是 Message
+    if not all(isinstance(m, Message) for m in message.history):
+        invalid_types = [
+            type(m).__name__
+            for m in message.history
+            if not isinstance(m, Message)
+        ]
+        raise ValueError(
+            f"History contains non-Message objects: {', '.join(set(invalid_types))}"
+        )
+
+    # 返回防御性副本
+    return message.history.copy()
+
+
+def build_history_chain(
+    base_history: List[Message],
+    new_message: Message
+) -> List[Message]:
+    """
+    构建历史链条（不可变追加，v0.1.9 新增）
+
+    将新消息追加到历史链条中，返回新列表（不修改原列表）。
+
+    Args:
+        base_history: 基础历史列表
+        new_message: 要追加的新消息
+
+    Returns:
+        新的历史列表（base_history + [new_message]）
+
+    Example:
+        >>> history = [msg1, msg2]
+        >>> new_history = build_history_chain(history, msg3)
+        >>> # new_history = [msg1, msg2, msg3]
+        >>> # history 保持不变（不可变）
+
+    Note:
+        这个函数确保历史追加的不可变性，
+        符合 Message 的 frozen dataclass 设计。
+    """
+    return base_history + [new_message]
+
+
 def trace_message_chain(
     message: Message,
     messages_by_id: Dict[str, Message]
@@ -748,6 +848,10 @@ __all__ = [
     "create_assistant_message",
     "create_system_message",
     "create_tool_message",
+
+    # History Utilities (v0.1.9)
+    "get_message_history",
+    "build_history_chain",
 
     # Tree Utilities
     "trace_message_chain",

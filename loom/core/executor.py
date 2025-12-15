@@ -9,10 +9,11 @@
 """
 
 from __future__ import annotations
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Tuple
 import asyncio
+import json
 
-from loom.core.message import Message
+from loom.core.message import Message, get_message_history, build_history_chain
 from loom.core.context import ContextManager
 from loom.core.errors import (
     ExecutionError,
@@ -34,6 +35,88 @@ from loom.core.events import (
 from loom.interfaces.llm import BaseLLM
 from loom.interfaces.tool import BaseTool
 from loom.interfaces.event_producer import EventProducer
+
+
+# ===== 工具结果序列化（v0.1.9 新增）=====
+
+
+def serialize_tool_result(result: Any) -> Tuple[str, Dict[str, Any]]:
+    """
+    序列化工具结果并保留类型信息（v0.1.9 新增）
+
+    将工具返回值序列化为字符串，同时在 metadata 中保留结构化类型信息，
+    确保 LLM 能够理解和解析复杂的工具结果。
+
+    Args:
+        result: 工具返回值（任意类型）
+
+    Returns:
+        (content_str, metadata_dict) 元组：
+        - content_str: 序列化后的字符串内容
+        - metadata_dict: 包含类型和格式信息的元数据
+
+    Supported Types:
+        - dict, list: JSON 序列化（保留结构）
+        - str: 纯文本
+        - None: 空字符串
+        - Exception: 结构化错误对象
+        - 其他: repr() 降级
+
+    Example:
+        >>> result = {"name": "Alice", "age": 30}
+        >>> content, meta = serialize_tool_result(result)
+        >>> content  # '{"name": "Alice", "age": 30}'
+        >>> meta     # {"content_type": "application/json", ...}
+    """
+    metadata: Dict[str, Any] = {}
+
+    if isinstance(result, dict) or isinstance(result, list):
+        # 结构化数据：JSON 序列化
+        try:
+            content = json.dumps(result, ensure_ascii=False, indent=2)
+            metadata["content_type"] = "application/json"
+            metadata["result_type"] = type(result).__name__
+        except (TypeError, ValueError) as e:
+            # 降级：无法序列化的对象使用 repr()
+            content = repr(result)
+            metadata["content_type"] = "text/plain"
+            metadata["result_type"] = type(result).__name__
+            metadata["serialization_error"] = str(e)
+
+    elif isinstance(result, str):
+        # 纯文本
+        content = result
+        metadata["content_type"] = "text/plain"
+        metadata["result_type"] = "str"
+
+    elif result is None:
+        # 空结果
+        content = ""
+        metadata["content_type"] = "text/plain"
+        metadata["result_type"] = "NoneType"
+
+    elif isinstance(result, Exception):
+        # 异常对象：结构化错误表示
+        content = json.dumps(
+            {
+                "error": type(result).__name__,
+                "message": str(result),
+                "args": result.args,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        metadata["content_type"] = "application/json"
+        metadata["result_type"] = "Exception"
+        metadata["error"] = True
+
+    else:
+        # 降级：其他类型使用 repr()
+        content = repr(result)
+        metadata["content_type"] = "text/plain"
+        metadata["result_type"] = type(result).__name__
+
+    return content, metadata
 
 
 class AgentExecutor:
@@ -208,22 +291,24 @@ class AgentExecutor:
             self.current_depth -= 1
 
     def _has_system_prompt(self, message: Message) -> bool:
-        """检查是否已有 system prompt"""
-        history = message.history if hasattr(message, "history") else [message]
+        """检查是否已有 system prompt（v0.1.9: 使用安全提取）"""
+        history = get_message_history(message)
         return any(m.role == "system" for m in history)
 
     def _add_system_prompt(self, message: Message) -> Message:
-        """添加 system prompt"""
+        """添加 system prompt（v0.1.9: 使用安全提取）"""
         system_message = Message(
             role="system", content=self.system_prompt, name=self.agent_name
         )
 
         # 如果有历史，添加到历史最前面
-        if hasattr(message, "history") and message.history:
+        history = get_message_history(message)
+        if len(history) > 1 or (len(history) == 1 and history[0] != message):
+            # 已有历史记录（不只是 [message]）
             new_history = [system_message] + message.history
             return message.with_history(new_history)
         else:
-            # 否则，创建新的历史
+            # 无历史或只有自己，创建新历史
             return message.with_history([system_message, message])
 
     async def _call_llm(self, message: Message) -> Message:
@@ -254,7 +339,7 @@ class AgentExecutor:
 
             # 调用 LLM（stream 方式）
             content_parts = []
-            tool_calls = []
+            tool_calls = None  # v0.1.9: 改为 None（而非空列表）
 
             async for event in self.llm.stream(
                 messages=llm_messages,
@@ -265,15 +350,13 @@ class AgentExecutor:
                 elif event["type"] == "tool_calls":
                     tool_calls = event["tool_calls"]
 
-            # 构建响应 Message
+            # 构建响应 Message（v0.1.9: 不可变构造，所有字段通过构造函数传递）
             response = Message(
                 role="assistant",
                 content="".join(content_parts),
                 name=self.agent_name,
+                tool_calls=tool_calls,  # v0.1.9: 构造时传递，不事后赋值
             )
-
-            if tool_calls:
-                response.tool_calls = tool_calls
 
             # 发出 llm_end 事件
             if self.event_handler:
@@ -297,8 +380,8 @@ class AgentExecutor:
             ) from e
 
     def _to_llm_messages(self, message: Message) -> List[Dict]:
-        """将 Message 转换为 LLM 格式"""
-        history = message.history if hasattr(message, "history") else [message]
+        """将 Message 转换为 LLM 格式（v0.1.9: 使用安全提取）"""
+        history = get_message_history(message)
 
         llm_messages = []
         for m in history:
@@ -415,11 +498,16 @@ class AgentExecutor:
             # 2. 执行工具
             try:
                 tool_result = await tool.execute(**tool_args)
+
+                # v0.1.9: 结构化序列化工具结果
+                content, result_metadata = serialize_tool_result(tool_result)
+
                 result = {
                     "tool_call_id": tool_id,
                     "role": "tool",
                     "name": tool_name,
-                    "content": str(tool_result),
+                    "content": content,
+                    "metadata": result_metadata,  # v0.1.9: 保留类型信息
                 }
 
                 # 3. 清理 Ephemeral Memory（成功时）
@@ -444,11 +532,15 @@ class AgentExecutor:
                 return result
 
             except Exception as e:
+                # v0.1.9: 结构化序列化异常
+                content, error_metadata = serialize_tool_result(e)
+
                 result = {
                     "tool_call_id": tool_id,
                     "role": "tool",
                     "name": tool_name,
-                    "content": f"Error executing tool: {str(e)}",
+                    "content": content,
+                    "metadata": error_metadata,  # v0.1.9: 结构化错误信息
                 }
 
                 # 清理 Ephemeral Memory（错误时也要清理）
@@ -503,15 +595,11 @@ class AgentExecutor:
         Returns:
             新消息（包含完整历史）
         """
-        # 获取历史
-        history = (
-            original_message.history
-            if hasattr(original_message, "history")
-            else [original_message]
-        )
+        # v0.1.9: 使用安全提取和不可变链条构建
+        history = get_message_history(original_message)
 
         # 添加 assistant 消息
-        history = history + [assistant_message]
+        history = build_history_chain(history, assistant_message)
 
         # 添加工具结果消息
         for result in tool_results:
@@ -520,8 +608,10 @@ class AgentExecutor:
                 content=result["content"],
                 name=result.get("name"),
                 tool_call_id=result.get("tool_call_id"),
+                metadata=result.get("metadata", {}),  # v0.1.9: 保留结构化元数据
+                parent_id=assistant_message.id,  # 链接到 assistant 消息
             )
-            history.append(tool_message)
+            history = build_history_chain(history, tool_message)
 
         # 创建新消息（最后一个是工具结果）
         last_tool_result = history[-1]
