@@ -724,5 +724,5 @@ assembler.add_critical_instruction("Important rule")  # ✅
 
 ---
 
-**版本：** v0.1.7
+**版本：** v0.1.9 
 **更新日期：** 2024-12-15

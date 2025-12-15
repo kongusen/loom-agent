@@ -1,6 +1,6 @@
 # Patterns API
 
-**版本**: v0.1.6
+**版本**: v0.1.9 
 
 Patterns API 参考文档 - 多 Agent 协作模式。
 

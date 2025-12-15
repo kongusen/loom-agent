@@ -787,7 +787,7 @@ crew = Crew(
 
 ---
 
-**版本**: v0.1.7
+**版本**: v0.1.9 
 **日期**: 2025-12-15
 **参考**: Andrew Ng - Agentic Design Patterns
 

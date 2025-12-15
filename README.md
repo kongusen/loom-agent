@@ -686,11 +686,14 @@ result = await crew.run(
 
 ## 📚 文档
 
-- [快速开始](docs/getting-started/quickstart.md)
-- [核心概念](docs/architecture/overview.md)
-- [API 参考](docs/api/README.md)
-- [示例](examples/README.md)
-- [迁移指南](docs/migration/v0.1.5.md)
+- [📚 文档中心](docs/README.md) - 完整的文档索引和导航
+- [🚀 快速开始](docs/getting-started/quickstart.md)
+- [🏛️ 核心架构](docs/architecture/overview.md)
+- [🔌 API 参考](docs/api/README.md)
+- [💡 示例代码](examples/README.md)
+- [🔄 迁移指南](docs/migration/v0.1.5.md)
+- [🎓 高级指南](docs/guides/advanced/) - 递归控制、Crew路由、ReAct模式等
+- [🔌 集成指南](docs/guides/integrations/) - LLM支持、自定义配置等
 
 ---
 

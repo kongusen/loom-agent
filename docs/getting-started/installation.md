@@ -1,7 +1,7 @@
 # 安装指南
 
-**版本**: v0.1.6
-**最后更新**: 2025-12-14
+**版本**: v0.1.9
+**最后更新**: 2024-12-15
 
 ---
 
@@ -22,69 +22,42 @@
 pip install loom-agent
 ```
 
-这将安装 Loom 的核心功能，但不包含任何 LLM provider 依赖。
-
-### 带 OpenAI 支持
-
-```bash
-pip install "loom-agent[openai]"
-```
-
-### 带 Anthropic (Claude) 支持
-
-```bash
-pip install "loom-agent[anthropic]"
-```
-
-### 完整安装（所有功能）
-
-```bash
-pip install "loom-agent[all]"
-```
-
-包含所有可选依赖：OpenAI、Anthropic、向量数据库、Web 框架等。
+这将安装 Loom 的核心功能。核心框架仅依赖 Python 3.11+ 和 Pydantic，其他功能均为可选依赖。
 
 ---
 
-## 🔧 可选依赖
+## 🔧 可选集成
 
-Loom 支持多种可选功能，可以按需安装：
+Loom 采用 Protocol-based 设计，所有集成均为可选。根据需要安装：
 
-### LLM Providers
+### LLM 集成
 
 ```bash
-# OpenAI (GPT-3.5, GPT-4)
-pip install "loom-agent[openai]"
+# OpenAI SDK（用于 OpenAI 集成示例）
+pip install openai
 
-# Anthropic (Claude)
-pip install "loom-agent[anthropic]"
+# 其他 LLM - 只需实现 BaseLLM Protocol 即可
+# Loom 不强制绑定任何 LLM provider
 ```
 
-### 向量数据库（用于 RAG）
+### 向量数据库（用于 HierarchicalMemory + RAG）
 
 ```bash
-# ChromaDB
-pip install "loom-agent[chromadb]"
+# ChromaDB（向量存储）
+pip install chromadb
 
-# Pinecone
-pip install "loom-agent[pinecone]"
+# FAISS（向量加速，可选）
+pip install faiss-cpu  # 或 faiss-gpu
 ```
 
-### Web 框架集成
+### 开发工具
 
 ```bash
-# FastAPI + Uvicorn
-pip install "loom-agent[fastapi]"
-```
+# 测试和开发
+pip install pytest pytest-asyncio
 
-### 组合安装
-
-```bash
-# OpenAI + FastAPI
-pip install "loom-agent[openai,fastapi]"
-
-# 开发环境（包含测试工具）
-pip install "loom-agent[dev]"
+# 代码格式化
+pip install black isort
 ```
 
 ---
@@ -114,38 +87,41 @@ poetry install
 
 ```bash
 python -c "import loom; print(loom.__version__)"
-# 输出: 0.1.6
+# 输出: 0.1.9
 ```
 
 ---
 
 ## 🔑 配置 API Keys
 
-Loom 支持通过环境变量配置 API keys：
+Loom 是 Protocol-based 框架，不绑定特定 LLM。配置方式取决于你选择的 LLM：
 
-### OpenAI
+### OpenAI 示例
 
 ```bash
 export OPENAI_API_KEY="sk-..."
 ```
 
-### Anthropic (Claude)
+```python
+# 使用 OpenAI SDK（需单独安装）
+from openai import AsyncOpenAI
 
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+client = AsyncOpenAI()  # 自动从环境变量读取
+
+# 实现 BaseLLM Protocol
+# 参见 examples/integrations/openai_llm.py
 ```
 
-### 在 Python 中配置
+### 自定义 LLM
 
 ```python
-from loom.builtin import OpenAILLM
+from loom.interfaces import BaseLLM
 
-# 方式 1: 直接传递
-llm = OpenAILLM(api_key="sk-...")
-
-# 方式 2: 使用环境变量（推荐）
-# 设置 OPENAI_API_KEY 环境变量后：
-llm = OpenAILLM()  # 自动从环境变量读取
+class MyCustomLLM:
+    """实现 BaseLLM Protocol 即可"""
+    async def stream(self, messages, tools=None):
+        # 你的实现：可以是 OpenAI、Claude、本地模型等
+        yield {"type": "content_delta", "content": "..."}
 ```
 
 ---
@@ -156,25 +132,31 @@ llm = OpenAILLM()  # 自动从环境变量读取
 
 ```python
 import asyncio
-from loom import Message, SimpleAgent
-from loom.builtin import OpenAILLM
+from loom.core.message import Message
 
 async def test_installation():
-    """测试 Loom 安装"""
-    print(f"✓ Loom 导入成功")
+    """测试 Loom 核心功能"""
+    print("✓ Loom 导入成功")
 
-    # 创建一个简单的 Agent
-    agent = loom.agent(
-        name="test-agent",
-        llm=OpenAILLM(api_key="test-key")  # 使用测试 key
-    )
-    print(f"✓ Agent 创建成功: {agent.name}")
+    # 测试 Message 不可变架构（v0.1.9 核心特性）
+    msg1 = Message(role="user", content="Hello")
+    msg2 = msg1.reply("Hi there!")
 
-    # 获取统计信息
-    stats = agent.get_stats()
-    print(f"✓ 统计功能正常: {stats}")
+    print(f"✓ Message 创建成功: {msg1.id}")
+    print(f"✓ Message 不可变: msg1.id != msg2.id = {msg1.id != msg2.id}")
 
-    print("\n✅ Loom Agent v0.1.6 安装成功！")
+    # 测试 history 追溯（v0.1.9 新特性）
+    from loom.core.message import get_message_history
+    history = get_message_history(msg2)
+    print(f"✓ History 追溯正常: {len(history)} 条消息")
+
+    # 测试序列化（v0.1.9 零数据丢失）
+    data = msg2.to_dict(include_history=True)
+    restored = Message.from_dict(data)
+    restored_history = get_message_history(restored)
+    print(f"✓ 序列化零丢失: {len(restored_history)} 条消息恢复")
+
+    print("\n✅ Loom Agent v0.1.9 核心功能验证成功！")
 
 if __name__ == "__main__":
     asyncio.run(test_installation())
@@ -190,26 +172,19 @@ python test_loom.py
 
 ```
 ✓ Loom 导入成功
-✓ Agent 创建成功: test-agent
-✓ 统计功能正常: {'num_tools': 0, 'max_iterations': 50, ...}
+✓ Message 创建成功: <uuid>
+✓ Message 不可变: msg1.id != msg2.id = True
+✓ History 追溯正常: 2 条消息
+✓ 序列化零丢失: 2 条消息恢复
 
-✅ Loom Agent v0.1.6 安装成功！
+✅ Loom Agent v0.1.9 核心功能验证成功！
 ```
 
 ---
 
 ## 🐛 常见问题
 
-### 问题 1: `ModuleNotFoundError: No module named 'openai'`
-
-**原因**: 未安装 OpenAI 依赖。
-
-**解决方案**:
-```bash
-pip install "loom-agent[openai]"
-```
-
-### 问题 2: Python 版本过低
+### 问题 1: Python 版本过低
 
 **错误**: `SyntaxError` 或 `ImportError`
 
@@ -220,23 +195,34 @@ pip install "loom-agent[openai]"
 # 检查 Python 版本
 python --version
 
-# 安装 Python 3.11+ 后
+# 必须是 Python 3.11 或更高版本
 python3.11 -m pip install loom-agent
 ```
 
-### 问题 3: 权限错误 (Permission denied)
+### 问题 2: 权限错误 (Permission denied)
 
-**解决方案**: 使用虚拟环境或添加 `--user` 标志
+**解决方案**: 使用虚拟环境（推荐）
 ```bash
-# 使用虚拟环境（推荐）
+# 创建虚拟环境
 python -m venv venv
+
+# 激活虚拟环境
 source venv/bin/activate  # Linux/macOS
 # 或 venv\Scripts\activate  # Windows
 
+# 安装 Loom
 pip install loom-agent
+```
 
-# 或使用 --user
-pip install --user loom-agent
+### 问题 3: `ModuleNotFoundError: No module named 'openai'`
+
+**原因**: 使用 OpenAI 集成示例但未安装 OpenAI SDK。
+
+**解决方案**:
+```bash
+# Loom 不强制依赖 OpenAI
+# 如果需要使用 OpenAI 集成示例，单独安装：
+pip install openai
 ```
 
 ---

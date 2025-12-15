@@ -1,6 +1,7 @@
 # API 参考
 
-**版本**: v0.1.6
+**版本**: v0.1.9
+**最后更新**: 2024-12-15
 
 Loom Agent 完整 API 参考文档。
 
@@ -301,26 +302,28 @@ skills = agent.list_skills()
 
 ## 📝 API 版本
 
-当前版本：**v0.1.6**
+当前版本：**v0.1.9**
 
-### v0.1.6 新增 API
-
-**Agents**:
-- Skills 管理方法
-- 统计和监控增强
-
-**Patterns**:
-- `SmartCoordinator` - 智能协调
-- `ParallelExecutor` - 并行执行
-- `ErrorRecovery` - 容错恢复
-- `CrewTracer` - 追踪
-- `CrewEvaluator` - 评估
-- `CrewPresets` - 预设配置
+### v0.1.9 核心改进
 
 **Core**:
-- 完整事件系统
-- Token 统计
-- 错误处理增强
+- `Message` 架构修复（history 正式化，零数据丢失）
+- `get_message_history()` 安全提取函数
+- `build_history_chain()` 不可变历史链构建
+- `serialize_tool_result()` 工具结果结构化序列化
+
+**Memory**:
+- `HierarchicalMemory` 优化（智能晋升、异步向量化、调试模式）
+- 智能记忆晋升（过滤 trivial 内容，LLM 摘要）
+- 异步向量化（10x 吞吐量提升）
+- Ephemeral Memory 调试模式
+
+**完整架构**:
+- Crew（4种协作模式）
+- Router（智能路由）
+- 递归控制模式（ReAct/反思/思维树）
+- ContextAssembler（智能上下文组装）
+- Skills 系统（渐进式披露）
 
 ---
 

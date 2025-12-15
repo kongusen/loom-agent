@@ -503,6 +503,6 @@ for step in executor.current_plan.steps:
 
 ---
 
-**版本**: v0.1.6+
+**版本**: v0.1.9 
 **日期**: 2025-12-15
 **参考**: 吴恩达 - Agentic Design Patterns

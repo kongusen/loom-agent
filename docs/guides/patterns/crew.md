@@ -1,7 +1,7 @@
 # Crew - 多 Agent 协作系统
 
-**版本**: v0.1.6
-**最后更新**: 2025-12-14
+**版本**: v0.1.9
+**最后更新**: 2024-12-15
 
 Crew 是 Loom 的多 Agent 协作框架，支持构建复杂的多 Agent 系统。
 
@@ -13,12 +13,11 @@ Crew 是 Loom 的多 Agent 协作框架，支持构建复杂的多 Agent 系统�
 2. [快速开始](#快速开始)
 3. [协作模式](#协作模式)
 4. [创建 Crew](#创建-crew)
-5. [v0.1.6 新特性](#v016-新特性)
-6. [预设配置](#预设配置)
-7. [CrewRole 使用](#crewrole-使用)
-8. [高级功能](#高级功能)
-9. [最佳实践](#最佳实践)
-10. [示例](#示例)
+5. [核心特性](#核心特性)
+6. [CrewRole 使用](#crewrole-使用)
+7. [高级功能](#高级功能)
+8. [最佳实践](#最佳实践)
+9. [示例](#示例)
 
 ---
 
@@ -29,13 +28,14 @@ Crew 是 Loom 的多 Agent 协作框架，支持构建复杂的多 Agent 系统�
 Crew 是一个多 Agent 协作框架，允许多个 Agent 协同工作完成复杂任务。
 
 **核心特性**：
-- 🔄 **三种协作模式**: Sequential、Parallel、Coordinated
-- 🧠 **智能协调** (v0.1.6): 自动任务分解和工作量缩放
-- ⚡ **并行执行** (v0.1.6): Agent 和工具级并行
-- 📦 **上下文管理** (v0.1.6): Artifact 存储大型结果
-- 🛡️ **容错机制** (v0.1.6): 四层错误恢复
-- 📊 **可观测性** (v0.1.6): 完整的决策追踪
-- 🎯 **预设配置** (v0.1.6): 生产就绪的配置模板
+- 🔄 **四种协作模式**: Sequential、Parallel、Coordinated、Routed
+- 🧠 **智能协调**: 自动任务分解和工作量缩放
+- 🧭 **智能路由**: 基于能力匹配自动选择 Agent
+- ⚡ **并行执行**: Agent 和工具级并行
+- 📦 **上下文管理**: Artifact 存储大型结果
+- 🛡️ **容错机制**: 四层错误恢复
+- 📊 **可观测性**: 完整的决策追踪
+- 🎯 **预设配置**: 生产就绪的配置模板
 
 ### 适用场景
 
@@ -54,11 +54,12 @@ Crew 是一个多 Agent 协作框架，允许多个 Agent 协同工作完成复�
 ```python
 import asyncio
 import loom
-from loom.builtin import OpenAILLM
+from loom.builtin.llms import UnifiedLLM
 from loom.patterns import Crew
+from loom.core.message import Message
 
 async def main():
-    llm = OpenAILLM(api_key="your-key")
+    llm = UnifiedLLM(provider="openai", api_key="your-key")
 
     # 创建 Agents
     researcher = loom.agent(
@@ -80,8 +81,11 @@ async def main():
     )
 
     # 执行任务
-    result = await crew.run("写一篇关于 AI Agent 的文章")
-    print(result)
+    result = await crew.run(Message(
+        role="user",
+        content="写一篇关于 AI Agent 的文章"
+    ))
+    print(result.content)
 
 asyncio.run(main())
 ```
@@ -92,7 +96,7 @@ asyncio.run(main())
 
 ## 协作模式
 
-Crew 支持三种协作模式：
+Crew 支持四种协作模式：
 
 ### 1. Sequential（顺序执行）
 
@@ -103,6 +107,8 @@ Agent 按顺序执行，后一个 Agent 接收前一个 Agent 的输出。
 ```
 
 **适用场景**: 有明确流水线的任务（研究→分析→撰写）
+
+**文件位置**: `loom/patterns/crew.py`
 
 ```python
 crew = Crew(
@@ -127,7 +133,7 @@ crew = Crew(
 crew = Crew(
     agents=[expert1, expert2, expert3],
     mode="parallel",
-    aggregator=lambda results: "\n\n".join(results)  # 可选聚合
+    aggregator=lambda results: "\n\n".join([r.content for r in results])
 )
 ```
 
@@ -148,6 +154,58 @@ crew = Crew(
     coordinator=coordinator_agent  # 必需
 )
 ```
+
+### 4. Routed（智能路由）**v0.1.7+**
+
+基于 Agent 能力自动路由任务。
+
+```
+任务 → Router → [能力匹配] → 最佳 Agent → 结果
+```
+
+**适用场景**: 根据任务类型自动选择最合适的 Agent
+
+**文件位置**: `loom/patterns/routing.py`
+
+```python
+from loom.patterns import Crew, Router, AgentCapability, RoutingStrategy
+
+# 定义 Agent 能力
+capabilities = [
+    AgentCapability(
+        agent=researcher,
+        capabilities=["research", "information_gathering"],
+        complexity_level=ComplexityLevel.MEDIUM
+    ),
+    AgentCapability(
+        agent=coder,
+        capabilities=["coding", "debugging"],
+        complexity_level=ComplexityLevel.COMPLEX
+    ),
+]
+
+# 创建路由器
+router = Router(
+    agents_capabilities=capabilities,
+    strategy=RoutingStrategy.AUTO  # AUTO/RULE_BASED/LLM_BASED
+)
+
+# 创建 Crew
+crew = Crew(
+    agents=[researcher, coder, writer],
+    mode="routed",
+    router=router
+)
+```
+
+**路由策略**：
+- `AUTO`: 自动选择最佳策略
+- `RULE_BASED`: 基于规则匹配
+- `LLM_BASED`: 使用 LLM 智能选择
+- `CAPABILITY_BASED`: 基于能力分数
+- `LOAD_BALANCED`: 负载均衡
+- `RANDOM`: 随机选择（测试用）
+- `ROUND_ROBIN`: 轮询
 
 ---
 
@@ -174,7 +232,7 @@ crew = Crew(
 
 ```python
 from loom.patterns import Crew, CrewRole
-from loom.builtin import tool
+from loom.builtin.tools import tool
 
 # 定义工具
 @tool(name="search")
@@ -209,24 +267,9 @@ crew = Crew(
 - 可以设置知识库
 - 更清晰的角色职责定义
 
-### 方式 3: 使用预设配置（推荐）
-
-```python
-from loom.patterns import Crew, CrewPresets
-
-# 使用生产级预设
-config = CrewPresets.production_ready(
-    agents=[researcher, analyst, writer],
-    coordinator=coordinator,
-    llm=llm
-)
-
-crew = Crew.from_config(config, agents=[researcher, analyst, writer])
-```
-
 ---
 
-## v0.1.6 新特性
+## 核心特性
 
 ### 1. 智能协调器
 
@@ -259,7 +302,40 @@ crew = Crew(
 - `MEDIUM`: 2-4个 agents
 - `COMPLEX`: 5+个 agents
 
-### 2. 并行执行
+### 2. 智能路由系统
+
+基于 Agent 能力自动路由任务：
+
+**文件位置**: `loom/patterns/routing.py`
+
+```python
+from loom.patterns import Router, AgentCapability, ComplexityLevel
+
+# 定义能力
+capabilities = [
+    AgentCapability(
+        agent=researcher,
+        agent_type=AgentType.SIMPLE,
+        capabilities=["research", "analysis"],
+        has_tools=True,
+        complexity_level=ComplexityLevel.MEDIUM,
+        tags=["information", "data"],
+        priority=10,
+        avg_response_time=2.5,
+        success_rate=0.95
+    ),
+]
+
+router = Router(
+    agents_capabilities=capabilities,
+    strategy=RoutingStrategy.AUTO
+)
+
+# 自动选择最佳 Agent
+best_agent = await router.route(task_message)
+```
+
+### 3. 并行执行
 
 Agent 级和工具级双重并行：
 
@@ -282,7 +358,7 @@ crew = Crew(
 
 **性能提升**: 多任务场景速度提升 **90%**
 
-### 3. Artifact 存储
+### 4. Artifact 存储
 
 自动管理大型结果，避免上下文堵塞：
 
@@ -304,7 +380,7 @@ crew = Crew(
 # - 支持 10x 更长的任务
 ```
 
-### 4. 容错机制
+### 5. 容错机制
 
 四层自动错误恢复：
 
@@ -333,28 +409,6 @@ crew = Crew(
 
 **成功率提升**: 60% → 95%
 
-### 5. Checkpoint 系统
-
-支持中断恢复：
-
-```python
-from loom.patterns import Crew, CheckpointManager
-
-checkpoint_mgr = CheckpointManager(
-    path="./checkpoints",
-    enabled=True
-)
-
-crew = Crew(
-    agents=[...],
-    enable_checkpoint=True,
-    checkpoint_manager=checkpoint_mgr
-)
-
-# 任务中断后可恢复
-result = await crew.resume_from_checkpoint("checkpoint_id")
-```
-
 ### 6. 完整可观测性
 
 追踪所有决策和执行：
@@ -379,78 +433,19 @@ metrics = crew.get_evaluation()       # LLM 评估
 
 ---
 
-## 预设配置
-
-v0.1.6 提供生产就绪的预设配置：
-
-### 1. production_ready
-
-完整的生产级配置：
-
-```python
-from loom.patterns import CrewPresets
-
-config = CrewPresets.production_ready(
-    agents=[...],
-    coordinator=coordinator,
-    llm=llm
-)
-
-# 包含：
-# - 智能协调
-# - 并行执行
-# - Artifact 存储
-# - 错误恢复
-# - Checkpoint
-# - 可观测性
-```
-
-### 2. fast_prototype
-
-快速原型配置（最小功能）：
-
-```python
-config = CrewPresets.fast_prototype(agents=[...], llm=llm)
-
-# 仅基础功能，适合快速测试
-```
-
-### 3. high_reliability
-
-高可靠性配置（最强容错）：
-
-```python
-config = CrewPresets.high_reliability(
-    agents=[...],
-    coordinator=coordinator,
-    llm=llm
-)
-
-# 包含：
-# - 最大重试次数
-# - 完整错误恢复
-# - Checkpoint 启用
-# - 详细追踪
-```
-
----
-
 ## CrewRole 使用
 
 ### CrewRole 完整示例
 
 ```python
 from loom.patterns import CrewRole
-from loom.builtin import tool, InMemoryMemory
+from loom.builtin.tools import tool
+from loom.builtin.memory import InMemoryMemory
 
 # 定义工具
 @tool(name="search")
 async def search(query: str) -> str:
     return f"搜索: {query}"
-
-@tool(name="analyze")
-async def analyze(data: str) -> str:
-    return f"分析: {data}"
 
 # 定义角色
 researcher = CrewRole(
@@ -479,16 +474,9 @@ researcher = CrewRole(
     verbose=True
 )
 
-analyst = CrewRole(
-    name="analyst",
-    goal="分析数据，提取洞察",
-    tools=[analyze],
-    system_prompt="你是数据分析专家"
-)
-
 # 使用
 crew = Crew(
-    roles=[researcher, analyst],
+    roles=[researcher],
     llm=llm,
     mode="sequential"
 )
@@ -539,13 +527,17 @@ CrewRole(
 在 parallel 模式中自定义结果聚合：
 
 ```python
-def custom_aggregator(results: List[str]) -> str:
+def custom_aggregator(results: List[Message]) -> Message:
     """自定义聚合逻辑"""
     # 投票机制
     from collections import Counter
-    vote = Counter(results)
+    contents = [r.content for r in results]
+    vote = Counter(contents)
     winner = vote.most_common(1)[0][0]
-    return f"多数选择: {winner}\n\n详细结果:\n" + "\n---\n".join(results)
+
+    final_content = f"多数选择: {winner}\n\n详细结果:\n" + "\n---\n".join(contents)
+
+    return Message(role="assistant", content=final_content)
 
 crew = Crew(
     agents=[expert1, expert2, expert3],
@@ -554,36 +546,7 @@ crew = Crew(
 )
 ```
 
-### 2. 动态 Agent 选择
-
-在 coordinated 模式中动态选择 agents：
-
-```python
-class SmartCoordinator(SimpleAgent):
-    """智能协调器"""
-
-    async def select_agents(self, task: str, available_agents: List[BaseAgent]):
-        """根据任务选择合适的 agents"""
-        # 分析任务
-        analysis = await self.analyze_task(task)
-
-        # 选择最合适的 agents
-        selected = []
-        if "research" in analysis:
-            selected.append(researcher)
-        if "code" in analysis:
-            selected.append(coder)
-
-        return selected
-
-crew = Crew(
-    agents=[researcher, coder, writer, analyst],
-    mode="coordinated",
-    coordinator=SmartCoordinator(llm=llm, ...)
-)
-```
-
-### 3. 流式输出
+### 2. 流式输出
 
 实时查看 Crew 执行过程：
 
@@ -592,7 +555,7 @@ async def stream_crew():
     crew = Crew(agents=[...], mode="sequential")
 
     # 流式执行
-    async for event in crew.run_stream("任务"):
+    async for event in crew.run_stream(Message(role="user", content="任务")):
         if event.type == "agent_start":
             print(f"🚀 {event.agent_name} 开始")
         elif event.type == "agent_end":
@@ -626,26 +589,16 @@ crew = Crew(
     mode="coordinated",
     coordinator=smart_coordinator
 )
-```
 
-### 2. 使用预设配置
-
-```python
-# ✅ 生产环境使用 production_ready
-config = CrewPresets.production_ready(...)
-crew = Crew.from_config(config, agents=[...])
-
-# ❌ 不要手动配置所有参数（除非必要）
+# ✅ Routed - 基于能力自动选择
 crew = Crew(
-    agents=[...],
-    enable_parallel=True,
-    parallel_config=...,  # 太繁琐
-    enable_error_recovery=True,
-    ...
+    agents=[researcher, coder, writer],
+    mode="routed",
+    router=router
 )
 ```
 
-### 3. 明确角色职责
+### 2. 明确角色职责
 
 ```python
 # ✅ 每个角色有明确职责
@@ -668,7 +621,7 @@ agent = CrewRole(
 )
 ```
 
-### 4. 启用容错机制
+### 3. 启用容错机制
 
 ```python
 # ✅ 生产环境必须启用容错
@@ -682,19 +635,6 @@ crew = Crew(
 crew = Crew(agents=[...])  # 一个失败全部失败
 ```
 
-### 5. 使用 Artifact 存储
-
-```python
-# ✅ 长任务启用 artifact 存储
-crew = Crew(
-    agents=[...],
-    artifact_store=ArtifactStore(path="./artifacts")
-)
-
-# ❌ 大型结果直接传递（会堵塞上下文）
-crew = Crew(agents=[...])  # 可能因上下文过大失败
-```
-
 ---
 
 ## 示例
@@ -704,8 +644,10 @@ crew = Crew(agents=[...])  # 可能因上下文过大失败
 ```python
 import asyncio
 import loom
-from loom.builtin import OpenAILLM, tool
+from loom.builtin.llms import UnifiedLLM
+from loom.builtin.tools import tool
 from loom.patterns import Crew, CrewRole
+from loom.core.message import Message
 
 @tool(name="web_search")
 async def web_search(query: str) -> str:
@@ -713,7 +655,7 @@ async def web_search(query: str) -> str:
     return f"关于 {query} 的搜索结果..."
 
 async def main():
-    llm = OpenAILLM(api_key="...")
+    llm = UnifiedLLM(provider="openai", api_key="...")
 
     # 定义角色
     researcher = CrewRole(
@@ -743,91 +685,86 @@ async def main():
     )
 
     # 执行
-    result = await crew.run("写一篇关于 AI Agent 的深度文章")
-    print(result)
+    result = await crew.run(Message(
+        role="user",
+        content="写一篇关于 AI Agent 的深度文章"
+    ))
+    print(result.content)
 
 asyncio.run(main())
 ```
 
-### 示例 2: 多专家投票系统
+### 示例 2: 智能路由
 
 ```python
-async def voting_system():
-    llm = OpenAILLM(api_key="...")
+from loom.patterns import Crew, Router, AgentCapability, RoutingStrategy
+from loom.patterns.routing import AgentType, ComplexityLevel
 
-    # 创建多个专家
-    expert1 = loom.agent(name="expert1", llm=llm, system_prompt="你是 AI 专家")
-    expert2 = loom.agent(name="expert2", llm=llm, system_prompt="你是 ML 专家")
-    expert3 = loom.agent(name="expert3", llm=llm, system_prompt="你是 NLP 专家")
+async def routing_example():
+    llm = UnifiedLLM(provider="openai", api_key="...")
 
-    # 投票聚合函数
-    def vote_aggregator(results: List[str]) -> str:
-        from collections import Counter
-        # 简化：选择多数
-        votes = Counter(results)
-        winner = votes.most_common(1)[0]
-        return f"多数意见（{winner[1]}/3票）: {winner[0]}"
+    # 创建专业 Agents
+    researcher = loom.agent(name="researcher", llm=llm)
+    coder = loom.agent(name="coder", llm=llm)
+    writer = loom.agent(name="writer", llm=llm)
 
-    # 创建投票 Crew
-    crew = Crew(
-        agents=[expert1, expert2, expert3],
-        mode="parallel",
-        aggregator=vote_aggregator
-    )
+    # 定义能力
+    capabilities = [
+        AgentCapability(
+            agent=researcher,
+            agent_type=AgentType.SIMPLE,
+            capabilities=["research", "analysis", "data_gathering"],
+            complexity_level=ComplexityLevel.MEDIUM
+        ),
+        AgentCapability(
+            agent=coder,
+            agent_type=AgentType.REACT,
+            capabilities=["coding", "debugging", "testing"],
+            complexity_level=ComplexityLevel.COMPLEX
+        ),
+        AgentCapability(
+            agent=writer,
+            agent_type=AgentType.SIMPLE,
+            capabilities=["writing", "editing", "content_creation"],
+            complexity_level=ComplexityLevel.SIMPLE
+        ),
+    ]
 
-    # 执行投票
-    question = "GPT-4 和 Claude 哪个更适合代码生成？"
-    result = await crew.run(question)
-    print(result)
-
-asyncio.run(voting_system())
-```
-
-### 示例 3: 生产级配置
-
-```python
-from loom.patterns import Crew, CrewPresets
-
-async def production_crew():
-    llm = OpenAILLM(api_key="...")
-
-    # 创建 agents
-    researcher = loom.agent(name="researcher", llm=llm, ...)
-    analyst = loom.agent(name="analyst", llm=llm, ...)
-    writer = loom.agent(name="writer", llm=llm, ...)
-    coordinator = loom.agent(name="coordinator", llm=llm, ...)
-
-    # 使用生产级预设
-    config = CrewPresets.production_ready(
-        agents=[researcher, analyst, writer],
-        coordinator=coordinator,
-        llm=llm
+    # 创建路由器
+    router = Router(
+        agents_capabilities=capabilities,
+        strategy=RoutingStrategy.AUTO
     )
 
     # 创建 Crew
-    crew = Crew.from_config(
-        config,
-        agents=[researcher, analyst, writer]
+    crew = Crew(
+        agents=[researcher, coder, writer],
+        mode="routed",
+        router=router
     )
 
-    # 执行
-    result = await crew.run("复杂的生产任务")
+    # 执行不同类型的任务
+    tasks = [
+        "研究 Python 最佳实践",
+        "编写一个排序算法",
+        "写一篇技术博客"
+    ]
 
-    # 查看统计
-    print("决策日志:", crew.get_decision_log())
-    print("评估结果:", crew.get_evaluation())
+    for task in tasks:
+        result = await crew.run(Message(role="user", content=task))
+        print(f"任务: {task}\n结果: {result.content}\n")
 
-asyncio.run(production_crew())
+asyncio.run(routing_example())
 ```
 
 ---
 
 ## 相关资源
 
-- [SimpleAgent 指南](../agents/simple-agent.md)
-- [工具开发](../tools/development.md)
+- [Crew 智能路由指南](../advanced/CREW_ROUTING_GUIDE.md)
+- [递归控制模式指南](../advanced/RECURSIVE_CONTROL_GUIDE.md)
+- [架构设计](../../architecture/overview.md)
 - [Patterns API 参考](../../api/patterns.md)
-- [示例代码](../../examples/)
 
 ---
 
