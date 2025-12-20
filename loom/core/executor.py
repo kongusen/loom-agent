@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import List, Optional, Any, Dict, Tuple
 import asyncio
 import json
+from dataclasses import dataclass, field
 
 from loom.core.message import Message, get_message_history, build_history_chain
 from loom.core.context import ContextManager
@@ -119,6 +120,21 @@ def serialize_tool_result(result: Any) -> Tuple[str, Dict[str, Any]]:
     return content, metadata
 
 
+@dataclass
+class RunContext:
+    """
+    运行上下文 - 存储单词执行的状态（v0.2.0 并发安全）
+    """
+    depth: int = 0
+    stats: Dict[str, int] = field(default_factory=lambda: {
+        "llm_calls": 0,
+        "tool_calls": 0,
+        "tokens_input": 0,
+        "tokens_output": 0,
+        "errors": 0,
+    })
+
+
 class AgentExecutor:
     """
     Agent 执行引擎
@@ -162,11 +178,8 @@ class AgentExecutor:
         self.system_prompt = system_prompt
         self.event_handler = event_handler
 
-        # 递归状态
-        self.current_depth = 0
-
-        # 统计信息
-        self.stats = {
+        # 统计信息（全局）
+        self.global_stats = {
             "total_llm_calls": 0,
             "total_tool_calls": 0,
             "total_tokens_input": 0,
@@ -174,7 +187,11 @@ class AgentExecutor:
             "total_errors": 0,
         }
 
-    async def execute(self, message: Message) -> Message:
+    async def execute(
+        self, 
+        message: Message, 
+        context: Optional[RunContext] = None
+    ) -> Message:
         """
         执行一轮 Agent 推理
 
@@ -196,31 +213,36 @@ class AgentExecutor:
             ExecutionError: 执行错误
             RecursionError: 递归深度超限
         """
+        # 0. 初始化上下文
+        if context is None:
+            context = RunContext()
+
         # 发出 agent_start 事件
         if self.event_handler:
             await self._emit_event(
                 create_agent_start_event(
                     agent_name=self.agent_name,
-                    data={"input": message.content[:100], "depth": self.current_depth},
+                    data={"input": message.content[:100], "depth": context.depth},
                 )
             )
 
         # 1. 检查递归深度
-        self.current_depth += 1
-        if self.current_depth > self.max_recursion_depth:
+        context.depth += 1
+        if context.depth > self.max_recursion_depth:
             error = LoomRecursionError(
                 f"Max recursion depth exceeded",
-                current_depth=self.current_depth,
+                current_depth=context.depth,
                 max_depth=self.max_recursion_depth,
             )
             # 发出错误事件
             if self.event_handler:
                 await self._emit_event(
                     create_agent_error_event(
-                        agent_name=self.agent_name, error=error, data={"depth": self.current_depth}
+                        agent_name=self.agent_name, error=error, data={"depth": context.depth}
                     )
                 )
-            self.stats["total_errors"] += 1
+            context.stats["errors"] += 1
+            self.global_stats["total_errors"] += 1
             raise error
 
         try:
@@ -233,21 +255,24 @@ class AgentExecutor:
 
             # 4. LLM 推理
             response = await self._call_llm(prepared_message)
-            self.stats["total_llm_calls"] += 1
+            context.stats["llm_calls"] += 1
+            self.global_stats["total_llm_calls"] += 1
 
             # 5. 检查是否需要工具调用
             if self._has_tool_calls(response):
                 # 执行工具
                 tool_results = await self._execute_tools(response.tool_calls)
-                self.stats["total_tool_calls"] += len(response.tool_calls)
+                num_tools = len(response.tool_calls)
+                context.stats["tool_calls"] += num_tools
+                self.global_stats["total_tool_calls"] += num_tools
 
                 # 构建新 Message（包含工具结果）
                 new_message = self._build_tool_results_message(
                     prepared_message, response, tool_results
                 )
 
-                # 6. 递归调用 - 关键！
-                return await self.execute(new_message)
+                # 6. 递归调用 - 传递 context
+                return await self.execute(new_message, context)
 
             # 7. 返回最终结果
             # 发出 agent_end 事件
@@ -257,9 +282,9 @@ class AgentExecutor:
                         agent_name=self.agent_name,
                         data={
                             "output": response.content[:100],
-                            "depth": self.current_depth,
-                            "llm_calls": self.stats["total_llm_calls"],
-                            "tool_calls": self.stats["total_tool_calls"],
+                            "depth": context.depth,
+                            "llm_calls": context.stats["llm_calls"],
+                            "tool_calls": context.stats["tool_calls"],
                         },
                     )
                 )
@@ -271,14 +296,15 @@ class AgentExecutor:
             raise
 
         except Exception as e:
-            self.stats["total_errors"] += 1
+            context.stats["errors"] += 1
+            self.global_stats["total_errors"] += 1
             # 发出错误事件
             if self.event_handler:
                 await self._emit_event(
                     create_agent_error_event(
                         agent_name=self.agent_name,
                         error=e,
-                        data={"depth": self.current_depth, "error_type": type(e).__name__},
+                        data={"depth": context.depth, "error_type": type(e).__name__},
                     )
                 )
             raise ExecutionError(
@@ -288,7 +314,7 @@ class AgentExecutor:
             ) from e
 
         finally:
-            self.current_depth -= 1
+            context.depth -= 1
 
     def _has_system_prompt(self, message: Message) -> bool:
         """检查是否已有 system prompt（v0.1.9: 使用安全提取）"""
@@ -618,9 +644,8 @@ class AgentExecutor:
         return last_tool_result.with_history(history)
 
     def reset(self) -> None:
-        """重置执行状态"""
-        self.current_depth = 0
-        self.stats = {
+        """重置执行状态（重置全局统计）"""
+        self.global_stats = {
             "total_llm_calls": 0,
             "total_tool_calls": 0,
             "total_tokens_input": 0,
@@ -629,19 +654,14 @@ class AgentExecutor:
         }
 
     def get_stats(self) -> Dict[str, Any]:
-        """获取执行统计"""
+        """获取执行统计（全局）"""
         return {
             "agent_name": self.agent_name,
-            "current_depth": self.current_depth,
+            "current_depth": 0,  # Stateless, always 0
             "max_depth": self.max_recursion_depth,
             "num_tools": len(self.tools),
             "context_stats": self.context_manager.get_stats(),
-            # 新增统计
-            "total_llm_calls": self.stats["total_llm_calls"],
-            "total_tool_calls": self.stats["total_tool_calls"],
-            "total_tokens_input": self.stats["total_tokens_input"],
-            "total_tokens_output": self.stats["total_tokens_output"],
-            "total_errors": self.stats["total_errors"],
+            "global_stats": self.global_stats,
         }
 
     async def _emit_event(self, event: AgentEvent) -> None:

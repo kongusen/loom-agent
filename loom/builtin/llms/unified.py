@@ -231,12 +231,53 @@ class UnifiedLLM:
         stream = await self.client.chat.completions.create(**params)
 
         # 使用 OpenAIStreamAccumulator 处理混合类型和工具调用
-        accumulator = OpenAIStreamAccumulator(mode='auto')
+        accumulator = OpenAIStreamAccumulator()
         finish_reason = None
 
         # 流式处理
         async for chunk in stream:
-            accumulator.add(chunk)
+            # 将 OpenAI SDK 对象转换为字典格式
+            # 尝试使用 model_dump() 方法（Pydantic 模型）
+            if hasattr(chunk, 'model_dump'):
+                chunk_dict = chunk.model_dump()
+            else:
+                # 手动构建字典格式
+                chunk_dict = {
+                    "choices": []
+                }
+                if chunk.choices:
+                    for choice in chunk.choices:
+                        delta_dict = {}
+                        if choice.delta.content:
+                            delta_dict["content"] = choice.delta.content
+                        if hasattr(choice.delta, 'role') and choice.delta.role:
+                            delta_dict["role"] = choice.delta.role
+                        if hasattr(choice.delta, 'tool_calls') and choice.delta.tool_calls:
+                            delta_dict["tool_calls"] = []
+                            for tc in choice.delta.tool_calls:
+                                tc_dict = {"index": tc.index}
+                                if hasattr(tc, 'id') and tc.id:
+                                    tc_dict["id"] = tc.id
+                                if hasattr(tc, 'type'):
+                                    tc_dict["type"] = tc.type
+                                else:
+                                    tc_dict["type"] = "function"
+                                if hasattr(tc, 'function'):
+                                    func_dict = {}
+                                    if hasattr(tc.function, 'name') and tc.function.name:
+                                        func_dict["name"] = tc.function.name
+                                    if hasattr(tc.function, 'arguments') and tc.function.arguments:
+                                        func_dict["arguments"] = tc.function.arguments
+                                    if func_dict:
+                                        tc_dict["function"] = func_dict
+                                delta_dict["tool_calls"].append(tc_dict)
+                        
+                        choice_dict = {"delta": delta_dict}
+                        if hasattr(choice, 'finish_reason') and choice.finish_reason:
+                            choice_dict["finish_reason"] = choice.finish_reason
+                        chunk_dict["choices"].append(choice_dict)
+            
+            accumulator.update(chunk_dict)
 
             # 检查 chunk 有效性
             if not chunk.choices or len(chunk.choices) == 0:
@@ -262,17 +303,16 @@ class UnifiedLLM:
                 }
 
         # 流结束后，产出 tool_calls (如果有)
-        tool_calls = accumulator.get_tool_calls()
-        if tool_calls:
+        if accumulator.has_tool_calls():
             yield {
                 "type": "tool_calls",
-                "tool_calls": tool_calls
+                "tool_calls": accumulator.tool_calls
             }
 
         # 产出 finish 事件
         yield {
             "type": "finish",
-            "finish_reason": finish_reason or ("tool_calls" if tool_calls else "stop")
+            "finish_reason": finish_reason or ("tool_calls" if accumulator.has_tool_calls() else "stop")
         }
 
     def __repr__(self) -> str:
