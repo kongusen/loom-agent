@@ -1,10 +1,29 @@
 """
-Loom Builtin Tools - 工具构建能力
+Loom Builtin Tools - "The Hands"
+================================
 
-提供工具构建能力，而非预设工具：
-- @tool: 装饰器，将函数转换为工具
-- ToolBuilder: 工具构建器，流式 API
-- MCP 兼容（待实现）
+This module provides the primitive for creating tools.
+
+## 🛠️ Tool System
+
+### 1. The `@tool` Decorator
+The primary way to create tools. It inspects the function signature and docstring to generate the schema.
+
+```python
+@tool
+async def calculator(expression: str) -> float:
+    \"\"\"
+    Evaluates a math expression.
+    
+    Args:
+        expression: The expression to evaluate
+    \"\"\"
+    return eval(expression)
+```
+
+### 2. Best Practices
+- **Type Hints**: MANDATORY. Used for schema generation.
+- **Docstrings**: CRITICAL. The LLM reads this to know HOW to use the tool.
 """
 
 from loom.builtin.tools.builder import tool, ToolBuilder

@@ -20,6 +20,9 @@ from loom.builtin.llms.providers import (
     get_provider_info,
     is_openai_compatible,
 )
+from loom.builtin.llms.base import BaseLLM
+from loom.core.runnable import RunnableConfig
+from loom.core.message import Message, AssistantMessage, ToolCall
 
 try:
     from openai import AsyncOpenAI
@@ -27,43 +30,10 @@ except ImportError:
     AsyncOpenAI = None  # type: ignore
 
 
-class UnifiedLLM:
+class UnifiedLLM(BaseLLM):
     """
     统一 LLM - 支持所有 OpenAI 兼容的提供商
-
-    **支持的提供商**：
-    - OpenAI (原生)
-    - DeepSeek (深度求索)
-    - Qwen (阿里通义千问)
-    - Kimi (月之暗面)
-    - 智谱 GLM
-    - 豆包 (字节跳动)
-    - 零一万物 Yi
-
-    Example::
-
-        # 使用 OpenAI
-        llm = UnifiedLLM(provider="openai", api_key="sk-...")
-
-        # 使用 DeepSeek
-        llm = UnifiedLLM(provider="deepseek", api_key="sk-...")
-
-        # 使用通义千问
-        llm = UnifiedLLM(provider="qwen", api_key="sk-...")
-
-        # 指定模型
-        llm = UnifiedLLM(
-            provider="openai",
-            api_key="sk-...",
-            model="gpt-4-turbo"
-        )
-
-        # 自定义 base_url（适配其他兼容服务）
-        llm = UnifiedLLM(
-            provider="openai",
-            api_key="sk-...",
-            base_url="https://your-proxy.com/v1"
-        )
+    ...
     """
 
     def __init__(
@@ -78,39 +48,7 @@ class UnifiedLLM:
         max_retries: int = 3,
         **kwargs: Any,
     ) -> None:
-        """
-        初始化统一 LLM
-
-        Args:
-            api_key: API 密钥
-            provider: 提供商名称（openai, deepseek, qwen, kimi, zhipu, doubao, yi）
-            model: 模型名称（可选，使用默认模型）
-            base_url: API 基础 URL（可选，使用默认 URL）
-            temperature: 采样温度 0-2 (default: 0.7)
-            max_tokens: 最大生成 token 数 (default: None, 无限制)
-            timeout: 请求超时时间（秒） (default: 120.0)
-            max_retries: 最大重试次数 (default: 3)
-            **kwargs: 其他 OpenAI API 参数
-
-        Raises:
-            ValueError: 如果提供商不支持或不兼容 OpenAI 格式
-            ImportError: 如果未安装 openai 包
-
-        Example::
-
-            # 最简单的使用
-            llm = UnifiedLLM(provider="openai", api_key="sk-...")
-
-            # 完整配置
-            llm = UnifiedLLM(
-                provider="deepseek",
-                api_key="sk-...",
-                model="deepseek-chat",
-                temperature=0.3,
-                max_tokens=2000,
-                top_p=0.9,
-            )
-        """
+        """..."""
         if AsyncOpenAI is None:
             raise ImportError(
                 "OpenAI package not installed. "
@@ -153,20 +91,65 @@ class UnifiedLLM:
             max_retries=max_retries,
         )
 
+        self.model_name = f"{self.provider}/{self._model}" # BaseLLM requires model_name
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.kwargs = kwargs
 
+    async def invoke(
+        self,
+        input: List[Message],
+        config: Optional[RunnableConfig] = None,
+        tools: Optional[List[Dict]] = None,
+        **kwargs
+    ) -> AssistantMessage:
+        """Synchronous-semantic execution."""
+        messages = [msg.to_openai_dict() if hasattr(msg, 'to_openai_dict') else msg for msg in input]
+        
+        # Build params
+        params = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": False,
+        }
+        if self.max_tokens:
+            params["max_tokens"] = self.max_tokens
+        if tools:
+            params["tools"] = tools
+            
+        merged_kwargs = {**self.kwargs, **kwargs}
+        params.update(merged_kwargs)
+        
+        response = await self.client.chat.completions.create(**params)
+        choice = response.choices[0]
+        msg = choice.message
+        
+        content = msg.content or ""
+        tool_calls = []
+        if msg.tool_calls:
+            for tc in msg.tool_calls:
+                tool_calls.append(ToolCall(
+                    id=tc.id,
+                    type=tc.type,
+                    function={
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                ))
+                
+        return AssistantMessage(content=content, tool_calls=tool_calls if tool_calls else None)
+
     @property
-    def model_name(self) -> str:
+    def model_name_prop(self) -> str:
         """返回模型名称（包含提供商信息）"""
-        return f"{self.provider}/{self._model}"
+        return self.model_name
 
     async def stream(
         self,
-        messages: List[Dict[str, Any]],
+        input: List[Message],
+        config: Optional[RunnableConfig] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
-        response_format: Optional[Dict[str, Any]] = None,
         **kwargs: Any
     ) -> AsyncGenerator[LLMEvent, None]:
         """
@@ -204,6 +187,12 @@ class UnifiedLLM:
                     for tc in event["tool_calls"]:
                         print(f"Tool: {tc['name']}")
         """
+        # Convert Loom Messages to OpenAI format
+        messages = [msg.to_openai_dict() if hasattr(msg, 'to_openai_dict') else msg for msg in input]
+        
+        # Extract response_format from kwargs if present
+        response_format = kwargs.pop("response_format", None)
+
         # 构建请求参数
         params = {
             "model": self._model,
@@ -306,7 +295,7 @@ class UnifiedLLM:
         if accumulator.has_tool_calls():
             yield {
                 "type": "tool_calls",
-                "tool_calls": accumulator.tool_calls
+                "tool_calls": accumulator.get_loom_tool_calls()
             }
 
         # 产出 finish 事件

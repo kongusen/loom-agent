@@ -44,6 +44,16 @@ llm = AnthropicLLM(api_key="sk-ant-...")
 """
 
 from loom.builtin.llms.unified import UnifiedLLM
+from loom.builtin.llms.classes import (
+    OpenAILLM,
+    DeepSeekLLM,
+    QwenLLM,
+    KimiLLM,
+    ZhipuLLM,
+    DoubaoLLM,
+    YiLLM,
+    CustomLLM,
+)
 from loom.builtin.llms.providers import (
     OPENAI_COMPATIBLE_PROVIDERS,
     NON_COMPATIBLE_PROVIDERS,
@@ -58,69 +68,19 @@ from loom.builtin.llms.providers import (
 __all__ = [
     # 统一 LLM
     "UnifiedLLM",
-    # OpenAI（使用 UnifiedLLM 的别名）
+    # 专用类 Wrapper
     "OpenAILLM",
-    # 国产主流 LLM（使用 UnifiedLLM 的别名）
     "DeepSeekLLM",
     "QwenLLM",
     "KimiLLM",
     "ZhipuLLM",
     "DoubaoLLM",
     "YiLLM",
+    "CustomLLM",
+    "AnthropicLLM",
+    "ClaudeLLM",
     # 工具函数
     "list_providers",
     "get_provider_info",
+    "get_provider_info",
 ]
-
-# ============================================================================
-# 创建便捷别名
-# ============================================================================
-
-
-class OpenAILLM(UnifiedLLM):
-    """OpenAI LLM - UnifiedLLM 的便捷别名"""
-
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(api_key=api_key, provider="openai", **kwargs)
-
-
-class DeepSeekLLM(UnifiedLLM):
-    """DeepSeek LLM - UnifiedLLM 的便捷别名"""
-
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(api_key=api_key, provider="deepseek", **kwargs)
-
-
-class QwenLLM(UnifiedLLM):
-    """Qwen/通义千问 LLM - UnifiedLLM 的便捷别名"""
-
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(api_key=api_key, provider="qwen", **kwargs)
-
-
-class KimiLLM(UnifiedLLM):
-    """Kimi/月之暗面 LLM - UnifiedLLM 的便捷别名"""
-
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(api_key=api_key, provider="kimi", **kwargs)
-
-
-class ZhipuLLM(UnifiedLLM):
-    """智谱/GLM LLM - UnifiedLLM 的便捷别名"""
-
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(api_key=api_key, provider="zhipu", **kwargs)
-
-
-class DoubaoLLM(UnifiedLLM):
-    """豆包/字节跳动 LLM - UnifiedLLM 的便捷别名"""
-
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(api_key=api_key, provider="doubao", **kwargs)
-
-
-class YiLLM(UnifiedLLM):
-    """零一万物 Yi LLM - UnifiedLLM 的便捷别名"""
-
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(api_key=api_key, provider="yi", **kwargs)

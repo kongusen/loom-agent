@@ -1,26 +1,47 @@
 """
-Loom Builtin - 核心实现 + 主流 LLM 支持
+Loom Builtin Components - "The Parts Bin"
+=========================================
 
-核心模块（无外部依赖）：
-- tools: 工具构建能力（@tool, ToolBuilder）
-- memory: Memory 实现（InMemoryMemory, PersistentMemory）
+This module contains the "batteries included" components for building Agents.
 
-LLM 支持（需要外部依赖）：
-- llms: 主流 LLM 提供商支持
-  - OpenAI, DeepSeek, Qwen, Kimi, 智谱, 豆包, 零一万物
-  - 依赖: pip install openai
+## 📦 Component Selector (AI Decision Tree)
 
-使用示例：
+### 1. Which LLM to use?
+*   **OpenAI**: Use `OpenAILLM`.
+*   **DeepSeek**: Use `DeepSeekLLM`.
+*   **Claude (Anthropic)**: Use `ClaudeLLM`.
+*   **Other/Custom**: Use `CustomLLM` (requires `base_url`).
+> ⚠️ **CRITICAL**: Always instantiate the class directly. Do NOT use strings.
+> `Agent(llm=OpenAILLM(...))` ✅
+> `Agent(llm="openai")` ❌ (Deprecated)
+
+### 2. How to define Tools?
+Use the `@tool` decorator on async functions with proper type hints.
 ```python
-from loom.builtin import tool, UnifiedLLM
+@tool
+async def search(query: str) -> str:
+    \"\"\"Search the web for query.\"\"\"
+    ...
+```
 
-# 工具
-@tool()
-async def calculator(expr: str) -> float:
-    return eval(expr)
+### 3. Which Memory?
+*   **Testing/Stateless**: `InMemoryMemory` (Default).
+*   **Production**: `PersistentMemory` (Use with DB).
 
-# LLM（支持多种提供商）
-llm = UnifiedLLM(provider="deepseek", api_key="...")
+## 🚀 Usage Example
+
+```python
+from loom.builtin import Agent, DeepSeekLLM, tool
+
+# 1. Setup LLM (Class-First)
+llm = DeepSeekLLM(api_key="sk-...", temperature=0.7)
+
+# 2. Setup Tool
+@tool
+async def get_weather(city: str) -> str: ...
+
+# 3. Assemble Agent
+agent = Agent(name="Bot", llm=llm, tools=[get_weather])
 ```
 """
 

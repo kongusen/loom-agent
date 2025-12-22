@@ -1,78 +1,72 @@
 """
-Loom Core - 核心组件
+Loom Core - "The Atoms"
+=======================
 
-核心模块：
-- Message: 统一消息
-- BaseAgent: Agent 协议
-- AgentExecutor: 执行引擎
-- ContextManager: Context 管理
-- ContextAssembler: 智能上下文组装器 (v0.1.7)
-- EnhancedContextManager: 增强的 Context 管理 (v0.1.7)
-- Events: 事件系统
-- Errors: 错误处理
+This module defines the fundamental interfaces and data structures.
+
+## ⚛️ Atomic Units
+
+### 1. Runnable (`Runnable`)
+The universal interface for ANY executable component.
+- **Protocol**: `await invoke(input) -> output`
+- **Streaming**: `await stream(input) -> chunk_iterator`
+- **Batching**: `await batch(inputs) -> outputs`
+> EVERYTHING is a Runnable: Agent, LLM, Tool, and Sequence.
+
+### 2. Message (`Message`)
+The universal data packet flowing through the system.
+- **SystemMessage**: Instructions, Context.
+- **UserMessage**: Input, Query.
+- **AssistantMessage**: Output, Thought, Tool Call.
+- **ToolMessage**: Tool Execution Result.
 """
 
-from loom.core.message import Message
-from loom.core.base_agent import (
-    BaseAgent,
-    create_agent,
-    is_agent,
-    validate_agent,
+from .runnable import (
+    Runnable,
+    RunnableConfig,
+    RunnableSequence,
+    RunnableParallel,
+    RunnableBranch,
 )
-from loom.core.executor import AgentExecutor
-from loom.core.context import ContextManager, create_context_manager
-from loom.core.context_assembler import (
-    ContextAssembler,
-    EnhancedContextManager,
-    ComponentPriority,
-    ContextComponent,
-)
-from loom.core.events import AgentEvent, AgentEventType
-from loom.core.errors import (
-    LoomError,
-    AgentError,
-    ExecutionError,
-    ToolError,
-    RecursionError,
-    ContextError,
-    CompressionError,
-    MemoryError,
-    LLMError,
-    ValidationError,
-    ConfigurationError,
+
+from .message import (
+    Message,
+    BaseMessage,
+    SystemMessage,
+    UserMessage,
+    AssistantMessage,
+    ToolMessage,
+    TextContent,
+    ImageContent,
+    AudioContent,
+    VideoContent,
+    ToolCall,
+    FunctionCall,
+    create_message,
+    messages_to_openai_format,
 )
 
 __all__ = [
+    # Runnable
+    "Runnable",
+    "RunnableConfig",
+    "RunnableSequence",
+    "RunnableParallel",
+    "RunnableBranch",
+
     # Message
     "Message",
-    # Agent
-    "BaseAgent",
-    "create_agent",
-    "is_agent",
-    "validate_agent",
-    # Executor
-    "AgentExecutor",
-    # Context
-    "ContextManager",
-    "create_context_manager",
-    # Context Assembler (v0.1.7)
-    "ContextAssembler",
-    "EnhancedContextManager",
-    "ComponentPriority",
-    "ContextComponent",
-    # Events
-    "AgentEvent",
-    "AgentEventType",
-    # Errors
-    "LoomError",
-    "AgentError",
-    "ExecutionError",
-    "ToolError",
-    "RecursionError",
-    "ContextError",
-    "CompressionError",
-    "MemoryError",
-    "LLMError",
-    "ValidationError",
-    "ConfigurationError",
+    "BaseMessage",
+    "SystemMessage",
+    "UserMessage",
+    "AssistantMessage",
+    "ToolMessage",
+    "TextContent",
+    "ImageContent",
+    "AudioContent",
+    "VideoContent",
+    "ToolCall",
+    "FunctionCall",
+    "create_message",
+    "messages_to_openai_format",
 ]

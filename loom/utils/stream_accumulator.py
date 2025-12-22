@@ -6,6 +6,7 @@ Stream Accumulator - 流式响应累积器
 
 from __future__ import annotations
 from typing import Dict, List, Any, Optional
+import json
 from dataclasses import dataclass, field
 
 
@@ -44,7 +45,7 @@ class OpenAIStreamAccumulator:
             self.role = delta["role"]
 
         # 累积 tool_calls
-        if "tool_calls" in delta:
+        if delta.get("tool_calls"):
             for tc_delta in delta["tool_calls"]:
                 index = tc_delta.get("index", 0)
 
@@ -90,6 +91,42 @@ class OpenAIStreamAccumulator:
             message["tool_calls"] = self.tool_calls
 
         return message
+
+    def get_loom_tool_calls(self) -> List[Dict[str, Any]]:
+        """
+        获取 Loom 格式的工具调用列表 (扁平格式)
+
+        Returns:
+            List[Dict]: 扁平化的工具调用列表
+            [
+                {
+                    "id": "call_...",
+                    "name": "func_name",
+                    "arguments": {"arg": "val"},
+                    "type": "function"
+                }
+            ]
+        """
+        flat_tool_calls = []
+        for tc in self.tool_calls:
+            # 解析 arguments JSON
+            args = {}
+            if tc["function"]["arguments"]:
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    # 如果解析失败（可能不完整），保留原始字符串或空字典
+                    # 这里为了健壮性，保留部分解析或空
+                    pass
+            
+            flat_tc = {
+                "id": tc["id"],
+                "name": tc["function"]["name"],
+                "arguments": args,
+                "type": tc["type"]
+            }
+            flat_tool_calls.append(flat_tc)
+        return flat_tool_calls
 
     def has_tool_calls(self) -> bool:
         """是否包含工具调用"""
