@@ -3,16 +3,11 @@ Universal Event Bus (Kernel)
 """
 
 import asyncio
-import re
-from typing import Dict, List, Callable, Awaitable, Any
+from typing import Dict, List, Callable, Awaitable, Optional, Any
 
 from loom.protocol.cloudevents import CloudEvent
-
 from loom.interfaces.store import EventStore
 from loom.infra.store import InMemoryEventStore
-
-EventHandler = Callable[[CloudEvent], Awaitable[None]]
-
 from loom.interfaces.transport import Transport, EventHandler
 from loom.infra.transport.memory import InMemoryTransport
 
@@ -26,6 +21,14 @@ class UniversalEventBus:
         self.store = store or InMemoryEventStore()
         self.transport = transport or InMemoryTransport()
         
+    async def connect(self):
+        """Connect the underlying transport."""
+        await self.transport.connect()
+        
+    async def disconnect(self):
+        """Disconnect the underlying transport."""
+        await self.transport.disconnect()
+
     async def publish(self, event: CloudEvent) -> None:
         """
         Publish an event to the bus.

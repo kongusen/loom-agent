@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class PatchOperation(str, Enum):
     """JSON Patch Operations (RFC 6902)"""
@@ -26,8 +26,7 @@ class StatePatch(BaseModel):
     value: Optional[Any] = None
     from_path: Optional[str] = Field(None, alias="from") # For move/copy
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 def apply_patch(state: Union[Dict, List], patch: StatePatch) -> None:
     """

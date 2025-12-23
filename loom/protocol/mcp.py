@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 # --- MCP Data Models ---
 
@@ -17,8 +17,7 @@ class MCPToolDefinition(BaseModel):
     description: str
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema") 
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class MCPResource(BaseModel):
     """Definition of an MCP Resource."""
@@ -27,8 +26,7 @@ class MCPResource(BaseModel):
     mime_type: str = Field(..., alias="mimeType")
     description: Optional[str] = None
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class MCPPrompt(BaseModel):
     """Definition of an MCP Prompt."""
