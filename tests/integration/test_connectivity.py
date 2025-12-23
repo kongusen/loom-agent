@@ -14,8 +14,17 @@ class SpyTransport(Transport):
     def __init__(self) -> None:
         self.events: List[CloudEvent] = []
         
+    async def connect(self) -> None:
+        pass
+
+    async def disconnect(self) -> None:
+        pass
+
+    async def subscribe(self, topic: str, handler) -> None:
+        pass
+
     async def publish(self, topic: str, event: CloudEvent) -> None:
-        self.events.append(event) # Only append the event, not the topic tuple
+        self.events.append((topic, event))
 
 @pytest.mark.asyncio
 async def test_custom_transport_injection():
@@ -23,23 +32,21 @@ async def test_custom_transport_injection():
     spy = SpyTransport()
     app = LoomApp(transport=spy)
     
-    # Run a simple request
-    # Since we don't have an agent, the request might fail routing, but it should still be PUBLISHED.
-    # LoomApp.run -> dispatcher.dispatch -> bus.publish -> spy.publish
+    # Run a simple request physically via dispatcher to verify transport usage
+    # We bypass app.run() because app.run() waits for a response that SpyTransport won't deliver.
+    event = CloudEvent.create(
+        source="/test",
+        type="node.request",
+        data={"task": "hello"},
+        subject="node/test_agent"
+    )
     
-    # We can just fire an event manually if app.run needs setup
-    # Or use app.run with a non-existent target (will publish but no one replies)
-    
-    # Let's add a dummy agent to avoid routing errors if any
-    from loom.api.factory import Agent
-    from loom.infra.llm import MockLLMProvider
-    Agent(app, "test_agent", provider=MockLLMProvider())
-    
-    await app.run("Hello", target="node/test_agent")
+    await app.dispatcher.dispatch(event)
     
     # Check spy
     assert len(spy.events) > 0
     # First event should be the request
-    topic, event = spy.events[0]
-    assert event.type == "node.request"
-    assert "test_agent" in topic
+    topic, captured_event = spy.events[0]
+    assert captured_event.type == "node.request"
+    assert captured_event.data["task"] == "hello"
+    assert "node/test_agent" in topic

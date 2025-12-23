@@ -22,6 +22,9 @@ async def test_timeout_interceptor():
     
     slow = SlowNode(node_id="slow", dispatcher=app.dispatcher)
     
+    # Wait for subscription
+    await asyncio.sleep(0.1)
+    
     # Run
     with pytest.raises(asyncio.TimeoutError):
         await app.run("task", target="node/slow")
