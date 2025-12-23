@@ -14,7 +14,6 @@ class SlowNode(Node):
         await asyncio.sleep(2.0)
         return "Done"
 
-@pytest.mark.skip(reason="Timeout enforcement logic is pending in Node/Dispatcher")
 @pytest.mark.asyncio
 async def test_timeout_interceptor():
     app = LoomApp()

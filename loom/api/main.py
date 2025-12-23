@@ -171,9 +171,18 @@ class LoomApp:
         
         try:
             await self.dispatcher.dispatch(event)
-            return await asyncio.wait_for(response_future, timeout=30.0)
+            
+            # Use timeout from event if set (injected by interceptor)
+            timeout = 30.0
+            if event.extensions and "timeout" in event.extensions:
+                try:
+                    timeout = float(event.extensions["timeout"])
+                except (ValueError, TypeError):
+                    pass
+            
+            return await asyncio.wait_for(response_future, timeout=timeout)
         except asyncio.TimeoutError:
-            raise TimeoutError(f"Task targeting {target} timed out after 30s")
+            raise TimeoutError(f"Task targeting {target} timed out after {timeout}s")
 
     def on(self, event_type: str, handler: Callable[[CloudEvent], Any]):
         """
