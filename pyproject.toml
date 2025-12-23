@@ -43,3 +43,10 @@ studio = ["websockets"]                           # Loom Studio 可视化服务
 redis = ["redis"]                                 # Redis 传输层支持
 nats = ["nats-py"]                                # NATS 传输层支持
 all = ["openai", "anthropic", "redis", "nats-py"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+pytest-mock = "^3.12.0"
+ruff = "^0.3.0"
+mypy = "^1.8.0"
