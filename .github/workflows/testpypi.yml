@@ -9,6 +9,9 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/loom-agent
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
