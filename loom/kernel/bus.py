@@ -1,0 +1,73 @@
+"""
+Universal Event Bus (Kernel)
+"""
+
+import asyncio
+import re
+from typing import Dict, List, Callable, Awaitable, Any
+
+from loom.protocol.cloudevents import CloudEvent
+
+from loom.interfaces.store import EventStore
+from loom.infra.store import InMemoryEventStore
+
+EventHandler = Callable[[CloudEvent], Awaitable[None]]
+
+from loom.interfaces.transport import Transport, EventHandler
+from loom.infra.transport.memory import InMemoryTransport
+
+class UniversalEventBus:
+    """
+    Universal Event Bus based on Event Sourcing.
+    Delegates routing to a Transport layer.
+    """
+    
+    def __init__(self, store: EventStore = None, transport: Transport = None):
+        self.store = store or InMemoryEventStore()
+        self.transport = transport or InMemoryTransport()
+        
+    async def publish(self, event: CloudEvent) -> None:
+        """
+        Publish an event to the bus.
+        1. Persist to store.
+        2. Route to subscribers via Transport.
+        """
+        # 1. Persist
+        await self.store.append(event)
+        
+        # 2. Route via Transport
+        topic = self._get_topic(event)
+        
+        # Ensure connected
+        # (Optimistically connect. In prod, connect() called at startup app.start())
+        await self.transport.connect()
+        
+        await self.transport.publish(topic, event)
+
+    async def subscribe(self, topic: str, handler: Callable[[CloudEvent], Awaitable[None]]):
+        """Register a handler for a topic."""
+        # optimistic connect
+        await self.transport.connect()
+        await self.transport.subscribe(topic, handler)
+
+    def _get_topic(self, event: CloudEvent) -> str:
+        """Construct topic string from event."""
+        # Special routing for requests: use subject (target) if present
+        if event.subject and (event.type == "node.request" or event.type == "node.call"):
+            safe_subject = event.subject.strip("/")
+            return f"{event.type}/{safe_subject}"
+            
+        # Default: route by source (Origin)
+        safe_source = event.source.strip("/")
+        return f"{event.type}/{safe_source}"
+
+    async def get_events(self) -> List[CloudEvent]:
+        """Return all events in the store."""
+        return await self.store.get_events(limit=1000)
+
+    async def clear(self):
+        """Clear state (for testing)."""
+        if hasattr(self.store, "clear"):
+            self.store.clear()
+        
+        await self.transport.disconnect()
