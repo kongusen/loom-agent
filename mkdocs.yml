@@ -1,0 +1,87 @@
+site_name: Loom Agent Framework
+site_url: https://kongusen.github.io/loom-agent/
+repo_url: https://github.com/kongusen/loom-agent
+repo_name: kongusen/loom-agent
+site_description: Enterprise-grade recursive state machine agent framework for Python.
+
+theme:
+  name: material
+  language: en
+  logo: assets/logo.png
+  favicon: assets/favicon.ico
+  palette:
+    # Light Mode
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark Mode
+    - scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+plugins:
+  - search
+  - tags
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Introduction: 01_getting_started/01_introduction.md
+      - Installation: 01_getting_started/02_installation.md
+      - Rapid Start: 01_getting_started/03_rapid_start.md
+  - Core Concepts:
+      - Agents & Tools: 02_core_concepts/01_agents_and_tools.md
+      - Memory System: 02_core_concepts/02_memory_system.md
+      - Event Bus: 02_core_concepts/03_event_bus.md
+  - Guides:
+      - Building Agents: 03_guides/01_building_agents.md
+      - Tool Integration: 03_guides/02_tool_integration.md
+      - Multi-Agent Patterns: 03_guides/03_multi_agent_patterns.md
+  - Advanced:
+      - Configuration: 04_advanced/01_configuration.md
+      - Protocols: 04_advanced/02_protocols.md
+      - Custom Transport: 04_advanced/03_custom_transport.md
+  - Design Philosophy: 05_design_philosophy/README.md
+  - Chinese (中文文档):
+      - 介绍 (Introduction): zh/index.md
+      - 快速开始 (Getting Started):
+          - 简介: zh/01_getting_started/01_introduction.md
+          - 安装: zh/01_getting_started/02_installation.md
+          - 快速上手: zh/01_getting_started/03_rapid_start.md
+      - 核心概念 (Core Concepts):
+          - 智能体与工具: zh/02_core_concepts/01_agents_and_tools.md
+          - 记忆系统: zh/02_core_concepts/02_memory_system.md
+          - 事件总线: zh/02_core_concepts/03_event_bus.md
+      - 设计哲学: zh/05_design_philosophy/README.md
+      - 常见问题 (FAQ): zh/faq.md

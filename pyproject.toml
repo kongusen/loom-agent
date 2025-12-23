@@ -4,7 +4,7 @@ version = "0.3.0"
 description = "Enterprise-grade recursive state machine agent framework with event sourcing, multi-agent collaboration, hierarchical memory, and RAG integration"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
-license = "Apache-2.0"
+license = "Apache-2.0 with Commons Clause"
 packages = [{ include = "loom" }]
 
 homepage = "https://github.com/kongusen/loom-agent"
@@ -16,7 +16,7 @@ keywords = ["ai", "llm", "agent", "multi-agent", "rag", "tooling", "asyncio"]
 classifiers = [
   "Development Status :: 3 - Alpha",                            # First release - Alpha stage
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: Apache Software License",
+  "License :: Other/Proprietary License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -47,6 +47,8 @@ black = "^23.11.0"
 isort = "^5.12.0"
 mypy = "^1.7.0"
 pre-commit = "^3.6.0"
+mkdocs = "^1.5.0"
+mkdocs-material = "^9.5.0"
 
 [build-system]
 requires = ["poetry-core"]
