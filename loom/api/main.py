@@ -13,6 +13,7 @@ from loom.kernel.interceptors import TracingInterceptor
 from loom.kernel.interceptors.budget import BudgetInterceptor
 from loom.kernel.interceptors.depth import DepthInterceptor
 from loom.kernel.interceptors.hitl import HITLInterceptor
+from loom.kernel.interceptors.studio import StudioInterceptor
 from loom.protocol.cloudevents import CloudEvent
 from loom.interfaces.store import EventStore
 from loom.node.base import Node
@@ -33,8 +34,44 @@ class LoomApp:
                  store: Optional[EventStore] = None, 
                  transport: Optional[Transport] = None,
                  control_config: Optional[Dict[str, Any]] = None):
-        # Initialize Kernel
-        self.bus = UniversalEventBus(store=store, transport=transport)
+        
+        control_config = control_config or {}
+
+        if "transport" in control_config and isinstance(control_config["transport"], dict):
+             # Config dict provided, maybe future extensibility
+             pass
+        
+        # Transport Selection
+        # 1. Transport object passed directly
+        self.transport = transport
+        
+        if not self.transport:
+            # Config from control_config or Env
+            transport_cfg = {}
+            if "transport" in control_config and isinstance(control_config["transport"], dict):
+                transport_cfg = control_config["transport"]
+            
+            import os
+            # Priority: Config > Env > Default
+            transport_type = transport_cfg.get("type") or os.getenv("LOOM_TRANSPORT", "memory").lower()
+            
+            if transport_type == "redis":
+                from loom.infra.transport.redis import RedisTransport
+                redis_url = transport_cfg.get("redis_url") or os.getenv("REDIS_URL", "redis://localhost:6379")
+                self.transport = RedisTransport(redis_url=redis_url)
+            elif transport_type == "nats":
+                from loom.infra.transport.nats import NATSTransport
+                nats_servers_cfg = transport_cfg.get("nats_servers")
+                if nats_servers_cfg:
+                     nats_servers = nats_servers_cfg if isinstance(nats_servers_cfg, list) else [nats_servers_cfg]
+                else:
+                     nats_servers = os.getenv("NATS_SERVERS", "nats://localhost:4222").split(",")
+                self.transport = NATSTransport(servers=nats_servers)
+            else:
+                from loom.infra.transport.memory import InMemoryTransport
+                self.transport = InMemoryTransport()
+                
+        self.bus = UniversalEventBus(store=store, transport=self.transport)
         self.state_store = StateStore()
         self.dispatcher = Dispatcher(self.bus)
         
@@ -57,8 +94,30 @@ class LoomApp:
         if "hitl" in control_config:
             # hitl expects a list of patterns
             patterns = control_config["hitl"]
+            patterns = control_config["hitl"]
             if isinstance(patterns, list):
                 self.dispatcher.add_interceptor(HITLInterceptor(patterns=patterns))
+
+        # Studio Support
+        # Check env var or control_config
+        studio_enabled = False
+        studio_url = "ws://localhost:8765"
+        
+        if "studio" in control_config:
+             studio_cfg = control_config["studio"]
+             if isinstance(studio_cfg, dict):
+                 studio_enabled = studio_cfg.get("enabled", False)
+                 studio_url = studio_cfg.get("url", studio_url)
+             elif isinstance(studio_cfg, bool):
+                 studio_enabled = studio_cfg
+        else:
+             import os
+             if os.getenv("LOOM_STUDIO_ENABLED", "false").lower() == "true":
+                 studio_enabled = True
+                 studio_url = os.getenv("LOOM_STUDIO_URL", studio_url)
+                 
+        if studio_enabled:
+            self.dispatcher.add_interceptor(StudioInterceptor(studio_url=studio_url, enabled=True))
         
         self._started = False
         
@@ -66,6 +125,8 @@ class LoomApp:
         """Initialize async components."""
         if self._started:
             return
+        
+        await self.bus.connect()
         await self.bus.subscribe("state.patch/*", self.state_store.apply_event)
         self._started = True
 

@@ -1,0 +1,54 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  color: #e0e0e0;
+  background-color: #121212;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 60px;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #333;
+}
+
+.logo {
+  font-weight: bold;
+  font-size: 1.2rem;
+  margin-right: 40px;
+  color: #fff;
+}
+
+.nav {
+  display: flex;
+  gap: 20px;
+}
+
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: #aaa;
+  font-size: 0.95rem;
+  transition: color 0.2s;
+}
+
+.nav a:hover {
+  color: #fff;
+}
+
+.nav a.active {
+  color: #4dabf7;
+  font-weight: 500;
+}
+
+.content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}

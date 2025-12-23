@@ -77,8 +77,10 @@ class AgentNode(Node):
             # 4. Act (Tool Usage or Final Answer)
             if response.tool_calls:
                 # Record the "thought" / call intent
-                if final_text:
-                    await self.memory.add("assistant", final_text)
+                # ALWAYS store assistant message with tool_calls (even if content is empty)
+                await self.memory.add("assistant", final_text or "", metadata={
+                    "tool_calls": response.tool_calls
+                })
                 
                 # Execute tools (Parallel support possible, here sequential)
                 for tc in response.tool_calls:

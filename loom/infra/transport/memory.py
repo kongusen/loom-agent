@@ -1,60 +1,85 @@
-"""
-In-Memory Transport Implementation
-"""
 
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Set
+from collections import defaultdict
+import logging
+
 from loom.interfaces.transport import Transport, EventHandler
 from loom.protocol.cloudevents import CloudEvent
 
+logger = logging.getLogger(__name__)
+
 class InMemoryTransport(Transport):
     """
-    Local In-Memory Transport using asyncio.
+    In-memory transport implementation using asyncio.Queue/Event.
+    Default for local development.
     """
-    
+
     def __init__(self):
-        self._handlers: Dict[str, List[EventHandler]] = {}
         self._connected = False
+        self._handlers: Dict[str, List[EventHandler]] = defaultdict(list)
+        # For wildcard support: "node.request/*" -> [handler1, handler2]
+        self._wildcard_handlers: Dict[str, List[EventHandler]] = defaultdict(list)
 
     async def connect(self) -> None:
         self._connected = True
+        logger.info("InMemoryTransport connected")
 
     async def disconnect(self) -> None:
         self._connected = False
         self._handlers.clear()
+        self._wildcard_handlers.clear()
+        logger.info("InMemoryTransport disconnected")
 
     async def publish(self, topic: str, event: CloudEvent) -> None:
-        """Dispatch event to local handlers."""
         if not self._connected:
-            raise RuntimeError("Transport not connected")
-        handlers = self._handlers.get(topic, [])
-        
-        # Simple wildcard support (prefix*)
+             logger.warning("InMemoryTransport not connected, dropping event")
+             return
 
-        tasks = []
-        
-        # 1. Exact match
-        if topic in self._handlers:
-            for handler in self._handlers[topic]:
-                tasks.append(handler(event))
-                
-        # 2. Wildcard match (Suffix *)
-        for sub_topic, handlers in self._handlers.items():
-            if sub_topic.endswith("*"):
-                prefix = sub_topic[:-1]
-                if topic.startswith(prefix):
-                    for handler in handlers:
-                        tasks.append(handler(event))
-        
-        if tasks:
-            await asyncio.gather(*tasks)
+        # Direct dispatch to handlers
+        await self._dispatch(topic, event)
 
     async def subscribe(self, topic: str, handler: EventHandler) -> None:
-        if not self._connected:
-            # Auto-connect convenience? Or strict? 
-            # Strict is better for explicit lifecycle, but for dev ease we can auto-connect.
-            self._connected = True
-            
-        if topic not in self._handlers:
-            self._handlers[topic] = []
-        self._handlers[topic].append(handler)
+        if "*" in topic:
+            self._wildcard_handlers[topic].append(handler)
+        else:
+            self._handlers[topic].append(handler)
+
+    async def _dispatch(self, topic: str, event: CloudEvent) -> None:
+        targets: Set[EventHandler] = set()
+
+        # 1. Exact match
+        if topic in self._handlers:
+            targets.update(self._handlers[topic])
+
+        # 2. Wildcard match (Simple prefix/suffix matching)
+        for pattern, handlers in self._wildcard_handlers.items():
+            if self._match(topic, pattern):
+                targets.update(handlers)
+
+        # 3. Execute handlers
+        for handler in targets:
+            try:
+                # Fire and forget / await
+                # Since Bus expects us to be async, we await.
+                # But handlers might be slow, so we should spawn tasks?
+                # For in-memory bus, typically we want some concurrency.
+                asyncio.create_task(self._safe_exec(handler, event))
+            except Exception as e:
+                 logger.error(f"Error dispatching to handler: {e}")
+
+    async def _safe_exec(self, handler: EventHandler, event: CloudEvent):
+        try:
+             await handler(event)
+        except Exception as e:
+             logger.error(f"Handler failed: {e}")
+
+    def _match(self, topic: str, pattern: str) -> bool:
+        # Simple glob matching
+        if pattern == "*":
+            return True
+        if pattern.endswith("*"):
+            return topic.startswith(pattern[:-1])
+        if pattern.startswith("*"):
+            return topic.endswith(pattern[1:])
+        return topic == pattern

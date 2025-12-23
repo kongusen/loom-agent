@@ -73,10 +73,22 @@ class HierarchicalMemory(MemoryInterface):
 
     async def get_recent(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent raw messages for LLM API."""
-        return [
-            {"role": entry.role, "content": entry.content}
-            for entry in self._session[-limit:]
-        ]
+        messages = []
+        for entry in self._session[-limit:]:
+            msg = {"role": entry.role, "content": entry.content}
+
+            # Include tool_calls for assistant messages
+            if entry.role == "assistant" and "tool_calls" in entry.metadata:
+                msg["tool_calls"] = entry.metadata["tool_calls"]
+
+            # Include tool_call_id for tool messages
+            if entry.role == "tool" and "tool_call_id" in entry.metadata:
+                msg["tool_call_id"] = entry.metadata["tool_call_id"]
+                if "tool_name" in entry.metadata:
+                    msg["name"] = entry.metadata["tool_name"]
+
+            messages.append(msg)
+        return messages
 
     async def clear(self) -> None:
         self._session.clear()

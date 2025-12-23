@@ -83,5 +83,11 @@ nav:
           - 智能体与工具: zh/02_core_concepts/01_agents_and_tools.md
           - 记忆系统: zh/02_core_concepts/02_memory_system.md
           - 事件总线: zh/02_core_concepts/03_event_bus.md
-      - 设计哲学: zh/05_design_philosophy/README.md
+      - 指南 (Guides):
+          - 指南索引: zh/03_guides/index.md
+          - 构建 Agent: zh/03_guides/building_agents.md
+          - 完整 Agent 系统指南: zh/03_guides/comprehensive_agent_system_guide.md
+      - 设计哲学 (Design Philosophy):
+          - 设计哲学: zh/05_design_philosophy/README.md
+          - 配置即架构: zh/05_design_philosophy/configuration_as_architecture.md
       - 常见问题 (FAQ): zh/faq.md
