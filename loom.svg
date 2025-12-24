@@ -1,0 +1,28 @@
+<svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="500" height="500" fill="white" />
+
+  <g transform="translate(185, 175)" stroke="#555" stroke-width="1.5" fill="none">
+    <path d="M0,0 V100 H55" />
+    <path d="M7,0 V93 H55" />
+    <path d="M14,0 V86 H55" />
+
+    <g transform="translate(65, 0)">
+      <line x1="0" y1="0" x2="0" y2="100" />
+      <line x1="7" y1="0" x2="7" y2="100" />
+      <line x1="14" y1="0" x2="14" y2="100" />
+      
+      <path d="M14,0 L35,60 L56,0" />
+      <path d="M14,10 L35,70 L56,10" />
+      
+      <line x1="56" y1="0" x2="56" y2="100" />
+      <line x1="63" y1="0" x2="63" y2="100" />
+      <line x1="70" y1="0" x2="70" y2="100" />
+    </g>
+  </g>
+
+  <path d="M170,225 Q220,205 280,245 T335,250" stroke="#2C3E82" stroke-width="4" fill="none" stroke-linecap="round" />
+  
+  <circle cx="280" cy="240" r="4" fill="#2C3E82" />
+
+  <text x="250" y="340" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="bold" fill="#555" text-anchor="middle" letter-spacing="8">LOOM</text>
+</svg>

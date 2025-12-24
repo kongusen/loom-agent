@@ -1,6 +1,7 @@
-# 🧵 Loom Agent
-
 <div align="center">
+
+<img src="loom.svg" alt="Loom Agent" width="300"/>
+
 
 **The Controlled Fractal AI Agent Framework**
 **Protocol-First • Metabolic Memory • Fractal Nodes**

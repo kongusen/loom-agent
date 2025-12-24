@@ -1,6 +1,7 @@
-# 🧵 Loom Agent
-
 <div align="center">
+
+<img src="loom.svg" alt="Loom Agent" width="300"/>
+
 
 **受控分形架构的 AI Agent 框架**
 **Protocol-First • Metabolic Memory • Fractal Nodes**
