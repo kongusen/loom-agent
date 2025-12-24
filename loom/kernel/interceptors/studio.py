@@ -76,26 +76,18 @@ class StudioInterceptor(Interceptor):
             self.ws = None
 
     async def pre_invoke(self, event: CloudEvent) -> Optional[CloudEvent]:
-        """Capture event (pre-phase)"""
-        if self.enabled:
-            enriched_event_data = event.model_dump(mode='json')
-            if "extensions" not in enriched_event_data:
-                enriched_event_data["extensions"] = {}
-                
-            enriched_event_data["extensions"]["studio_phase"] = "pre"
-            enriched_event_data["extensions"]["studio_timestamp"] = time.time()
-
-            asyncio.create_task(self._send_event_data(enriched_event_data))
-
+        """Capture event (pre-phase) - 不发送事件，只在 post_invoke 发送以避免重复"""
+        # 不在 pre 阶段发送事件，只在 post 阶段发送完整的事件
         return event
 
     async def post_invoke(self, event: CloudEvent) -> None:
-        """Capture event (post-phase)"""
+        """Capture event (post-phase) - 只在此阶段发送事件，避免重复"""
         if self.enabled:
             enriched_event_data = event.model_dump(mode='json')
             if "extensions" not in enriched_event_data:
                 enriched_event_data["extensions"] = {}
                 
+            # 标记为 post 阶段（虽然现在只在 post 发送，但保留标记以便将来扩展）
             enriched_event_data["extensions"]["studio_phase"] = "post"
             enriched_event_data["extensions"]["studio_timestamp"] = time.time()
 

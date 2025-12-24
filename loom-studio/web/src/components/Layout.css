@@ -2,9 +2,13 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   color: #e0e0e0;
   background-color: #121212;
+  overflow: hidden;
 }
 
 .header {
@@ -51,4 +55,8 @@
   flex: 1;
   overflow: hidden;
   position: relative;
+  height: calc(100vh - 60px);
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }

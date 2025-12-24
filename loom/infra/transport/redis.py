@@ -76,14 +76,35 @@ class RedisTransport(Transport):
 
         # Map loom topic to redis channel pattern
         channel = self._to_channel(topic)
-        
+
         if topic not in self._handlers:
             self._handlers[topic] = []
             # Subscribe in Redis
             await self.pubsub.psubscribe(channel)
-            
+
         self._handlers[topic].append(handler)
         logger.debug(f"Subscribed to {channel}")
+
+    async def unsubscribe(self, topic: str, handler: EventHandler) -> None:
+        """
+        Unsubscribe a handler from a topic.
+
+        FIXED: Prevents memory leaks from accumulated handlers.
+        """
+        if topic in self._handlers:
+            try:
+                self._handlers[topic].remove(handler)
+
+                # If no more handlers for this topic, unsubscribe from Redis
+                if not self._handlers[topic]:
+                    del self._handlers[topic]
+                    channel = self._to_channel(topic)
+                    if self.pubsub and self._connected:
+                        await self.pubsub.punsubscribe(channel)
+                        logger.debug(f"Unsubscribed from {channel}")
+            except ValueError:
+                # Handler not in list, ignore
+                pass
 
     async def _listener(self):
         try:

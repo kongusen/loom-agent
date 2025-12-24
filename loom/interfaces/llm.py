@@ -25,7 +25,8 @@ class LLMProvider(LLMProviderProtocol, ABC):
     async def chat(
         self, 
         messages: List[Dict[str, Any]], 
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
+        config: Optional[Dict[str, Any]] = None
     ) -> LLMResponse:
         """
         Generate a response for a given chat history.

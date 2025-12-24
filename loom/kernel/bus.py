@@ -53,6 +53,15 @@ class UniversalEventBus:
         await self.transport.connect()
         await self.transport.subscribe(topic, handler)
 
+    async def unsubscribe(self, topic: str, handler: Callable[[CloudEvent], Awaitable[None]]):
+        """
+        Unregister a handler from a topic.
+
+        FIXED: Added to prevent memory leaks from accumulated handlers.
+        Delegates to transport layer.
+        """
+        await self.transport.unsubscribe(topic, handler)
+
     def _get_topic(self, event: CloudEvent) -> str:
         """Construct topic string from event."""
         # Special routing for requests: use subject (target) if present

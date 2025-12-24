@@ -21,6 +21,8 @@ class WebSocketService {
         const message = JSON.parse(event.data);
         if (message.type === 'event' && message.data) {
           this.notify(message.data);
+        } else if (message.type === 'topology' && message.data) {
+          this.notifyTopology(message.data);
         }
       } catch (err) {
         console.error('Failed to parse message', err);
@@ -47,6 +49,20 @@ class WebSocketService {
 
   private notify(event: CloudEvent) {
     this.listeners.forEach(h => h(event));
+  }
+
+  // 添加拓扑更新监听器
+  private topologyListeners: Array<(topology: any) => void> = [];
+
+  subscribeTopology(handler: (topology: any) => void) {
+    this.topologyListeners.push(handler);
+    return () => {
+      this.topologyListeners = this.topologyListeners.filter(h => h !== handler);
+    };
+  }
+
+  private notifyTopology(topology: any) {
+    this.topologyListeners.forEach(h => h(topology));
   }
 }
 

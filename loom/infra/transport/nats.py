@@ -1,7 +1,7 @@
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Any
 try:
     import nats
     from nats.aio.client import Client as NATSClient
@@ -39,7 +39,7 @@ class NATSTransport(Transport):
         self.nc: Optional[NATSClient] = None
         self.js: Optional[JetStreamContext] = None
         self._handlers: Dict[str, List[EventHandler]] = {}
-        self._subscriptions: List = [] 
+        self._subscriptions: List[Tuple[str, Any]] = []  # (topic, subscription)
         self._connected = False
 
     async def connect(self) -> None:
@@ -94,7 +94,7 @@ class NATSTransport(Transport):
 
         # Normalize subject for wildcard
         subject = self._to_subject(topic)
-        
+
         # NATS wildcards: * (one token), > (tail)
         # Loom wildcards: * (usually suffix)
         # If topic ends with *, replace with >
@@ -103,7 +103,7 @@ class NATSTransport(Transport):
 
         if topic not in self._handlers:
             self._handlers[topic] = []
-            
+
             async def cb(msg):
                 try:
                     data = msg.data.decode()
@@ -121,11 +121,40 @@ class NATSTransport(Transport):
                 sub = await self.js.subscribe(subject, cb=cb)
             else:
                 sub = await self.nc.subscribe(subject, cb=cb)
-            
-            self._subscriptions.append(sub)
+
+            # Store subscription with topic for later unsubscribe
+            self._subscriptions.append((topic, sub))
 
         self._handlers[topic].append(handler)
         logger.debug(f"Subscribed to {subject}")
+
+    async def unsubscribe(self, topic: str, handler: EventHandler) -> None:
+        """
+        Unsubscribe a handler from a topic.
+
+        FIXED: Prevents memory leaks from accumulated handlers.
+        """
+        if topic in self._handlers:
+            try:
+                self._handlers[topic].remove(handler)
+
+                # If no more handlers for this topic, unsubscribe from NATS
+                if not self._handlers[topic]:
+                    del self._handlers[topic]
+
+                    # Find and unsubscribe the NATS subscription
+                    for i, (sub_topic, sub) in enumerate(self._subscriptions):
+                        if sub_topic == topic:
+                            try:
+                                await sub.unsubscribe()
+                                self._subscriptions.pop(i)
+                                logger.debug(f"Unsubscribed from {topic}")
+                            except Exception as e:
+                                logger.error(f"Error unsubscribing from NATS: {e}")
+                            break
+            except ValueError:
+                # Handler not in list, ignore
+                pass
 
     async def _safe_exec(self, handler: EventHandler, event: CloudEvent):
         try:

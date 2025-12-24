@@ -24,12 +24,25 @@ app.add_middleware(
 class SimpleEventStore:
     def __init__(self):
         self.events: List[Dict[str, Any]] = []
+        self._seen_ids: Set[str] = set()  # 用于去重
 
     async def append(self, event: Dict[str, Any]):
+        # 基于 event.id 去重（同一个事件不应该被存储两次）
+        event_id = event.get("id")
+        if event_id and event_id in self._seen_ids:
+            # 如果事件已存在，跳过（避免重复）
+            return
+        
+        if event_id:
+            self._seen_ids.add(event_id)
+        
         self.events.append(event)
         # Keep basic size limit
         if len(self.events) > 10000:
-            self.events.pop(0)
+            removed = self.events.pop(0)
+            # 清理已移除事件的 ID
+            if removed.get("id"):
+                self._seen_ids.discard(removed.get("id"))
 
     async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> List[Dict[str, Any]]:
         # Apply filters (basic implementation)
@@ -117,11 +130,18 @@ async def ingest_endpoint(websocket: WebSocket):
                     # Store
                     await event_store.append(event)
 
-                    # Broadcast
+                    # Broadcast event
                     await manager.broadcast({
                         "type": "event",
                         "data": event
                     })
+                
+                # After processing events, broadcast topology update via WebSocket
+                topology = _compute_topology()
+                await manager.broadcast({
+                    "type": "topology",
+                    "data": topology
+                })
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -150,15 +170,32 @@ async def get_events(
 def _infer_node_type(event: Dict[str, Any]) -> str:
     """Simple heuristic to infer node type from event"""
     source = event.get("source", "")
-    if "agent" in source:
+    if not source:
+        return "Node"
+    
+    # 规范化 source（移除开头的 /）
+    normalized = source.lstrip('/')
+    
+    # 检查路径中是否包含类型标识
+    if "/agent/" in normalized or normalized.startswith("agent/"):
         return "AgentNode"
-    if "tool" in source:
+    if "/tool/" in normalized or normalized.startswith("tool/"):
         return "ToolNode"
+    if "/crew/" in normalized or normalized.startswith("crew/"):
+        return "CrewNode"
+    
+    # 也检查 node/agent, node/tool, node/crew 格式
+    if "node/agent" in normalized:
+        return "AgentNode"
+    if "node/tool" in normalized:
+        return "ToolNode"
+    if "node/crew" in normalized:
+        return "CrewNode"
+
     return "Node"
 
-@app.get("/api/topology")
-async def get_topology():
-    """Get node topology inferred from events"""
+def _compute_topology():
+    """Compute topology from events (extracted as function for reuse)"""
     events = event_store.events # Get all for topology
     
     nodes = {}
@@ -179,10 +216,10 @@ async def get_topology():
         # Also maybe the subject is a node (e.g. invalid target?)
         # But usually subject is just a string target ID.
         if subject and subject not in nodes:
-             # Heuristic: if subject looks like a path
+             # Heuristic: if subject looks like a path, infer type
              nodes[subject] = {
                  "id": subject,
-                 "type": "Node", # Unknown
+                 "type": _infer_node_type({"source": subject}),  # 使用相同的推断逻辑
                  "metadata": {}
              }
 
@@ -198,6 +235,11 @@ async def get_topology():
             for k, v in edges.items()
         ]
     }
+
+@app.get("/api/topology")
+async def get_topology():
+    """Get node topology inferred from events"""
+    return _compute_topology()
 
 @app.get("/api/memory/{node_id:path}")
 async def get_memory(node_id: str):

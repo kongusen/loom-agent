@@ -14,7 +14,8 @@ class MockLLMProvider(LLMProvider):
     async def chat(
         self, 
         messages: List[Dict[str, Any]], 
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
+        config: Optional[Dict[str, Any]] = None
     ) -> LLMResponse:
         last_msg = messages[-1]["content"].lower()
         

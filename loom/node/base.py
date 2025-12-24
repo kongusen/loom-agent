@@ -71,6 +71,9 @@ class Node(ABC):
     async def call(self, target_node: str, data: Dict[str, Any]) -> Any:
         """
         Call another node and wait for response.
+
+        FIXED: Now properly cleans up subscription using unsubscribe()
+        to prevent memory leaks from accumulated handlers.
         """
         request_id = str(uuid4())
         request_event = CloudEvent.create(
@@ -84,7 +87,7 @@ class Node(ABC):
         # Subscribe to response
         # Using Broadcast Reply pattern: listen to target's responses
         response_future = asyncio.Future()
-        
+
         async def handle_response(event: CloudEvent):
             if event.data and event.data.get("request_id") == request_id:
                 if not response_future.done():
@@ -96,23 +99,20 @@ class Node(ABC):
         # Topic: node.response/{target_node}
         # Note: clean URI
         target_topic = f"node.response/{target_node.strip('/')}"
-        
+
         # We need access to bus directly or via dispatcher
         # Dispatcher has .bus
         await self.dispatcher.bus.subscribe(target_topic, handle_response)
-        
+
         try:
             # Dispatch request
             await self.dispatcher.dispatch(request_event)
-            
+
             # Wait for response
             return await asyncio.wait_for(response_future, timeout=30.0)
         finally:
-            # Cleanup subscription? 
-            # Current bus implementation doesn't support unsubscribe easily, 
-            # but in-memory transport might accumulate handlers.
-            # TODO: Add unsubscribe to Transport Protocol to prevent leaks.
-            pass
+            # FIXED: Cleanup subscription to prevent memory leaks
+            await self.dispatcher.bus.unsubscribe(target_topic, handle_response)
 
 
     @abstractmethod

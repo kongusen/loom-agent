@@ -92,3 +92,33 @@ class HierarchicalMemory(MemoryInterface):
 
     async def clear(self) -> None:
         self._session.clear()
+
+    def should_reflect(self, threshold: int = 20) -> bool:
+        """Check if memory needs reflection (session memory exceeds threshold)."""
+        return len(self._session) > threshold
+
+    def get_reflection_candidates(self, count: int = 10) -> List[MemoryEntry]:
+        """Get the oldest 'count' records for summarization."""
+        return self._session[:count]
+
+    async def consolidate(self, summary: str, remove_count: int) -> None:
+        """
+        Consolidate memory:
+        1. Remove the oldest 'remove_count' entries.
+        2. Insert a 'Summary' entry at the beginning (or logically older).
+        """
+        # Remove old entries
+        del self._session[:remove_count]
+        
+        # Create summary entry
+        summary_entry = MemoryEntry(
+            role="system",
+            content=f"[Memory Reflection] Summary of previous conversation:\n{summary}",
+            timestamp=time.time(),
+            metadata={"type": "reflection_summary"},
+            tier="long-term"
+        )
+        
+        # Insert at start
+        self._session.insert(0, summary_entry)
+

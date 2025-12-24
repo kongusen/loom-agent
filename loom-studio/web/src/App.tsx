@@ -19,18 +19,46 @@ function App() {
           
           const source = event.source;
           const target = event.subject;
+          const eventData = event.data || {};
 
           // Add Source Node
           if (source && !nodes.find(n => n.id === source)) {
               let type = 'Node';
               if (source.includes('agent')) type = 'AgentNode';
               if (source.includes('tool')) type = 'ToolNode';
+              if (source.includes('crew')) type = 'CrewNode';
               nodes.push({ id: source, type, metadata: {} });
           }
 
           // Add Target Node
           if (target && !nodes.find(n => n.id === target)) {
-              nodes.push({ id: target, type: 'Node', metadata: {} });
+              let type = 'Node';
+              if (target.includes('agent')) type = 'AgentNode';
+              if (target.includes('tool')) type = 'ToolNode';
+              if (target.includes('crew')) type = 'CrewNode';
+              nodes.push({ id: target, type, metadata: {} });
+          }
+
+          // 从事件数据中提取内部节点信息（如果 Crew 内部调用了 Agent）
+          // 检查 trace 信息
+          if (eventData.trace && Array.isArray(eventData.trace)) {
+              eventData.trace.forEach((step: any) => {
+                  const agentId = step.agent;
+                  if (agentId && !nodes.find(n => n.id === agentId)) {
+                      let type = 'AgentNode';
+                      if (agentId.includes('crew')) type = 'CrewNode';
+                      if (agentId.includes('tool')) type = 'ToolNode';
+                      nodes.push({ id: agentId, type, metadata: {} });
+                      
+                      // 创建从 Crew 到 Agent 的边
+                      if (source && source.includes('crew')) {
+                          const existingEdge = edges.find(e => e.from === source && e.to === agentId);
+                          if (!existingEdge) {
+                              edges.push({ from: source, to: agentId, count: 1 });
+                          }
+                      }
+                  }
+              });
           }
 
           // Add Edge
@@ -51,18 +79,45 @@ function App() {
     // Connect to WebSocket
     wsService.connect();
 
-    // Subscribe to events
-    const unsubscribe = wsService.subscribe((event) => {
+    // Subscribe to events via WebSocket
+    const unsubscribeEvents = wsService.subscribe((event) => {
       setEvents(prev => [...prev, event]);
       
-      // Update Topology
-      // In a real app we might debounce this or fetch from API
-      // Here we just accumulate purely local for demo
+      // Update Topology locally (optimistic update)
       updateTopology(event);
     });
 
+    // Subscribe to topology updates via WebSocket
+    const unsubscribeTopology = wsService.subscribeTopology((topologyData) => {
+      setTopology(topologyData);
+    });
+
+    // 初始加载：获取完整拓扑和历史事件
+    const fetchInitialData = async () => {
+      try {
+        // 获取拓扑
+        const topologyResponse = await fetch('http://localhost:8765/api/topology');
+        const topologyData = await topologyResponse.json();
+        setTopology(topologyData);
+        
+        // 获取历史事件（最多1000个）
+        const eventsResponse = await fetch('http://localhost:8765/api/events?limit=1000');
+        const eventsData = await eventsResponse.json();
+        if (eventsData.events && Array.isArray(eventsData.events)) {
+          setEvents(eventsData.events);
+          console.log(`Loaded ${eventsData.events.length} historical events`);
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial data:', err);
+      }
+    };
+
+    // 只在初始加载时获取一次，之后通过 WebSocket 实时更新
+    fetchInitialData();
+
     return () => {
-      unsubscribe();
+      unsubscribeEvents();
+      unsubscribeTopology();
     }
   }, []);
 
@@ -71,7 +126,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<div style={{padding: 20}}><h2>Dashboard</h2><p>Events captured: {events.length}</p></div>} />
-          <Route path="topology" element={<TopologyView data={topology} />} />
+          <Route path="topology" element={<TopologyView data={topology} events={events} />} />
           <Route path="timeline" element={<TimelineView events={events} />} />
           <Route path="memory" element={<MemoryBrowser events={events} />} />
           <Route path="*" element={<Navigate to="/" replace />} />

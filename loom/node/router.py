@@ -4,21 +4,30 @@ Router Node (Attention Mechanism)
 
 from typing import Any, List, Dict
 from loom.protocol.cloudevents import CloudEvent
+from loom.protocol.interfaces import NodeProtocol
 from loom.node.base import Node
-from loom.node.agent import AgentNode
 from loom.kernel.dispatcher import Dispatcher
 from loom.interfaces.llm import LLMProvider
 
 class AttentionRouter(Node):
     """
-    Intelligent Router that routes tasks to the best suited Agent based on description.
+    Intelligent Router that routes tasks to the best suited Node based on description.
+
+    FIXED: Now accepts List[NodeProtocol] instead of List[AgentNode].
+    This enables fractal routing:
+    - Can route to AgentNode
+    - Can route to CrewNode (sub-teams)
+    - Can route to other RouterNode (nested routing)
+    - Any Node type that implements NodeProtocol
+
+    This adheres to "Protocol-First" and "Fractal Uniformity" principles.
     """
-    
+
     def __init__(
         self,
         node_id: str,
         dispatcher: Dispatcher,
-        agents: List[AgentNode],
+        agents: List[NodeProtocol],
         provider: LLMProvider
     ):
         super().__init__(node_id, dispatcher)

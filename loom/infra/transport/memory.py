@@ -45,6 +45,33 @@ class InMemoryTransport(Transport):
         else:
             self._handlers[topic].append(handler)
 
+    async def unsubscribe(self, topic: str, handler: EventHandler) -> None:
+        """
+        Remove a handler from the subscription list.
+
+        FIXED: Prevents memory leaks from accumulated handlers.
+        """
+        if "*" in topic:
+            if topic in self._wildcard_handlers:
+                try:
+                    self._wildcard_handlers[topic].remove(handler)
+                    # Clean up empty lists
+                    if not self._wildcard_handlers[topic]:
+                        del self._wildcard_handlers[topic]
+                except ValueError:
+                    # Handler not in list, ignore
+                    pass
+        else:
+            if topic in self._handlers:
+                try:
+                    self._handlers[topic].remove(handler)
+                    # Clean up empty lists
+                    if not self._handlers[topic]:
+                        del self._handlers[topic]
+                except ValueError:
+                    # Handler not in list, ignore
+                    pass
+
     async def _dispatch(self, topic: str, event: CloudEvent) -> None:
         targets: Set[EventHandler] = set()
 
