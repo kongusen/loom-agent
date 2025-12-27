@@ -51,6 +51,9 @@ pytest-mock = "^3.12.0"
 ruff = "^0.3.0"
 mypy = "^1.8.0"
 pytest-cov = "^7.0.0"
+mkdocs = "^1.5.0"
+mkdocs-material = "^9.5.0"
+pymdown-extensions = "^10.7.0"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
