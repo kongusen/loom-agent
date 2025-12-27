@@ -29,19 +29,22 @@ class TestGlobalAppManagement:
         """测试初始状态下 App 为 None"""
         assert get_app() is None
 
-    def test_create_agent_creates_app(self):
+    @pytest.mark.asyncio
+    async def test_create_agent_creates_app(self):
         """测试创建 Agent 会自动创建 App"""
         agent = create_agent("test-agent")
         assert get_app() is not None
         assert agent.node_id == "test-agent"
 
-    def test_configure_app_before_creation(self):
+    @pytest.mark.asyncio
+    async def test_configure_app_before_creation(self):
         """测试在创建前配置 App"""
         configure_app({"budget": 5000})
         app = get_app()
         assert app is not None
 
-    def test_configure_app_after_creation_raises_error(self):
+    @pytest.mark.asyncio
+    async def test_configure_app_after_creation_raises_error(self):
         """测试在创建后配置 App 会抛出错误"""
         create_agent("test-agent")
         with pytest.raises(RuntimeError):
@@ -51,18 +54,21 @@ class TestGlobalAppManagement:
 class TestCreateAgent:
     """测试 create_agent 函数"""
 
-    def test_create_simple_agent(self):
+    @pytest.mark.asyncio
+    async def test_create_simple_agent(self):
         """测试创建简单的 Agent"""
         agent = create_agent("test-agent", role="Tester")
         assert agent.node_id == "test-agent"
         assert agent.role == "Tester"
 
-    def test_create_agent_with_default_role(self):
+    @pytest.mark.asyncio
+    async def test_create_agent_with_default_role(self):
         """测试使用默认角色创建 Agent"""
         agent = create_agent("test-agent")
         assert agent.role == "Assistant"
 
-    def test_create_multiple_agents(self):
+    @pytest.mark.asyncio
+    async def test_create_multiple_agents(self):
         """测试创建多个 Agent"""
         agent1 = create_agent("agent-1", role="Role1")
         agent2 = create_agent("agent-2", role="Role2")
@@ -73,7 +79,8 @@ class TestCreateAgent:
 class TestCreateTool:
     """测试 create_tool 函数"""
 
-    def test_create_simple_tool(self):
+    @pytest.mark.asyncio
+    async def test_create_simple_tool(self):
         """测试创建简单的工具"""
         def test_func(x: int) -> int:
             """测试函数"""
@@ -83,7 +90,8 @@ class TestCreateTool:
         assert tool.node_id == "test-tool"
         assert tool.func == test_func
 
-    def test_create_tool_with_description(self):
+    @pytest.mark.asyncio
+    async def test_create_tool_with_description(self):
         """测试创建带描述的工具"""
         def test_func(x: int) -> int:
             return x * 2
@@ -95,7 +103,8 @@ class TestCreateTool:
 class TestCreateCrew:
     """测试 create_crew 函数"""
 
-    def test_create_simple_crew(self):
+    @pytest.mark.asyncio
+    async def test_create_simple_crew(self):
         """测试创建简单的 Crew"""
         agent1 = create_agent("agent-1")
         agent2 = create_agent("agent-2")

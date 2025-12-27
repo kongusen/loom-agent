@@ -60,7 +60,8 @@ agents:
         finally:
             os.unlink(temp_path)
 
-    def test_from_file_creates_app(self):
+    @pytest.mark.asyncio
+    async def test_from_file_creates_app(self):
         """测试从文件创建 App"""
         yaml_content = """
 version: "1.0"

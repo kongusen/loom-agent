@@ -28,14 +28,16 @@ class TestSkills:
         assert skill.name == "calculator"
         assert skill.description == "执行数学计算"
 
-    def test_calculator_skill_get_tools(self):
+    @pytest.mark.asyncio
+    async def test_calculator_skill_get_tools(self):
         """测试计算器技能返回工具"""
         skill = CalculatorSkill()
         tools = skill.get_tools()
         assert len(tools) == 1
         assert tools[0].node_id == "calculator"
 
-    def test_calculator_skill_register(self):
+    @pytest.mark.asyncio
+    async def test_calculator_skill_register(self):
         """测试计算器技能注册到 Agent"""
         agent = create_agent("test-agent")
         skill = CalculatorSkill()
@@ -53,7 +55,8 @@ class TestSkills:
 class TestPrebuiltAgents:
     """测试预构建的 Agent"""
 
-    def test_coder_agent_creation(self):
+    @pytest.mark.asyncio
+    async def test_coder_agent_creation(self):
         """测试创建编码员 Agent"""
         coder = CoderAgent("test-coder")
         assert coder.node_id == "test-coder"
@@ -61,7 +64,8 @@ class TestPrebuiltAgents:
         assert "read_file" in coder.known_tools
         assert "write_file" in coder.known_tools
 
-    def test_analyst_agent_creation(self):
+    @pytest.mark.asyncio
+    async def test_analyst_agent_creation(self):
         """测试创建分析师 Agent"""
         analyst = AnalystAgent("test-analyst")
         assert analyst.node_id == "test-analyst"
@@ -72,7 +76,8 @@ class TestPrebuiltAgents:
 class TestCrews:
     """测试团队模式"""
 
-    def test_debate_crew_creation(self):
+    @pytest.mark.asyncio
+    async def test_debate_crew_creation(self):
         """测试创建辩论团队"""
         crew = DebateCrew("test-debate")
         assert crew.node_id == "test-debate"
