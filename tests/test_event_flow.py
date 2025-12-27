@@ -15,6 +15,7 @@ This ensures:
 4. Fractal uniformity is maintained
 """
 
+import pytest
 import asyncio
 from typing import Optional, List
 from loom.api.main import LoomApp
@@ -60,6 +61,7 @@ class EventCaptureInterceptor(Interceptor):
         return self.event_types.copy()
 
 
+@pytest.mark.asyncio
 async def test_crew_event_flow():
     """
     Test that CrewNode -> AgentNode calls go through event bus.
@@ -109,6 +111,7 @@ async def test_crew_event_flow():
 
     # Run task
     await app.start()
+    await asyncio.sleep(0.1)  # Allow subscriptions to settle
     result = await app.run("Test task", target=crew.source_uri)
 
     # Verify event flow
@@ -131,6 +134,7 @@ async def test_crew_event_flow():
     return result
 
 
+@pytest.mark.asyncio
 async def test_agent_tool_event_flow():
     """
     Test that AgentNode -> ToolNode calls go through event bus.
@@ -183,6 +187,7 @@ async def test_agent_tool_event_flow():
 
     # Run task
     await app.start()
+    await asyncio.sleep(0.1)  # Allow subscriptions to settle
     result = await app.run("Calculate something", target=agent.source_uri)
 
     # Verify event flow
@@ -207,6 +212,7 @@ async def test_agent_tool_event_flow():
     return result
 
 
+@pytest.mark.asyncio
 async def test_nested_crew_event_flow():
     """
     Test nested Crew (fractal composition).
@@ -255,6 +261,7 @@ async def test_nested_crew_event_flow():
 
     # Run task
     await app.start()
+    await asyncio.sleep(0.1)  # Allow subscriptions to settle
     result = await app.run("Nested task", target=master_crew.source_uri)
 
     # Verify

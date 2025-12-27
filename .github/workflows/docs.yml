@@ -8,6 +8,7 @@ on:
       - "docs/**"
       - "mkdocs.yml"
       - "pyproject.toml"
+      - "README.md"
 
 permissions:
   contents: write

@@ -18,7 +18,7 @@ class MockLLMWithToolCall(LLMProvider):
     def __init__(self):
         self.call_count = 0
 
-    async def chat(self, messages, tools=None):
+    async def chat(self, messages, tools=None, config=None):
         self.call_count += 1
         if self.call_count == 1:
             # 第一次调用：返回工具调用（content为空）
@@ -143,7 +143,7 @@ async def test_message_format_without_tool_calls():
 
     # 创建一个不调用工具的LLM
     class SimpleLLM(LLMProvider):
-        async def chat(self, messages, tools=None):
+        async def chat(self, messages, tools=None, config=None):
             return LLMResponse(content="Simple answer")
         async def stream_chat(self, *args, **kwargs):
             pass

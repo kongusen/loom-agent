@@ -16,18 +16,27 @@ class Node(ABC):
     Implements standard event subscription and request handling.
     """
     
-    def __init__(self, node_id: str, dispatcher: Dispatcher):
+    def __init__(self, node_id: str, dispatcher: Dispatcher, auto_subscribe: bool = True):
         self.node_id = node_id
         self.dispatcher = dispatcher
         self.source_uri = f"/node/{node_id}" # Standard URI
-        
-        # Auto-subscribe to my requests
-        asyncio.create_task(self._subscribe_to_events())
+        self._subscribed = False
+
+        # Auto-subscribe to my requests (if event loop is running)
+        if auto_subscribe:
+            try:
+                asyncio.create_task(self._subscribe_to_events())
+            except RuntimeError:
+                # No event loop running, will subscribe later
+                pass
 
     async def _subscribe_to_events(self):
         """Subscribe to 'node.request' targeting this node."""
+        if self._subscribed:
+            return
         topic = f"node.request/{self.source_uri.strip('/')}"
         await self.dispatcher.bus.subscribe(topic, self._handle_request)
+        self._subscribed = True
 
     async def _handle_request(self, event: CloudEvent):
         """

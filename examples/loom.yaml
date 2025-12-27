@@ -1,0 +1,40 @@
+# Loom 配置示例
+# 展示如何使用 YAML 配置定义 Agents 和 Crews
+
+version: "1.0"
+
+# 控制配置（可选）
+control:
+  budget: 5000      # Token 预算
+  depth: 10         # 最大深度
+
+# 定义 Agents
+agents:
+  # 使用预构建的 Agent
+  - name: coder
+    type: CoderAgent
+    config:
+      base_dir: ./src
+
+  - name: analyst
+    type: AnalystAgent
+
+  # 自定义 Agent（使用 Skills）
+  - name: calculator-agent
+    role: "计算助手"
+    skills:
+      - calculator
+
+  - name: file-agent
+    role: "文件助手"
+    skills:
+      - filesystem
+    config:
+      base_dir: ./data
+
+# 定义 Crews（可选）
+crews:
+  - name: dev-team
+    agents:
+      - coder
+      - analyst

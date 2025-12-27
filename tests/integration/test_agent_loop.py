@@ -5,15 +5,16 @@ from loom.node.agent import AgentNode
 from loom.node.tool import ToolNode
 from loom.api.main import LoomApp
 from loom.protocol.cloudevents import CloudEvent
-from loom.interfaces.llm import LLMProvider, LLMResponse
+from loom.interfaces.llm import LLMProvider, LLMResponse, StreamChunk
 from loom.protocol.mcp import MCPToolDefinition as ToolDefinition
 
 class MockSequenceLLM(LLMProvider):
     def __init__(self, responses: List[LLMResponse]):
          self.responses = responses
          self.calls = 0
-         
-    async def chat(self, messages: List[Any], tools: List[Any] = None) -> LLMResponse:
+         self.stream_calls = 0
+
+    async def chat(self, messages: List[Any], tools: List[Any] = None, config: Any = None) -> LLMResponse:
         if self.calls < len(self.responses):
             resp = self.responses[self.calls]
             self.calls += 1
@@ -21,7 +22,29 @@ class MockSequenceLLM(LLMProvider):
         return LLMResponse(content="Limit reached")
 
     async def stream_chat(self, *args, **kwargs):
-        pass
+        # Use the sequence responses in streaming mode too
+        if self.stream_calls < len(self.responses):
+            resp = self.responses[self.stream_calls]
+
+            # If response has tool calls, don't increment and cause fallback
+            # The agent will fall back to non-streaming mode
+            if resp.tool_calls:
+                # Don't increment stream_calls - let chat() handle it
+                return
+                # This will cause the stream to be empty, triggering fallback
+
+            self.stream_calls += 1
+
+            # If response has content, stream it
+            if resp.content:
+                words = resp.content.split()
+                for word in words:
+                    yield StreamChunk(type="text", content=word + " ", metadata={})
+
+            yield StreamChunk(type="done", content="", metadata={})
+        else:
+            yield StreamChunk(type="text", content="Limit reached", metadata={})
+            yield StreamChunk(type="done", content="", metadata={})
 
 class MockTool(ToolNode):
     async def process(self, event: CloudEvent) -> Any:
@@ -76,12 +99,16 @@ async def test_max_iterations():
     
     # Mock infinite tool loops
     resp_loop = LLMResponse(content="", tool_calls=[{"name": "test_tool", "arguments": {}}])
-    
+
     # Infinite provider
     class InfiniteLLM(LLMProvider):
         async def chat(self, *args, **kwargs):
             return resp_loop
-        async def stream_chat(self, *args, **kwargs): pass
+        async def stream_chat(self, *args, **kwargs):
+            # Infinite stream (but will be cut off by max_iterations)
+            while True:
+                yield StreamChunk(type="text", content="Loop...", metadata={})
+                await asyncio.sleep(0.01)
             
     tool_def = ToolDefinition(name="test_tool", description="test", inputSchema={})
     tool = MockTool(node_id="tool", dispatcher=app.dispatcher, tool_def=tool_def, func=lambda x: "success")

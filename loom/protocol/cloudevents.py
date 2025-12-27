@@ -10,6 +10,23 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
 
+class EventType:
+    """Standard Event Types for Loom Cognitive Kernel."""
+    
+    # Standard Request/Response
+    NODE_CALL = "node.call"
+    NODE_RESULT = "node.result"
+    NODE_ERROR = "node.error"
+    
+    # Cognitive Streams (System 1 & 2)
+    STREAM_CHUNK = "agent.stream.chunk"   # System 1: Speech Stream
+    THOUGHT_SPARK = "agent.thought.spark" # System 2: Crystallized Insight
+    
+    # Kernel Management
+    NODE_REGISTER = "kernel.node.register"
+    NODE_UNREGISTER = "kernel.node.unregister"
+
+
 class CloudEvent(BaseModel):
     """
     CloudEvents 1.0 Specification Implementation.

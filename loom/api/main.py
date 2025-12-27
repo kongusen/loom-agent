@@ -199,3 +199,20 @@ class LoomApp:
         # We can schedule it.
         asyncio.create_task(self.bus.subscribe(f"{event_type}/*" if event_type != "*" else "*", _wrapper))
 
+    @classmethod
+    def from_config(cls, config_path: str):
+        """
+        从 YAML 配置文件创建 LoomApp。
+
+        Args:
+            config_path: YAML 配置文件路径
+
+        Returns:
+            (app, agents, crews) 元组
+
+        Example:
+            app, agents, crews = LoomApp.from_config("loom.yaml")
+            result = await app.run("任务", target="agent-name")
+        """
+        from loom.config.loader import ConfigLoader
+        return ConfigLoader.from_file(config_path)
