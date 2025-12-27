@@ -18,7 +18,7 @@ class MockLLMWithToolCall(LLMProvider):
     def __init__(self):
         self.call_count = 0
 
-    async def chat(self, messages, tools=None, config=None):
+    async def chat(self, messages, tools=None, **kwargs):
         self.call_count += 1
         if self.call_count == 1:
             # 第一次调用：返回工具调用（content为空）
@@ -35,7 +35,12 @@ class MockLLMWithToolCall(LLMProvider):
             return LLMResponse(content="Final answer")
 
     async def stream_chat(self, *args, **kwargs):
-        pass
+        # Must act as an async generator
+        from loom.interfaces.llm import StreamChunk
+        # Properly close the generator by yielding done
+        if False:  # Make it a generator but don't yield anything
+            yield
+        return
 
 
 class MockToolNode(ToolNode):
@@ -143,10 +148,12 @@ async def test_message_format_without_tool_calls():
 
     # 创建一个不调用工具的LLM
     class SimpleLLM(LLMProvider):
-        async def chat(self, messages, tools=None, config=None):
+        async def chat(self, messages, tools=None, **kwargs):
             return LLMResponse(content="Simple answer")
         async def stream_chat(self, *args, **kwargs):
-            pass
+            from loom.interfaces.llm import StreamChunk
+            yield StreamChunk(type="text", content="Simple answer", metadata={})
+            yield StreamChunk(type="done", content="", metadata={})
 
     agent = AgentNode(
         node_id="simple_agent",

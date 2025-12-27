@@ -81,7 +81,7 @@ async def test_agent_react_loop():
     # Yes, we passed tools=[tool].
     
     # Allow logic to settle?
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.5)
     
     # Need to subscribe tool to "node.request/tool" if not already?
     # ToolNode.__init__ subscribes to its id.
@@ -105,10 +105,10 @@ async def test_max_iterations():
         async def chat(self, *args, **kwargs):
             return resp_loop
         async def stream_chat(self, *args, **kwargs):
-            # Infinite stream (but will be cut off by max_iterations)
-            while True:
-                yield StreamChunk(type="text", content="Loop...", metadata={})
-                await asyncio.sleep(0.01)
+            # Return empty stream to trigger fallback to chat()
+            # This avoids infinite loop while still testing max_iterations
+            return
+            yield  # Make it a generator
             
     tool_def = ToolDefinition(name="test_tool", description="test", inputSchema={})
     tool = MockTool(node_id="tool", dispatcher=app.dispatcher, tool_def=tool_def, func=lambda x: "success")

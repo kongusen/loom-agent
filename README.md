@@ -7,12 +7,12 @@
 **Protocol-First • Metabolic Memory • Fractal Nodes**
 
 [![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0 + Commons Clause](https://img.shields.io/badge/License-Apache_2.0_with_Commons_Clause-red.svg)](LICENSE)
 
-[English](README_EN.md) | **中文**
+[English](docs/en/README.md) | **中文**
 
-[📖 文档](docs/zh/index.md) | [🚀 快速开始](docs/zh/01_getting_started/quickstart.md) | [🧩 核心概念](docs/zh/02_core_concepts/index.md)
+[📖 文档](docs/README.md) | [🚀 快速开始](docs/getting-started/quickstart.md) | [🧩 核心概念](docs/concepts/architecture.md)
 
 </div>
 
@@ -22,7 +22,7 @@
 
 Loom 是一个**高可靠 (High-Assurance)** 的 AI Agent 框架，专为构建生产级系统而设计。与其他专注于"快速原型"的框架不同，Loom 关注**控制 (Control)、持久化 (Persistence) 和分形扩展 (Fractal Scalability)**。
 
-### 核心特性 (v0.3.0)
+### 核心特性 (v0.3.x)
 
 1.  **🧬 受控分形架构 (Controlled Fractal)**:
     *   Agent、Tool、Crew 都是**节点 (Node)**。节点可以无限递归包含。
@@ -50,44 +50,37 @@ pip install loom-agent
 
 ## 🚀 快速上手
 
+使用新的 `loom.weave` API，5分钟构建你的第一个 Agent：
+
 ```python
 import asyncio
-from loom.api.main import LoomApp
-from loom.node.agent import AgentNode
+from loom.weave import create_agent, run
 
-# 使用 Loom 就像搭积木
-async def main():
-    app = LoomApp()
-    
-    # 1. 创建 Agent
-    agent = AgentNode(
-        node_id="helper",
-        dispatcher=app.dispatcher,
-        role="Assistant",
-        system_prompt="你是一个乐于助人的 AI。"
-    )
-    app.add_node(agent)
-    
-    # 2. 运行任务
-    response = await app.run("你好，Loom 是什么？", target="helper")
-    print(response['response'])
+# 1. 创建 Agent
+agent = create_agent("Assistant", role="General Assistant")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# 2. 运行任务
+result = run(agent, "你好，请介绍一下自己")
+print(result)
 ```
 
-> **注意**: 默认情况下 Loom 使用 Mock LLM 方便测试。要接入真实模型，请参阅[文档](docs/zh/08_examples/index.md)。
+> **注意**: 默认情况下 Loom 使用 Mock LLM 方便测试。要接入真实模型（如 OpenAI/Claude），请参阅[文档](docs/getting-started/quickstart.md)。
 
 ## 📚 文档索引
 
 我们提供了完整的双语文档：
 
-*   **[用户指南](docs/zh/index.md)**
-    *   [安装指南](docs/zh/01_getting_started/installation.md)
-    *   [构建 Agent](docs/zh/03_guides/building_agents.md)
-*   **[核心原理](docs/zh/02_core_concepts/index.md)**
-    *   [新陈代谢记忆](docs/zh/02_core_concepts/memory_system.md)
-    *   [设计哲学](docs/zh/05_design_philosophy/index.md)
+*   **[用户指南 (中文)](docs/README.md)**
+    *   [安装指南](docs/getting-started/installation.md)
+    *   [快速开始](docs/getting-started/quickstart.md)
+    *   [构建 Agent](docs/tutorials/01-your-first-agent.md)
+*   **[English Documentation](docs/en/README.md)**
+    *   [Installation](docs/en/getting-started/installation.md)
+    *   [Quick Start](docs/en/getting-started/quickstart.md)
+    *   [Architecture](docs/en/concepts/architecture.md)
+*   **[核心原理](docs/concepts/architecture.md)**
+    *   [架构设计](docs/concepts/architecture.md)
+    *   [认知动力学](docs/concepts/cognitive-dynamics.md)
 
 ## 🤝 贡献
 
