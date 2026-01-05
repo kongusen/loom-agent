@@ -8,7 +8,7 @@ try:
 except ImportError:
     aioredis = None
 
-from loom.interfaces.transport import Transport, EventHandler
+from . import Transport, EventHandler
 from loom.protocol.cloudevents import CloudEvent
 
 logger = logging.getLogger(__name__)

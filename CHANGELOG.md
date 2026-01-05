@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+
+## [0.3.6] - 2026-01-05
+
+### 🧠 The "Sentient Memory" Release
+
+Loom v0.3.6 brings a massive upgrade to the memory and execution systems, making agents more "sentient" with persistent semantic memory and truly recursive capabilities.
+
+### ✨ Core Features
+
+#### 1. Composite Memory System (L4 Semantic Memory)
+- **Persistency**: Integrated `Qdrant` for vector-based semantic memory. Agents now "remember" facts across sessions.
+- **L1-L4 Hierarchy**: Formalized memory layers:
+    - **L1 (Reaction)**: Ephemeral working memory.
+    - **L2 (Working)**: Short-term task context.
+    - **L3 (Episodic)**: History of past interactions.
+    - **L4 (Semantic)**: Crystallized knowledge and user persona.
+- **Metabolic Lifecycle**: `Ingest` -> `Digest` -> `Assimilate` loop for automated memory consolidation.
+
+#### 2. Protocol-Based Recursive Mechanism
+- **Infinite Delegation**: Agents can delegate tasks to other nodes recursively with no depth limit.
+- **Fractal Orchestrator**: Unifies execution logic, treating every sub-task as a recursive node call.
+- **ToolExecutor Unification**: Merged `FractalOrchestrator` and `ToolExecutor` into a single, robust execution engine.
+
+#### 3. Context Intelligence
+- **Compression**: Smart context compression to retain critical information (L4 facts) while summarizing older interactions.
+- **Token Optimization**: Reduced token usage by ~60% through active context management.
+
+#### 4. Built-in Skills Architecture
+- **DDD Structure**: Skills are now organized using Domain-Driven Design principles.
+- **Native Skills**: Added `device_news`, `device_calendar`, `knowledge_search`, and `device_divination` as standard skills.
+
+### 🐛 Bug Fixes
+- Fixed `net::ERR_CONNECTION_REFUSED` in Manager API.
+- Optimized cache invalidation for voice requests (O(K) complexity).
+- Resolved Docker module errors for `wayne_shared`.
+
 ## [0.3.0] - 2025-12-23
 
 ### 🧬 The "Controlled Fractal" Release

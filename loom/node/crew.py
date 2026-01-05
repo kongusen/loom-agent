@@ -7,9 +7,9 @@ from typing import Any, List, Literal
 from loom.protocol.cloudevents import CloudEvent
 from loom.protocol.interfaces import NodeProtocol
 from loom.node.base import Node
-from loom.kernel.dispatcher import Dispatcher
+from loom.kernel.core import Dispatcher
 from loom.protocol.memory_operations import ContextSanitizer
-from loom.builtin.memory.sanitizers import BubbleUpSanitizer
+from loom.memory.sanitizers import BubbleUpSanitizer
 
 class CrewNode(Node):
     """

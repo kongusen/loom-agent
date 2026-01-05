@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from loom.node.tool import ToolNode
 from loom.protocol.mcp import MCPToolDefinition
-from loom.kernel.dispatcher import Dispatcher
+from loom.kernel.core import Dispatcher
 
 class ToolConfig(BaseModel):
     """

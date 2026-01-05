@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from loom.protocol.cloudevents import CloudEvent
-from loom.kernel.dispatcher import Dispatcher
+from loom.kernel.core import Dispatcher
 
 class Node(ABC):
     """

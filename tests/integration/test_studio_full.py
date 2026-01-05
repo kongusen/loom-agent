@@ -3,7 +3,7 @@ import asyncio
 import os
 import pytest
 from loom.protocol.cloudevents import CloudEvent
-from loom.kernel.interceptors.studio import StudioInterceptor
+from loom.kernel.control.studio import StudioInterceptor
 
 @pytest.mark.asyncio
 async def test_studio_interceptor_connectivity():

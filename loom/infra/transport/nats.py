@@ -11,7 +11,7 @@ except ImportError:
     NATSClient = None # type: ignore
     JetStreamContext = None # type: ignore
 
-from loom.interfaces.transport import Transport, EventHandler
+from . import Transport, EventHandler
 from loom.protocol.cloudevents import CloudEvent
 
 logger = logging.getLogger(__name__)

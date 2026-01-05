@@ -22,7 +22,7 @@
 
 Loom is a **High-Assurance** AI Agent framework designed for building production-grade systems. Unlike frameworks focused on "rapid prototyping," Loom focuses on **Control, Persistence, and Scalability**.
 
-### Core Features (v0.3.0)
+### Core Features (v0.3.6)
 
 1.  **🧬 Controlled Fractal Architecture**:
     *   Agent, Tool, and Crew are all **Nodes**. Nodes can recursively contain other nodes.
@@ -37,6 +37,18 @@ Loom is a **High-Assurance** AI Agent framework designed for building production
     *   Zero core dependencies: Swap LLM Providers (OpenAI/Anthropic) or Transports (Memory/Redis) easily.
 
 4.  **⚡ Universal Event Bus**:
+3.  **🧠 Composite Memory System**:
+    *   **L1-L4 Hierarchy**: From ephemeral reaction (L1) to semantic knowledge (L4).
+    *   **Semantic Persistence**: Integrated Qdrant vector database for cross-session memory and knowledge accumulation.
+    *   **Memory Metabolism**: Automated `Ingest` -> `Digest` -> `Assimilate` consolidation loop.
+    *   **Context Compression**: Smartly compresses history while retaining key facts, significantly reducing token usage.
+
+4.  **🛡️ Protocol-First & Recursion**:
+    *   **Infinite Recursion**: Agents can delegate tasks to other nodes recursively with no depth limit.
+    *   **Unified Execution**: `FractalOrchestrator` unifies tool execution and sub-agent orchestration.
+    *   **Standard Contracts**: All interactions defined by CloudEvents and MCP.
+
+5.  **⚡ Universal Event Bus**:
     *   Based on CloudEvents standard.
     *   Supports full-stack Tracing and Auditing.
 

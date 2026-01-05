@@ -41,9 +41,37 @@ Node (基类)
 
 ## 双系统架构（Dual-Process Architecture）
 
-loom-agent 借鉴认知心理学的双系统理论，实现了两个并行的处理系统：
+loom-agent 借鉴认知心理学的双系统理论，实现了两个并行的处理系统，并通过**自动路由机制**智能选择合适的系统。
 
-### System 1：反应式系统（Fast Path）
+### 自动路由机制（v0.3.6+）
+
+系统会根据查询特征自动选择处理路径：
+
+```
+用户输入 → QueryClassifier → 路由决策
+                              ↓
+                    ┌─────────┴─────────┐
+                    ↓                   ↓
+                System 1            System 2
+              (快速响应)          (深度推理)
+                    ↓                   ↓
+            置信度评估 ←─ 低置信度 ─┘
+                    ↓
+              最终输出
+```
+
+**路由特征**：
+- 查询长度（短查询 → System 1）
+- 代码检测（包含代码 → System 2）
+- 多步骤识别（多步骤 → System 2）
+- 自定义规则（关键词、正则匹配）
+
+**置信度回退**：
+- System 1 响应会被评估置信度
+- 低置信度自动回退到 System 2
+- 确保响应质量
+
+### System 1：快速响应系统
 
 **特点**：快速、直觉、流式输出
 
@@ -53,64 +81,103 @@ loom-agent 借鉴认知心理学的双系统理论，实现了两个并行的处
 
 **实现机制**：
 - 使用流式 API（`stream_chat()`）
-- 发出 `agent.stream.chunk` 事件
+- 最小上下文（500 tokens）
 - 提供即时反馈和响应
 
 **适用场景**：
-- 对话交互
+- 简单对话
 - 快速问答
 - 实时反馈
 
-### System 2：审慎式系统（Slow Path）
+### System 2：深度推理系统
 
-**特点**：深度、理性、思考过程
+**特点**：深度、理性、完整上下文
 
 ```
-用户输入 → EventBus → Agent → 生成 Thought → 深度思考 → Projection → 洞察输出
+用户输入 → EventBus → Agent → 完整上下文 → 深度推理 → 详细输出
 ```
 
 **实现机制**：
-- 创建临时思考节点（Ephemeral Node）
-- 维护认知状态空间（CognitiveState）
-- 通过投影算子（ProjectionOperator）输出洞察
+- 使用完整上下文（8000+ tokens）
+- 深度分析和推理
+- 返回详细结果
 
 **适用场景**：
 - 复杂推理
 - 多步骤规划
 - 深度分析
 
-### 双系统协作
+## 模块分层架构
 
-两个系统并行工作，互相补充：
+loom-agent 采用清晰的分层架构，每层职责明确：
 
 ```
-┌─────────────────────────────────────────┐
-│           用户输入 → EventBus            │
-└──────────────┬──────────────────────────┘
-               │
-       ┌───────┴───────┐
-       │               │
-   System 1         System 2
-   (快速流)         (深度思考)
-       │               │
-   StreamChunks    Thoughts
-       │               │
-       └───────┬───────┘
-               │
-         投影合并 (Projection)
-               │
-           最终输出
+┌─────────────────────────────────────┐
+│         Node Layer (节点层)          │
+│   AgentNode, ToolNode, CrewNode     │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│      Cognition Layer (认知层)       │
+│   Router, Classifier, Confidence    │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│       Memory Layer (记忆层)         │
+│   LoomMemory, Context, Strategy     │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│      Protocol Layer (协议层)        │
+│   CloudEvents, MCP, Delegation      │
+└─────────────────────────────────────┘
 ```
 
-**协作机制**：
-- System 2 在 System 1 开始前或并行启动
-- System 2 的洞察可以通过 `thought_injection` 注入到 System 1 的流中
-- 认知状态（CognitiveState）维护两个系统的共享上下文
+### Protocol 层（协议层）
 
-**认知状态空间（S）**：
-- 高维内部状态：包含所有活跃的思考、记忆、洞察
-- 通过投影算子 π 将 S 投影到低维可观测输出 O
-- 实现了"内部混沌 → 外部有序"的转换
+定义跨模块的接口契约和标准化消息格式：
+
+**核心协议**：
+- `CloudEvents`: 事件格式标准
+- `MCP`: Model Context Protocol（工具定义）
+- `Delegation`: Fractal 架构委托协议
+- `MemoryOperations`: Memory 系统接口契约
+
+**职责**：
+- 统一消息格式
+- 定义接口契约
+- 支持协议扩展
+
+### Cognition 层（认知层）
+
+负责智能路由和决策：
+
+**核心组件**：
+- `QueryClassifier`: 查询分类器（识别查询特征）
+- `AdaptiveRouter`: 自适应路由器（System 1/2 选择）
+- `ConfidenceEstimator`: 置信度评估器（回退决策）
+- `QueryFeatureExtractor`: 特征提取器（统一特征提取）
+
+**职责**：
+- 自动路由决策
+- 置信度评估
+- 特征提取和分析
+
+### Memory 层（记忆层）
+
+管理上下文和记忆：
+
+**核心组件**：
+- `LoomMemory`: 4层分层存储（L1/L2/L3/L4）
+- `ContextManager`: 上下文管理器
+- `ContextAssembler`: 上下文组装器
+- `CurationStrategy`: 策展策略（System1/System2 专用）
+
+**职责**：
+- 分层记忆存储
+- 上下文策展
+- Token 预算管理
+- 异步查询和检索
 
 ## 核心组件
 
@@ -231,7 +298,11 @@ loom-agent 的架构设计体现了以下特点：
 3. **协议优先**：标准化通信，易于集成
 4. **简单优雅**：最小化复杂度，最大化灵活性
 
-## 相关文档
+## 相关文档 (Deep Dives)
 
-- [认知动力学](cognitive-dynamics.md) - 理解 Agent 的认知过程
-- [设计哲学](design-philosophy.md) - 深入了解设计理念
+- [🧠 **双系统架构详解**](dual-system.md) - System 1 与 System 2 路由机制
+- [💾 **记忆与上下文控制**](memory.md) - L1-L4 记忆层级与新陈代谢
+- [🧬 **Agent 模式与节点机制**](agent-node.md) - 分形递归与 Agent 架构
+- [🛡️ **协议与事件总线**](protocol.md) - CloudEvents 与协议优先设计
+- [认知动力学 (旧版参考)](cognitive-dynamics.md)
+- [设计哲学](design-philosophy.md)

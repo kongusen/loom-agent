@@ -81,6 +81,9 @@ This documentation is organized based on the [Diátaxis](https://diataxis.fr/) f
 ### 🛠️ [How-to Guides](guides/)
 **Problem-oriented** - Solve specific problems
 - [Agents](guides/agents/) - Create and configure Agents
+- [Fractal Nodes](guides/fractal-nodes.md) - Build self-organizing agent structures
+- [LLM Streaming](guides/llm-streaming.md) - Handle streaming tool calls
+- [Structured Output](guides/structured-output.md) - Enforce JSON output for Claude/Gemini
 - [Skills](guides/skills/) - Develop custom skills
 - [Configuration](guides/configuration/) - Configuration and deployment
 - [Deployment](guides/deployment/) - Production deployment
