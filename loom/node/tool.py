@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict
 from loom.protocol.cloudevents import CloudEvent
 from loom.protocol.mcp import MCPToolDefinition
 from loom.node.base import Node
-from loom.kernel.dispatcher import Dispatcher
+from loom.kernel.core import Dispatcher
 
 class ToolNode(Node):
     """

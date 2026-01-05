@@ -4,7 +4,7 @@ from typing import Dict, List, Set
 from collections import defaultdict
 import logging
 
-from loom.interfaces.transport import Transport, EventHandler
+from . import Transport, EventHandler
 from loom.protocol.cloudevents import CloudEvent
 
 logger = logging.getLogger(__name__)

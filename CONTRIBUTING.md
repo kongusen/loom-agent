@@ -4,8 +4,8 @@ Thank you for your interest in contributing to Loom Agent! 🎉
 
 ## Quick Links
 
-- **User Guide (English)**: [docs/index.md](docs/index.md)
-- **User Guide (Chinese)**: [docs/zh/index.md](docs/zh/index.md)
+- **User Guide (English)**: [docs/en/README.md](docs/en/README.md)
+- **User Guide (Chinese)**: [docs/README.md](docs/README.md)
 - **Issues**: [GitHub Issues](https://github.com/kongusen/loom-agent/issues)
 
 ## How to Contribute

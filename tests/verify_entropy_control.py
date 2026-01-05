@@ -13,8 +13,8 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from loom.kernel.bus import UniversalEventBus
-from loom.kernel.dispatcher import Dispatcher
+from loom.kernel.core import UniversalEventBus
+from loom.kernel.core import Dispatcher
 from loom.node.agent import AgentNode, ThinkingPolicy
 from loom.protocol.cloudevents import CloudEvent
 from loom.infra.llm import MockLLMProvider

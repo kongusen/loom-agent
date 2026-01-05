@@ -7,8 +7,9 @@ on:
     branches: [main, master]
 
 jobs:
-  test:
-    name: Test
+  # 代码质量检查
+  lint:
+    name: Code Quality (Ruff)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +18,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: 'poetry'
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
@@ -28,5 +30,108 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
 
-      - name: Run Tests
-        run: poetry run pytest --cov=loom --cov-report=xml
+      - name: Run Ruff Linter
+        run: poetry run ruff check .
+
+      - name: Run Ruff Formatter Check
+        run: poetry run ruff format --check .
+
+  # 类型检查
+  type-check:
+    name: Type Check (Mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'poetry'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.7.0
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run Mypy
+        run: poetry run mypy loom
+
+  # 多版本测试
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'poetry'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.7.0
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run Tests with Coverage
+        run: |
+          poetry run pytest \
+            --cov=loom \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --verbose
+
+      - name: Upload Coverage Report
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.11'
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # 安全检查（可选）
+  security:
+    name: Security Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'poetry'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.7.0
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Check for security vulnerabilities
+        run: |
+          poetry export -f requirements.txt --without-hashes --dev -o requirements.txt
+          pip install safety
+          safety check --file requirements.txt || true
+        continue-on-error: true

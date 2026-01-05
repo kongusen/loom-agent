@@ -6,8 +6,8 @@ from typing import Any, List, Dict
 from loom.protocol.cloudevents import CloudEvent
 from loom.protocol.interfaces import NodeProtocol
 from loom.node.base import Node
-from loom.kernel.dispatcher import Dispatcher
-from loom.interfaces.llm import LLMProvider
+from loom.kernel.core import Dispatcher
+from loom.llm import LLMProvider
 
 class AttentionRouter(Node):
     """

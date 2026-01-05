@@ -22,21 +22,30 @@
 
 Loom 是一个**高可靠 (High-Assurance)** 的 AI Agent 框架，专为构建生产级系统而设计。与其他专注于"快速原型"的框架不同，Loom 关注**控制 (Control)、持久化 (Persistence) 和分形扩展 (Fractal Scalability)**。
 
-### 核心特性 (v0.3.x)
+### 核心特性 (v0.3.6)
 
 1.  **🧬 受控分形架构 (Controlled Fractal)**:
     *   Agent、Tool、Crew 都是**节点 (Node)**。节点可以无限递归包含。
     *   即便是最复杂的 Agent 集群，对外也表现为一个简单的函数调用。
 
-2.  **🧠 新陈代谢记忆 (Metabolic Memory)**:
-    *   拒绝无限追加的上下文窗口。Loom 模拟生物代谢：**摄入 (Validate) -> 消化 (Sanitize) -> 同化 (PSO)**。
-    *   长期保持 Agent 的"思维清醒"，防止上下文中毒。
+2.  **🎯 智能路由系统 (Intelligent Routing)**:
+    *   **自动路由**：基于查询特征自动选择 System 1（快速）或 System 2（深度）。
+    *   **置信度评估**：System 1 响应低置信度时自动回退到 System 2。
+    *   **统一配置**：通过 `CognitiveConfig` 统一管理路由、上下文和记忆配置。
+    *   **预设模式**：fast/balanced/deep 三种开箱即用的配置模式。
 
-3.  **🛡️ 协议优先 (Protocol-First)**:
-    *   基于 Python `typing.Protocol` 定义行为契约。
-    *   零依赖核心：你可以轻松替换 LLM Provider (OpenAI/Anthropic) 或 传输层 (Memory/Redis)。
+3.  **🧠 复合记忆系统 (Composite Memory)**:
+    *   **L1-L4 分层存储**：从瞬间反应(L1)到语义知识(L4)的完整记忆谱系。
+    *   **语义持久化**：集成 Qdrant 向量数据库，支持跨会话记忆和知识积累。
+    *   **记忆代谢**：自动化的 `Ingest` -> `Digest` -> `Assimilate` 记忆巩固流程。
+    *   **上下文压缩**：智能压缩历史记录，保留关键事实，大幅降低 Token 消耗。
 
-4.  **⚡ 通用事件总线 (Universal Event Bus)**:
+4.  **🛡️ 协议优先与递归 (Protocol-First & Recursion)**:
+    *   **无限递归**：基于统一协议，支持无限层级的子任务代理（Delegation）。
+    *   **统一执行**：`FractalOrchestrator` 统一了工具调用和子 Agent 编排。
+    *   **标准契约**：基于 CloudEvents 和 MCP 定义所有交互。
+
+5.  **⚡ 通用事件总线 (Universal Event Bus)**:
     *   基于 CloudEvents 标准。
     *   支持全链路追踪 (Tracing) 和 审计 (Auditing)。
 
@@ -50,18 +59,64 @@ pip install loom-agent
 
 ## 🚀 快速上手
 
-使用新的 `loom.weave` API，5分钟构建你的第一个 Agent：
+### 基础示例
+
+使用新的统一配置，5分钟构建你的第一个 Agent：
 
 ```python
 import asyncio
-from loom.weave import create_agent, run
+from loom.kernel.core.bus import UniversalEventBus
+from loom.kernel.core import Dispatcher
+from loom.node.agent import AgentNode
+from loom.config.cognitive import CognitiveConfig
+from loom.llm import OpenAIProvider
 
-# 1. 创建 Agent
-agent = create_agent("Assistant", role="General Assistant")
+async def main():
+    # 1. 创建基础设施
+    bus = UniversalEventBus()
+    dispatcher = Dispatcher(bus=bus)
+    provider = OpenAIProvider(api_key="your-api-key")
 
-# 2. 运行任务
-result = run(agent, "你好，请介绍一下自己")
-print(result)
+    # 2. 创建 Agent（使用平衡模式）
+    agent = AgentNode(
+        node_id="assistant",
+        dispatcher=dispatcher,
+        provider=provider,
+        cognitive_config=CognitiveConfig.balanced_mode()
+    )
+
+    # 3. 运行任务
+    from loom.protocol import CloudEvent
+    event = CloudEvent(
+        type="node.request",
+        source="user",
+        subject="assistant",
+        data={"content": "你好，请介绍一下自己"}
+    )
+    result = await agent.process(event)
+    print(result)
+
+asyncio.run(main())
+```
+
+### 使用预设模式
+
+```python
+# 快速模式 - 适合简单对话
+fast_agent = AgentNode(
+    node_id="chatbot",
+    dispatcher=dispatcher,
+    provider=provider,
+    cognitive_config=CognitiveConfig.fast_mode()
+)
+
+# 深度模式 - 适合复杂分析
+deep_agent = AgentNode(
+    node_id="analyst",
+    dispatcher=dispatcher,
+    provider=provider,
+    cognitive_config=CognitiveConfig.deep_mode()
+)
 ```
 
 > **注意**: 默认情况下 Loom 使用 Mock LLM 方便测试。要接入真实模型（如 OpenAI/Claude），请参阅[文档](docs/getting-started/quickstart.md)。

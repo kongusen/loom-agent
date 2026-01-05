@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
+from loom.config.fractal import FractalConfig
 class ControlConfig(BaseModel):
     """控制配置"""
     budget: Optional[int] = Field(None, description="Token 预算")
@@ -22,6 +23,7 @@ class AgentConfig(BaseModel):
     role: Optional[str] = Field(None, description="自定义角色")
     skills: Optional[List[str]] = Field(None, description="技能列表")
     config: Optional[Dict[str, Any]] = Field(None, description="额外配置")
+    fractal: Optional[FractalConfig] = Field(None, description="分型配置")
 
 
 class CrewConfig(BaseModel):

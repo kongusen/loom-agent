@@ -14,8 +14,8 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from loom.kernel.bus import UniversalEventBus
-from loom.kernel.dispatcher import Dispatcher
+from loom.kernel.core import UniversalEventBus
+from loom.kernel.core import Dispatcher
 from loom.node.agent import AgentNode, ThinkingPolicy
 from loom.node.tool import ToolNode
 from loom.protocol.cloudevents import CloudEvent
@@ -162,7 +162,7 @@ async def test_projection_operator():
     """Test explicit projection operator."""
     print("\n=== Test 4: Projection Operator ===")
 
-    from loom.kernel.cognitive_state import (
+    from loom.kernel.core import (
         CognitiveState,
         ProjectionOperator,
         Thought,

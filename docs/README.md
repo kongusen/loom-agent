@@ -33,6 +33,9 @@ result = run(agent, "你好，请介绍一下自己")
 **问题导向** - 解决具体问题
 
 - [Agents](guides/agents/) - 创建和配置 Agent
+- [分形节点](guides/fractal-nodes.md) - 构建自组织 Agent 结构
+- [LLM 流式调用](guides/llm-streaming.md) - 处理流式工具调用
+- [结构化输出](guides/structured-output.md) - Claude/Gemini JSON 输出指南
 - [Skills](guides/skills/) - 开发自定义技能
 - [Configuration](guides/configuration/) - 配置和部署
 - [Deployment](guides/deployment/) - 生产环境部署

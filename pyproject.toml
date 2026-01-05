@@ -62,3 +62,53 @@ filterwarnings = [
   "ignore::DeprecationWarning",
   "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [
+  ".git",
+  ".venv",
+  "__pycache__",
+  "*.egg-info",
+  ".pytest_cache",
+  ".mypy_cache",
+  "build",
+  "dist",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # Pyflakes
+  "I",   # isort
+  "B",   # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "UP",  # pyupgrade
+  "ARG", # flake8-unused-arguments
+  "SIM", # flake8-simplify
+]
+ignore = [
+  "E501",  # line too long (handled by formatter)
+  "B008",  # do not perform function calls in argument defaults
+  "C901",  # too complex
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["loom"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = [
+  "tests/",
+  "examples/",
+  "build/",
+  "dist/",
+]
