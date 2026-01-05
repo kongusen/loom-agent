@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main, master]
+    tags:
+      - 'v*'
   pull_request:
     branches: [main, master]
 
@@ -21,11 +23,9 @@ jobs:
           cache: 'poetry'
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.7.0
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -50,11 +50,9 @@ jobs:
           cache: 'poetry'
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.7.0
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -81,11 +79,9 @@ jobs:
           cache: 'poetry'
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.7.0
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -120,11 +116,9 @@ jobs:
           cache: 'poetry'
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.7.0
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: poetry install --no-interaction
