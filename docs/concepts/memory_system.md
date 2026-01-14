@@ -128,6 +128,13 @@ config = MemoryConfig(
 
 Loom 支持多种向量存储后端，您可以根据需求选择：
 
+**重要说明：向量维度配置**
+- 向量维度必须与您使用的 Embedding 模型匹配
+- **BGE 模型** (BAAI/bge-small-zh-v1.5): 512 维
+- **OpenAI text-embedding-3-small**: 1536 维
+- **OpenAI text-embedding-3-large**: 3072 维
+- 配置向量存储时，请确保 `vector_size`/`vector_dimensions` 参数与您的 Embedding 模型一致
+
 #### 1. Qdrant（推荐用于生产环境）
 ```python
 vector_store=VectorStoreConfig(

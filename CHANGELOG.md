@@ -32,7 +32,7 @@ Loom v0.3.8 adds PostgreSQL (pgvector) support for L4 memory vectorization, prov
 
 ### 🔧 Improvements
 
-- **Vector Dimensions**: Updated default vector size from 1536 to 512 (BGE embedding)
+- **Vector Dimensions**: Clarified that vector dimensions depend on the embedding model used (BGE: 512, OpenAI: 1536+)
 - **Documentation Clarity**: Improved clarity around persistent storage and cross-session memory
 - **Configuration Examples**: Added comprehensive examples for all vector store providers
 
