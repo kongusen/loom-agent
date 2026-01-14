@@ -40,10 +40,10 @@ class ToolNode(Node):
             # Check if func is async
             import inspect
             if inspect.iscoroutinefunction(self.func):
-                result = await self.func(args)
+                result = await self.func(**args)  # Unpack dict as keyword arguments
             else:
-                result = self.func(args)
-                
+                result = self.func(**args)  # Unpack dict as keyword arguments
+
             return {"result": result}
         except Exception as e:
             # Re-raise to trigger node.error in Base Node

@@ -87,7 +87,16 @@ class MemoryUnit:
         elif self.type == MemoryType.THOUGHT:
             return {"role": "assistant", "content": f"💭 {self.content}"}
         elif self.type == MemoryType.TOOL_CALL:
-            return {"role": "assistant", "content": f"🔧 Calling {self.content.get('name', 'unknown')}"}
+            # Handle both single tool call (dict) and multiple tool calls (list)
+            if isinstance(self.content, list):
+                # Multiple tool calls
+                tool_names = [tc.get('name', 'unknown') if isinstance(tc, dict) else 'unknown' for tc in self.content]
+                return {"role": "assistant", "content": f"🔧 Calling {', '.join(tool_names)}"}
+            elif isinstance(self.content, dict):
+                # Single tool call
+                return {"role": "assistant", "content": f"🔧 Calling {self.content.get('name', 'unknown')}"}
+            else:
+                return {"role": "assistant", "content": f"🔧 Tool call: {str(self.content)}"}
         else:
             return {"role": "system", "content": str(self.content)}
     

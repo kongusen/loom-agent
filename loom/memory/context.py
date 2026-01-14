@@ -19,14 +19,16 @@ class ContextAssembler:
     Assembles memory units into an LLM-compatible prompt.
     Handles curation, token budgeting, and formatting.
     """
-    
+
     def __init__(
         self,
         config: Optional[ContextConfig] = None,
-        llm_provider: Optional[Any] = None
+        llm_provider: Optional[Any] = None,
+        dispatcher: Optional[Any] = None
     ):
         self.config = config or ContextConfig()
         self.strategy = StrategyFactory.create(self.config.strategy)
+        self.dispatcher = dispatcher
 
         # Initialize Tokenizer (Default to cl100k_base for GPT-4)
         try:
@@ -56,7 +58,19 @@ class ContextAssembler:
             self.config.curation_config,
             task_context=task
         )
-        
+
+        # Publish curation event
+        if self.dispatcher:
+            from loom.protocol.cloudevents import CloudEvent
+            await self.dispatcher.bus.publish(CloudEvent(
+                type="agent.context.curated",
+                source=memory.node_id,
+                data={
+                    "items_count": len(curated_units),
+                    "strategy": self.config.strategy
+                }
+            ))
+
         # 1.5 Compression (Token-based trigger)
         # Sort by time first to enable linear compression
         curated_units.sort(key=lambda u: u.created_at)
@@ -64,6 +78,19 @@ class ContextAssembler:
         # Check if we need compression using token count
         token_count = self.compressor._count_tokens(curated_units)
         if token_count > self.compressor.token_threshold:
+            # Publish compression event
+            if self.dispatcher:
+                from loom.protocol.cloudevents import CloudEvent
+                await self.dispatcher.bus.publish(CloudEvent(
+                    type="agent.context.compressing",
+                    source=memory.node_id,
+                    data={
+                        "original_tokens": token_count,
+                        "threshold": self.compressor.token_threshold,
+                        "items_before": len(curated_units)
+                    }
+                ))
+
             # Compress history
             curated_units = ContextCompressor.compress_history(curated_units)
 
@@ -91,6 +118,18 @@ class ContextAssembler:
         # Calculate dynamic budget based on task complexity
         max_tokens = self._calculate_dynamic_budget(task, memory)
 
+        # Publish budget allocation event
+        if self.dispatcher:
+            from loom.protocol.cloudevents import CloudEvent
+            await self.dispatcher.bus.publish(CloudEvent(
+                type="agent.context.budget_allocated",
+                source=memory.node_id,
+                data={
+                    "max_tokens": max_tokens,
+                    "available_items": len(curated_units)
+                }
+            ))
+
         # Reserve space for system prompt
         if system_prompt:
              current_tokens += self._count_tokens_str(system_prompt)
@@ -98,13 +137,44 @@ class ContextAssembler:
         for unit in curated_units:
             msg = unit.to_message()
             msg_tokens = self._count_tokens_msg(msg)
-            
+
             if current_tokens + msg_tokens > max_tokens:
                 continue # Skip if over budget (greedy approach)
-            
+
             selected_units.append(unit)
             current_tokens += msg_tokens
-            
+
+            # Publish progressive loading event
+            if self.dispatcher:
+                from loom.protocol.cloudevents import CloudEvent
+                await self.dispatcher.bus.publish(CloudEvent(
+                    type="agent.context.item_loaded",
+                    source=memory.node_id,
+                    data={
+                        "tier": unit.tier.value,
+                        "type": unit.type.value,
+                        "tokens": msg_tokens,
+                        "total_tokens": current_tokens,
+                        "budget_used_percent": round((current_tokens / max_tokens) * 100, 2)
+                    }
+                ))
+
+        # Publish final budget summary
+        if self.dispatcher:
+            from loom.protocol.cloudevents import CloudEvent
+            await self.dispatcher.bus.publish(CloudEvent(
+                type="agent.context.budget_finalized",
+                source=memory.node_id,
+                data={
+                    "selected_items": len(selected_units),
+                    "total_items": len(curated_units),
+                    "tokens_used": current_tokens,
+                    "max_tokens": max_tokens,
+                    "budget_used_percent": round((current_tokens / max_tokens) * 100, 2),
+                    "items_skipped": len(curated_units) - len(selected_units)
+                }
+            ))
+
         # 4. Final Ordering (Cache-Aware)
         # Static/Long-term content first (System -> L4 -> L3 -> L2 -> L1)
         # This increases KV cache hit rate for persistent prefixes.

@@ -17,9 +17,6 @@ from loom.config.fractal import (
 # 执行配置
 from loom.config.execution import ExecutionConfig
 
-# 路由配置
-from loom.config.router import RouterConfig, RouterRule
-
 # Memory 配置
 from loom.config.memory import (
     ContextConfig,
@@ -53,10 +50,6 @@ __all__ = [
 
     # 执行配置
     "ExecutionConfig",
-
-    # 路由配置
-    "RouterConfig",
-    "RouterRule",
 
     # Memory 配置
     "ContextConfig",

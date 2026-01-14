@@ -115,9 +115,7 @@ agent = AgentNode(
 # 创建自定义配置
 custom_config = CognitiveConfig.default()
 
-# 调整路由参数
-custom_config.router_max_s1_length = 50  # System 1 最大查询长度
-custom_config.router_s1_confidence_threshold = 0.75  # 置信度阈值
+# 调整上下文参数（路由已移除，使用特征提取自动路由）
 
 # 调整上下文参数
 custom_config.curation_max_tokens = 6000  # 上下文最大 token 数
@@ -136,11 +134,6 @@ agent = AgentNode(
 ```
 
 ### 配置参数说明
-
-**路由配置**:
-- `router_max_s1_length`: System 1 处理的最大查询长度（词数）
-- `router_s1_confidence_threshold`: System 1 置信度阈值（0-1）
-- `router_enable_heuristics`: 是否启用启发式路由
 
 **上下文配置**:
 - `curation_max_tokens`: 策展后的最大 token 数

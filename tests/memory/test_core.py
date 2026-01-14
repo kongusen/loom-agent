@@ -141,8 +141,94 @@ class TestLoomMemory:
             importance=0.9
         ))
 
-        projection = memory.create_projection("Child Task")
+        projection = await memory.create_projection("Child Task")
 
         assert projection.instruction == "Child Task"
         assert projection.parent_plan == "Global Plan"
         assert len(projection.relevant_facts) > 0
+
+    @pytest.mark.asyncio
+    async def test_mode_detection(self):
+        """Test automatic mode detection (English and Chinese)."""
+        from loom.projection.profiles import ProjectionMode
+
+        memory = LoomMemory("test_node")
+
+        # Test DEBUG mode detection - English
+        assert memory._detect_mode("Fix the error in the code") == ProjectionMode.DEBUG
+        assert memory._detect_mode("Debug this issue") == ProjectionMode.DEBUG
+        assert memory._detect_mode("Retry the failed request") == ProjectionMode.DEBUG
+
+        # Test DEBUG mode detection - Chinese
+        assert memory._detect_mode("修复这个错误") == ProjectionMode.DEBUG
+        assert memory._detect_mode("调试这个问题") == ProjectionMode.DEBUG
+        assert memory._detect_mode("重试失败的请求") == ProjectionMode.DEBUG
+
+        # Test ANALYTICAL mode detection - English
+        assert memory._detect_mode("Analyze the performance") == ProjectionMode.ANALYTICAL
+        assert memory._detect_mode("Evaluate the results") == ProjectionMode.ANALYTICAL
+        assert memory._detect_mode("Research this topic") == ProjectionMode.ANALYTICAL
+
+        # Test ANALYTICAL mode detection - Chinese
+        assert memory._detect_mode("分析系统性能") == ProjectionMode.ANALYTICAL
+        assert memory._detect_mode("评估这个结果") == ProjectionMode.ANALYTICAL
+        assert memory._detect_mode("研究这个主题") == ProjectionMode.ANALYTICAL
+
+        # Test CONTEXTUAL mode detection - English
+        assert memory._detect_mode("Continue the previous discussion") == ProjectionMode.CONTEXTUAL
+        assert memory._detect_mode("Based on earlier context") == ProjectionMode.CONTEXTUAL
+
+        # Test CONTEXTUAL mode detection - Chinese
+        assert memory._detect_mode("继续之前的讨论") == ProjectionMode.CONTEXTUAL
+        assert memory._detect_mode("基于刚才的上下文") == ProjectionMode.CONTEXTUAL
+
+        # Test MINIMAL mode detection - English (short instruction)
+        assert memory._detect_mode("Get status") == ProjectionMode.MINIMAL
+        assert memory._detect_mode("Check") == ProjectionMode.MINIMAL
+
+        # Test MINIMAL mode detection - Chinese (short instruction)
+        assert memory._detect_mode("查询状态") == ProjectionMode.MINIMAL
+        assert memory._detect_mode("检查") == ProjectionMode.MINIMAL
+
+        # Test STANDARD mode (default) - English
+        assert memory._detect_mode("Process the user data and generate report") == ProjectionMode.STANDARD
+
+        # Test STANDARD mode (default) - Chinese
+        assert memory._detect_mode("处理用户数据并生成报告") == ProjectionMode.STANDARD
+
+    @pytest.mark.asyncio
+    async def test_projection_with_mode(self):
+        """Test projection with explicit mode parameter."""
+        from loom.projection.profiles import ProjectionMode
+
+        memory = LoomMemory("test_node")
+
+        # Add some facts with different importance
+        for i in range(10):
+            await memory.add(MemoryUnit(
+                content=f"Fact {i}",
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT,
+                importance=0.5 + (i * 0.05)
+            ))
+
+        # Test with MINIMAL mode (should select fewer facts)
+        projection_minimal = await memory.create_projection(
+            instruction="Quick check",
+            mode=ProjectionMode.MINIMAL
+        )
+        assert len(projection_minimal.relevant_facts) <= 2
+
+        # Test with ANALYTICAL mode (should select more facts)
+        projection_analytical = await memory.create_projection(
+            instruction="Analyze the system",
+            mode=ProjectionMode.ANALYTICAL
+        )
+        assert len(projection_analytical.relevant_facts) <= 15
+
+        # Test with STANDARD mode
+        projection_standard = await memory.create_projection(
+            instruction="Process data",
+            mode=ProjectionMode.STANDARD
+        )
+        assert len(projection_standard.relevant_facts) <= 8

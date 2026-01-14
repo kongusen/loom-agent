@@ -24,9 +24,7 @@ from loom.memory.types import (
 from loom.config.memory import ContextConfig, CurationConfig
 from loom.tools.registry import ToolRegistry
 
-# System 1/2 Components
-from loom.cognition.router import QueryClassifier, AdaptiveRouter, SystemType, RoutingDecision
-from loom.config.router import RouterConfig
+# Cognitive Components
 from loom.config.cognitive import CognitiveConfig
 from loom.cognition.confidence import ConfidenceEstimator
 from loom.memory.system_strategies import System1Strategy, System2Strategy
@@ -109,8 +107,8 @@ class AgentNode(Node):
         f_config = self.get_fractal_config()
         if f_config and f_config.enable_explicit_delegation:
             from loom.kernel.fractal import FractalOrchestrator, OrchestratorConfig
-            from loom.kernel.fractal import Synthesizer as ResultSynthesizer
-            from loom.kernel.fractal import SynthesisStrategy as SynthesisConfig
+            from loom.kernel.fractal import ResultSynthesizer
+            from loom.kernel.fractal import SynthesisConfig
 
             orchestrator_config = OrchestratorConfig(
                 allow_recursive_delegation=f_config.allow_recursive_delegation,
@@ -148,20 +146,17 @@ class AgentNode(Node):
 
         # Dual Context Managers (from unified config)
         self.s1_config = self.cognitive_config.get_s1_context_config()
-        self.s1_assembler = ContextAssembler(config=self.s1_config)
+        self.s1_assembler = ContextAssembler(config=self.s1_config, dispatcher=self.dispatcher)
         self.s1_context = ContextManager(node_id, self.memory, self.s1_assembler)
 
         self.s2_config = self.cognitive_config.get_s2_context_config()
-        self.s2_assembler = ContextAssembler(config=self.s2_config)
+        self.s2_assembler = ContextAssembler(config=self.s2_config, dispatcher=self.dispatcher)
         self.s2_context = ContextManager(node_id, self.memory, self.s2_assembler)
 
         # Default to S2 context for backward compatibility
         self.context = self.s2_context
 
-        # --- Cognitive Routing (from unified config) ---
-        self.router_config = self.cognitive_config.get_router_config()
-        self.classifier = QueryClassifier(config=self.router_config)
-        self.router = AdaptiveRouter(self.classifier, config=self.router_config)
+        # --- Confidence Estimation ---
         self.confidence_estimator = ConfidenceEstimator()
 
         # Apply Projection (Fractal Inheritance)
@@ -189,7 +184,7 @@ class AgentNode(Node):
         """Ingest projected context from parent."""
         units = projection.to_memory_units()
         for unit in units:
-            self.memory.add(unit)
+            self.memory.add_sync(unit)  # Use sync version for projection
 
     def _register_internal_tools(self):
         """Register memory management tools."""
@@ -200,7 +195,7 @@ class AgentNode(Node):
             Args:
                 resource_id: The ID of the snippet to expand.
             """
-            return self.context.load_resource(resource_id)
+            return await self.context.load_resource(resource_id)
             
         async def save_to_longterm(content: str, importance: float = 0.8) -> str:
             """
@@ -301,7 +296,26 @@ class AgentNode(Node):
         
         # Create Fractal Child Node with Projection
         # Project current context to child
-        projection = self.memory.create_projection(instruction=task)
+        projection = await self.memory.create_projection(
+            instruction=task,
+            total_budget=2000  # 投影预算
+        )
+
+        units = projection.to_memory_units()
+
+        # Publish context projection event (from parent perspective)
+        await self.dispatcher.dispatch(CloudEvent.create(
+            source=self.source_uri,
+            type="agent.context.projected",
+            data={
+                "target_node": thought_id,
+                "parent_node": self.node_id,
+                "projected_items": len(units),
+                "has_plan": projection.parent_plan is not None,
+                "facts_count": len(projection.relevant_facts) if projection.relevant_facts else 0,
+                "instruction_summary": task[:100]
+            }
+        ))
 
         thought_node = AgentNode(
             node_id=thought_id,
@@ -311,9 +325,23 @@ class AgentNode(Node):
             provider=self.provider,
             context_config=self.context_config, # Inherit configs
             context_projection=projection,      # Inherit context
-            thinking_policy=ThinkingPolicy(enabled=False), 
+            thinking_policy=ThinkingPolicy(enabled=False),
             current_depth=self.current_depth + 1
         )
+
+        # Publish projection received event (from child perspective)
+        await self.dispatcher.dispatch(CloudEvent.create(
+            source=f"node/{thought_id}",
+            type="agent.context.projection_received",
+            data={
+                "parent_node": self.node_id,
+                "child_node": thought_id,
+                "received_items": len(units),
+                "has_plan": projection.parent_plan is not None,
+                "facts_count": len(projection.relevant_facts) if projection.relevant_facts else 0,
+                "depth": self.current_depth + 1
+            }
+        ))
 
         await self.dispatcher.register_ephemeral(thought_node)
         self._active_thoughts.append(thought_id)
@@ -343,77 +371,113 @@ class AgentNode(Node):
             type=MemoryType.MESSAGE
         ))
 
-        # 1. Routing Decision
-        # Check context requirements (e.g. if tools are strictly needed)
-        context_info = {"requires_tools": "tool" in str(task).lower()} 
-        decision = self.router.route(str(task), context_info)
-        
-        # Emulate thinking/classification event? Optional but good for debug
-        # print(f"[{self.node_id}] Routing: {decision.system} (conf={decision.confidence:.2f})")
+        # Execute task directly (no routing)
+        return await self._execute_task(task, event)
 
-        # 2. Execute based on System
-        if decision.system == SystemType.SYSTEM_1:
-             return await self._execute_system1(task, decision)
-        
-        # Default to System 2 (or Adaptive fallback which we implement as S2 for now)
-        return await self._execute_system2(task, decision, event)
-
-    async def _execute_system1(self, task: str, decision: RoutingDecision, event: Optional[CloudEvent] = None) -> Any:
-        """Fast Path: Single Turn, Minimal Context with Confidence Evaluation."""
-        # 1. Build Prompt (Fast Strategy)
-        messages = await self.s1_context.build_prompt(task, "Answer directly and concisely.")
-
-        # 2. Call LLM (No tools passed to enforce reflex)
-        try:
-            response = await self.provider.chat(messages)
-        except Exception as e:
-            return f"System 1 Error: {e}"
-
-        content = getattr(response, "content", "") if not isinstance(response, dict) else response.get("content", "")
-
-        # 3. Evaluate Confidence
-        confidence_result = self.confidence_estimator.estimate(
-            query=task,
-            response=content
-        )
-
-        # 4. Check if we should fallback to System 2
-        if self.router.should_fallback(confidence_result.score):
-            # Record switch
-            self.classifier.record_switch()
-
-            # Fallback to System 2
-            if event:
-                return await self._execute_system2(task, decision, event)
-            else:
-                # If no event, return with low confidence indicator
-                return {
-                    "response": content,
-                    "system": "SYSTEM_1_UNCERTAIN",
-                    "confidence": confidence_result.score,
-                    "reasoning": confidence_result.reasoning,
-                    "should_retry_s2": True
-                }
-
-        # 5. Record & Return (Confident S1 response)
-        self.memory.add(MemoryUnit(
-            content=content,
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.THOUGHT
-        ))
-
-        result = {
-            "response": content,
-            "system": "SYSTEM_1",
-            "confidence": confidence_result.score,
-            "reasoning": confidence_result.reasoning
-        }
-        return result
-
-    async def _execute_system2(self, task: str, decision: RoutingDecision, event: CloudEvent) -> Any:
-        """Slow Path: ReAct Loop, Full Context."""
-        # This wraps the original _execute_loop logic
+    async def _execute_task(self, task: str, event: Optional[CloudEvent] = None) -> Any:
+        """Execute task using standard ReAct loop."""
+        if event is None:
+            # Create a simple event if not provided
+            event = CloudEvent(
+                type="node.request",
+                source=self.node_id,
+                data={"task": task}
+            )
         return await self._execute_loop(event)
+
+    async def _call_llm_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None
+    ) -> 'LLMResponse':
+        """
+        调用LLM并通过事件总线发布流式响应
+        """
+        from loom.llm.interface import LLMResponse
+
+        # 累积变量
+        full_content = ""
+        tool_calls_buffer = {}
+
+        try:
+            # 调用流式API
+            async for chunk in self.provider.stream_chat(messages, tools=tools):
+                if chunk.type == "text":
+                    # 通过事件总线发布文本内容
+                    text = str(chunk.content)
+                    await self.dispatcher.bus.publish(CloudEvent(
+                        type="agent.stream.text",
+                        source=self.node_id,
+                        data={"content": text}
+                    ))
+                    full_content += text
+
+                elif chunk.type == "tool_call_start":
+                    # 工具调用开始
+                    if isinstance(chunk.content, dict):
+                        tool_id = chunk.metadata.get("tool_call_index", 0)
+                        tool_name = chunk.content.get("name", "")
+                        tool_calls_buffer[tool_id] = {
+                            "id": chunk.metadata.get("tool_call_id", ""),
+                            "name": tool_name,
+                            "arguments": ""
+                        }
+                        # 发布工具调用开始事件
+                        await self.dispatcher.bus.publish(CloudEvent(
+                            type="agent.stream.tool_call_start",
+                            source=self.node_id,
+                            data={"tool_name": tool_name}
+                        ))
+
+                elif chunk.type == "tool_call_delta":
+                    # 工具调用参数增量
+                    if isinstance(chunk.content, dict):
+                        tool_id = chunk.metadata.get("tool_call_index", 0)
+                        if tool_id in tool_calls_buffer:
+                            tool_calls_buffer[tool_id]["arguments"] += chunk.content.get("arguments", "")
+
+                elif chunk.type == "tool_call_complete":
+                    # 工具调用完成
+                    if isinstance(chunk.content, dict):
+                        tool_id = chunk.metadata.get("tool_call_index", 0)
+                        if tool_id in tool_calls_buffer:
+                            tool_calls_buffer[tool_id]["arguments"] = chunk.content.get("arguments", "")
+                            # 发布工具调用完成事件
+                            await self.dispatcher.bus.publish(CloudEvent(
+                                type="agent.stream.tool_call_complete",
+                                source=self.node_id,
+                                data={
+                                    "tool_name": tool_calls_buffer[tool_id]["name"],
+                                    "arguments": tool_calls_buffer[tool_id]["arguments"]
+                                }
+                            ))
+
+                elif chunk.type == "done":
+                    # 流结束
+                    await self.dispatcher.bus.publish(CloudEvent(
+                        type="agent.stream.done",
+                        source=self.node_id,
+                        data={"content": full_content}
+                    ))
+                    break
+
+            # 转换tool_calls为列表
+            tool_calls = list(tool_calls_buffer.values())
+
+            return LLMResponse(
+                content=full_content,
+                tool_calls=tool_calls,
+                token_usage=None
+            )
+
+        except Exception as e:
+            # 发布错误事件
+            await self.dispatcher.bus.publish(CloudEvent(
+                type="agent.stream.error",
+                source=self.node_id,
+                data={"error": str(e)}
+            ))
+            raise
 
     async def _execute_loop(self, event: CloudEvent) -> Any:
         """Standard ReAct Loop using ContextManager."""
@@ -448,12 +512,13 @@ class AgentNode(Node):
             external_definitions = [t.tool_def for t in self.known_tools.values()]
             
             # Convert internal definitions to dicts (model_dump) if needed by provider
-            # Assuming provider expects dicts or objects. 
-            # loom.protocol.mcp.MCPToolDefinition likely has model_dump
-            all_tools_dumps = [d.model_dump() for d in internal_definitions + external_definitions]
+            # Use by_alias=True to preserve camelCase field names (e.g., inputSchema)
+            # that OpenAI and other providers expect
+            all_tools_dumps = [d.model_dump(by_alias=True) for d in internal_definitions + external_definitions]
 
             try:
-                response = await self.provider.chat(messages, tools=all_tools_dumps)
+                # 使用流式输出（实时显示思考过程）
+                response = await self._call_llm_stream(messages, tools=all_tools_dumps)
             except Exception as e:
                 return f"Error calling LLM: {str(e)}"
             

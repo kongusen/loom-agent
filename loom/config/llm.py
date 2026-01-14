@@ -76,7 +76,7 @@ class StructuredOutputConfig(BaseModel):
         "text",
         description="输出格式：json_object（声明式）或 json_schema（Schema方式）"
     )
-    schema: Optional[Dict[str, Any]] = Field(
+    json_schema: Optional[Dict[str, Any]] = Field(
         None,
         description="JSON Schema 定义（用于 json_schema 格式）"
     )
@@ -102,14 +102,14 @@ class StructuredOutputConfig(BaseModel):
 
         elif self.format == "json_schema":
             # Schema 方式配置
-            if not self.schema:
+            if not self.json_schema:
                 raise ValueError("json_schema format requires schema to be provided")
 
             return {
                 "type": "json_schema",
                 "json_schema": {
                     "name": self.schema_name or "response",
-                    "schema": self.schema,
+                    "schema": self.json_schema,
                     "strict": self.strict
                 }
             }
@@ -224,10 +224,10 @@ class LLMConfig(BaseModel):
         if self.structured_output.enabled:
             if self.structured_output.format == "json_object":
                 kwargs["response_format"] = {"type": "json_object"}
-            elif self.structured_output.schema:
+            elif self.structured_output.json_schema:
                 kwargs["response_format"] = {
                     "type": "json_schema",
-                    "json_schema": self.structured_output.schema
+                    "json_schema": self.structured_output.json_schema
                 }
 
         # 高级配置

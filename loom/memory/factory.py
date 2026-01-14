@@ -63,6 +63,10 @@ def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
         from .embedding import OpenAIEmbeddingProvider
         base_provider = OpenAIEmbeddingProvider(**config.provider_config)
 
+    elif provider == "bge":
+        from .embedding import BGEEmbeddingProvider
+        base_provider = BGEEmbeddingProvider(**config.provider_config)
+
     elif provider == "mock":
         from .embedding import MockEmbeddingProvider
         base_provider = MockEmbeddingProvider(**config.provider_config)

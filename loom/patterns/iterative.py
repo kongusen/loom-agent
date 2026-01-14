@@ -32,7 +32,7 @@ class IterativePattern(Pattern):
     def get_config(self):
         """获取迭代模式配置"""
         from loom.api.loom import LoomConfig
-        from loom.config import AgentConfig, RouterConfig
+        from loom.config import AgentConfig
 
         return LoomConfig(
             agent=AgentConfig(
@@ -42,9 +42,5 @@ class IterativePattern(Pattern):
                     "Iteratively improve solutions, learn from feedback, "
                     "and continuously optimize for quality."
                 )
-            ),
-            router=RouterConfig(
-                complexity_threshold=0.7,
-                confidence_threshold=0.7,  # 中等信心阈值
             )
         )

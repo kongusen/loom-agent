@@ -3,6 +3,64 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.7] - 2026-01-14
+
+### 🎯 The "Simplified Cognition" Release
+
+Loom v0.3.7 focuses on architectural simplification and enhanced context projection, removing the Router system while maintaining dual-system thinking capabilities.
+
+### 🔴 Breaking Changes
+
+#### 1. Router System Removed
+- **Removed**: `loom/cognition/router.py` (QueryClassifier, AdaptiveRouter, SystemType, RoutingDecision)
+- **Removed**: `loom/config/router.py` (RouterConfig)
+- **Removed**: `LoomBuilder.with_system12_routing()` method
+- **Removed**: Router-related configurations from `CognitiveSystemConfig`
+
+**Migration**: System 1/2 dual-system thinking is still supported through `ContextManager` and `ConfidenceEstimator`. The routing logic is now implicit based on query features and confidence scores.
+
+### ✨ New Features
+
+#### 2. Enhanced Projection System
+- **Async Projection**: `create_projection()` is now an async method
+- **Budget Control**: New `total_budget` parameter (default: 2000 tokens)
+- **Projection Modes**: Support for 5 projection modes (MINIMAL, STANDARD, CONTEXTUAL, ANALYTICAL, DEBUG)
+- **Auto Mode Detection**: Automatically detects appropriate projection mode based on instruction
+- **Event Publishing**: New `agent.context.projected` event for observability
+
+#### 3. Enhanced Memory System
+- **Sync Addition**: New `add_sync()` method for projection (skips vectorization)
+- **L4 Compression**: Automatic L4 knowledge base compression when facts exceed threshold
+- **Performance**: Improved projection performance by using sync operations
+
+#### 4. Enhanced Feature Extraction
+- **Tool Detection**: New `tool_required` field in `QueryFeatures`
+- **Multilingual Support**: Tool intent detection supports Chinese and English keywords
+- **Better Classification**: Improved query classification accuracy
+
+### 🔧 Improvements
+
+#### 5. Simplified Configuration
+- **CognitiveSystemConfig**: Simplified from "routing + memory + context" to "memory + context"
+- **Builder API**: Removed `AgentMetaConfig`, using direct `role` and `system_prompt` fields
+- **Less Nesting**: Reduced configuration complexity
+
+#### 6. Code Quality
+- **ContextAssembler**: Now requires `dispatcher` parameter for event publishing
+- **Async Methods**: `load_resource()` is now async
+- **Import Cleanup**: Simplified imports in FractalOrchestrator
+
+### 📚 Documentation
+
+- Updated architecture documentation to reflect Router removal
+- Added comprehensive projection strategy documentation
+- Updated memory system documentation with L4 compression details
+
+### 🐛 Bug Fixes
+
+- Fixed projection context not being properly applied to child agents
+- Improved error handling in projection creation
+
 ## [0.3.6] - 2026-01-05
 
 ### 🧠 The "Sentient Memory" Release

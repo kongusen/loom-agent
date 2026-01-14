@@ -41,6 +41,7 @@ Loom 采用四级记忆结构，模拟人类大脑的记忆处理过程。
 - **技术实现**：
     - **向量存储**：使用 Vector Store (Qdrant/Chroma) 存储 Embedding。
     - **语义检索**：支持 Top-K 语义相似度搜索。
+    - **自动压缩**：当facts数量超过阈值时，自动聚类并压缩相似facts（v0.3.7+）。
 
 ---
 
@@ -67,11 +68,31 @@ graph LR
 ### 2. L2/L3 → L4：知识提取
 不仅仅是存储文本，更是提取知识：
 
-- **提取器 (Extractor)**：分析对话，识别出具有长期价值的“事实” (Facts)。
+- **提取器 (Extractor)**：分析对话，识别出具有长期价值的"事实" (Facts)。
 - **重要性过滤**：对提取的事实打分 (0-1)，仅保留 Score > 0.8 的高价值事实。
 - **自动向量化**：
-    - **Embedding**：使用 OpenAI/HuggingFace 模型将文本转为向量。
+    - **Embedding**：使用 BGE (BAAI/bge-small-zh-v1.5) 模型将文本转为向量，支持中英文，512维（v0.3.7+默认）。
     - **索引**：存入向量数据库，建立索引。
+
+### 3. L4 自动压缩（v0.3.7+）
+
+当L4知识库中的facts数量超过阈值（默认150）时，系统会自动触发压缩：
+
+- **聚类算法**：使用基于余弦相似度的聚类算法，将相似的facts分组。
+- **LLM总结**：对每个聚类使用LLM生成总结，将多个相似facts压缩为一个。
+- **保留策略**：小于最小聚类大小（默认3）的facts保持原样，避免过度压缩。
+- **自动触发**：在添加L4 facts时自动检查并触发压缩。
+
+**配置示例**：
+```python
+# 启用L4自动压缩
+memory.enable_l4_compression(
+    llm_provider=your_llm_provider,
+    threshold=150,              # 触发压缩的facts数量阈值
+    similarity_threshold=0.75,  # 聚类相似度阈值
+    min_cluster_size=3         # 最小聚类大小
+)
+```
 
 ---
 
@@ -126,6 +147,48 @@ results = await memory.query(MemoryQuery(
     top_k=3
 ))
 ```
+
+### 上下文投影（v0.3.7+）
+
+LoomMemory 支持为子节点创建上下文投影，实现智能的上下文传递：
+
+**投影模式**：
+- **STANDARD**：标准模式，平衡plan和facts
+- **MINIMAL**：最小模式，仅包含必要信息
+- **DEBUG**：调试模式，包含更多上下文
+- **ANALYTICAL**：分析模式，强调facts和证据
+- **CONTEXTUAL**：上下文模式，强调历史信息
+
+**自动模式检测**：
+系统会根据任务指令自动检测合适的投影模式：
+- 包含"错误"、"修复"等关键词 → DEBUG模式
+- 包含"分析"、"评估"等关键词 → ANALYTICAL模式
+- 包含"继续"、"上下文"等关键词 → CONTEXTUAL模式
+- 非常短的指令 → MINIMAL模式
+- 其他 → STANDARD模式
+
+**使用示例**：
+```python
+# 创建投影（自动检测模式）
+projection = await memory.create_projection(
+    instruction="分析用户行为数据",
+    total_budget=2000,
+    include_plan=True,
+    include_facts=True
+)
+
+# 指定投影模式
+from loom.projection.profiles import ProjectionMode
+
+projection = await memory.create_projection(
+    instruction="继续之前的任务",
+    mode=ProjectionMode.CONTEXTUAL,
+    total_budget=1500
+)
+```
+
+**语义相关性评分**：
+投影系统会使用BGE embedding计算facts与任务指令的语义相似度，优先选择最相关的facts。BGE模型支持中英文，512维向量，通过ONNX Runtime优化实现快速推理（~5ms/次）。
 
 ## 监控与可视化
 

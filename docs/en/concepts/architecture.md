@@ -17,7 +17,7 @@ graph TD
     end
     
     subgraph "Cognitive Support"
-        AgentA <--> Router[Dual-Process Router]
+        AgentA <--> Features[Query Feature Extractor]
         AgentA <--> Memory[Composite Memory]
     end
 ```
@@ -26,10 +26,10 @@ graph TD
 
 Loom is built on four fundamental pillars. Click each to explore the deep-dive documentation.
 
-### 1. [Dual-Process Cognition (System 1 & 2)](dual-system.md)
-*   **What**: Agents mimic human thinking: Fast intuition vs. Slow reasoning.
-*   **Why**: To balance speed/cost with accuracy/dept.
-*   **Key Components**: `CognitiveRouter`, `System1 (Stream)`, `System2 (Reason)`.
+### 1. [Adaptive Processing Architecture](dual-system.md)
+*   **What**: Agents adapt processing strategy based on query complexity: Fast response vs. Deep reasoning.
+*   **Why**: To balance speed/cost with accuracy/depth.
+*   **Key Components**: `QueryFeatureExtractor`, `Fast Mode (Stream)`, `Deep Mode (Reason)`.
 
 ### 2. [Sentient Memory (L1-L4)](memory.md)
 *   **What**: A biological memory hierarchy (Reaction -> Working -> Episodic -> Semantic).
@@ -51,7 +51,7 @@ Loom is built on four fundamental pillars. Click each to explore the deep-dive d
 *   `loom/kernel`: The core engines (Bus, Dispatcher).
 *   `loom/node`: The entities (Agent, Tool, Crew).
 *   `loom/memory`: The storage systems.
-*   `loom/cognition`: The brains (Router, Classifier).
+*   `loom/cognition`: The brains (Feature Extractor, Classifier).
 *   `loom/protocol`: The data contracts.
 
 loom-agent 是一个基于事件驱动的 Agent 框架，采用分形（Fractal）设计理念，所有组件都遵循统一的协议。
@@ -81,7 +81,6 @@ Node (基类)
 ├── AgentNode (Agent)
 ├── ToolNode (工具)
 ├── CrewNode (团队)
-└── RouterNode (路由器)
 ```
 
 **特点**：

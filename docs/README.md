@@ -34,6 +34,8 @@ result = run(agent, "你好，请介绍一下自己")
 
 - [Agents](guides/agents/) - 创建和配置 Agent
 - [分形节点](guides/fractal-nodes.md) - 构建自组织 Agent 结构
+- [记忆优化](guides/memory-optimization.md) - 记忆系统优化和最佳实践
+- [双系统使用](guides/dual-system-usage.md) - System 1/2 配置指南
 - [LLM 流式调用](guides/llm-streaming.md) - 处理流式工具调用
 - [结构化输出](guides/structured-output.md) - Claude/Gemini JSON 输出指南
 - [Skills](guides/skills/) - 开发自定义技能
@@ -46,6 +48,10 @@ result = run(agent, "你好，请介绍一下自己")
 - [架构设计](concepts/architecture.md)
 - [认知动力学](concepts/cognitive-dynamics.md)
 - [设计哲学](concepts/design-philosophy.md)
+- [记忆系统](concepts/memory_system.md)
+- [双系统思维](concepts/dual-system.md)
+- [Agent 节点](concepts/agent-node.md)
+- [协议设计](concepts/protocol.md)
 
 ### 📚 [API 参考 (Reference)](reference/)
 **信息导向** - 完整的 API 文档
@@ -73,3 +79,15 @@ result = run(agent, "你好，请介绍一下自己")
 
 **我需要查 API：**
 → 查阅 [API 参考](reference/)
+
+---
+
+## 🔬 技术文档
+
+深入的技术设计和实现文档：
+
+- [BGE Embedding 优化](bge_embedding_optimization.md) - ONNX + Int8 量化优化
+- [L4 压缩设计](l4_compression_design.md) - 知识库自动压缩机制
+- [投影策略设计](projection_strategy_design.md) - 上下文投影完整方案
+- [投影优化分析](projection_optimization_analysis.md) - 投影系统分析
+- [通用框架投影](projection_for_general_framework.md) - 通用框架投影建议

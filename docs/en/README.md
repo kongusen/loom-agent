@@ -21,23 +21,43 @@
 
 Loom is a **High-Assurance** AI Agent framework designed for building production-grade systems. Unlike frameworks focused on "rapid prototyping", Loom prioritizes **Control, Persistence, and Fractal Scalability**.
 
-### Core Features (v0.3.x)
+### Core Features (v0.3.7)
 
 1.  **🧬 Controlled Fractal Architecture**:
     *   Agents, Tools, and Crews are all **Nodes**. Nodes can contain other nodes recursively.
     *   Even the most complex Agent cluster behaves like a simple function call externally.
 
-2.  **🧠 Metabolic Memory**:
-    *   Rejects infinite context window appending. Loom simulates biological metabolism: **Ingest (Validate) -> Digest (Sanitize) -> Assimilate (PSO)**.
-    *   Keeps the Agent's "mind" clear over long periods, preventing context poisoning.
+2.  **🎯 Cognitive Dynamics System**:
+    *   **Dual-System Thinking**: Intelligent collaboration between System 1 (fast intuition) and System 2 (deep reasoning).
+    *   **Confidence Evaluation**: Automatic fallback from System 1 to System 2 on low confidence.
+    *   **Unified Configuration**: Manage cognition, context, and memory through `CognitiveConfig`.
+    *   **Preset Modes**: Three out-of-the-box modes: fast/balanced/deep.
 
-3.  **🛡️ Protocol-First**:
-    *   Behavior contracts defined via Python `typing.Protocol`.
-    *   Zero-dependency core: Easily swap LLM Providers (OpenAI/Anthropic) or Transport layers (Memory/Redis).
+3.  **🧠 Composite Memory System**:
+    *   **L1-L4 Hierarchy**: Complete memory spectrum from instant reaction (L1) to semantic knowledge (L4).
+    *   **BGE Embedding**: ONNX-optimized BGE model for high-performance semantic retrieval.
+    *   **Smart Compression**: Automatic L4 knowledge base clustering to maintain optimal size (<150 facts).
+    *   **Memory Metabolism**: Automated `Ingest` -> `Digest` -> `Assimilate` consolidation flow.
+    *   **Context Projection**: Intelligent projection of parent Agent context to child Agents with 5 projection modes.
 
-4.  **⚡ Universal Event Bus**:
+4.  **🎨 Pattern System**:
+    *   **5 Built-in Patterns**: Analytical, Creative, Collaborative, Iterative, Execution.
+    *   **Configuration Composition**: Each pattern presets optimal cognitive, memory, and execution configs.
+    *   **Flexible Extension**: Support custom patterns for specific scenarios.
+
+5.  **🛡️ Protocol-First & Recursion**:
+    *   **Infinite Recursion**: Support unlimited levels of task delegation based on unified protocol.
+    *   **Unified Execution**: `FractalOrchestrator` unifies tool calls and sub-Agent orchestration.
+    *   **Standard Contract**: All interactions defined via CloudEvents and MCP.
+
+6.  **⚡ Universal Event Bus**:
     *   Based on CloudEvents standard.
     *   Supports full-chain Tracing and Auditing.
+
+7.  **🌐 Multi-LLM Support**:
+    *   **10+ Providers**: OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Kimi, Doubao, etc.
+    *   **Unified Interface**: Consistent API design for easy model switching.
+    *   **Streaming Output**: Native support for streaming responses and structured output.
 
 ---
 
@@ -82,6 +102,7 @@ This documentation is organized based on the [Diátaxis](https://diataxis.fr/) f
 **Problem-oriented** - Solve specific problems
 - [Agents](guides/agents/) - Create and configure Agents
 - [Fractal Nodes](guides/fractal-nodes.md) - Build self-organizing agent structures
+- [Dual-System Usage](guides/dual-system-usage.md) - System 1/2 configuration guide
 - [LLM Streaming](guides/llm-streaming.md) - Handle streaming tool calls
 - [Structured Output](guides/structured-output.md) - Enforce JSON output for Claude/Gemini
 - [Skills](guides/skills/) - Develop custom skills
@@ -93,6 +114,10 @@ This documentation is organized based on the [Diátaxis](https://diataxis.fr/) f
 - [Architecture Design](concepts/architecture.md)
 - [Cognitive Dynamics](concepts/cognitive-dynamics.md)
 - [Design Philosophy](concepts/design-philosophy.md)
+- [Memory System](concepts/memory.md)
+- [Dual-System Thinking](concepts/dual-system.md)
+- [Agent Node](concepts/agent-node.md)
+- [Protocol Design](concepts/protocol.md)
 
 ### 📚 [Reference](reference/)
 **Information-oriented** - Complete API documentation
@@ -105,6 +130,20 @@ This documentation is organized based on the [Diátaxis](https://diataxis.fr/) f
 ## 🤝 Contributing
 
 We welcome Pull Requests and Issues! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for more details.
+
+---
+
+## 🔬 Technical Documentation
+
+In-depth technical design and implementation documents:
+
+- [BGE Embedding Optimization](../bge_embedding_optimization.md) - ONNX + Int8 quantization optimization
+- [L4 Compression Design](../l4_compression_design.md) - Automatic knowledge base compression
+- [Projection Strategy Design](../projection_strategy_design.md) - Complete context projection solution
+- [Projection Optimization Analysis](../projection_optimization_analysis.md) - Projection system analysis
+- [General Framework Projection](../projection_for_general_framework.md) - Projection recommendations for general frameworks
+
+---
 
 ## 📄 License
 

@@ -1,20 +1,19 @@
-# 如何使用双系统解决问题
+# 如何使用统一处理机制解决问题
 
-> **问题导向** - 学会使用 System 1 和 System 2 解决不同类型的问题
+> **问题导向** - 学会使用统一处理机制解决不同类型的问题
 
 ## 概述
 
-loom-agent 的双系统架构提供了两种互补的问题解决方式：
-- **System 1（快速响应）**：适合简单查询、快速对话
-- **System 2（深度推理）**：适合复杂分析、多步骤任务
+loom-agent 采用**统一的ReAct循环处理机制**，所有查询都通过相同的处理流程，根据查询特征自动调整上下文大小和策略。
 
-### 自动路由机制
+### 统一处理流程
 
-从 v0.4 开始，loom-agent 引入了**自动路由机制**，可以根据查询复杂度自动选择合适的系统：
+从 v0.3.7 开始，loom-agent 使用统一的处理流程：
 
-- **智能分类**：基于查询长度、代码检测、多步骤识别等特征
-- **置信度评估**：System 1 响应会被评估置信度，低置信度自动回退到 System 2
-- **可配置规则**：支持自定义路由规则和阈值
+- **统一ReAct循环**：所有查询都通过相同的处理流程
+- **动态上下文调整**：根据查询特征自动调整上下文大小
+- **查询特征分析**：基于查询长度、代码检测、多步骤识别等特征
+- **可配置策略**：支持自定义上下文配置和处理策略
 
 ## 配置方式
 
@@ -34,7 +33,7 @@ bus = UniversalEventBus()
 dispatcher = Dispatcher(bus=bus)
 provider = OpenAIProvider(api_key="your-api-key")
 
-# 快速模式 - 偏向 System 1
+# 快速模式 - 偏向较小上下文
 fast_agent = AgentNode(
     node_id="fast-assistant",
     dispatcher=dispatcher,
@@ -42,7 +41,7 @@ fast_agent = AgentNode(
     cognitive_config=CognitiveConfig.fast_mode()
 )
 
-# 深度模式 - 偏向 System 2
+# 深度模式 - 偏向完整上下文
 deep_agent = AgentNode(
     node_id="analyst",
     dispatcher=dispatcher,
@@ -50,7 +49,7 @@ deep_agent = AgentNode(
     cognitive_config=CognitiveConfig.deep_mode()
 )
 
-# 平衡模式 - 自动路由（默认）
+# 平衡模式 - 默认配置
 balanced_agent = AgentNode(
     node_id="assistant",
     dispatcher=dispatcher,
@@ -61,11 +60,13 @@ balanced_agent = AgentNode(
 
 **预设模式对比**：
 
-| 模式 | System 1 阈值 | 上下文大小 | 适用场景 |
-|------|--------------|-----------|---------|
-| fast_mode | 低（0.6） | 小（500 tokens） | 简单对话、快速响应 |
-| balanced_mode | 中（0.8） | 中（4000 tokens） | 通用任务 |
-| deep_mode | 高（0.9） | 大（8000 tokens） | 复杂分析、深度推理 |
+| 模式 | 上下文大小 | 适用场景 |
+|------|-----------|---------|
+| fast_mode | 小（500 tokens） | 简单对话、快速响应 |
+| balanced_mode | 中（4000 tokens） | 通用任务（默认） |
+| deep_mode | 大（8000 tokens） | 复杂分析、深度推理 |
+
+**注意**：所有模式都使用统一的ReAct循环处理，区别主要在于上下文大小配置。
 
 ## 使用场景
 
@@ -100,33 +101,26 @@ agent = AgentNode(
 ```
 
 **工作流程**：
-1. 查询被路由到 System 2
-2. 使用完整上下文（8000+ tokens）
+1. 查询通过统一的ReAct循环处理
+2. 根据查询特征自动使用完整上下文（8000+ tokens）
 3. 深度分析和推理
 4. 返回详细结果
 
-### 场景 3：自定义路由规则
+### 场景 3：自定义配置
 
-**适用**：需要特定路由逻辑的场景
+**适用**：需要特定配置的场景
 
 ```python
-from loom.config.router import RouterRule
-
 # 创建自定义配置
 config = CognitiveConfig.default()
 
-# 添加自定义规则
-config.router_rules.append(RouterRule(
-    name="code_analysis",
-    keywords=["代码", "bug", "调试"],
-    target_system="SYSTEM_2"
-))
+# 调整上下文参数
+config.curation_max_tokens = 6000  # 上下文最大 token 数
+config.context_max_tokens = 12000  # 总上下文限制
 
-config.router_rules.append(RouterRule(
-    name="greeting",
-    keywords=["你好", "hi", "hello"],
-    target_system="SYSTEM_1"
-))
+# 调整 Memory 参数
+config.memory_max_l1_size = 30  # L1 缓冲区大小
+config.memory_auto_vectorize_l4 = True  # 自动向量化 L4
 
 agent = AgentNode(
     node_id="custom-agent",
@@ -149,70 +143,62 @@ agent = AgentNode(
 | 问题诊断 | deep_mode() |
 | 通用任务 | balanced_mode() |
 
-### 2. 自定义路由规则
+### 2. 自定义配置参数
 
-根据业务需求添加特定规则：
+根据业务需求调整配置：
 
 ```python
 config = CognitiveConfig.default()
 
-# 技术问题 -> System 2
-config.router_rules.append(RouterRule(
-    name="technical",
-    keywords=["代码", "bug", "性能", "架构"],
-    target_system="SYSTEM_2"
-))
+# 调整上下文大小
+config.curation_max_tokens = 6000  # 策展后的最大 token 数
+config.context_max_tokens = 12000  # 总上下文限制
 
-# 简单问候 -> System 1
-config.router_rules.append(RouterRule(
-    name="greeting",
-    regex_patterns=[r"^(你好|hi|hello)"],
-    target_system="SYSTEM_1"
-))
+# 调整 Memory 参数
+config.memory_max_l1_size = 30  # L1 缓冲区大小
+config.memory_auto_vectorize_l4 = True  # 自动向量化 L4
 ```
 
-### 3. 调整置信度阈值
+### 3. 选择合适的预设模式
 
-根据准确性要求调整：
+根据任务类型选择合适的预设模式：
 
 ```python
-config = CognitiveConfig.default()
+# 快速响应优先
+config = CognitiveConfig.fast_mode()
 
-# 高准确性要求 - 更容易回退到 System 2
-config.router_s1_confidence_threshold = 0.9
+# 深度分析优先
+config = CognitiveConfig.deep_mode()
 
-# 快速响应优先 - 更多使用 System 1
-config.router_s1_confidence_threshold = 0.6
+# 平衡模式（默认）
+config = CognitiveConfig.balanced_mode()
 ```
 
 ## 常见问题
 
-**Q: 如何查看使用了哪个系统？**
+**Q: 如何查看上下文大小？**
 
-A: 检查响应中的 `system` 字段：
-```python
-result = await agent.process(event)
-print(f"使用系统: {result.get('system')}")  # SYSTEM_1 或 SYSTEM_2
-```
+A: 系统会根据查询特征自动调整上下文大小，可以通过日志或监控查看。
 
-**Q: 可以强制使用特定系统吗？**
+**Q: 可以强制使用特定上下文大小吗？**
 
-A: 可以通过调整阈值实现：
-- 强制 System 1: `router_s1_confidence_threshold = 0.0`
-- 强制 System 2: `router_s1_confidence_threshold = 1.0`
+A: 可以通过配置影响上下文大小：
+- 使用 `fast_mode()` 配置较小的上下文窗口
+- 使用 `deep_mode()` 配置完整的上下文窗口
+- 所有查询仍通过统一的ReAct循环处理
 
-**Q: 路由规则的优先级？**
+**Q: 处理流程是如何工作的？**
 
-A: 规则按添加顺序匹配，第一个匹配的规则生效。
+A: 所有查询都通过统一的ReAct循环处理。系统使用 `QueryFeatureExtractor` 提取查询特征（代码检测、多步骤识别、工具需求等），然后根据特征动态调整上下文大小和处理策略。
 
 ## 总结
 
-双系统架构提供了灵活的问题解决方式：
+统一处理架构提供了灵活的问题解决方式：
 
-1. **自动路由**：智能选择合适的系统
-2. **预设模式**：快速配置常见场景
-3. **自定义规则**：精确控制路由逻辑
-4. **置信度评估**：自动回退机制
+1. **统一流程**：所有查询都通过ReAct循环处理
+2. **动态调整**：根据查询特征自动调整上下文大小
+3. **预设模式**：快速配置常见场景（fast/balanced/deep）
+4. **自定义配置**：精确控制上下文和记忆参数
 
 ## 相关文档
 

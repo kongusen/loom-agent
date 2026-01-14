@@ -21,13 +21,12 @@ from loom.kernel.control import (
 )
 
 # 配置类
-from loom.config.models import AgentConfig as AgentMetaConfig
 from loom.config.fractal import FractalConfig
 from loom.config.execution import ExecutionConfig
-from loom.config.router import RouterConfig
 from loom.config.memory import ContextConfig, CurationConfig
 from loom.config.interceptor import InterceptorConfig
 from loom.config.optimization import OptimizationConfig
+from loom.config.cognitive import CognitiveConfig
 
 
 class LoomBuilder:
@@ -52,10 +51,12 @@ class LoomBuilder:
         self._tools: List[ToolNode] = []
         self._dispatcher: Optional[Dispatcher] = None
 
+        # Agent 基本信息
+        self._role: str = "Assistant"
+        self._system_prompt: str = "You are a helpful assistant."
+
         # 配置对象
-        self._agent_config: Optional[AgentMetaConfig] = None
         self._fractal_config: Optional[FractalConfig] = None
-        self._router_config: Optional[RouterConfig] = None
         self._execution_config: Optional[ExecutionConfig] = None
         self._memory_config: Optional[ContextConfig] = None
         self._interceptor_config: Optional[InterceptorConfig] = None
@@ -131,10 +132,8 @@ class LoomBuilder:
         Returns:
             self（支持链式调用）
         """
-        self._agent_config = AgentMetaConfig(
-            role=role,
-            system_prompt=system_prompt
-        )
+        self._role = role
+        self._system_prompt = system_prompt
         return self
 
     def with_memory(
@@ -188,29 +187,6 @@ class LoomBuilder:
         )
         return self
 
-    def with_system12_routing(
-        self,
-        complexity_threshold: float = 0.7,
-        confidence_threshold: float = 0.6,
-        **kwargs
-    ) -> 'LoomBuilder':
-        """
-        配置 System 1/2 路由
-
-        Args:
-            complexity_threshold: 复杂度阈值
-            confidence_threshold: 信心阈值
-            **kwargs: 其他 RouterConfig 参数
-
-        Returns:
-            self（支持链式调用）
-        """
-        self._router_config = RouterConfig(
-            complexity_threshold=complexity_threshold,
-            confidence_threshold=confidence_threshold,
-            **kwargs
-        )
-        return self
 
     def with_execution(
         self,
@@ -418,24 +394,20 @@ class LoomBuilder:
             "dispatcher": self._dispatcher,
             "provider": self._llm,
             "tools": self._tools,
+            "role": self._role,
+            "system_prompt": self._system_prompt,
         }
 
         # 应用配置
-        if self._agent_config:
-            params["role"] = self._agent_config.role
-            params["system_prompt"] = self._agent_config.system_prompt
-
         if self._fractal_config:
             params["fractal_config"] = self._fractal_config
-
-        if self._router_config:
-            params["router_config"] = self._router_config
 
         if self._execution_config:
             params["execution_config"] = self._execution_config
 
-        if self._memory_config:
-            params["context_config"] = self._memory_config
+        # TODO: 需要重新设计memory配置的传递方式
+        # AgentNode期望cognitive_config而不是context_config
+        # 暂时让AgentNode使用默认的CognitiveConfig
 
         # 应用额外参数
         params.update(self._extra_params)

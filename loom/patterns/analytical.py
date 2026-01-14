@@ -32,7 +32,7 @@ class AnalyticalPattern(Pattern):
     def get_config(self):
         """获取分析模式配置"""
         from loom.api.loom import LoomConfig
-        from loom.config import AgentConfig, RouterConfig
+        from loom.config import AgentConfig
 
         return LoomConfig(
             agent=AgentConfig(
@@ -42,9 +42,5 @@ class AnalyticalPattern(Pattern):
                     "Approach problems systematically, consider multiple perspectives, "
                     "and provide well-reasoned conclusions."
                 )
-            ),
-            router=RouterConfig(
-                complexity_threshold=0.6,  # 更容易触发 System 2
-                confidence_threshold=0.8,  # 高信心要求
             )
         )

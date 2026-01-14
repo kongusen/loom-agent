@@ -22,32 +22,43 @@
 
 Loom 是一个**高可靠 (High-Assurance)** 的 AI Agent 框架，专为构建生产级系统而设计。与其他专注于"快速原型"的框架不同，Loom 关注**控制 (Control)、持久化 (Persistence) 和分形扩展 (Fractal Scalability)**。
 
-### 核心特性 (v0.3.6)
+### 核心特性 (v0.3.7)
 
 1.  **🧬 受控分形架构 (Controlled Fractal)**:
     *   Agent、Tool、Crew 都是**节点 (Node)**。节点可以无限递归包含。
     *   即便是最复杂的 Agent 集群，对外也表现为一个简单的函数调用。
 
-2.  **🎯 智能路由系统 (Intelligent Routing)**:
-    *   **自动路由**：基于查询特征自动选择 System 1（快速）或 System 2（深度）。
+2.  **🎯 认知动力学系统 (Cognitive Dynamics)**:
+    *   **双系统思维**：System 1（快速直觉）与 System 2（深度推理）的智能协作。
     *   **置信度评估**：System 1 响应低置信度时自动回退到 System 2。
-    *   **统一配置**：通过 `CognitiveConfig` 统一管理路由、上下文和记忆配置。
+    *   **统一配置**：通过 `CognitiveConfig` 统一管理认知、上下文和记忆配置。
     *   **预设模式**：fast/balanced/deep 三种开箱即用的配置模式。
 
 3.  **🧠 复合记忆系统 (Composite Memory)**:
     *   **L1-L4 分层存储**：从瞬间反应(L1)到语义知识(L4)的完整记忆谱系。
-    *   **语义持久化**：集成 Qdrant 向量数据库，支持跨会话记忆和知识积累。
+    *   **BGE Embedding**：集成 ONNX 优化的 BGE 模型，支持高性能语义检索。
+    *   **智能压缩**：L4 知识库自动聚类压缩，保持最优规模（<150 facts）。
     *   **记忆代谢**：自动化的 `Ingest` -> `Digest` -> `Assimilate` 记忆巩固流程。
-    *   **上下文压缩**：智能压缩历史记录，保留关键事实，大幅降低 Token 消耗。
+    *   **上下文投影**：智能投影父 Agent 上下文到子 Agent，支持 5 种投影模式。
 
-4.  **🛡️ 协议优先与递归 (Protocol-First & Recursion)**:
+4.  **🎨 模式系统 (Pattern System)**:
+    *   **5 种内置模式**：Analytical、Creative、Collaborative、Iterative、Execution。
+    *   **配置组合**：每种模式预设最佳的认知、记忆和执行配置。
+    *   **灵活扩展**：支持自定义模式以适应特定场景。
+
+5.  **🛡️ 协议优先与递归 (Protocol-First & Recursion)**:
     *   **无限递归**：基于统一协议，支持无限层级的子任务代理（Delegation）。
     *   **统一执行**：`FractalOrchestrator` 统一了工具调用和子 Agent 编排。
     *   **标准契约**：基于 CloudEvents 和 MCP 定义所有交互。
 
-5.  **⚡ 通用事件总线 (Universal Event Bus)**:
+6.  **⚡ 通用事件总线 (Universal Event Bus)**:
     *   基于 CloudEvents 标准。
     *   支持全链路追踪 (Tracing) 和 审计 (Auditing)。
+
+7.  **🌐 多 LLM 支持 (Multi-LLM Support)**:
+    *   **10+ 提供商**：OpenAI、Anthropic、Gemini、DeepSeek、Qwen、Kimi、Doubao 等。
+    *   **统一接口**：一致的 API 设计，轻松切换不同模型。
+    *   **流式输出**：原生支持流式响应和结构化输出。
 
 ---
 
@@ -133,9 +144,21 @@ deep_agent = AgentNode(
     *   [Installation](docs/en/getting-started/installation.md)
     *   [Quick Start](docs/en/getting-started/quickstart.md)
     *   [Architecture](docs/en/concepts/architecture.md)
-*   **[核心原理](docs/concepts/architecture.md)**
+*   **[核心概念](docs/concepts/architecture.md)**
     *   [架构设计](docs/concepts/architecture.md)
     *   [认知动力学](docs/concepts/cognitive-dynamics.md)
+    *   [记忆系统](docs/concepts/memory_system.md)
+    *   [双系统思维](docs/concepts/dual-system.md)
+*   **[高级特性](docs/guides/memory-optimization.md)**
+    *   [记忆优化](docs/guides/memory-optimization.md)
+    *   [分形节点](docs/guides/fractal-nodes.md)
+    *   [LLM 流式输出](docs/guides/llm-streaming.md)
+    *   [结构化输出](docs/guides/structured-output.md)
+*   **[技术文档](docs/)**
+    *   [BGE Embedding 优化](docs/bge_embedding_optimization.md)
+    *   [L4 压缩设计](docs/l4_compression_design.md)
+    *   [投影策略设计](docs/projection_strategy_design.md)
+    *   [投影优化分析](docs/projection_optimization_analysis.md)
 
 ## 🤝 贡献
 

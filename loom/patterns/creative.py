@@ -32,7 +32,7 @@ class CreativePattern(Pattern):
     def get_config(self):
         """获取创造模式配置"""
         from loom.api.loom import LoomConfig
-        from loom.config import AgentConfig, RouterConfig
+        from loom.config import AgentConfig
 
         return LoomConfig(
             agent=AgentConfig(
@@ -42,9 +42,5 @@ class CreativePattern(Pattern):
                     "Explore multiple possibilities, think outside the box, "
                     "and generate innovative solutions."
                 )
-            ),
-            router=RouterConfig(
-                complexity_threshold=0.7,
-                confidence_threshold=0.5,  # 低信心阈值，鼓励尝试
             )
         )

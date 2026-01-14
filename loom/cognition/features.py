@@ -19,6 +19,7 @@ class QueryFeatures:
     code_detected: bool = False
     multi_step: bool = False
     math_detected: bool = False
+    tool_required: bool = False  # New: detects if query needs tool calls
     uncertainty_markers: int = 0
     clarity: float = 0.0  # 0-1, higher = more clear
     reasoning: str = ""
@@ -82,6 +83,16 @@ class QueryFeatureExtractor:
         r"which .+ are you referring to"
     ]
 
+    # Tool intent keywords (multilingual)
+    TOOL_INTENT_KEYWORDS = {
+        # Chinese
+        "查询", "搜索", "翻译", "计算", "获取", "查找", "检索", "调用",
+        "查看", "查", "搜", "找", "取", "算",
+        # English
+        "search", "query", "translate", "calculate", "fetch", "get",
+        "retrieve", "call", "lookup", "find", "check", "compute"
+    }
+
     def __init__(self):
         """Initialize feature extractor with cached methods."""
         self._compile_patterns()
@@ -143,6 +154,11 @@ class QueryFeatureExtractor:
         features.uncertainty_markers = uncertainty_count
         if uncertainty_count > 0:
             detected.append(f"uncertainty_markers_{uncertainty_count}")
+
+        # Feature 6: Tool intent detection (NEW)
+        if self._detect_tool_intent(query):
+            features.tool_required = True
+            detected.append("tool_required")
 
         # Calculate clarity (inverse of uncertainty)
         features.clarity = 1.0 - (uncertainty_count * 0.1)
@@ -238,6 +254,16 @@ class QueryFeatureExtractor:
             x in query.lower()
             for x in [" and ", " then ", " after ", " step "]
         )
+
+    def _detect_tool_intent(self, query: str) -> bool:
+        """
+        Detect if query requires tool calls.
+
+        Checks for tool intent keywords in multiple languages.
+        Examples: "查天气", "search Python", "翻译hello"
+        """
+        query_lower = query.lower()
+        return any(keyword in query_lower for keyword in self.TOOL_INTENT_KEYWORDS)
 
     def _count_uncertainty_markers(self, text: str) -> int:
         """Count uncertainty markers in text."""

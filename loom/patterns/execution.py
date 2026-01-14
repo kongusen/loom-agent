@@ -32,7 +32,7 @@ class ExecutionPattern(Pattern):
     def get_config(self):
         """获取执行模式配置"""
         from loom.api.loom import LoomConfig
-        from loom.config import AgentConfig, RouterConfig
+        from loom.config import AgentConfig
 
         return LoomConfig(
             agent=AgentConfig(
@@ -42,9 +42,5 @@ class ExecutionPattern(Pattern):
                     "Act quickly and decisively, focus on results, "
                     "and complete tasks efficiently."
                 )
-            ),
-            router=RouterConfig(
-                complexity_threshold=0.8,  # 更难触发 System 2
-                confidence_threshold=0.5,  # 低信心阈值，快速行动
             )
         )

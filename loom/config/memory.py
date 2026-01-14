@@ -87,13 +87,21 @@ class EmbeddingConfig:
     Configuration for Embedding provider.
     Users can specify their preferred embedding service.
     """
-    # Provider type: 'openai', 'mock', or custom class path
-    provider: str = "mock"
+    # Provider type: 'bge', 'openai', 'mock', or custom class path
+    provider: str = "bge"
 
     # Provider-specific configuration
     provider_config: Dict[str, Any] = field(default_factory=dict)
 
     # Examples:
+    # For BGE (default, optimized for CPU):
+    #   provider = "bge"
+    #   provider_config = {
+    #       "model_name": "BAAI/bge-small-zh-v1.5",
+    #       "use_onnx": True,
+    #       "use_quantization": True
+    #   }
+    #
     # For OpenAI:
     #   provider = "openai"
     #   provider_config = {

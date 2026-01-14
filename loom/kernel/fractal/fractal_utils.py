@@ -7,7 +7,6 @@ for fractal task decomposition and complexity estimation.
 
 from typing import Optional, Any
 from loom.config.fractal import FractalConfig, GrowthTrigger
-from loom.cognition.router import SystemType
 
 
 def estimate_task_complexity(task: str) -> float:

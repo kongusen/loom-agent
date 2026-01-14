@@ -32,7 +32,7 @@ class CollaborativePattern(Pattern):
     def get_config(self):
         """获取协作模式配置"""
         from loom.api.loom import LoomConfig
-        from loom.config import AgentConfig, FractalConfig, ExecutionConfig, RouterConfig
+        from loom.config import AgentConfig, FractalConfig, ExecutionConfig
         from loom.config.fractal import GrowthTrigger
 
         return LoomConfig(
@@ -54,9 +54,5 @@ class CollaborativePattern(Pattern):
             execution=ExecutionConfig(
                 parallel_execution=True,
                 max_concurrent=5
-            ),
-            router=RouterConfig(
-                complexity_threshold=0.7,
-                confidence_threshold=0.6
             )
         )

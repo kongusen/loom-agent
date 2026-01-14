@@ -1,13 +1,13 @@
 """
 Unified Cognitive System Configuration
 
-Consolidates configuration for the entire cognitive system (routing, memory,
-context) into a single entry point to reduce configuration nesting and
-simplify initialization.
+Consolidates configuration for the entire cognitive system (memory, context)
+into a single entry point to reduce configuration nesting and simplify
+initialization.
 
 Replaces:
 - Multiple config imports in builder and node initialization
-- Nested config object structures (RouterConfig, ContextConfig, CurationConfig)
+- Nested config object structures (ContextConfig, CurationConfig)
 - Scattered default configurations across modules
 """
 
@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Pattern
 import re
 
-from loom.config.router import RouterRule, RouterConfig
 from loom.config.memory import (
     CurationConfig,
     ContextConfig,
@@ -29,12 +28,12 @@ class CognitiveSystemConfig:
     """
     Unified configuration for the cognitive system.
 
-    Replaces the need to configure RouterConfig, ContextConfig, and
-    CurationConfig separately. Provides a single entry point that
-    initializes all sub-systems consistently.
+    Replaces the need to configure ContextConfig and CurationConfig
+    separately. Provides a single entry point that initializes all
+    sub-systems consistently.
 
     Reduces configuration nesting from:
-        RouterConfig + ContextConfig(CurationConfig(...))
+        ContextConfig(CurationConfig(...))
     To:
         CognitiveSystemConfig(...)
 
@@ -44,22 +43,6 @@ class CognitiveSystemConfig:
     - Factory methods for common configuration patterns
     - Easier testing and configuration management
     """
-
-    # ========================================================================
-    # Router Configuration
-    # ========================================================================
-    # Default system if no rules match
-    router_default_system: str = "SYSTEM_2"
-
-    # Confidence thresholds
-    router_s1_confidence_threshold: float = 0.8
-
-    # Classification rules (will be populated by default() factory)
-    router_rules: List[RouterRule] = field(default_factory=list)
-
-    # Heuristics
-    router_enable_heuristics: bool = True
-    router_max_s1_length: int = 100
 
     # ========================================================================
     # Feature Extraction Configuration
@@ -138,22 +121,6 @@ class CognitiveSystemConfig:
     tokenizer_cache_size: int = 2048
     tokenizer_fallback_enabled: bool = True
 
-    def get_router_config(self) -> RouterConfig:
-        """
-        Build RouterConfig from this unified config.
-
-        Returns:
-            RouterConfig with all settings applied
-        """
-        config = RouterConfig(
-            default_system=self.router_default_system,
-            s1_confidence_threshold=self.router_s1_confidence_threshold,
-            rules=self.router_rules.copy(),
-            enable_heuristics=self.router_enable_heuristics,
-            max_s1_length=self.router_max_s1_length,
-        )
-        return config
-
     def get_curation_config(self) -> CurationConfig:
         """
         Build CurationConfig from this unified config.
@@ -225,38 +192,6 @@ class CognitiveSystemConfig:
         config = CognitiveSystemConfig()
 
         # Add default router rules
-        config.router_rules = [
-            # System 1 Rules (Simple/Factual)
-            RouterRule(
-                name="greeting",
-                keywords=["hi", "hello", "hey", "greeting"],
-                target_system="SYSTEM_1",
-            ),
-            RouterRule(
-                name="factual_questions",
-                regex_patterns=[r"^what is", r"^who is", r"^when did"],
-                target_system="SYSTEM_1",
-            ),
-            RouterRule(
-                name="simple_math",
-                regex_patterns=[r"\d+\s*[\+\-\*\/]\s*\d+"],
-                target_system="SYSTEM_1",
-            ),
-            # System 2 Rules (Complex/Reasoning)
-            RouterRule(
-                name="complex_reasoning",
-                keywords=[
-                    "plan",
-                    "strategy",
-                    "design",
-                    "analyze",
-                    "compare",
-                    "code",
-                    "implement",
-                ],
-                target_system="SYSTEM_2",
-            ),
-        ]
 
         return config
 
@@ -344,13 +279,6 @@ class CognitiveSystemConfig:
         config.memory_vector_store_provider = "inmemory"
 
         # Add test rules
-        config.router_rules = [
-            RouterRule(
-                name="test_rule",
-                keywords=["test"],
-                target_system="SYSTEM_1",
-            )
-        ]
 
         return config
 
@@ -370,8 +298,6 @@ class CognitiveSystemConfig:
         config = CognitiveSystemConfig.default()
 
         # Favor System 1
-        config.router_max_s1_length = 100  # Allow longer queries in S1
-        config.router_s1_confidence_threshold = 0.6  # Lower threshold for S1
 
         # Minimal context for speed
         config.curation_max_tokens = 500
@@ -414,8 +340,6 @@ class CognitiveSystemConfig:
         config = CognitiveSystemConfig.default()
 
         # Favor System 2
-        config.router_max_s1_length = 20  # Restrict S1 to very short queries
-        config.router_s1_confidence_threshold = 0.9  # High threshold for S1
 
         # Maximum context for depth
         config.curation_max_tokens = 8000
@@ -483,9 +407,7 @@ class CognitiveSystemConfig:
             )
 
         # Validate thresholds
-        if not (0.0 <= self.router_s1_confidence_threshold <= 1.0):
             raise ValueError(
-                f"router_s1_confidence_threshold must be between 0.0 and 1.0"
             )
 
         # Validate positive integers

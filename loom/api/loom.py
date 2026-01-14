@@ -16,7 +16,6 @@ from loom.kernel.core import Dispatcher
 from loom.config.models import AgentConfig as AgentMetaConfig
 from loom.config.fractal import FractalConfig
 from loom.config.execution import ExecutionConfig
-from loom.config.router import RouterConfig
 from loom.config.memory import ContextConfig
 
 
@@ -33,9 +32,6 @@ class LoomConfig:
 
     fractal: Optional[FractalConfig] = None
     """分型配置（自动分解、委托等）"""
-
-    router: Optional[RouterConfig] = None
-    """System 1/2 路由配置"""
 
     execution: Optional[ExecutionConfig] = None
     """执行配置（并行、超时等）"""
@@ -164,9 +160,6 @@ class Loom:
 
         if config.fractal:
             agent_params["fractal_config"] = config.fractal
-
-        if config.router:
-            agent_params["router_config"] = config.router
 
         if config.execution:
             agent_params["execution_config"] = config.execution

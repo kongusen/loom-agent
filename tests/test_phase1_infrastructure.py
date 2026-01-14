@@ -254,16 +254,6 @@ class TestCognitiveSystemConfig:
         config = CognitiveSystemConfig.default()
 
         assert isinstance(config, CognitiveSystemConfig)
-        assert len(config.router_rules) > 0
-
-    def test_get_router_config(self):
-        """Test building router config"""
-        config = CognitiveSystemConfig.default()
-        router_config = config.get_router_config()
-
-        assert router_config.default_system == config.router_default_system
-        assert router_config.s1_confidence_threshold == config.router_s1_confidence_threshold
-        assert len(router_config.rules) > 0
 
     def test_get_curation_config(self):
         """Test building curation config"""
@@ -327,16 +317,6 @@ class TestCognitiveSystemConfig:
         config.context_tokens_budget_l4 = 0.5
 
         with pytest.raises(ValueError, match="must sum to 1.0"):
-            config.validate()
-
-    def test_validate_confidence_threshold(self):
-        """Test validation of confidence threshold"""
-        config = CognitiveSystemConfig()
-
-        # Set invalid threshold
-        config.router_s1_confidence_threshold = 1.5
-
-        with pytest.raises(ValueError, match="must be between 0.0 and 1.0"):
             config.validate()
 
     def test_validate_positive_tokens(self):

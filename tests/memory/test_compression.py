@@ -565,3 +565,176 @@ class TestMemoryCompressor:
 
         # Should limit to top 5 facts
         assert len(result) <= 5
+
+
+class TestL4Compressor:
+    """Test L4Compressor class."""
+
+    def test_initialization(self):
+        """Test L4Compressor initialization."""
+        from loom.memory.compression import L4Compressor
+
+        mock_llm = AsyncMock()
+        mock_embedding = AsyncMock()
+
+        compressor = L4Compressor(
+            llm_provider=mock_llm,
+            embedding_provider=mock_embedding,
+            threshold=150,
+            similarity_threshold=0.75,
+            min_cluster_size=3
+        )
+
+        assert compressor.llm == mock_llm
+        assert compressor.embedding == mock_embedding
+        assert compressor.threshold == 150
+        assert compressor.similarity_threshold == 0.75
+        assert compressor.min_cluster_size == 3
+
+    async def test_should_compress_below_threshold(self):
+        """Test that compression is not needed below threshold."""
+        from loom.memory.compression import L4Compressor
+
+        mock_llm = AsyncMock()
+        mock_embedding = AsyncMock()
+
+        compressor = L4Compressor(
+            llm_provider=mock_llm,
+            embedding_provider=mock_embedding,
+            threshold=150
+        )
+
+        facts = [
+            MemoryUnit(
+                content=f"Fact {i}",
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT
+            )
+            for i in range(100)
+        ]
+
+        result = await compressor.should_compress(facts)
+        assert result is False
+
+    async def test_should_compress_above_threshold(self):
+        """Test that compression is needed above threshold."""
+        from loom.memory.compression import L4Compressor
+
+        mock_llm = AsyncMock()
+        mock_embedding = AsyncMock()
+
+        compressor = L4Compressor(
+            llm_provider=mock_llm,
+            embedding_provider=mock_embedding,
+            threshold=150
+        )
+
+        facts = [
+            MemoryUnit(
+                content=f"Fact {i}",
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT
+            )
+            for i in range(200)
+        ]
+
+        result = await compressor.should_compress(facts)
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_compress_without_sklearn(self):
+        """Test compress method fallback when sklearn is not available."""
+        from loom.memory.compression import L4Compressor
+
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(return_value=MagicMock(content="Summarized fact"))
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_text = AsyncMock(return_value=[0.1] * 768)
+
+        compressor = L4Compressor(
+            llm_provider=mock_llm,
+            embedding_provider=mock_embedding,
+            threshold=150,
+            min_cluster_size=3
+        )
+
+        # Create facts with embeddings
+        facts = [
+            MemoryUnit(
+                content=f"Fact {i}",
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT,
+                importance=0.8,
+                embedding=[0.1 + i * 0.01] * 768
+            )
+            for i in range(10)
+        ]
+
+        # Test compress - it should handle the case gracefully
+        result = await compressor.compress(facts)
+
+        # Should return some result (either compressed or original)
+        assert isinstance(result, list)
+        assert len(result) > 0
+
+
+@pytest.mark.asyncio
+class TestL4CompressionIntegration:
+    """Test L4Compressor integration with LoomMemory."""
+
+    async def test_enable_l4_compression(self):
+        """Test enabling L4 compression on LoomMemory."""
+        from loom.memory.core import LoomMemory
+
+        memory = LoomMemory("test_node")
+        mock_llm = AsyncMock()
+
+        # Enable compression
+        memory.enable_l4_compression(
+            llm_provider=mock_llm,
+            threshold=10
+        )
+
+        assert memory.l4_compressor is not None
+        assert memory.l4_compressor.threshold == 10
+
+    async def test_auto_compression_triggered(self):
+        """Test that compression is automatically triggered when threshold is exceeded."""
+        from loom.memory.core import LoomMemory
+
+        memory = LoomMemory("test_node")
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(return_value=MagicMock(content="Summarized fact"))
+
+        # Enable compression with low threshold
+        memory.enable_l4_compression(
+            llm_provider=mock_llm,
+            threshold=5
+        )
+
+        # Add facts below threshold
+        for i in range(5):
+            await memory.add(MemoryUnit(
+                content=f"Fact {i}",
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT,
+                importance=0.8
+            ))
+
+        # Should have 5 facts
+        assert len(memory._l4_global) == 5
+
+        # Add one more to trigger compression
+        # Mock the compress method to avoid sklearn dependency
+        with patch.object(memory.l4_compressor, 'compress', new_callable=AsyncMock) as mock_compress:
+            mock_compress.return_value = memory._l4_global[:3]  # Simulate compression
+
+            await memory.add(MemoryUnit(
+                content="Fact 6",
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT,
+                importance=0.8
+            ))
+
+            # Compression should have been triggered
+            mock_compress.assert_called_once()

@@ -377,3 +377,242 @@ class MemoryCompressor:
                     facts.append(content_str)
 
         return facts[:5]  # Limit to top 5 facts
+
+
+class L4Compressor:
+    """L4知识库压缩器
+
+    使用DBSCAN聚类和LLM总结来压缩相似的facts，保持L4在合理规模。
+
+    Attributes:
+        llm: LLM提供者，用于总结clusters
+        embedding: Embedding提供者，用于计算相似度
+        threshold: 触发压缩的facts数量阈值
+        similarity_threshold: 聚类相似度阈值（0-1）
+        min_cluster_size: 最小聚类大小，小于此值的cluster不压缩
+    """
+
+    def __init__(
+        self,
+        llm_provider: Any,
+        embedding_provider: Any,
+        threshold: int = 150,
+        similarity_threshold: float = 0.75,
+        min_cluster_size: int = 3
+    ):
+        self.llm = llm_provider
+        self.embedding = embedding_provider
+        self.threshold = threshold
+        self.similarity_threshold = similarity_threshold
+        self.min_cluster_size = min_cluster_size
+
+    async def should_compress(self, l4_facts: List[MemoryUnit]) -> bool:
+        """判断是否需要压缩
+
+        Args:
+            l4_facts: L4层的所有facts
+
+        Returns:
+            是否需要压缩
+        """
+        return len(l4_facts) > self.threshold
+
+    async def compress(
+        self,
+        l4_facts: List[MemoryUnit]
+    ) -> List[MemoryUnit]:
+        """压缩L4 facts
+
+        Args:
+            l4_facts: L4层的所有facts
+
+        Returns:
+            压缩后的facts列表
+        """
+        # 1. 聚类相似的facts
+        clusters = await self._cluster_facts(l4_facts)
+
+        # 2. 压缩每个cluster
+        compressed = []
+        for cluster in clusters:
+            if len(cluster) >= self.min_cluster_size:
+                # 只压缩包含min_cluster_size个以上的cluster
+                summary_fact = await self._summarize_cluster(cluster)
+                compressed.append(summary_fact)
+            else:
+                # 保留小cluster的原始facts
+                compressed.extend(cluster)
+
+        return compressed
+
+    async def _cluster_facts(
+        self,
+        facts: List[MemoryUnit]
+    ) -> List[List[MemoryUnit]]:
+        """聚类相似的facts（自实现，不依赖sklearn）
+
+        使用基于相似度阈值的简单聚类算法：
+        1. 计算所有facts之间的余弦相似度
+        2. 使用并查集合并相似度超过阈值的facts
+        3. 返回聚类结果
+
+        Args:
+            facts: 待聚类的facts列表
+
+        Returns:
+            聚类后的facts列表，每个元素是一个cluster
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            # 如果numpy不可用，返回单个cluster
+            return [facts]
+
+        if len(facts) < 2:
+            return [facts]
+
+        # 获取所有embeddings
+        embeddings = []
+        for fact in facts:
+            if fact.embedding:
+                embeddings.append(fact.embedding)
+            else:
+                # 实时计算
+                emb = await self.embedding.embed_text(str(fact.content))
+                embeddings.append(emb)
+
+        # 转换为numpy数组并归一化
+        embeddings_array = np.array(embeddings, dtype=np.float64)
+
+        # L2归一化
+        norms = np.linalg.norm(embeddings_array, axis=1, keepdims=True)
+        norms = np.where(norms == 0, 1, norms)  # 避免除以零
+        embeddings_normalized = embeddings_array / norms
+
+        # 检查是否有无效值
+        if np.any(np.isnan(embeddings_normalized)) or np.any(np.isinf(embeddings_normalized)):
+            return [facts]
+
+        # 计算余弦相似度矩阵
+        similarity_matrix = np.dot(embeddings_normalized, embeddings_normalized.T)
+        similarity_matrix = np.clip(similarity_matrix, -1.0, 1.0)
+
+        # 使用并查集进行聚类
+        clusters = self._union_find_clustering(
+            facts,
+            similarity_matrix,
+            self.similarity_threshold
+        )
+
+        return clusters
+
+    def _union_find_clustering(
+        self,
+        facts: List[MemoryUnit],
+        similarity_matrix,
+        threshold: float
+    ) -> List[List[MemoryUnit]]:
+        """使用并查集进行聚类
+
+        Args:
+            facts: facts列表
+            similarity_matrix: 相似度矩阵
+            threshold: 相似度阈值
+
+        Returns:
+            聚类结果
+        """
+        n = len(facts)
+
+        # 初始化并查集
+        parent = list(range(n))
+        rank = [0] * n
+
+        def find(x):
+            """查找根节点（带路径压缩）"""
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+
+        def union(x, y):
+            """合并两个集合（按秩合并）"""
+            root_x = find(x)
+            root_y = find(y)
+
+            if root_x == root_y:
+                return
+
+            if rank[root_x] < rank[root_y]:
+                parent[root_x] = root_y
+            elif rank[root_x] > rank[root_y]:
+                parent[root_y] = root_x
+            else:
+                parent[root_y] = root_x
+                rank[root_x] += 1
+
+        # 遍历相似度矩阵，合并相似的facts
+        for i in range(n):
+            for j in range(i + 1, n):
+                if similarity_matrix[i][j] >= threshold:
+                    union(i, j)
+
+        # 组织成clusters
+        clusters_dict = {}
+        for i in range(n):
+            root = find(i)
+            if root not in clusters_dict:
+                clusters_dict[root] = []
+            clusters_dict[root].append(facts[i])
+
+        return list(clusters_dict.values())
+
+    async def _summarize_cluster(
+        self,
+        cluster: List[MemoryUnit]
+    ) -> MemoryUnit:
+        """使用LLM总结一个cluster
+
+        Args:
+            cluster: 待总结的facts cluster
+
+        Returns:
+            总结后的单个fact
+        """
+        # 构建prompt
+        facts_text = "\n".join([
+            f"{i+1}. {fact.content}"
+            for i, fact in enumerate(cluster)
+        ])
+
+        prompt = f"""Summarize these related facts into a single concise fact.
+Keep the key information, remove redundancy.
+
+Facts:
+{facts_text}
+
+Concise summary (1-2 sentences):"""
+
+        # 调用LLM
+        try:
+            response = await self.llm.complete(
+                prompt,
+                max_tokens=150,
+                temperature=0.3  # 低温度，更确定性
+            )
+            summary = getattr(response, "content", str(response))
+        except Exception as e:
+            # 降级：使用第一个fact作为代表
+            summary = str(cluster[0].content)
+
+        # 创建新的fact
+        return MemoryUnit(
+            content=summary.strip(),
+            tier=MemoryTier.L4_GLOBAL,
+            type=MemoryType.FACT,
+            importance=max(f.importance for f in cluster),  # 保留最高重要性
+            metadata={
+                "compressed_from": len(cluster),
+                "original_ids": [f.id for f in cluster],
+                "compressed_at": datetime.datetime.now().isoformat()
+            }
+        )

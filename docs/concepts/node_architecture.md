@@ -1,25 +1,25 @@
 # Loom 节点体系架构
 
-> **核心架构** - Loom Agent 基于分层的节点体系构建，实现了双系统认知、分层记忆和并行执行。
+> **核心架构** - Loom Agent 基于分层的节点体系构建，实现了统一处理、分层记忆和并行执行。
 
 ## 1. 核心节点层 (Agent Layer)
 
 核心层是智能体的"大脑"，负责决策和任务分发。
 
 ### AgentNode - 智能代理节点
-AgentNode 实现了基于双系统理论的认知架构：
+AgentNode 实现了统一的ReAct循环处理架构：
 
-- **System 1 (快速路径)**
-    - **特点**：低延迟、直觉式反应。
-    - **预算**：500 tokens。
-    - **适用**：简单查询、对话闲聊。
-- **System 2 (分析路径)**
-    - **特点**：深度推理、规划。
-    - **预算**：8000 tokens。
-    - **适用**：复杂任务、多步推理。
-- **自动降级机制**
-    - `ConfidenceEstimator` 评估 System 1 输出的置信度。
-    - 低置信度自动触发 System 1 → System 2 切换。
+- **统一处理流程**
+    - 所有查询都通过相同的ReAct循环处理
+    - 根据查询特征动态调整上下文大小
+    - 支持流式输出和完整响应
+- **自适应上下文策略**
+    - 简单查询：较小的上下文窗口（~500 tokens）
+    - 复杂查询：完整的上下文窗口（~8000 tokens）
+    - 根据查询特征自动调整
+- **查询特征分析**
+    - `QueryFeatureExtractor` 提取查询特征
+    - 用于动态调整上下文策略和处理深度
 
 ### 执行模式
 - **ReAct 循环**：Thought → Act → Observe。
@@ -120,10 +120,10 @@ graph TD
     EventBus --> AgentNode
 
     subgraph AgentNode [Agent 核心]
-        System1[System 1: 快速路径]
-        System2[System 2: 分析路径]
-        Router[路由/降级]
-        System1 --置信度低--> Router --> System2
+        Query[查询特征分析]
+        Context[上下文组装]
+        ReAct[ReAct循环]
+        Query --> Context --> ReAct
     end
     
     AgentNode --> ContextManager

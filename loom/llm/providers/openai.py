@@ -147,6 +147,11 @@ class OpenAIProvider(LLMProvider):
         kwargs = self.config.to_openai_kwargs()
         kwargs["messages"] = messages
 
+        # chat方法强制禁用流式输出（流式输出应使用stream_chat方法）
+        kwargs["stream"] = False
+        if "stream_options" in kwargs:
+            del kwargs["stream_options"]
+
         # 添加工具
         if tools:
             kwargs["tools"] = self._convert_tools(tools)

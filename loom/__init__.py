@@ -30,7 +30,6 @@ from loom.config import (
     AgentConfig,
     FractalConfig,
     ExecutionConfig,
-    RouterConfig,
     ContextConfig,
     CurationConfig,
     NodeRole,
@@ -78,7 +77,6 @@ __all__ = [
     "AgentConfig",
     "FractalConfig",
     "ExecutionConfig",
-    "RouterConfig",
     "ContextConfig",
     "CurationConfig",
 
