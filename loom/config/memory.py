@@ -52,7 +52,7 @@ class VectorStoreConfig:
     Configuration for Vector Store backend.
     Users can specify their preferred vector database.
     """
-    # Provider type: 'inmemory', 'qdrant', 'chroma', or custom class path
+    # Provider type: 'inmemory', 'qdrant', 'chroma', 'postgres', or custom class path
     provider: str = "inmemory"
 
     # Provider-specific configuration
@@ -64,7 +64,7 @@ class VectorStoreConfig:
     #   provider_config = {
     #       "url": "http://localhost:6333",
     #       "collection_name": "loom_memory",
-    #       "vector_size": 1536
+    #       "vector_size": 512
     #   }
     #
     # For Chroma:
@@ -72,6 +72,18 @@ class VectorStoreConfig:
     #   provider_config = {
     #       "persist_directory": "./chroma_db",
     #       "collection_name": "loom_memory"
+    #   }
+    #
+    # For PostgreSQL + pgvector:
+    #   provider = "postgres"
+    #   provider_config = {
+    #       "host": "localhost",
+    #       "port": 5432,
+    #       "database": "loom_db",
+    #       "user": "loom_user",
+    #       "password": "your_password",
+    #       "table_name": "loom_vectors",
+    #       "vector_dimensions": 512
     #   }
 
     # Enable/disable vector search entirely

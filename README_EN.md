@@ -22,26 +22,25 @@
 
 Loom is a **High-Assurance** AI Agent framework designed for building production-grade systems. Unlike frameworks focused on "rapid prototyping," Loom focuses on **Control, Persistence, and Scalability**.
 
-### Core Features (v0.3.6)
+### Core Features (v0.3.7)
 
 1.  **🧬 Controlled Fractal Architecture**:
     *   Agent, Tool, and Crew are all **Nodes**. Nodes can recursively contain other nodes.
     *   Complex swarms expose simple function-like interfaces.
 
-2.  **🧠 Metabolic Memory**:
-    *   Rejects infinite context windows. Loom mimics biological metabolism: **Ingest (Validate) -> Digest (Sanitize) -> Assimilate (PSO)**.
-    *   Keeps agents sharp and focused over long-running sessions.
+2.  **🎯 Cognitive Dynamics System**:
+    *   **Dual-System Thinking**: Intelligent collaboration between System 1 (fast intuition) and System 2 (deep reasoning).
+    *   **Confidence Assessment**: System 1 automatically falls back to System 2 on low confidence responses.
+    *   **Unified Configuration**: Manage cognitive, context, and memory configurations through `CognitiveConfig`.
+    *   **Preset Modes**: Three out-of-the-box configuration modes: fast/balanced/deep.
 
-3.  **🛡️ Protocol-First Design**:
-    *   Built on Python `typing.Protocol`.
-    *   Zero core dependencies: Swap LLM Providers (OpenAI/Anthropic) or Transports (Memory/Redis) easily.
-
-4.  **⚡ Universal Event Bus**:
 3.  **🧠 Composite Memory System**:
     *   **L1-L4 Hierarchy**: From ephemeral reaction (L1) to semantic knowledge (L4).
-    *   **Semantic Persistence**: Integrated Qdrant vector database for cross-session memory and knowledge accumulation.
+    *   **Multiple Vector Stores**: Support for Qdrant, Chroma, PostgreSQL (pgvector), and more vector database backends.
+    *   **BGE Embedding**: Integrated ONNX-optimized BGE model for high-performance semantic retrieval.
+    *   **Smart Compression**: L4 knowledge base automatically clusters and compresses to maintain optimal size (<150 facts).
     *   **Memory Metabolism**: Automated `Ingest` -> `Digest` -> `Assimilate` consolidation loop.
-    *   **Context Compression**: Smartly compresses history while retaining key facts, significantly reducing token usage.
+    *   **Context Projection**: Smart projection of parent Agent context to child Agents with 5 projection modes.
 
 4.  **🛡️ Protocol-First & Recursion**:
     *   **Infinite Recursion**: Agents can delegate tasks to other nodes recursively with no depth limit.
@@ -51,6 +50,11 @@ Loom is a **High-Assurance** AI Agent framework designed for building production
 5.  **⚡ Universal Event Bus**:
     *   Based on CloudEvents standard.
     *   Supports full-stack Tracing and Auditing.
+
+6.  **🌐 Multi-LLM Support**:
+    *   **10+ Providers**: OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Kimi, Doubao, and more.
+    *   **Unified Interface**: Consistent API design for easy model switching.
+    *   **Streaming Output**: Native support for streaming responses and structured output.
 
 ---
 

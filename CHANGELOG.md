@@ -3,6 +3,39 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.8] - 2026-01-14
+
+### 🎯 The "PostgreSQL Vector Store" Release
+
+Loom v0.3.8 adds PostgreSQL (pgvector) support for L4 memory vectorization, providing enterprise-grade persistent storage options.
+
+### ✨ New Features
+
+#### 1. PostgreSQL Vector Store Support
+- **PostgreSQL + pgvector**: Added PostgreSQL as a vector store provider for L4 memory
+- **Enterprise Integration**: Seamless integration with existing PostgreSQL infrastructure
+- **ACID Guarantees**: Full transactional support for vector operations
+- **Configuration Examples**: Comprehensive configuration examples for PostgreSQL setup
+
+### 📚 Documentation Enhancements
+
+#### 2. Enhanced Memory System Documentation
+- **Persistent Storage**: Detailed explanation of L4 vectorization and persistent storage mechanism
+- **Semantic Retrieval**: Clear documentation of semantic search and vector comparison workflow
+- **Usage Examples**: Complete code examples showing storage and retrieval patterns
+- **Multi-Provider Support**: Updated documentation to reflect Qdrant, Chroma, and PostgreSQL support
+
+#### 3. Configuration Updates
+- **Vector Store Config**: Added PostgreSQL configuration examples in `loom/config/memory.py`
+- **Provider Options**: Updated provider type to include 'postgres' option
+- **README Updates**: Updated both Chinese and English README files with PostgreSQL support information
+
+### 🔧 Improvements
+
+- **Vector Dimensions**: Updated default vector size from 1536 to 512 (BGE embedding)
+- **Documentation Clarity**: Improved clarity around persistent storage and cross-session memory
+- **Configuration Examples**: Added comprehensive examples for all vector store providers
+
 ## [0.3.7] - 2026-01-14
 
 ### 🎯 The "Simplified Cognition" Release

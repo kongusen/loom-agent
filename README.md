@@ -36,6 +36,7 @@ Loom 是一个**高可靠 (High-Assurance)** 的 AI Agent 框架，专为构建�
 
 3.  **🧠 复合记忆系统 (Composite Memory)**:
     *   **L1-L4 分层存储**：从瞬间反应(L1)到语义知识(L4)的完整记忆谱系。
+    *   **多种向量存储**：支持 Qdrant、Chroma、PostgreSQL (pgvector) 等多种向量数据库后端。
     *   **BGE Embedding**：集成 ONNX 优化的 BGE 模型，支持高性能语义检索。
     *   **智能压缩**：L4 知识库自动聚类压缩，保持最优规模（<150 facts）。
     *   **记忆代谢**：自动化的 `Ingest` -> `Digest` -> `Assimilate` 记忆巩固流程。

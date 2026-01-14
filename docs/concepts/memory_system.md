@@ -39,7 +39,7 @@ Loom 采用四级记忆结构，模拟人类大脑的记忆处理过程。
     - **事实知识**：项目背景、业务规则。
     - **世界知识**：通过工具获取的外部通用知识。
 - **技术实现**：
-    - **向量存储**：使用 Vector Store (Qdrant/Chroma) 存储 Embedding。
+    - **向量存储**：使用 Vector Store (Qdrant/Chroma/PostgreSQL) 存储 Embedding。
     - **语义检索**：支持 Top-K 语义相似度搜索。
     - **自动压缩**：当facts数量超过阈值时，自动聚类并压缩相似facts（v0.3.7+）。
 
@@ -65,14 +65,16 @@ graph LR
 - **规则降级**：如果 LLM 调用失败，使用启发式规则截断旧消息。
 - **系统通知**：向 Context注入 `📦 History compacted` 标记，告知 Agent 记忆已压缩。
 
-### 2. L2/L3 → L4：知识提取
-不仅仅是存储文本，更是提取知识：
+### 2. L2/L3 → L4：知识提取与持久化
+不仅仅是存储文本，更是提取知识并持久化保存：
 
 - **提取器 (Extractor)**：分析对话，识别出具有长期价值的"事实" (Facts)。
 - **重要性过滤**：对提取的事实打分 (0-1)，仅保留 Score > 0.8 的高价值事实。
-- **自动向量化**：
-    - **Embedding**：使用 BGE (BAAI/bge-small-zh-v1.5) 模型将文本转为向量，支持中英文，512维（v0.3.7+默认）。
-    - **索引**：存入向量数据库，建立索引。
+- **自动向量化与持久存储**：
+    - **Embedding**：使用 BGE (BAAI/bge-small-zh-v1.5) 模型将文本转为 512 维向量（支持中英文）。
+    - **持久化存储**：向量自动存储到向量数据库（Qdrant/Chroma/PostgreSQL），重启后依然可用。
+    - **语义检索**：使用时通过余弦相似度计算，快速找到最相关的知识（Top-K 检索）。
+    - **跨会话记忆**：L4 知识库在 Agent 重启后依然保留，实现真正的长期记忆。
 
 ### 3. L4 自动压缩（v0.3.7+）
 
@@ -107,10 +109,10 @@ from loom.memory.config import MemoryConfig, VectorStoreConfig
 config = MemoryConfig(
     # L1 缓冲区大小
     l1_size=50,
-    
+
     # 自动向量化 L4 内容
     auto_vectorize_l4=True,
-    
+
     # 向量存储配置
     vector_store=VectorStoreConfig(
         provider="qdrant",
@@ -122,6 +124,63 @@ config = MemoryConfig(
 )
 ```
 
+### 向量存储提供商配置
+
+Loom 支持多种向量存储后端，您可以根据需求选择：
+
+#### 1. Qdrant（推荐用于生产环境）
+```python
+vector_store=VectorStoreConfig(
+    provider="qdrant",
+    provider_config={
+        "url": "http://localhost:6333",
+        "collection_name": "loom_memories",
+        "vector_size": 512  # BGE embedding 维度
+    }
+)
+```
+
+#### 2. ChromaDB（适合本地开发）
+```python
+vector_store=VectorStoreConfig(
+    provider="chroma",
+    provider_config={
+        "persist_directory": "./chroma_db",
+        "collection_name": "loom_memories"
+    }
+)
+```
+
+#### 3. PostgreSQL + pgvector（企业级方案）
+```python
+vector_store=VectorStoreConfig(
+    provider="postgres",
+    provider_config={
+        "host": "localhost",
+        "port": 5432,
+        "database": "loom_db",
+        "user": "loom_user",
+        "password": "your_password",
+        "table_name": "loom_vectors",
+        "vector_dimensions": 512  # BGE embedding 维度
+    }
+)
+```
+
+**PostgreSQL 配置说明**：
+- 需要安装 pgvector 扩展：`CREATE EXTENSION vector;`
+- 支持完整的 ACID 事务保证
+- 适合需要与现有 PostgreSQL 基础设施集成的场景
+- 支持高并发读写和复杂查询过滤
+
+#### 4. 内存存储（仅用于测试）
+```python
+vector_store=VectorStoreConfig(
+    provider="inmemory",
+    provider_config={}
+)
+```
+
 ### 初始化
 ```python
 from loom.memory.core import LoomMemory
@@ -129,24 +188,62 @@ from loom.memory.core import LoomMemory
 memory = LoomMemory(node_id="agent-01", config=config)
 ```
 
-### 手动操作（高级）
-虽然大部分流转是自动的，开发者也可以通过 API 干预：
+### 持久化存储与检索示例
+
+L4 记忆支持完整的持久化存储和语义检索：
 
 ```python
-# 手动添加一条 L4 知识
+from loom.memory.core import LoomMemory
+from loom.memory.types import MemoryUnit, MemoryTier, MemoryType, MemoryQuery
+from loom.config.memory import MemoryConfig, VectorStoreConfig
+
+# 1. 配置持久化向量存储
+config = MemoryConfig(
+    auto_vectorize_l4=True,  # 启用自动向量化
+    vector_store=VectorStoreConfig(
+        provider="qdrant",  # 或 "chroma", "postgres"
+        provider_config={
+            "url": "http://localhost:6333",
+            "collection_name": "loom_memory"
+        }
+    )
+)
+
+# 2. 创建记忆系统
+memory = LoomMemory(node_id="agent-01", config=config)
+
+# 3. 添加知识（自动向量化并持久存储）
 await memory.add(MemoryUnit(
     content="用户喜欢使用 Python 编写测试用例",
     tier=MemoryTier.L4_GLOBAL,
     type=MemoryType.FACT
 ))
+# ✅ 此时数据已经：
+#    - 转换为 512 维向量
+#    - 存储到 Qdrant 向量数据库
+#    - 持久化保存（重启后依然存在）
 
-# 语义搜索
+# 4. 语义检索（即使重启后也能查询）
 results = await memory.query(MemoryQuery(
-    query_text="用户的编程偏好",
+    query_text="用户的编程偏好",  # 查询文本
     tiers=[MemoryTier.L4_GLOBAL],
-    top_k=3
+    top_k=3  # 返回最相似的 3 条
 ))
+# ✅ 系统会：
+#    - 将查询转换为向量
+#    - 在向量库中计算余弦相似度
+#    - 返回最相关的知识
+
+for result in results:
+    print(f"内容: {result.content}")
+    print(f"相似度: {result.metadata.get('score', 'N/A')}")
 ```
+
+**关键特性**：
+- 🔄 **自动向量化**：添加 L4 记忆时自动转换为向量并存储
+- 💾 **持久化存储**：数据保存在向量数据库中，重启后依然可用
+- 🔍 **语义检索**：通过语义相似度而非关键词匹配查找知识
+- ⚡ **高性能**：BGE embedding 通过 ONNX 优化，推理速度 ~5ms/次
 
 ### 上下文投影（v0.3.7+）
 
