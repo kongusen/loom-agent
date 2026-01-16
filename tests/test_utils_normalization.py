@@ -215,4 +215,4 @@ class TestDataNormalizer:
         result_depth3 = DataNormalizer.normalize_to_size(data, max_depth=3)
 
         # Depth 1 should be more truncated
-        str(result_depth1).count("[") <= str(result_depth3).count("[")
+        assert str(result_depth1).count("[") <= str(result_depth3).count("[")

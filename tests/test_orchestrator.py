@@ -77,6 +77,6 @@ def test_tool_filter_whitelist(orchestrator):
 async def test_spawn_children(orchestrator):
     """测试子节点生成"""
     # Mock FractalAgentNode
-    with pytest.raises(Exception): # Will fail because we can't really import/instantiate FractalAgentNode easily in unit test without full mocks
+    with pytest.raises(Exception):  # noqa: B017 - Will fail because we can't really import/instantiate FractalAgentNode easily in unit test without full mocks
         await orchestrator._spawn_children([SubtaskSpecification(description="t1")])
     # Ideally needs mocking the import inside the function or Class

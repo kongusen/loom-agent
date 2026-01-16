@@ -7,10 +7,10 @@ Loom Agent Framework - 统一 API 入口
 from dataclasses import dataclass
 from typing import Any, cast
 
+from loom.config.cognitive import CognitiveConfig
 from loom.config.execution import ExecutionConfig
 from loom.config.fractal import FractalConfig
 from loom.config.memory import ContextConfig
-from loom.config.cognitive import CognitiveConfig
 
 # 配置类导入
 from loom.config.models import AgentConfig as AgentMetaConfig
@@ -173,7 +173,7 @@ class Loom:
             cognitive_config.context_max_tokens = config.memory.max_context_tokens
             cognitive_config.context_strategy = config.memory.strategy
             # Map other fields if possible
-        
+
         agent_params["cognitive_config"] = cognitive_config
 
         # 6. 应用 kwargs 覆盖

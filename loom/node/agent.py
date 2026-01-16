@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any, Optional
 from loom.cognition.confidence import ConfidenceEstimator
 
 if TYPE_CHECKING:
-    from loom.llm.interface import LLMResponse
     from loom.kernel.fractal import FractalOrchestrator, ResultSynthesizer
+    from loom.llm.interface import LLMResponse
 
 # Cognitive Components
 from loom.config.cognitive import CognitiveConfig
@@ -107,8 +107,8 @@ class AgentNode(Node):
 
         # Initialize Orchestrator and Synthesizer for explicit delegation
         # Use get_fractal_config() from mixin
-        self.orchestrator: Optional["FractalOrchestrator"] = None
-        self.synthesizer: Optional["ResultSynthesizer"] = None
+        self.orchestrator: "FractalOrchestrator" | None = None
+        self.synthesizer: "ResultSynthesizer" | None = None
         f_config = self.get_fractal_config()
         if f_config and f_config.enable_explicit_delegation:
             from loom.kernel.fractal import (
@@ -256,7 +256,7 @@ class AgentNode(Node):
                     orchestrator = self.orchestrator
                     if orchestrator is None:
                         return "委托失败: Orchestrator未初始化"
-                        
+
                     result = await orchestrator.delegate(request)
 
                     if result.success:

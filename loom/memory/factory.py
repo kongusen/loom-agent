@@ -2,7 +2,8 @@
 Factory functions for creating vector stores and embedding providers.
 """
 
-from typing import Any, cast
+from typing import cast
+
 from loom.config.memory import EmbeddingConfig, VectorStoreConfig
 
 from .embedding import EmbeddingProvider

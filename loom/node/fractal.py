@@ -222,7 +222,7 @@ class FractalAgentNode(AgentNode):
         """Determine if fractal mode should be used"""
         return fractal_utils.should_use_fractal(task, self.fractal_config)
 
-    async def _direct_execute(self, task: str, **kwargs) -> Any:
+    async def _direct_execute(self, task: str, **_kwargs) -> Any:
         """Execute task directly using parent AgentNode._execute_task()"""
         # Use parent class's execution method
         # Note: _execute_task takes (task, event), ignoring kwargs for now or mapping them

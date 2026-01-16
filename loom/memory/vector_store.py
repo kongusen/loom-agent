@@ -445,7 +445,7 @@ class ChromaVectorStore(VectorStoreProvider):
 
         if not results['ids']:
             return None
-        
+
         metadata = results['metadatas'][0] if results['metadatas'] else {}
         return VectorSearchResult(
             id=results['ids'][0],

@@ -111,9 +111,11 @@ class TestRedisTransport:
 
     def test_initialization_without_redis(self):
         """Test initialization when redis package is not available."""
-        with patch('loom.infra.transport.redis.aioredis', None):
-            with pytest.raises(ImportError, match="redis package is required"):
-                RedisTransport()
+        with (
+            patch('loom.infra.transport.redis.aioredis', None),
+            pytest.raises(ImportError, match="redis package is required")
+        ):
+            RedisTransport()
 
     @pytest.mark.asyncio
     async def test_connect_success(self, mock_redis_module):

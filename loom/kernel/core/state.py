@@ -53,11 +53,11 @@ class StateStore:
 
         tokens = [t for t in path.split('/') if t]
         current: Any = self._root
-        
+
         for token in tokens:
             if current is None:
                 return None
-            
+
             if isinstance(current, dict):
                 current = current.get(token)
             elif isinstance(current, list):

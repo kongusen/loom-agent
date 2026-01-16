@@ -5,7 +5,7 @@ OpenAI LLM Provider
 """
 
 import os
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from loom.config.llm import (

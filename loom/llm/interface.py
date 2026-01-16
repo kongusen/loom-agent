@@ -3,7 +3,7 @@ LLM Provider Interface
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
 from pydantic import BaseModel

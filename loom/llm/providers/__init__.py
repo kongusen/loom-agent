@@ -5,14 +5,12 @@ LLM Providers
 """
 
 # Always available
+# Optional providers - import only if dependencies are available
+from loom.llm.interface import LLMProvider
 from loom.llm.providers.mock import MockLLMProvider
 
-# Optional providers - import only if dependencies are available
-from typing import Type
-from loom.llm.interface import LLMProvider
-
 __all__: list[str] = ["MockLLMProvider"]
-PROVIDERS: dict[str, Type[LLMProvider]] = {"MockLLMProvider": MockLLMProvider}
+PROVIDERS: dict[str, type[LLMProvider]] = {"MockLLMProvider": MockLLMProvider}
 
 try:
     from loom.llm.providers.openai import OpenAIProvider

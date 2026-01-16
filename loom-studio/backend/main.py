@@ -198,7 +198,7 @@ def _compute_topology():
 
     nodes = {}
     edges: dict[str, int] = {}
-     
+
     for event in events:
         source = event.get("source")
         subject = event.get("subject")

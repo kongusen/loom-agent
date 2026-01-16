@@ -7,7 +7,7 @@ Google Gemini LLM Provider
 import json
 import logging
 import os
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
@@ -21,7 +21,7 @@ try:
 except ImportError:
     raise ImportError(
         "Google Generative AI SDK not installed. Install with: pip install google-generativeai"
-    )
+    ) from None
 
 
 class GeminiProvider(LLMProvider):

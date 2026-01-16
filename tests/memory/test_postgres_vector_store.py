@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("asyncpg")
 pytest.importorskip("pgvector")
 
-from loom.memory.vector_store import PostgreSQLVectorStore
+from loom.memory.vector_store import PostgreSQLVectorStore  # noqa: E402
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ Anthropic (Claude) LLM Provider
 import json
 import logging
 import os
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
@@ -20,7 +20,7 @@ try:
 except ImportError:
     raise ImportError(
         "Anthropic SDK not installed. Install with: pip install anthropic"
-    )
+    ) from None
 
 
 class AnthropicProvider(LLMProvider):
@@ -175,7 +175,7 @@ class AnthropicProvider(LLMProvider):
 
         # 调用 API
         from typing import cast
-        
+
         response = await self.client.messages.create(**cast(Any, kwargs))
 
         # 提取响应
@@ -237,7 +237,7 @@ class AnthropicProvider(LLMProvider):
             # Cast kwargs to Any to bypass overload resolution issues with dynamic unpacking
             # Anthropic client expects specific typed arguments but we build them dynamically
             from typing import cast
-            
+
             stream = await self.client.messages.create(**cast(Any, kwargs))
 
             # 工具调用缓冲区

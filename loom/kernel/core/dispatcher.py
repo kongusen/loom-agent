@@ -3,7 +3,7 @@ Event Dispatcher (Kernel)
 """
 
 import contextlib
-from typing import Any, cast
+from typing import Any
 
 from loom.kernel.control.base import Interceptor
 from loom.kernel.core.bus import UniversalEventBus

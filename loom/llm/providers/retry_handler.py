@@ -98,7 +98,7 @@ async def retry_async(
 
         except Exception as e:
             last_exception = e
-            
+
             if attempt == config.max_retries:
                 logger.error(
                     f"Function {func.__name__} failed after {config.max_retries} retries: {str(e)}"

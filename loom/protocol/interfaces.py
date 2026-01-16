@@ -3,7 +3,7 @@ Core Protocols for Loom Framework.
 Adhering to the "Protocol-First" design principle using typing.Protocol.
 """
 
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from loom.protocol.cloudevents import CloudEvent
@@ -136,8 +136,8 @@ class LLMProviderProtocol(Protocol):
 
     async def stream_chat(
         self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None
+        _messages: list[dict[str, Any]],
+        _tools: list[dict[str, Any]] | None = None
     ) -> AsyncGenerator["StreamChunk", None]:
         # Stub to indicate this is an async generator
         if False:

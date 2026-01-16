@@ -6,13 +6,13 @@ Loom Agent Builder - 流式构建接口
 
 from typing import Any
 
+from loom.config.cognitive import CognitiveConfig
 from loom.config.execution import ExecutionConfig
 
 # 配置类
 from loom.config.fractal import FractalConfig
 from loom.config.interceptor import InterceptorConfig
 from loom.config.memory import ContextConfig, CurationConfig
-from loom.config.cognitive import CognitiveConfig
 from loom.config.optimization import OptimizationConfig
 
 # Interceptors

@@ -69,7 +69,7 @@ class NATSTransport(Transport):
 
     async def disconnect(self) -> None:
         self._connected = False
-        
+
         for sub_tuple in self._subscriptions:
              sub = sub_tuple[1]
              with contextlib.suppress(Exception):

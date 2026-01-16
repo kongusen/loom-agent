@@ -83,10 +83,10 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
     async def embed_text(self, text: str) -> list[float]:
         import openai
-        
+
         # Determine dimensions (use NOT_GIVEN if None)
         dims = self._dimensions or openai.NOT_GIVEN
-        
+
         response = await self.client.embeddings.create(
             input=text,
             model=self.model,
@@ -369,7 +369,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
         # Prepare model/tokenizer
         if self._model is None and self._onnx_session is None:
              raise RuntimeError("Model not initialized")
-        
+
         # Tokenize (assuming self._tokenizer is not None if _initialize passed)
         if self._tokenizer is None:
              raise RuntimeError("Tokenizer not initialized")
@@ -434,7 +434,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
         # Prepare model/tokenizer
         if self._model is None and self._onnx_session is None:
              raise RuntimeError("Model not initialized")
-        
+
         # Tokenize (assuming self._tokenizer is not None if _initialize passed)
         if self._tokenizer is None:
              raise RuntimeError("Tokenizer not initialized")
