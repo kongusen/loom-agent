@@ -66,7 +66,7 @@ class LoomBuilder:
         # 其他参数
         self._extra_params: dict[str, Any] = {}
 
-    def with_id(self, node_id: str) -> 'LoomBuilder':
+    def with_id(self, node_id: str) -> "LoomBuilder":
         """
         设置 Agent ID
 
@@ -79,7 +79,7 @@ class LoomBuilder:
         self._node_id = node_id
         return self
 
-    def with_llm(self, provider: LLMProvider) -> 'LoomBuilder':
+    def with_llm(self, provider: LLMProvider) -> "LoomBuilder":
         """
         设置 LLM Provider
 
@@ -92,7 +92,7 @@ class LoomBuilder:
         self._llm = provider
         return self
 
-    def with_tools(self, tools: list[ToolNode]) -> 'LoomBuilder':
+    def with_tools(self, tools: list[ToolNode]) -> "LoomBuilder":
         """
         设置工具列表
 
@@ -105,7 +105,7 @@ class LoomBuilder:
         self._tools = tools
         return self
 
-    def with_dispatcher(self, dispatcher: Dispatcher) -> 'LoomBuilder':
+    def with_dispatcher(self, dispatcher: Dispatcher) -> "LoomBuilder":
         """
         设置 Dispatcher（消息总线）
 
@@ -119,10 +119,8 @@ class LoomBuilder:
         return self
 
     def with_agent(
-        self,
-        role: str = "Assistant",
-        system_prompt: str = "You are a helpful assistant."
-    ) -> 'LoomBuilder':
+        self, role: str = "Assistant", system_prompt: str = "You are a helpful assistant."
+    ) -> "LoomBuilder":
         """
         配置 Agent 基本信息
 
@@ -137,11 +135,7 @@ class LoomBuilder:
         self._system_prompt = system_prompt
         return self
 
-    def with_memory(
-        self,
-        max_tokens: int = 8000,
-        strategy: str = "auto"
-    ) -> 'LoomBuilder':
+    def with_memory(self, max_tokens: int = 8000, strategy: str = "auto") -> "LoomBuilder":
         """
         配置 Memory 系统
 
@@ -153,8 +147,7 @@ class LoomBuilder:
             self（支持链式调用）
         """
         self._memory_config = ContextConfig(
-            strategy=strategy,
-            curation_config=CurationConfig(max_tokens=max_tokens)
+            strategy=strategy, curation_config=CurationConfig(max_tokens=max_tokens)
         )
         return self
 
@@ -164,8 +157,8 @@ class LoomBuilder:
         max_depth: int = 3,
         enable_explicit_delegation: bool = True,
         synthesis_model: str = "lightweight",
-        **kwargs
-    ) -> 'LoomBuilder':
+        **kwargs,
+    ) -> "LoomBuilder":
         """
         配置分型能力
 
@@ -184,17 +177,13 @@ class LoomBuilder:
             max_depth=max_depth,
             enable_explicit_delegation=enable_explicit_delegation,
             synthesis_model=synthesis_model,
-            **kwargs
+            **kwargs,
         )
         return self
 
-
     def with_execution(
-        self,
-        parallel_execution: bool = True,
-        max_concurrent: int = 5,
-        **kwargs
-    ) -> 'LoomBuilder':
+        self, parallel_execution: bool = True, max_concurrent: int = 5, **kwargs
+    ) -> "LoomBuilder":
         """
         配置执行引擎
 
@@ -207,9 +196,7 @@ class LoomBuilder:
             self（支持链式调用）
         """
         self._execution_config = ExecutionConfig(
-            parallel_execution=parallel_execution,
-            concurrency_limit=max_concurrent,
-            **kwargs
+            parallel_execution=parallel_execution, concurrency_limit=max_concurrent, **kwargs
         )
         return self
 
@@ -217,7 +204,7 @@ class LoomBuilder:
     # Layer 2: Interceptor Configuration (Control Capabilities)
     # ============================================================================
 
-    def with_budget(self, max_tokens: int) -> 'LoomBuilder':
+    def with_budget(self, max_tokens: int) -> "LoomBuilder":
         """
         启用预算控制（Token 限制）
 
@@ -233,7 +220,7 @@ class LoomBuilder:
         self._interceptor_config.max_tokens = max_tokens
         return self
 
-    def with_depth_limit(self, max_depth: int) -> 'LoomBuilder':
+    def with_depth_limit(self, max_depth: int) -> "LoomBuilder":
         """
         启用深度限制（防止无限递归）
 
@@ -249,7 +236,7 @@ class LoomBuilder:
         self._interceptor_config.max_depth = max_depth
         return self
 
-    def with_timeout(self, seconds: float) -> 'LoomBuilder':
+    def with_timeout(self, seconds: float) -> "LoomBuilder":
         """
         启用超时控制
 
@@ -265,7 +252,7 @@ class LoomBuilder:
         self._interceptor_config.timeout_seconds = seconds
         return self
 
-    def with_hitl(self, patterns: list[str]) -> 'LoomBuilder':
+    def with_hitl(self, patterns: list[str]) -> "LoomBuilder":
         """
         启用人机交互审批（HITL）
 
@@ -281,7 +268,7 @@ class LoomBuilder:
         self._interceptor_config.hitl_patterns = patterns
         return self
 
-    def with_interceptor_config(self, config: InterceptorConfig) -> 'LoomBuilder':
+    def with_interceptor_config(self, config: InterceptorConfig) -> "LoomBuilder":
         """
         直接设置 Interceptor 配置
 
@@ -298,11 +285,7 @@ class LoomBuilder:
     # Layer 4: Optimization Configuration
     # ============================================================================
 
-    def with_optimization(
-        self,
-        enabled: bool = True,
-        strategy: str = "adaptive"
-    ) -> 'LoomBuilder':
+    def with_optimization(self, enabled: bool = True, strategy: str = "adaptive") -> "LoomBuilder":
         """
         启用结构优化
 
@@ -319,7 +302,7 @@ class LoomBuilder:
         self._optimization_config.evolution_strategy = strategy
         return self
 
-    def with_optimization_config(self, config: OptimizationConfig) -> 'LoomBuilder':
+    def with_optimization_config(self, config: OptimizationConfig) -> "LoomBuilder":
         """
         直接设置优化配置
 
@@ -357,15 +340,11 @@ class LoomBuilder:
 
             # Budget Control
             if config.enable_budget and config.max_tokens:
-                self._dispatcher.add_interceptor(
-                    BudgetInterceptor(max_tokens=config.max_tokens)
-                )
+                self._dispatcher.add_interceptor(BudgetInterceptor(max_tokens=config.max_tokens))
 
             # Depth Limiting
             if config.enable_depth_limit and config.max_depth:
-                self._dispatcher.add_interceptor(
-                    DepthInterceptor(max_depth=config.max_depth)
-                )
+                self._dispatcher.add_interceptor(DepthInterceptor(max_depth=config.max_depth))
 
             # Timeout Control
             if config.enable_timeout and config.timeout_seconds:
@@ -375,9 +354,7 @@ class LoomBuilder:
 
             # Human-in-the-Loop
             if config.enable_hitl and config.hitl_patterns:
-                self._dispatcher.add_interceptor(
-                    HITLInterceptor(patterns=config.hitl_patterns)
-                )
+                self._dispatcher.add_interceptor(HITLInterceptor(patterns=config.hitl_patterns))
 
             # Tracing
             if config.enable_tracing:
@@ -419,4 +396,3 @@ class LoomBuilder:
 
         # 创建 Agent
         return AgentNode(**params)
-

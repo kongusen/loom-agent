@@ -2,6 +2,7 @@
 Embedding Provider Abstraction
 Allows users to plug in their preferred embedding service.
 """
+
 import hashlib
 from abc import ABC, abstractmethod
 
@@ -60,15 +61,12 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self,
         api_key: str | None = None,
         model: str = "text-embedding-3-small",
-        dimensions: int | None = None
+        dimensions: int | None = None,
     ):
         try:
             from openai import AsyncOpenAI
         except ImportError:
-            raise ImportError(
-                "openai not installed. "
-                "Install with: pip install openai"
-            ) from None
+            raise ImportError("openai not installed. " "Install with: pip install openai") from None
 
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
@@ -78,7 +76,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self._model_dims = {
             "text-embedding-3-small": 1536,
             "text-embedding-3-large": 3072,
-            "text-embedding-ada-002": 1536
+            "text-embedding-ada-002": 1536,
         }
 
     async def embed_text(self, text: str) -> list[float]:
@@ -90,7 +88,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         response = await self.client.embeddings.create(
             input=text,
             model=self.model,
-            dimensions=dims # type: ignore
+            dimensions=dims,  # type: ignore
         )
         return response.data[0].embedding
 
@@ -104,7 +102,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         response = await self.client.embeddings.create(
             input=texts,
             model=self.model,
-            dimensions=dims # type: ignore
+            dimensions=dims,  # type: ignore
         )
         return [item.embedding for item in response.data]
 
@@ -205,7 +203,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
         model_name: str = "BAAI/bge-small-zh-v1.5",
         use_onnx: bool = True,
         use_quantization: bool = True,
-        cache_dir: str | None = None
+        cache_dir: str | None = None,
     ):
         self.model_name = model_name
         self.use_onnx = use_onnx
@@ -228,8 +226,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
 
             # Load tokenizer
             self._tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name,
-                cache_dir=self.cache_dir
+                self.model_name, cache_dir=self.cache_dir
             )
 
             # Try ONNX Runtime optimization
@@ -242,17 +239,13 @@ class BGEEmbeddingProvider(EmbeddingProvider):
                     pass
 
             # Fallback: Load PyTorch model
-            self._model = AutoModel.from_pretrained(
-                self.model_name,
-                cache_dir=self.cache_dir
-            )
+            self._model = AutoModel.from_pretrained(self.model_name, cache_dir=self.cache_dir)
             if self._model:
                 self._model.eval()
 
         except ImportError:
             raise ImportError(
-                "transformers not installed. "
-                "Install with: pip install transformers torch"
+                "transformers not installed. " "Install with: pip install transformers torch"
             ) from None
 
     def _initialize_onnx(self):
@@ -269,8 +262,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
 
             model_safe_name = self.model_name.replace("/", "_")
             onnx_path = os.path.join(
-                cache_dir,
-                f"{model_safe_name}_{'int8' if self.use_quantization else 'fp32'}.onnx"
+                cache_dir, f"{model_safe_name}_{'int8' if self.use_quantization else 'fp32'}.onnx"
             )
 
             # Check if ONNX model already exists
@@ -283,15 +275,12 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
             self._onnx_session = ort.InferenceSession(
-                onnx_path,
-                sess_options=sess_options,
-                providers=['CPUExecutionProvider']
+                onnx_path, sess_options=sess_options, providers=["CPUExecutionProvider"]
             )
 
         except ImportError:
             raise ImportError(
-                "onnxruntime not installed. "
-                "Install with: pip install onnxruntime"
+                "onnxruntime not installed. " "Install with: pip install onnxruntime"
             ) from None
 
     def _convert_to_onnx(self, onnx_path: str):
@@ -302,17 +291,14 @@ class BGEEmbeddingProvider(EmbeddingProvider):
         from transformers import AutoModel
 
         # Load PyTorch model temporarily
-        model = AutoModel.from_pretrained(
-            self.model_name,
-            cache_dir=self.cache_dir
-        )
+        model = AutoModel.from_pretrained(self.model_name, cache_dir=self.cache_dir)
         model.eval()
 
         # Create dummy input
         dummy_input = {
-            'input_ids': torch.randint(0, 1000, (1, 128)),
-            'attention_mask': torch.ones(1, 128, dtype=torch.long),
-            'token_type_ids': torch.zeros(1, 128, dtype=torch.long)
+            "input_ids": torch.randint(0, 1000, (1, 128)),
+            "attention_mask": torch.ones(1, 128, dtype=torch.long),
+            "token_type_ids": torch.zeros(1, 128, dtype=torch.long),
         }
 
         # Export to ONNX
@@ -321,15 +307,15 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             model,
             (dummy_input,),
             temp_onnx_path,
-            input_names=['input_ids', 'attention_mask', 'token_type_ids'],
-            output_names=['last_hidden_state'],
+            input_names=["input_ids", "attention_mask", "token_type_ids"],
+            output_names=["last_hidden_state"],
             dynamic_axes={
-                'input_ids': {0: 'batch', 1: 'sequence'},
-                'attention_mask': {0: 'batch', 1: 'sequence'},
-                'token_type_ids': {0: 'batch', 1: 'sequence'},
-                'last_hidden_state': {0: 'batch', 1: 'sequence'}
+                "input_ids": {0: "batch", 1: "sequence"},
+                "attention_mask": {0: "batch", 1: "sequence"},
+                "token_type_ids": {0: "batch", 1: "sequence"},
+                "last_hidden_state": {0: "batch", 1: "sequence"},
             },
-            opset_version=14
+            opset_version=14,
         )
 
         # Apply Int8 quantization if requested
@@ -337,11 +323,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             try:
                 from onnxruntime.quantization import QuantType, quantize_dynamic
 
-                quantize_dynamic(
-                    temp_onnx_path,
-                    onnx_path,
-                    weight_type=QuantType.QInt8
-                )
+                quantize_dynamic(temp_onnx_path, onnx_path, weight_type=QuantType.QInt8)
                 os.remove(temp_onnx_path)
             except Exception:
                 # If quantization fails, use unquantized version
@@ -368,18 +350,18 @@ class BGEEmbeddingProvider(EmbeddingProvider):
 
         # Prepare model/tokenizer
         if self._model is None and self._onnx_session is None:
-             raise RuntimeError("Model not initialized")
+            raise RuntimeError("Model not initialized")
 
         # Tokenize (assuming self._tokenizer is not None if _initialize passed)
         if self._tokenizer is None:
-             raise RuntimeError("Tokenizer not initialized")
+            raise RuntimeError("Tokenizer not initialized")
 
         encoded = self._tokenizer(
             text,
             padding=True,
             truncation=True,
             max_length=512,
-            return_tensors='pt' if self._model else 'np'
+            return_tensors="pt" if self._model else "np",
         )
 
         # Generate embedding
@@ -388,18 +370,22 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             import numpy as np
 
             onnx_inputs = {
-                'input_ids': encoded['input_ids'].numpy(),
-                'attention_mask': encoded['attention_mask'].numpy(),
-                'token_type_ids': encoded.get('token_type_ids', np.zeros_like(encoded['input_ids'])).numpy()
+                "input_ids": encoded["input_ids"].numpy(),
+                "attention_mask": encoded["attention_mask"].numpy(),
+                "token_type_ids": encoded.get(
+                    "token_type_ids", np.zeros_like(encoded["input_ids"])
+                ).numpy(),
             }
 
             outputs = self._onnx_session.run(None, onnx_inputs)
             token_embeddings = outputs[0]
 
             # Mean pooling
-            attention_mask = encoded['attention_mask'].numpy()
+            attention_mask = encoded["attention_mask"].numpy()
             input_mask_expanded = np.expand_dims(attention_mask, -1)
-            input_mask_expanded = np.broadcast_to(input_mask_expanded, token_embeddings.shape).astype(float)
+            input_mask_expanded = np.broadcast_to(
+                input_mask_expanded, token_embeddings.shape
+            ).astype(float)
 
             sum_embeddings = np.sum(token_embeddings * input_mask_expanded, axis=1)
             sum_mask = np.clip(input_mask_expanded.sum(axis=1), a_min=1e-9, a_max=None)
@@ -416,11 +402,12 @@ class BGEEmbeddingProvider(EmbeddingProvider):
                 token_embeddings = outputs.last_hidden_state
 
                 # Mean pooling
-                sentence_embedding = self._mean_pooling(token_embeddings, encoded['attention_mask'])
+                sentence_embedding = self._mean_pooling(token_embeddings, encoded["attention_mask"])
                 embedding = sentence_embedding[0].tolist()
 
         # Normalize embedding
         import math
+
         norm = math.sqrt(sum(x * x for x in embedding))
         if norm > 0:
             embedding = [x / norm for x in embedding]
@@ -433,11 +420,11 @@ class BGEEmbeddingProvider(EmbeddingProvider):
 
         # Prepare model/tokenizer
         if self._model is None and self._onnx_session is None:
-             raise RuntimeError("Model not initialized")
+            raise RuntimeError("Model not initialized")
 
         # Tokenize (assuming self._tokenizer is not None if _initialize passed)
         if self._tokenizer is None:
-             raise RuntimeError("Tokenizer not initialized")
+            raise RuntimeError("Tokenizer not initialized")
 
         # Tokenize batch
         encoded = self._tokenizer(
@@ -445,7 +432,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             padding=True,
             truncation=True,
             max_length=512,
-            return_tensors='pt' if self._model else 'np'
+            return_tensors="pt" if self._model else "np",
         )
 
         # Generate embeddings
@@ -454,18 +441,22 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             import numpy as np
 
             onnx_inputs = {
-                'input_ids': encoded['input_ids'].numpy(),
-                'attention_mask': encoded['attention_mask'].numpy(),
-                'token_type_ids': encoded.get('token_type_ids', np.zeros_like(encoded['input_ids'])).numpy()
+                "input_ids": encoded["input_ids"].numpy(),
+                "attention_mask": encoded["attention_mask"].numpy(),
+                "token_type_ids": encoded.get(
+                    "token_type_ids", np.zeros_like(encoded["input_ids"])
+                ).numpy(),
             }
 
             outputs = self._onnx_session.run(None, onnx_inputs)
             token_embeddings = outputs[0]
 
             # Mean pooling
-            attention_mask = encoded['attention_mask'].numpy()
+            attention_mask = encoded["attention_mask"].numpy()
             input_mask_expanded = np.expand_dims(attention_mask, -1)
-            input_mask_expanded = np.broadcast_to(input_mask_expanded, token_embeddings.shape).astype(float)
+            input_mask_expanded = np.broadcast_to(
+                input_mask_expanded, token_embeddings.shape
+            ).astype(float)
 
             sum_embeddings = np.sum(token_embeddings * input_mask_expanded, axis=1)
             sum_mask = np.clip(input_mask_expanded.sum(axis=1), a_min=1e-9, a_max=None)
@@ -482,11 +473,14 @@ class BGEEmbeddingProvider(EmbeddingProvider):
                 token_embeddings = outputs.last_hidden_state
 
                 # Mean pooling
-                sentence_embeddings = self._mean_pooling(token_embeddings, encoded['attention_mask'])
+                sentence_embeddings = self._mean_pooling(
+                    token_embeddings, encoded["attention_mask"]
+                )
                 embeddings = sentence_embeddings.tolist()
 
         # Normalize embeddings
         import math
+
         normalized_embeddings = []
         for embedding in embeddings:
             norm = math.sqrt(sum(x * x for x in embedding))
@@ -513,6 +507,7 @@ class MockEmbeddingProvider(EmbeddingProvider):
 
     async def embed_text(self, text: str) -> list[float]:
         import random
+
         # Use text hash as seed for deterministic results
         seed = hash(text) % (2**32)
         random.seed(seed)

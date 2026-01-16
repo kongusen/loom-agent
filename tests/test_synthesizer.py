@@ -13,21 +13,21 @@ def mock_provider():
     provider.model = "gpt-4"
     return provider
 
+
 @pytest.fixture
 def synthesizer(mock_provider):
     config = SynthesisConfig(synthesis_model="same_model")
     return ResultSynthesizer(provider=mock_provider, config=config)
 
+
 @pytest.mark.asyncio
 async def test_concatenate_strategy(synthesizer):
     """测试拼接策略"""
-    results = [
-        {"result": "Result 1"},
-        {"result": "Result 2"}
-    ]
+    results = [{"result": "Result 1"}, {"result": "Result 2"}]
     output = await synthesizer.synthesize("Task", results, strategy="concatenate")
     assert "Result 1" in output
     assert "Result 2" in output
+
 
 @pytest.mark.asyncio
 async def test_auto_strategy(synthesizer, mock_provider):
@@ -37,6 +37,7 @@ async def test_auto_strategy(synthesizer, mock_provider):
 
     assert output == "Synthesized result"
     mock_provider.generate.assert_called_once()
+
 
 def test_lightweight_model_mapping():
     """测试模型映射逻辑"""
@@ -51,15 +52,13 @@ def test_lightweight_model_mapping():
 
     # Check if a new instance was created (mock behavior dependent)
     # in real impl it maps gpt-4 -> gpt-3.5-turbo
-    pass # Implementation detail check difficult with simple mocks, skipping
+    pass  # Implementation detail check difficult with simple mocks, skipping
+
 
 @pytest.mark.asyncio
 async def test_custom_model_strategy(mock_provider):
     """测试自定义模型策略"""
-    config = SynthesisConfig(
-        synthesis_model="custom",
-        synthesis_model_override="gpt-4o-mini"
-    )
+    config = SynthesisConfig(synthesis_model="custom", synthesis_model_override="gpt-4o-mini")
     # We need to mock _create_provider or ensure it handles the override
     # For now, just ensuring it doesn't crash
     syn = ResultSynthesizer(provider=mock_provider, config=config)

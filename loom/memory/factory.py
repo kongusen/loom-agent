@@ -27,18 +27,22 @@ def create_vector_store(config: VectorStoreConfig) -> VectorStoreProvider | None
 
     if provider == "inmemory":
         from .vector_store import InMemoryVectorStore
+
         return InMemoryVectorStore()
 
     elif provider == "qdrant":
         from .vector_store import QdrantVectorStore
+
         return QdrantVectorStore(**config.provider_config)
 
     elif provider == "chroma":
         from .vector_store import ChromaVectorStore
+
         return ChromaVectorStore(**config.provider_config)
 
     elif provider == "postgres":
         from .vector_store import PostgreSQLVectorStore
+
         return PostgreSQLVectorStore(**config.provider_config)
 
     else:
@@ -47,6 +51,7 @@ def create_vector_store(config: VectorStoreConfig) -> VectorStoreProvider | None
         try:
             module_path, class_name = provider.rsplit(".", 1)
             import importlib
+
             module = importlib.import_module(module_path)
             provider_class = getattr(module, class_name)
             return cast(VectorStoreProvider, provider_class(**config.provider_config))
@@ -69,14 +74,17 @@ def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
 
     if provider == "openai":
         from .embedding import OpenAIEmbeddingProvider
+
         base_provider = OpenAIEmbeddingProvider(**config.provider_config)
 
     elif provider == "bge":
         from .embedding import BGEEmbeddingProvider
+
         base_provider = BGEEmbeddingProvider(**config.provider_config)
 
     elif provider == "mock":
         from .embedding import MockEmbeddingProvider
+
         base_provider = MockEmbeddingProvider(**config.provider_config)
 
     else:
@@ -84,6 +92,7 @@ def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
         try:
             module_path, class_name = provider.rsplit(".", 1)
             import importlib
+
             module = importlib.import_module(module_path)
             provider_class = getattr(module, class_name)
             base_provider = cast(EmbeddingProvider, provider_class(**config.provider_config))
@@ -93,6 +102,7 @@ def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
     # Wrap with cache if enabled
     if config.enable_cache:
         from .embedding import CachedEmbeddingProvider
+
         return CachedEmbeddingProvider(base_provider, max_cache_size=config.cache_size)
 
     return base_provider

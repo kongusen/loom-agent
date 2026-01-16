@@ -2,7 +2,6 @@
 Tests for Memory Embedding Providers
 """
 
-
 import pytest
 
 from loom.memory.embedding import (
@@ -217,10 +216,7 @@ class TestOpenAIEmbeddingProvider:
     def test_initialization_with_custom_model(self):
         """Test initialization with custom model."""
         try:
-            provider = OpenAIEmbeddingProvider(
-                api_key="test-key",
-                model="text-embedding-3-large"
-            )
+            provider = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-large")
             assert provider.model == "text-embedding-3-large"
         except ImportError:
             pytest.skip("openai not installed")
@@ -228,10 +224,7 @@ class TestOpenAIEmbeddingProvider:
     def test_initialization_with_custom_dimensions(self):
         """Test initialization with custom dimensions."""
         try:
-            provider = OpenAIEmbeddingProvider(
-                api_key="test-key",
-                dimensions=512
-            )
+            provider = OpenAIEmbeddingProvider(api_key="test-key", dimensions=512)
             assert provider._dimensions == 512
         except ImportError:
             pytest.skip("openai not installed")
@@ -239,13 +232,19 @@ class TestOpenAIEmbeddingProvider:
     def test_dimension_property_for_known_models(self):
         """Test dimension property for known models."""
         try:
-            provider_small = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-small")
+            provider_small = OpenAIEmbeddingProvider(
+                api_key="test-key", model="text-embedding-3-small"
+            )
             assert provider_small.dimension == 1536
 
-            provider_large = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-large")
+            provider_large = OpenAIEmbeddingProvider(
+                api_key="test-key", model="text-embedding-3-large"
+            )
             assert provider_large.dimension == 3072
 
-            provider_ada = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-ada-002")
+            provider_ada = OpenAIEmbeddingProvider(
+                api_key="test-key", model="text-embedding-ada-002"
+            )
             assert provider_ada.dimension == 1536
         except ImportError:
             pytest.skip("openai not installed")
@@ -253,10 +252,7 @@ class TestOpenAIEmbeddingProvider:
     def test_dimension_property_with_custom_dimensions(self):
         """Test dimension property with custom dimensions override."""
         try:
-            provider = OpenAIEmbeddingProvider(
-                api_key="test-key",
-                dimensions=256
-            )
+            provider = OpenAIEmbeddingProvider(api_key="test-key", dimensions=256)
             assert provider.dimension == 256
         except ImportError:
             pytest.skip("openai not installed")
@@ -264,10 +260,7 @@ class TestOpenAIEmbeddingProvider:
     def test_dimension_property_default_for_unknown_model(self):
         """Test dimension property defaults to 1536 for unknown model."""
         try:
-            provider = OpenAIEmbeddingProvider(
-                api_key="test-key",
-                model="unknown-model"
-            )
+            provider = OpenAIEmbeddingProvider(api_key="test-key", model="unknown-model")
             assert provider.dimension == 1536
         except ImportError:
             pytest.skip("openai not installed")
@@ -278,5 +271,6 @@ class TestOpenAIEmbeddingProvider:
         # without uninstalling openai, so we just verify the code path exists
         # Skip if openai is actually available
         import importlib.util
+
         if importlib.util.find_spec("openai") is not None:
             pytest.skip("openai is installed, cannot test ImportError")

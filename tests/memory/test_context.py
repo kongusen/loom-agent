@@ -1,6 +1,7 @@
 """
 Unit Tests for LoomContext and Strategies
 """
+
 import pytest
 
 from loom.config import ContextConfig, CurationConfig
@@ -19,17 +20,11 @@ class TestContextCuration:
         memory = LoomMemory("test_node")
 
         # Add L2
-        await memory.add(MemoryUnit(
-            content="L2 Item",
-            tier=MemoryTier.L2_WORKING
-        ))
+        await memory.add(MemoryUnit(content="L2 Item", tier=MemoryTier.L2_WORKING))
 
         # Add many L1 items
         for i in range(20):
-            await memory.add(MemoryUnit(
-                content=f"L1 Item {i}",
-                tier=MemoryTier.L1_RAW_IO
-            ))
+            await memory.add(MemoryUnit(content=f"L1 Item {i}", tier=MemoryTier.L1_RAW_IO))
 
         strategy = AutoStrategy()
         config = CurationConfig(focus_distance=0)
@@ -50,12 +45,14 @@ class TestContextCuration:
         memory = LoomMemory("test_node")
 
         # Add a full skill (L4)
-        await memory.add(MemoryUnit(
-            content="Full Skill Content..." * 10,
-            tier=MemoryTier.L4_GLOBAL,
-            type=MemoryType.SKILL,
-            metadata={"name": "TestSkill", "description": "A test skill"}
-        ))
+        await memory.add(
+            MemoryUnit(
+                content="Full Skill Content..." * 10,
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.SKILL,
+                metadata={"name": "TestSkill", "description": "A test skill"},
+            )
+        )
 
         strategy = SnippetsStrategy()
         config = CurationConfig(use_snippets=True)
@@ -67,6 +64,7 @@ class TestContextCuration:
         assert len(snippets) == 1
         assert "TestSkill" in str(snippets[0].content)
 
+
 class TestContextAssembler:
     """Tests for ContextAssembler."""
 
@@ -74,11 +72,9 @@ class TestContextAssembler:
     async def test_assemble_basic(self):
         """Test basic assembly."""
         memory = LoomMemory("test_node")
-        await memory.add(MemoryUnit(
-            content="User message",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
-        ))
+        await memory.add(
+            MemoryUnit(content="User message", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
+        )
 
         assembler = ContextAssembler()
         messages = await assembler.assemble(memory, task="Test")
@@ -94,23 +90,32 @@ class TestContextAssembler:
         # Add items that would exceed budget
         long_text = "word " * 100
         for _i in range(10):
-            await memory.add(MemoryUnit(
-                content={"role": "user", "content": long_text},
-                tier=MemoryTier.L2_WORKING,
-                type=MemoryType.MESSAGE
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content={"role": "user", "content": long_text},
+                    tier=MemoryTier.L2_WORKING,
+                    type=MemoryType.MESSAGE,
+                )
+            )
 
         # Strict budget
         config = ContextConfig()
-        config.curation_config.max_tokens = 50 # Very small
+        config.curation_config.max_tokens = 50  # Very small
         assembler = ContextAssembler(config=config)
 
         messages = await assembler.assemble(memory)
 
         # Should be empty or very few messages
         # Count tokens
-        total = assembler._count_tokens_msg({"role":"user", "content": " ".join([m["content"] for m in messages])}) if messages else 0
-        assert total <= config.curation_config.max_tokens + 10 # approximate buffer
+        total = (
+            assembler._count_tokens_msg(
+                {"role": "user", "content": " ".join([m["content"] for m in messages])}
+            )
+            if messages
+            else 0
+        )
+        assert total <= config.curation_config.max_tokens + 10  # approximate buffer
+
 
 class TestContextManager:
     """Tests for ContextManager facade."""
@@ -123,11 +128,7 @@ class TestContextManager:
         manager = ContextManager("test_node", memory, assembler)
 
         # Create a "snippet source" in memory
-        unit = MemoryUnit(
-            content="FULL CONTENT",
-            tier=MemoryTier.L4_GLOBAL,
-            type=MemoryType.FACT
-        )
+        unit = MemoryUnit(content="FULL CONTENT", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT)
         unit_id = await memory.add(unit)
 
         # Load it
@@ -150,6 +151,7 @@ class TestContextAssemblerAdditional:
     def mock_memory(self):
         """Create a mock memory object."""
         from unittest.mock import MagicMock
+
         memory = MagicMock(spec=LoomMemory)
         memory._l4_global = []
         memory.node_id = "test_node"
@@ -188,10 +190,7 @@ class TestContextAssemblerAdditional:
         # Add high-importance L4 units
         for i in range(15):
             unit = MemoryUnit(
-                content=f"Fact {i}",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                importance=0.9
+                content=f"Fact {i}", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT, importance=0.9
             )
             mock_memory._l4_global.append(unit)
 
@@ -214,7 +213,7 @@ class TestContextAssemblerAdditional:
                 content="Snippet",
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.CONTEXT,
-                metadata={"full_available": True, "snippet_of": "test_id"}
+                metadata={"full_available": True, "snippet_of": "test_id"},
             )
         ]
         hint = assembler._build_load_hint(units)
@@ -227,12 +226,14 @@ class TestContextAssemblerAdditional:
         assembler = ContextAssembler()
         units = []
         for i in range(10):
-            units.append(MemoryUnit(
-                content=f"Snippet {i}",
-                tier=MemoryTier.L2_WORKING,
-                type=MemoryType.CONTEXT,
-                metadata={"full_available": True, "snippet_of": f"id_{i}"}
-            ))
+            units.append(
+                MemoryUnit(
+                    content=f"Snippet {i}",
+                    tier=MemoryTier.L2_WORKING,
+                    type=MemoryType.CONTEXT,
+                    metadata={"full_available": True, "snippet_of": f"id_{i}"},
+                )
+            )
 
         hint = assembler._build_load_hint(units)
         # Should only show first 5
@@ -242,6 +243,7 @@ class TestContextAssemblerAdditional:
     def test_insert_cache_boundaries_disabled(self):
         """Test cache boundaries when caching is disabled."""
         from loom.config.memory import ContextConfig
+
         config = ContextConfig(enable_prompt_caching=False)
         assembler = ContextAssembler(config=config)
         messages = [{"role": "user", "content": "test"}]
@@ -251,6 +253,7 @@ class TestContextAssemblerAdditional:
     def test_insert_cache_boundaries_enabled(self):
         """Test cache boundaries when caching is enabled."""
         from loom.config.memory import ContextConfig
+
         config = ContextConfig(enable_prompt_caching=True)
         assembler = ContextAssembler(config=config)
         messages = [{"role": "system", "content": "test"}, {"role": "user", "content": "hi"}]
@@ -260,13 +263,14 @@ class TestContextAssemblerAdditional:
     def test_insert_cache_boundaries_with_l4_units(self):
         """Test cache boundaries with L4 units."""
         from loom.config.memory import ContextConfig
+
         config = ContextConfig(enable_prompt_caching=True)
         assembler = ContextAssembler(config=config)
 
         messages = [{"role": "system", "content": "test"}, {"role": "user", "content": "hi"}]
         units = [
             MemoryUnit(content="L4 fact", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT),
-            MemoryUnit(content="L1 msg", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
+            MemoryUnit(content="L1 msg", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE),
         ]
 
         result = assembler._insert_cache_boundaries(messages, units)
@@ -279,18 +283,13 @@ class TestContextAssemblerAdditional:
         from unittest.mock import AsyncMock, patch
 
         from loom.config.memory import ContextConfig
+
         config = ContextConfig(enable_prompt_caching=True)
         assembler = ContextAssembler(config=config)
 
-        units = [
-            MemoryUnit(
-                content="L4 content",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT
-            )
-        ]
+        units = [MemoryUnit(content="L4 content", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT)]
 
-        with patch.object(assembler.strategy, 'curate', new=AsyncMock(return_value=units)):
+        with patch.object(assembler.strategy, "curate", new=AsyncMock(return_value=units)):
             messages = await assembler.assemble(mock_memory, task="test", system_prompt="test")
             # Should have cache_control markers
             assert any("cache_control" in msg for msg in messages)
@@ -299,9 +298,10 @@ class TestContextAssemblerAdditional:
     async def test_assemble_without_system_prompt(self, mock_memory):
         """Test assembly without system prompt."""
         from unittest.mock import AsyncMock, patch
+
         assembler = ContextAssembler()
 
-        with patch.object(assembler.strategy, 'curate', new=AsyncMock(return_value=[])):
+        with patch.object(assembler.strategy, "curate", new=AsyncMock(return_value=[])):
             messages = await assembler.assemble(mock_memory, task="test")
             # Should still return a list, possibly empty
             assert isinstance(messages, list)
@@ -314,6 +314,7 @@ class TestContextManagerAdditional:
     def mock_memory(self):
         """Create a mock memory object."""
         from unittest.mock import MagicMock
+
         memory = MagicMock(spec=LoomMemory)
         memory.get_statistics = MagicMock(return_value={"total": 100})
         memory.node_id = "test_node"
@@ -323,6 +324,7 @@ class TestContextManagerAdditional:
     def mock_assembler(self):
         """Create a mock assembler."""
         from unittest.mock import MagicMock
+
         assembler = MagicMock(spec=ContextAssembler)
         assembler.assemble = MagicMock(return_value=[])
         assembler.expand_snippet = MagicMock(return_value=None)
@@ -331,11 +333,7 @@ class TestContextManagerAdditional:
     @pytest.fixture
     def manager(self, mock_memory, mock_assembler):
         """Create a context manager."""
-        return ContextManager(
-            node_id="test_node",
-            memory=mock_memory,
-            assembler=mock_assembler
-        )
+        return ContextManager(node_id="test_node", memory=mock_memory, assembler=mock_assembler)
 
     def test_get_context_stats(self, manager, mock_memory):
         """Test getting context statistics."""
@@ -348,7 +346,7 @@ class TestContextManagerAdditional:
         """Test context visualization."""
         manager.last_snapshot = [
             {"role": "system", "content": "You are helpful"},
-            {"role": "user", "content": "Hello"}
+            {"role": "user", "content": "Hello"},
         ]
         viz = manager.visualize()
         assert "test_node" in viz
@@ -363,18 +361,17 @@ class TestContextManagerAdditional:
         ]
         viz = manager.visualize()
         # Content should be truncated to ~100 chars
-        assert "..." in viz or len([line for line in viz.split('\n') if 'x' in line]) > 0
+        assert "..." in viz or len([line for line in viz.split("\n") if "x" in line]) > 0
 
     @pytest.mark.asyncio
     async def test_build_prompt_updates_snapshot(self, manager, mock_assembler):
         """Test that build_prompt updates last_snapshot."""
         from unittest.mock import AsyncMock
-        mock_assembler.assemble = AsyncMock(return_value=[
-            {"role": "system", "content": "test"},
-            {"role": "user", "content": "hi"}
-        ])
+
+        mock_assembler.assemble = AsyncMock(
+            return_value=[{"role": "system", "content": "test"}, {"role": "user", "content": "hi"}]
+        )
 
         messages = await manager.build_prompt("test task")
         assert manager.last_snapshot == messages
         assert len(messages) == 2
-

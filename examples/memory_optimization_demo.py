@@ -8,6 +8,7 @@ This example demonstrates all the optimization features:
 4. Memory Compression
 5. Performance Metrics & Visualization
 """
+
 import asyncio
 
 from loom.kernel.core import Dispatcher
@@ -28,13 +29,10 @@ async def demo_vector_store_configuration():
 
     # Option 1: In-Memory (Default, for development)
     config_inmemory = MemoryConfig(
-        vector_store=VectorStoreConfig(
-            provider="inmemory",
-            enabled=True
-        ),
+        vector_store=VectorStoreConfig(provider="inmemory", enabled=True),
         embedding=EmbeddingConfig(
             provider="mock"  # Use mock for testing
-        )
+        ),
     )
 
     # Option 2: Qdrant (Production)
@@ -45,17 +43,17 @@ async def demo_vector_store_configuration():
             provider_config={
                 "url": "http://localhost:6333",
                 "collection_name": "loom_memory",
-                "vector_size": 1536
-            }
+                "vector_size": 1536,
+            },
         ),
         embedding=EmbeddingConfig(
             provider="openai",
             enable_cache=True,
             provider_config={
                 "api_key": "sk-...",  # Your API key
-                "model": "text-embedding-3-small"
-            }
-        )
+                "model": "text-embedding-3-small",
+            },
+        ),
     )
 
     # Option 3: ChromaDB (Alternative)
@@ -63,19 +61,13 @@ async def demo_vector_store_configuration():
         vector_store=VectorStoreConfig(
             provider="chroma",
             enabled=True,
-            provider_config={
-                "persist_directory": "./chroma_db",
-                "collection_name": "loom_memory"
-            }
+            provider_config={"persist_directory": "./chroma_db", "collection_name": "loom_memory"},
         ),
         embedding=EmbeddingConfig(
             provider="openai",
             enable_cache=True,
-            provider_config={
-                "api_key": "sk-...",
-                "model": "text-embedding-3-small"
-            }
-        )
+            provider_config={"api_key": "sk-...", "model": "text-embedding-3-small"},
+        ),
     )
 
     # Create memory with configuration
@@ -86,14 +78,14 @@ async def demo_vector_store_configuration():
         content="The company was founded in 2020",
         tier=MemoryTier.L4_GLOBAL,
         type=MemoryType.FACT,
-        importance=0.9
+        importance=0.9,
     )
 
     fact2 = MemoryUnit(
         content="Our main product is an AI agent framework",
         tier=MemoryTier.L4_GLOBAL,
         type=MemoryType.FACT,
-        importance=0.9
+        importance=0.9,
     )
 
     await memory.add(fact1)
@@ -116,9 +108,7 @@ async def demo_system1_system2_routing():
 
     # Agent with System 1/2 routing enabled
     agent = AgentNode(
-        node_id="routing_demo",
-        dispatcher=dispatcher,
-        system_prompt="You are a helpful assistant."
+        node_id="routing_demo", dispatcher=dispatcher, system_prompt="You are a helpful assistant."
     )
 
     # Test queries
@@ -151,15 +141,13 @@ async def demo_memory_compression():
     memory = LoomMemory(node_id="compression_demo")
     compressor = MemoryCompressor(
         llm_provider=None,  # Use simple compression
-        l1_to_l3_threshold=5
+        l1_to_l3_threshold=5,
     )
 
     # Add many L1 messages
     for i in range(10):
         unit = MemoryUnit(
-            content=f"User message {i}",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
+            content=f"User message {i}", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE
         )
         await memory.add(unit)
 
@@ -178,7 +166,7 @@ async def demo_memory_compression():
         content="Analyze Q3 sales data",
         tier=MemoryTier.L2_WORKING,
         type=MemoryType.PLAN,
-        importance=0.9
+        importance=0.9,
     )
     await memory.add(plan)
 
@@ -209,26 +197,14 @@ async def demo_performance_metrics():
     collector.record_routing_decision("system_1")
     collector.record_routing_decision("system_2")
 
-    collector.record_s1_execution(
-        duration_ms=150,
-        tokens=50,
-        confidence=0.85,
-        success=True
-    )
+    collector.record_s1_execution(duration_ms=150, tokens=50, confidence=0.85, success=True)
 
-    collector.record_s2_execution(
-        duration_ms=2500,
-        tokens=3000,
-        iterations=3
-    )
+    collector.record_s2_execution(duration_ms=2500, tokens=3000, iterations=3)
 
     collector.record_token_savings(2950)
 
     collector.record_context_assembly(
-        duration_ms=50,
-        tokens=500,
-        units_curated=20,
-        units_selected=10
+        duration_ms=50, tokens=500, units_curated=20, units_selected=10
     )
 
     # Render visualizations
@@ -251,17 +227,11 @@ async def demo_complete_workflow():
     # 1. Configure memory with all features
     config = MemoryConfig(
         max_l1_size=50,
-        vector_store=VectorStoreConfig(
-            provider="inmemory",
-            enabled=True
-        ),
-        embedding=EmbeddingConfig(
-            provider="mock",
-            enable_cache=True
-        ),
+        vector_store=VectorStoreConfig(provider="inmemory", enabled=True),
+        embedding=EmbeddingConfig(provider="mock", enable_cache=True),
         auto_vectorize_l4=True,
         enable_auto_compression=True,
-        l1_to_l3_threshold=30
+        l1_to_l3_threshold=30,
     )
 
     memory = LoomMemory(node_id="complete_demo", config=config)
@@ -271,36 +241,38 @@ async def demo_complete_workflow():
 
     # L1: Recent interactions
     for i in range(5):
-        await memory.add(MemoryUnit(
-            content=f"User: Question {i}",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
-        ))
+        await memory.add(
+            MemoryUnit(
+                content=f"User: Question {i}", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE
+            )
+        )
 
     # L2: Working memory
-    await memory.add(MemoryUnit(
-        content="Current task: Analyze data",
-        tier=MemoryTier.L2_WORKING,
-        type=MemoryType.PLAN,
-        importance=1.0
-    ))
+    await memory.add(
+        MemoryUnit(
+            content="Current task: Analyze data",
+            tier=MemoryTier.L2_WORKING,
+            type=MemoryType.PLAN,
+            importance=1.0,
+        )
+    )
 
     # L4: Global facts (auto-vectorized)
-    await memory.add(MemoryUnit(
-        content="Company revenue: $10M",
-        tier=MemoryTier.L4_GLOBAL,
-        type=MemoryType.FACT,
-        importance=0.9
-    ))
+    await memory.add(
+        MemoryUnit(
+            content="Company revenue: $10M",
+            tier=MemoryTier.L4_GLOBAL,
+            type=MemoryType.FACT,
+            importance=0.9,
+        )
+    )
 
     # 3. Query with semantic search
     from loom.memory.types import MemoryQuery
 
-    results = await memory.query(MemoryQuery(
-        tiers=[MemoryTier.L4_GLOBAL],
-        query_text="revenue",
-        top_k=5
-    ))
+    results = await memory.query(
+        MemoryQuery(tiers=[MemoryTier.L4_GLOBAL], query_text="revenue", top_k=5)
+    )
 
     print(f"✅ Found {len(results)} relevant facts")
 

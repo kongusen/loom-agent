@@ -15,11 +15,12 @@ def test_subtask_specification():
         role="specialist",
         tools=["tool1", "tool2"],
         max_tokens=1000,
-        metadata={"key": "value"}
+        metadata={"key": "value"},
     )
     assert spec.role == "specialist"
     assert len(spec.tools) == 2
     assert spec.max_tokens == 1000
+
 
 def test_delegation_request():
     """测试 DelegationRequest 数据类"""
@@ -29,6 +30,7 @@ def test_delegation_request():
     assert len(req.subtasks) == 1
     assert req.execution_mode == "parallel"  # 默认值
     assert req.synthesis_strategy == "auto"  # 默认值
+
 
 def test_delegate_subtasks_tool_definition():
     """测试工具定义符合 MCP 规范"""

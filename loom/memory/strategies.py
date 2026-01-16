@@ -1,6 +1,7 @@
 """
 Observation Curation Strategies
 """
+
 from abc import ABC, abstractmethod
 
 # Avoid circular import by using ForwardRef or TYPE_CHECKING if necessary
@@ -21,10 +22,7 @@ class CurationStrategy(ABC):
 
     @abstractmethod
     async def curate(
-        self,
-        memory: "LoomMemory",
-        config: CurationConfig,
-        task_context: str | None = None
+        self, memory: "LoomMemory", config: CurationConfig, task_context: str | None = None
     ) -> list[MemoryUnit]:
         """
         Select memory units to include in the context.
@@ -43,19 +41,12 @@ class AutoStrategy(CurationStrategy):
     """
 
     async def curate(
-        self,
-        memory: "LoomMemory",
-        config: CurationConfig,
-        task_context: str | None = None
+        self, memory: "LoomMemory", config: CurationConfig, task_context: str | None = None
     ) -> list[MemoryUnit]:
-
         result = []
 
         # 1. Self - L2 Working Memory (Full)
-        l2_query = MemoryQuery(
-            tiers=[MemoryTier.L2_WORKING],
-            node_ids=[memory.node_id]
-        )
+        l2_query = MemoryQuery(tiers=[MemoryTier.L2_WORKING], node_ids=[memory.node_id])
         result.extend(await memory.query(l2_query))
 
         # 2. Self - L1 Recent 10 (or configured limit)
@@ -64,7 +55,7 @@ class AutoStrategy(CurationStrategy):
             tiers=[MemoryTier.L1_RAW_IO],
             node_ids=[memory.node_id],
             sort_by="created_at",
-            descending=True
+            descending=True,
         )
         # Taking top 10 recent L1 items
         recent_l1 = await memory.query(l1_query)
@@ -83,18 +74,13 @@ class AutoStrategy(CurationStrategy):
             # In current design, inherited memories are stored in this node's memory but maybe with different source?
             # Or we query the 'session' tier for broader context.
             l3_query = MemoryQuery(
-                tiers=[MemoryTier.L3_SESSION],
-                types=[MemoryType.PLAN, MemoryType.CONTEXT]
+                tiers=[MemoryTier.L3_SESSION], types=[MemoryType.PLAN, MemoryType.CONTEXT]
             )
             result.extend(await memory.query(l3_query))
 
         # 4. Grandparent+ - L4 Semantic Search (If distance >= 2)
         if config.focus_distance >= 2 and task_context:
-            l4_query = MemoryQuery(
-                tiers=[MemoryTier.L4_GLOBAL],
-                query_text=task_context,
-                top_k=5
-            )
+            l4_query = MemoryQuery(tiers=[MemoryTier.L4_GLOBAL], query_text=task_context, top_k=5)
             result.extend(await memory.query(l4_query))
 
         return result
@@ -112,26 +98,18 @@ class SnippetsStrategy(CurationStrategy):
     """
 
     async def curate(
-        self,
-        memory: "LoomMemory",
-        config: CurationConfig,
-        task_context: str | None = None
+        self, memory: "LoomMemory", config: CurationConfig, task_context: str | None = None
     ) -> list[MemoryUnit]:
-
         result = []
 
         # 1. Core Instructions (L2 PLAN) - Full
-        plan_query = MemoryQuery(
-            tiers=[MemoryTier.L2_WORKING],
-            types=[MemoryType.PLAN]
-        )
+        plan_query = MemoryQuery(tiers=[MemoryTier.L2_WORKING], types=[MemoryType.PLAN])
         result.extend(await memory.query(plan_query))
 
         # 2. Tools/Skills - Snippets
         if config.include_tools:
             tool_query = MemoryQuery(
-                tiers=[MemoryTier.L2_WORKING, MemoryTier.L4_GLOBAL],
-                types=[MemoryType.SKILL]
+                tiers=[MemoryTier.L2_WORKING, MemoryTier.L4_GLOBAL], types=[MemoryType.SKILL]
             )
             skills = await memory.query(tool_query)
 
@@ -141,8 +119,12 @@ class SnippetsStrategy(CurationStrategy):
                     content=skill.to_snippet(),
                     tier=skill.tier,
                     type=MemoryType.CONTEXT,
-                    metadata={"snippet_of": skill.id, "full_available": True, "name": skill.metadata.get("name")},
-                    importance=skill.importance
+                    metadata={
+                        "snippet_of": skill.id,
+                        "full_available": True,
+                        "name": skill.metadata.get("name"),
+                    },
+                    importance=skill.importance,
                 )
                 result.append(snippet)
 
@@ -152,7 +134,7 @@ class SnippetsStrategy(CurationStrategy):
                 tiers=[MemoryTier.L4_GLOBAL],
                 types=[MemoryType.FACT],
                 query_text=task_context,
-                top_k=3
+                top_k=3,
             )
             facts = await memory.query(fact_query)
 
@@ -162,7 +144,7 @@ class SnippetsStrategy(CurationStrategy):
                     tier=fact.tier,
                     type=MemoryType.CONTEXT,
                     metadata={"snippet_of": fact.id, "full_available": True},
-                    importance=fact.importance
+                    importance=fact.importance,
                 )
                 result.append(snippet)
 
@@ -171,7 +153,7 @@ class SnippetsStrategy(CurationStrategy):
             tiers=[MemoryTier.L1_RAW_IO],
             types=[MemoryType.MESSAGE],
             sort_by="created_at",
-            descending=True
+            descending=True,
         )
         result.extend((await memory.query(recent_query))[:5])
 
@@ -184,25 +166,17 @@ class FocusedStrategy(CurationStrategy):
     """
 
     async def curate(
-        self,
-        memory: "LoomMemory",
-        config: CurationConfig,
-        task_context: str | None = None
+        self, memory: "LoomMemory", config: CurationConfig, task_context: str | None = None
     ) -> list[MemoryUnit]:
-
         if not task_context:
             # Fallback to Auto
             return await AutoStrategy().curate(memory, config, task_context)
 
         # Semantic Search across L2, L3, L4
         query = MemoryQuery(
-            tiers=[
-                MemoryTier.L2_WORKING,
-                MemoryTier.L3_SESSION,
-                MemoryTier.L4_GLOBAL
-            ],
+            tiers=[MemoryTier.L2_WORKING, MemoryTier.L3_SESSION, MemoryTier.L4_GLOBAL],
             query_text=task_context,
-            top_k=15
+            top_k=15,
         )
         relevant = await memory.query(query)
 
@@ -219,9 +193,8 @@ class StrategyFactory:
     _strategies: dict[str, type[CurationStrategy]] = {
         "auto": AutoStrategy,
         "snippets": SnippetsStrategy,
-        "focused": FocusedStrategy
+        "focused": FocusedStrategy,
     }
-
 
     @classmethod
     def create(cls, name: str) -> CurationStrategy:

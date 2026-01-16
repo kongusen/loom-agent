@@ -2,6 +2,7 @@
 Vector Store Abstraction Layer
 Provides pluggable interface for different vector database backends.
 """
+
 from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ import numpy as np
 @dataclass
 class VectorSearchResult:
     """Result from vector search"""
+
     id: str
     score: float
     metadata: dict[str, Any]
@@ -26,11 +28,7 @@ class VectorStoreProvider(ABC):
 
     @abstractmethod
     async def add(
-        self,
-        id: str,
-        text: str,
-        embedding: list[float],
-        metadata: dict[str, Any] | None = None
+        self, id: str, text: str, embedding: list[float], metadata: dict[str, Any] | None = None
     ) -> bool:
         """
         Add a vector to the store.
@@ -51,7 +49,7 @@ class VectorStoreProvider(ABC):
         self,
         query_embedding: list[float],
         top_k: int = 5,
-        filter_metadata: dict[str, Any] | None = None
+        filter_metadata: dict[str, Any] | None = None,
     ) -> list[VectorSearchResult]:
         """
         Search for similar vectors.
@@ -73,10 +71,7 @@ class VectorStoreProvider(ABC):
 
     @abstractmethod
     async def update(
-        self,
-        id: str,
-        embedding: list[float] | None = None,
-        metadata: dict[str, Any] | None = None
+        self, id: str, embedding: list[float] | None = None, metadata: dict[str, Any] | None = None
     ) -> bool:
         """Update vector or metadata."""
         pass
@@ -104,11 +99,7 @@ class InMemoryVectorStore(VectorStoreProvider):
         self._metadata: dict[str, dict[str, Any]] = {}
 
     async def add(
-        self,
-        id: str,
-        text: str,
-        embedding: list[float],
-        metadata: dict[str, Any] | None = None
+        self, id: str, text: str, embedding: list[float], metadata: dict[str, Any] | None = None
     ) -> bool:
         self._vectors[id] = np.array(embedding)
         self._texts[id] = text
@@ -119,7 +110,7 @@ class InMemoryVectorStore(VectorStoreProvider):
         self,
         query_embedding: list[float],
         top_k: int = 5,
-        filter_metadata: dict[str, Any] | None = None
+        filter_metadata: dict[str, Any] | None = None,
     ) -> list[VectorSearchResult]:
         if not self._vectors:
             return []
@@ -134,9 +125,7 @@ class InMemoryVectorStore(VectorStoreProvider):
                 continue
 
             # Cosine similarity
-            similarity = np.dot(query_vec, vec) / (
-                np.linalg.norm(query_vec) * np.linalg.norm(vec)
-            )
+            similarity = np.dot(query_vec, vec) / (np.linalg.norm(query_vec) * np.linalg.norm(vec))
             scores.append((id, float(similarity)))
 
         # Sort by score descending
@@ -145,11 +134,7 @@ class InMemoryVectorStore(VectorStoreProvider):
         # Return top K
         results = []
         for id, score in scores[:top_k]:
-            results.append(VectorSearchResult(
-                id=id,
-                score=score,
-                metadata=self._metadata[id]
-            ))
+            results.append(VectorSearchResult(id=id, score=score, metadata=self._metadata[id]))
 
         return results
 
@@ -162,10 +147,7 @@ class InMemoryVectorStore(VectorStoreProvider):
         return False
 
     async def update(
-        self,
-        id: str,
-        embedding: list[float] | None = None,
-        metadata: dict[str, Any] | None = None
+        self, id: str, embedding: list[float] | None = None, metadata: dict[str, Any] | None = None
     ) -> bool:
         if id not in self._vectors:
             return False
@@ -181,11 +163,7 @@ class InMemoryVectorStore(VectorStoreProvider):
         if id not in self._vectors:
             return None
 
-        return VectorSearchResult(
-            id=id,
-            score=1.0,
-            metadata=self._metadata[id]
-        )
+        return VectorSearchResult(id=id, score=1.0, metadata=self._metadata[id])
 
     async def clear(self) -> bool:
         self._vectors.clear()
@@ -203,6 +181,7 @@ class InMemoryVectorStore(VectorStoreProvider):
 
 # Example implementations for popular vector DBs
 
+
 class QdrantVectorStore(VectorStoreProvider):
     """
     Qdrant vector store implementation.
@@ -218,15 +197,14 @@ class QdrantVectorStore(VectorStoreProvider):
         self,
         url: str = "http://localhost:6333",
         collection_name: str = "loom_memory",
-        vector_size: int = 1536  # OpenAI embedding size
+        vector_size: int = 1536,  # OpenAI embedding size
     ):
         try:
             from qdrant_client import QdrantClient
             from qdrant_client.models import Distance, VectorParams
         except ImportError:
             raise ImportError(
-                "qdrant-client not installed. "
-                "Install with: pip install qdrant-client"
+                "qdrant-client not installed. " "Install with: pip install qdrant-client"
             ) from None
 
         self.client = QdrantClient(url=url)
@@ -236,18 +214,11 @@ class QdrantVectorStore(VectorStoreProvider):
         with suppress(Exception):
             self.client.create_collection(
                 collection_name=collection_name,
-                vectors_config=VectorParams(
-                    size=vector_size,
-                    distance=Distance.COSINE
-                )
+                vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
             )
 
     async def add(
-        self,
-        id: str,
-        text: str,
-        embedding: list[float],
-        metadata: dict[str, Any] | None = None
+        self, id: str, text: str, embedding: list[float], metadata: dict[str, Any] | None = None
     ) -> bool:
         from qdrant_client.models import PointStruct
 
@@ -255,11 +226,7 @@ class QdrantVectorStore(VectorStoreProvider):
 
         self.client.upsert(
             collection_name=self.collection_name,
-            points=[PointStruct(
-                id=id,
-                vector=embedding,
-                payload=payload
-            )]
+            points=[PointStruct(id=id, vector=embedding, payload=payload)],
         )
         return True
 
@@ -267,7 +234,7 @@ class QdrantVectorStore(VectorStoreProvider):
         self,
         query_embedding: list[float],
         top_k: int = 5,
-        filter_metadata: dict[str, Any] | None = None
+        filter_metadata: dict[str, Any] | None = None,
     ) -> list[VectorSearchResult]:
         from qdrant_client.models import FieldCondition, Filter, MatchValue
 
@@ -275,8 +242,7 @@ class QdrantVectorStore(VectorStoreProvider):
         query_filter = None
         if filter_metadata:
             conditions = [
-                FieldCondition(key=k, match=MatchValue(value=v))
-                for k, v in filter_metadata.items()
+                FieldCondition(key=k, match=MatchValue(value=v)) for k, v in filter_metadata.items()
             ]
             query_filter = Filter(must=cast(Any, conditions))
 
@@ -284,61 +250,43 @@ class QdrantVectorStore(VectorStoreProvider):
             collection_name=self.collection_name,
             query_vector=query_embedding,
             limit=top_k,
-            query_filter=query_filter
+            query_filter=query_filter,
         )
 
         return [
-            VectorSearchResult(
-                id=str(r.id),
-                score=r.score,
-                metadata=r.payload or {}
-            )
+            VectorSearchResult(id=str(r.id), score=r.score, metadata=r.payload or {})
             for r in results
         ]
 
     async def delete(self, id: str) -> bool:
-        self.client.delete(
-            collection_name=self.collection_name,
-            points_selector=[id]
-        )
+        self.client.delete(collection_name=self.collection_name, points_selector=[id])
         return True
 
     async def update(
-        self,
-        id: str,
-        embedding: list[float] | None = None,
-        metadata: dict[str, Any] | None = None
+        self, id: str, embedding: list[float] | None = None, metadata: dict[str, Any] | None = None
     ) -> bool:
         # Qdrant doesn't have direct update, use upsert
         if embedding:
             from qdrant_client.models import PointStruct
+
             self.client.upsert(
                 collection_name=self.collection_name,
-                points=[PointStruct(id=id, vector=embedding, payload=metadata or {})]
+                points=[PointStruct(id=id, vector=embedding, payload=metadata or {})],
             )
         elif metadata:
             self.client.set_payload(
-                collection_name=self.collection_name,
-                payload=metadata,
-                points=[id]
+                collection_name=self.collection_name, payload=metadata, points=[id]
             )
         return True
 
     async def get(self, id: str) -> VectorSearchResult | None:
-        results = self.client.retrieve(
-            collection_name=self.collection_name,
-            ids=[id]
-        )
+        results = self.client.retrieve(collection_name=self.collection_name, ids=[id])
 
         if not results:
             return None
 
         r = results[0]
-        return VectorSearchResult(
-            id=str(r.id),
-            score=1.0,
-            metadata=r.payload or {}
-        )
+        return VectorSearchResult(id=str(r.id), score=1.0, metadata=r.payload or {})
 
     async def clear(self) -> bool:
         self.client.delete_collection(self.collection_name)
@@ -356,17 +304,12 @@ class ChromaVectorStore(VectorStoreProvider):
         )
     """
 
-    def __init__(
-        self,
-        persist_directory: str | None = None,
-        collection_name: str = "loom_memory"
-    ):
+    def __init__(self, persist_directory: str | None = None, collection_name: str = "loom_memory"):
         try:
             import chromadb
         except ImportError:
             raise ImportError(
-                "chromadb not installed. "
-                "Install with: pip install chromadb"
+                "chromadb not installed. " "Install with: pip install chromadb"
             ) from None
 
         if persist_directory:
@@ -375,22 +318,17 @@ class ChromaVectorStore(VectorStoreProvider):
             self.client = chromadb.Client()
 
         self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            metadata={"hnsw:space": "cosine"}
+            name=collection_name, metadata={"hnsw:space": "cosine"}
         )
 
     async def add(
-        self,
-        id: str,
-        text: str,
-        embedding: list[float],
-        metadata: dict[str, Any] | None = None
+        self, id: str, text: str, embedding: list[float], metadata: dict[str, Any] | None = None
     ) -> bool:
         self.collection.add(
             ids=[id],
             embeddings=cast(Any, [embedding]),
             documents=[text],
-            metadatas=[metadata or {}]
+            metadatas=[metadata or {}],
         )
         return True
 
@@ -398,22 +336,22 @@ class ChromaVectorStore(VectorStoreProvider):
         self,
         query_embedding: list[float],
         top_k: int = 5,
-        filter_metadata: dict[str, Any] | None = None
+        filter_metadata: dict[str, Any] | None = None,
     ) -> list[VectorSearchResult]:
         results = self.collection.query(
-            query_embeddings=cast(Any, [query_embedding]),
-            n_results=top_k,
-            where=filter_metadata
+            query_embeddings=cast(Any, [query_embedding]), n_results=top_k, where=filter_metadata
         )
 
         search_results = []
-        if results['ids'] and results['distances'] and results['metadatas']:
-            for i in range(len(results['ids'][0])):
-                search_results.append(VectorSearchResult(
-                    id=results['ids'][0][i],
-                    score=1.0 - results['distances'][0][i],  # Convert distance to similarity
-                    metadata=cast(dict[str, Any], results['metadatas'][0][i])
-                ))
+        if results["ids"] and results["distances"] and results["metadatas"]:
+            for i in range(len(results["ids"][0])):
+                search_results.append(
+                    VectorSearchResult(
+                        id=results["ids"][0][i],
+                        score=1.0 - results["distances"][0][i],  # Convert distance to similarity
+                        metadata=cast(dict[str, Any], results["metadatas"][0][i]),
+                    )
+                )
 
         return search_results
 
@@ -422,35 +360,25 @@ class ChromaVectorStore(VectorStoreProvider):
         return True
 
     async def update(
-        self,
-        id: str,
-        embedding: list[float] | None = None,
-        metadata: dict[str, Any] | None = None
+        self, id: str, embedding: list[float] | None = None, metadata: dict[str, Any] | None = None
     ) -> bool:
         if embedding:
             self.collection.update(
-                ids=[id],
-                embeddings=cast(Any, [embedding]),
-                metadatas=[metadata or {}]
+                ids=[id], embeddings=cast(Any, [embedding]), metadatas=[metadata or {}]
             )
         elif metadata:
-            self.collection.update(
-                ids=[id],
-                metadatas=[metadata]
-            )
+            self.collection.update(ids=[id], metadatas=[metadata])
         return True
 
     async def get(self, id: str) -> VectorSearchResult | None:
         results = self.collection.get(ids=[id])
 
-        if not results['ids']:
+        if not results["ids"]:
             return None
 
-        metadata = results['metadatas'][0] if results['metadatas'] else {}
+        metadata = results["metadatas"][0] if results["metadatas"] else {}
         return VectorSearchResult(
-            id=results['ids'][0],
-            score=1.0,
-            metadata=cast(dict[str, Any], metadata)
+            id=results["ids"][0], score=1.0, metadata=cast(dict[str, Any], metadata)
         )
 
     async def clear(self) -> bool:
@@ -473,15 +401,17 @@ class PostgreSQLVectorStore(VectorStoreProvider):
         self,
         connection_string: str,
         table_name: str = "loom_memory",
-        vector_size: int = 1536  # OpenAI embedding size
+        vector_size: int = 1536,  # OpenAI embedding size
     ):
         import importlib.util
 
         # Check for required dependencies
-        if importlib.util.find_spec("asyncpg") is None or importlib.util.find_spec("pgvector") is None:
+        if (
+            importlib.util.find_spec("asyncpg") is None
+            or importlib.util.find_spec("pgvector") is None
+        ):
             raise ImportError(
-                "asyncpg or pgvector not installed. "
-                "Install with: pip install asyncpg pgvector"
+                "asyncpg or pgvector not installed. " "Install with: pip install asyncpg pgvector"
             )
 
         from pgvector.asyncpg import register_vector
@@ -494,10 +424,11 @@ class PostgreSQLVectorStore(VectorStoreProvider):
 
     async def _get_pool(self):
         import asyncpg
+
         if self._pool is None:
             self._pool = await asyncpg.create_pool(self.connection_string)
             if not self._pool:
-                 raise RuntimeError("Failed to create connection pool")
+                raise RuntimeError("Failed to create connection pool")
             # Initialize table and extension
             async with self._pool.acquire() as conn:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -523,13 +454,10 @@ class PostgreSQLVectorStore(VectorStoreProvider):
         return self._pool
 
     async def add(
-        self,
-        id: str,
-        text: str,
-        embedding: list[float],
-        metadata: dict[str, Any] | None = None
+        self, id: str, text: str, embedding: list[float], metadata: dict[str, Any] | None = None
     ) -> bool:
         import json
+
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             await self._register_vector(conn)
@@ -545,7 +473,7 @@ class PostgreSQLVectorStore(VectorStoreProvider):
                 id,
                 text,
                 embedding,
-                json.dumps(metadata or {})
+                json.dumps(metadata or {}),
             )
         return True
 
@@ -553,9 +481,10 @@ class PostgreSQLVectorStore(VectorStoreProvider):
         self,
         query_embedding: list[float],
         top_k: int = 5,
-        filter_metadata: dict[str, Any] | None = None
+        filter_metadata: dict[str, Any] | None = None,
     ) -> list[VectorSearchResult]:
         import json
+
         pool = await self._get_pool()
         if not pool:
             raise RuntimeError("Failed to acquire connection pool")
@@ -568,7 +497,9 @@ class PostgreSQLVectorStore(VectorStoreProvider):
         if filter_metadata:
             for key, value in filter_metadata.items():
                 where_clause += f" AND metadata->>'{key}' = ${param_idx}"
-                params.append(str(value)) # JSONB values are often strings in simplified queries, care needed for types
+                params.append(
+                    str(value)
+                )  # JSONB values are often strings in simplified queries, care needed for types
                 param_idx += 1
 
         # Use <=> operator for cosine distance (supported by pgvector)
@@ -590,15 +521,13 @@ class PostgreSQLVectorStore(VectorStoreProvider):
             # Distance is 1 - CosineSimilarity usually.
             # But pgvector cosine distance is: 1 - cosine_similarity.
             # So similarity = 1 - distance.
-            similarity = 1.0 - row['distance']
+            similarity = 1.0 - row["distance"]
 
-            metadata = json.loads(row['metadata']) if isinstance(row['metadata'], str) else row['metadata']
+            metadata = (
+                json.loads(row["metadata"]) if isinstance(row["metadata"], str) else row["metadata"]
+            )
 
-            results.append(VectorSearchResult(
-                id=row['id'],
-                score=similarity,
-                metadata=metadata
-            ))
+            results.append(VectorSearchResult(id=row["id"], score=similarity, metadata=metadata))
 
         return results
 
@@ -607,20 +536,15 @@ class PostgreSQLVectorStore(VectorStoreProvider):
         if not pool:
             raise RuntimeError("Failed to acquire connection pool")
         async with pool.acquire() as conn:
-            result = await conn.execute(
-                f"DELETE FROM {self.table_name} WHERE id = $1",
-                id
-            )
+            result = await conn.execute(f"DELETE FROM {self.table_name} WHERE id = $1", id)
             # execute returns string like "DELETE 1"
             return " 0" not in result
 
     async def update(
-        self,
-        id: str,
-        embedding: list[float] | None = None,
-        metadata: dict[str, Any] | None = None
+        self, id: str, embedding: list[float] | None = None, metadata: dict[str, Any] | None = None
     ) -> bool:
         import json
+
         pool = await self._get_pool()
         if not pool:
             raise RuntimeError("Failed to acquire connection pool")
@@ -663,24 +587,22 @@ class PostgreSQLVectorStore(VectorStoreProvider):
 
     async def get(self, id: str) -> VectorSearchResult | None:
         import json
+
         pool = await self._get_pool()
         if not pool:
             raise RuntimeError("Failed to acquire connection pool")
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                f"SELECT id, metadata FROM {self.table_name} WHERE id = $1",
-                id
+                f"SELECT id, metadata FROM {self.table_name} WHERE id = $1", id
             )
 
         if not row:
             return None
 
-        metadata = json.loads(row['metadata']) if isinstance(row['metadata'], str) else row['metadata']
-        return VectorSearchResult(
-            id=row['id'],
-            score=1.0,
-            metadata=metadata
+        metadata = (
+            json.loads(row["metadata"]) if isinstance(row["metadata"], str) else row["metadata"]
         )
+        return VectorSearchResult(id=row["id"], score=1.0, metadata=metadata)
 
     async def clear(self) -> bool:
         pool = await self._get_pool()

@@ -26,7 +26,7 @@ class ZhipuProvider(OpenAICompatibleProvider):
     PROVIDER_NAME = "Zhipu AI"
 
     def __init__(self, **kwargs):
-        if 'api_key' not in kwargs:
-            kwargs['api_key'] = os.getenv(self.API_KEY_ENV_VAR)
+        if "api_key" not in kwargs:
+            kwargs["api_key"] = os.getenv(self.API_KEY_ENV_VAR)
 
         super().__init__(**kwargs)

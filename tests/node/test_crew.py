@@ -33,6 +33,7 @@ class TestCrewNode:
     def dispatcher(self):
         """Create a dispatcher for testing."""
         from loom.kernel.core import Dispatcher, UniversalEventBus
+
         bus = UniversalEventBus()
         return Dispatcher(bus)
 
@@ -50,19 +51,13 @@ class TestCrewNode:
     def crew(self, dispatcher, mock_agents):
         """Create a crew node."""
         return CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=mock_agents,
-            pattern="sequential"
+            node_id="test_crew", dispatcher=dispatcher, agents=mock_agents, pattern="sequential"
         )
 
     def test_initialization(self, dispatcher, mock_agents):
         """Test crew initialization."""
         crew = CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=mock_agents,
-            pattern="sequential"
+            node_id="test_crew", dispatcher=dispatcher, agents=mock_agents, pattern="sequential"
         )
         assert crew.node_id == "test_crew"
         assert crew.agents == mock_agents
@@ -72,20 +67,13 @@ class TestCrewNode:
     def test_initialization_with_parallel_pattern(self, dispatcher, mock_agents):
         """Test crew initialization with parallel pattern."""
         crew = CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=mock_agents,
-            pattern="parallel"
+            node_id="test_crew", dispatcher=dispatcher, agents=mock_agents, pattern="parallel"
         )
         assert crew.pattern == "parallel"
 
     def test_initialization_default_sanitizer(self, dispatcher, mock_agents):
         """Test that default sanitizer is BubbleUpSanitizer."""
-        crew = CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=mock_agents
-        )
+        crew = CrewNode(node_id="test_crew", dispatcher=dispatcher, agents=mock_agents)
         assert isinstance(crew.sanitizer, BubbleUpSanitizer)
 
     def test_initialization_custom_sanitizer(self, dispatcher, mock_agents):
@@ -95,7 +83,7 @@ class TestCrewNode:
             node_id="test_crew",
             dispatcher=dispatcher,
             agents=mock_agents,
-            sanitizer=custom_sanitizer
+            sanitizer=custom_sanitizer,
         )
         assert crew.sanitizer == custom_sanitizer
 
@@ -103,17 +91,17 @@ class TestCrewNode:
     async def test_process_sequential_pattern(self, crew):
         """Test processing with sequential pattern."""
         event = CloudEvent.create(
-            source="/test",
-            type="node.request",
-            data={"task": "Initial task"}
+            source="/test", type="node.request", data={"task": "Initial task"}
         )
 
         # Mock the call method to return agent responses
-        crew.call = AsyncMock(side_effect=[
-            {"response": "Agent1 response"},
-            {"response": "Agent2 response"},
-            {"response": "Agent3 response"}
-        ])
+        crew.call = AsyncMock(
+            side_effect=[
+                {"response": "Agent1 response"},
+                {"response": "Agent2 response"},
+                {"response": "Agent3 response"},
+            ]
+        )
 
         # Mock sanitizer
         crew.sanitizer.sanitize = AsyncMock(return_value="Sanitized response")
@@ -129,17 +117,10 @@ class TestCrewNode:
     async def test_process_parallel_pattern_unsupported(self, dispatcher, mock_agents):
         """Test that parallel pattern returns error."""
         crew = CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=mock_agents,
-            pattern="parallel"
+            node_id="test_crew", dispatcher=dispatcher, agents=mock_agents, pattern="parallel"
         )
 
-        event = CloudEvent.create(
-            source="/test",
-            type="node.request",
-            data={"task": "Test task"}
-        )
+        event = CloudEvent.create(source="/test", type="node.request", data={"task": "Test task"})
 
         result = await crew.process(event)
         assert "error" in result
@@ -149,9 +130,7 @@ class TestCrewNode:
     async def test_process_gets_task_from_event_data(self, crew):
         """Test that process extracts task from event data."""
         event = CloudEvent.create(
-            source="/test",
-            type="node.request",
-            data={"task": "Test task from event"}
+            source="/test", type="node.request", data={"task": "Test task from event"}
         )
 
         crew.call = AsyncMock(return_value={"response": "OK"})
@@ -165,11 +144,7 @@ class TestCrewNode:
     @pytest.mark.asyncio
     async def test_process_with_empty_task(self, crew):
         """Test processing with empty task."""
-        event = CloudEvent.create(
-            source="/test",
-            type="node.request",
-            data={"task": ""}
-        )
+        event = CloudEvent.create(source="/test", type="node.request", data={"task": ""})
 
         crew.call = AsyncMock(return_value={"response": "Result"})
         crew.sanitizer.sanitize = AsyncMock(return_value="sanitized")
@@ -180,11 +155,7 @@ class TestCrewNode:
     @pytest.mark.asyncio
     async def test_process_with_no_task_key(self, crew):
         """Test processing when event data has no 'task' key."""
-        event = CloudEvent.create(
-            source="/test",
-            type="node.request",
-            data={}
-        )
+        event = CloudEvent.create(source="/test", type="node.request", data={})
 
         crew.call = AsyncMock(return_value={"response": "Result"})
         crew.sanitizer.sanitize = AsyncMock(return_value="sanitized")
@@ -195,11 +166,13 @@ class TestCrewNode:
     @pytest.mark.asyncio
     async def test_execute_sequential(self, crew):
         """Test sequential execution of agents."""
-        crew.call = AsyncMock(side_effect=[
-            {"response": "Response 1"},
-            {"response": "Response 2"},
-            {"response": "Response 3"}
-        ])
+        crew.call = AsyncMock(
+            side_effect=[
+                {"response": "Response 1"},
+                {"response": "Response 2"},
+                {"response": "Response 3"},
+            ]
+        )
         crew.sanitizer.sanitize = AsyncMock(return_value="Sanitized")
 
         result = await crew._execute_sequential("Initial task")
@@ -233,11 +206,13 @@ class TestCrewNode:
     @pytest.mark.asyncio
     async def test_execute_sequential_handles_agent_error(self, crew):
         """Test error handling when an agent fails."""
-        crew.call = AsyncMock(side_effect=[
-            {"response": "OK"},
-            Exception("Agent failed"),
-            {"response": "Should not reach here"}
-        ])
+        crew.call = AsyncMock(
+            side_effect=[
+                {"response": "OK"},
+                Exception("Agent failed"),
+                {"response": "Should not reach here"},
+            ]
+        )
 
         result = await crew._execute_sequential("Task")
 
@@ -282,11 +257,13 @@ class TestCrewNode:
     @pytest.mark.asyncio
     async def test_execute_sequential_calls_sanitizer(self, crew):
         """Test that sanitizer is called for each response."""
-        crew.call = AsyncMock(side_effect=[
-            {"response": "Response 1"},
-            {"response": "Response 2"},
-            {"response": "Response 3"}
-        ])
+        crew.call = AsyncMock(
+            side_effect=[
+                {"response": "Response 1"},
+                {"response": "Response 2"},
+                {"response": "Response 3"},
+            ]
+        )
         crew.sanitizer.sanitize = AsyncMock(return_value="Sanitized")
 
         await crew._execute_sequential("Task")
@@ -325,10 +302,7 @@ class TestCrewNode:
         """Test sequential execution with single agent."""
         agent = MockAgentNode("agent1", dispatcher, "Single response")
         crew = CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=[agent],
-            pattern="sequential"
+            node_id="test_crew", dispatcher=dispatcher, agents=[agent], pattern="sequential"
         )
 
         crew.call = AsyncMock(return_value={"response": "Single"})
@@ -342,12 +316,7 @@ class TestCrewNode:
     @pytest.mark.asyncio
     async def test_execute_sequential_with_empty_agents_list(self, dispatcher):
         """Test sequential execution with no agents."""
-        crew = CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=[],
-            pattern="sequential"
-        )
+        crew = CrewNode(node_id="test_crew", dispatcher=dispatcher, agents=[], pattern="sequential")
 
         result = await crew._execute_sequential("Task")
 
@@ -357,11 +326,9 @@ class TestCrewNode:
     @pytest.mark.asyncio
     async def test_execute_sequential_preserves_chain_results(self, crew):
         """Test that all intermediate results are preserved in trace."""
-        crew.call = AsyncMock(side_effect=[
-            {"response": "Step 1"},
-            {"response": "Step 2"},
-            {"response": "Step 3"}
-        ])
+        crew.call = AsyncMock(
+            side_effect=[{"response": "Step 1"}, {"response": "Step 2"}, {"response": "Step 3"}]
+        )
         crew.sanitizer.sanitize = AsyncMock(return_value="S")
 
         result = await crew._execute_sequential("Start")
@@ -381,10 +348,6 @@ class TestCrewNode:
         mock_node2.node_id = "mock2"
         mock_node2.source_uri = "mock2"
 
-        crew = CrewNode(
-            node_id="test_crew",
-            dispatcher=dispatcher,
-            agents=[mock_node1, mock_node2]
-        )
+        crew = CrewNode(node_id="test_crew", dispatcher=dispatcher, agents=[mock_node1, mock_node2])
 
         assert len(crew.agents) == 2

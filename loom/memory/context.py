@@ -1,6 +1,7 @@
 """
 LoomContext - Context Assembly Engine
 """
+
 from typing import Any
 
 from loom.config.memory import ContextConfig
@@ -22,7 +23,7 @@ class ContextAssembler:
         self,
         config: ContextConfig | None = None,
         llm_provider: Any | None = None,
-        dispatcher: Any | None = None
+        dispatcher: Any | None = None,
     ):
         self.config = config or ContextConfig()
         self.strategy = StrategyFactory.create(self.config.strategy)
@@ -33,15 +34,11 @@ class ContextAssembler:
 
         # Initialize Memory Compressor
         self.compressor = MemoryCompressor(
-            llm_provider=llm_provider,
-            token_threshold=self.config.curation_config.max_tokens // 2
+            llm_provider=llm_provider, token_threshold=self.config.curation_config.max_tokens // 2
         )
 
     async def assemble(
-        self,
-        memory: LoomMemory,
-        task: str | None = None,
-        system_prompt: str | None = None
+        self, memory: LoomMemory, task: str | None = None, system_prompt: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Main entry point to build the context.
@@ -49,21 +46,19 @@ class ContextAssembler:
 
         # 1. Curate
         curated_units = await self.strategy.curate(
-            memory,
-            self.config.curation_config,
-            task_context=task
+            memory, self.config.curation_config, task_context=task
         )
         # Publish curation event
         if self.dispatcher:
             from loom.protocol.cloudevents import CloudEvent
-            await self.dispatcher.bus.publish(CloudEvent(
-                type="agent.context.curated",
-                source=memory.node_id,
-                data={
-                    "items_count": len(curated_units),
-                    "strategy": self.config.strategy
-                }
-            ))
+
+            await self.dispatcher.bus.publish(
+                CloudEvent(
+                    type="agent.context.curated",
+                    source=memory.node_id,
+                    data={"items_count": len(curated_units), "strategy": self.config.strategy},
+                )
+            )
 
         # 1.5 Compression (Token-based trigger)
         # Sort by time first to enable linear compression
@@ -75,35 +70,36 @@ class ContextAssembler:
             # Publish compression event
             if self.dispatcher:
                 from loom.protocol.cloudevents import CloudEvent
-                await self.dispatcher.bus.publish(CloudEvent(
-                    type="agent.context.compressing",
-                    source=memory.node_id,
-                    data={
-                        "original_tokens": token_count,
-                        "threshold": self.compressor.token_threshold,
-                        "items_before": len(curated_units)
-                    }
-                ))
+
+                await self.dispatcher.bus.publish(
+                    CloudEvent(
+                        type="agent.context.compressing",
+                        source=memory.node_id,
+                        data={
+                            "original_tokens": token_count,
+                            "threshold": self.compressor.token_threshold,
+                            "items_before": len(curated_units),
+                        },
+                    )
+                )
 
             # Compress history
             curated_units = ContextCompressor.compress_history(curated_units)
 
             # Add system notification about compression
             from .types import MemoryTier, MemoryType, MemoryUnit
+
             notification = MemoryUnit(
                 content=f"📦 System Notification: History compacted ({token_count} tokens compressed)",
                 tier=MemoryTier.L3_SESSION,
                 type=MemoryType.CONTEXT,
-                importance=0.6
+                importance=0.6,
             )
             curated_units.insert(0, notification)
 
         # 2. Sort by Importance (For Budgeting Priority)
         # We want high importance items first in priority.
-        curated_units.sort(
-            key=lambda u: (u.importance, u.created_at),
-            reverse=True
-        )
+        curated_units.sort(key=lambda u: (u.importance, u.created_at), reverse=True)
 
         # 3. Budgeting & Selection (Dynamic)
         selected_units = []
@@ -115,25 +111,25 @@ class ContextAssembler:
         # Publish budget allocation event
         if self.dispatcher:
             from loom.protocol.cloudevents import CloudEvent
-            await self.dispatcher.bus.publish(CloudEvent(
-                type="agent.context.budget_allocated",
-                source=memory.node_id,
-                data={
-                    "max_tokens": max_tokens,
-                    "available_items": len(curated_units)
-                }
-            ))
+
+            await self.dispatcher.bus.publish(
+                CloudEvent(
+                    type="agent.context.budget_allocated",
+                    source=memory.node_id,
+                    data={"max_tokens": max_tokens, "available_items": len(curated_units)},
+                )
+            )
 
         # Reserve space for system prompt
         if system_prompt:
-             current_tokens += self._count_tokens_str(system_prompt)
+            current_tokens += self._count_tokens_str(system_prompt)
 
         for unit in curated_units:
             msg = unit.to_message()
             msg_tokens = self._count_tokens_msg(msg)
 
             if current_tokens + msg_tokens > max_tokens:
-                continue # Skip if over budget (greedy approach)
+                continue  # Skip if over budget (greedy approach)
 
             selected_units.append(unit)
             current_tokens += msg_tokens
@@ -141,41 +137,45 @@ class ContextAssembler:
             # Publish progressive loading event
             if self.dispatcher:
                 from loom.protocol.cloudevents import CloudEvent
-                await self.dispatcher.bus.publish(CloudEvent(
-                    type="agent.context.item_loaded",
-                    source=memory.node_id,
-                    data={
-                        "tier": unit.tier.value,
-                        "type": unit.type.value,
-                        "tokens": msg_tokens,
-                        "total_tokens": current_tokens,
-                        "budget_used_percent": round((current_tokens / max_tokens) * 100, 2)
-                    }
-                ))
+
+                await self.dispatcher.bus.publish(
+                    CloudEvent(
+                        type="agent.context.item_loaded",
+                        source=memory.node_id,
+                        data={
+                            "tier": unit.tier.value,
+                            "type": unit.type.value,
+                            "tokens": msg_tokens,
+                            "total_tokens": current_tokens,
+                            "budget_used_percent": round((current_tokens / max_tokens) * 100, 2),
+                        },
+                    )
+                )
 
         # Publish final budget summary
         if self.dispatcher:
             from loom.protocol.cloudevents import CloudEvent
-            await self.dispatcher.bus.publish(CloudEvent(
-                type="agent.context.budget_finalized",
-                source=memory.node_id,
-                data={
-                    "selected_items": len(selected_units),
-                    "total_items": len(curated_units),
-                    "tokens_used": current_tokens,
-                    "max_tokens": max_tokens,
-                    "budget_used_percent": round((current_tokens / max_tokens) * 100, 2),
-                    "items_skipped": len(curated_units) - len(selected_units)
-                }
-            ))
+
+            await self.dispatcher.bus.publish(
+                CloudEvent(
+                    type="agent.context.budget_finalized",
+                    source=memory.node_id,
+                    data={
+                        "selected_items": len(selected_units),
+                        "total_items": len(curated_units),
+                        "tokens_used": current_tokens,
+                        "max_tokens": max_tokens,
+                        "budget_used_percent": round((current_tokens / max_tokens) * 100, 2),
+                        "items_skipped": len(curated_units) - len(selected_units),
+                    },
+                )
+            )
 
         # 4. Final Ordering (Cache-Aware)
         # Static/Long-term content first (System -> L4 -> L3 -> L2 -> L1)
         # This increases KV cache hit rate for persistent prefixes.
         if self.config.enable_prompt_caching:
-            selected_units.sort(
-                key=lambda u: (u.tier.value, u.created_at)
-            )
+            selected_units.sort(key=lambda u: (u.tier.value, u.created_at))
         else:
             # Default chronological
             selected_units.sort(key=lambda u: u.created_at)
@@ -185,10 +185,7 @@ class ContextAssembler:
 
         # System Prompt
         if system_prompt:
-            messages.append({
-                "role": "system",
-                "content": system_prompt
-            })
+            messages.append({"role": "system", "content": system_prompt})
 
         # Add Units
         for unit in selected_units:
@@ -200,10 +197,7 @@ class ContextAssembler:
             if load_hint:
                 # Insert hint after system prompt
                 insert_idx = 1 if system_prompt else 0
-                messages.insert(insert_idx, {
-                    "role": "system",
-                    "content": load_hint
-                })
+                messages.insert(insert_idx, {"role": "system", "content": load_hint})
 
         # 6. Insert cache boundaries for prompt caching optimization
         messages = self._insert_cache_boundaries(messages, selected_units)
@@ -234,11 +228,20 @@ class ContextAssembler:
 
         # Increase budget for complex tasks
         complexity_indicators = [
-            "analyze", "refactor", "debug", "explain", "implement",
-            "design", "architect", "optimize", "review"
+            "analyze",
+            "refactor",
+            "debug",
+            "explain",
+            "implement",
+            "design",
+            "architect",
+            "optimize",
+            "review",
         ]
         task_lower = task.lower() if task else ""
-        complexity_matches = sum(1 for indicator in complexity_indicators if indicator in task_lower)
+        complexity_matches = sum(
+            1 for indicator in complexity_indicators if indicator in task_lower
+        )
 
         if complexity_matches >= 2:
             base_budget = int(base_budget * 1.5)  # 50% increase for very complex tasks
@@ -253,15 +256,12 @@ class ContextAssembler:
             base_budget = int(base_budget * 0.9)  # 10% reduction
 
         # Ensure we don't exceed absolute maximum
-        max_absolute = getattr(self.config, 'max_absolute_tokens', base_budget * 2)
+        max_absolute = getattr(self.config, "max_absolute_tokens", base_budget * 2)
         return min(base_budget, max_absolute)
 
     def _build_load_hint(self, units: list[MemoryUnit]) -> str | None:
         """Build hint string for loadable resources."""
-        loadable = [
-            u for u in units
-            if u.metadata.get("full_available")
-        ]
+        loadable = [u for u in units if u.metadata.get("full_available")]
 
         if not loadable:
             return None
@@ -273,18 +273,12 @@ class ContextAssembler:
 
         return hint
 
-    def expand_snippet(
-        self,
-        memory: LoomMemory,
-        snippet_id: str
-    ) -> MemoryUnit | None:
+    def expand_snippet(self, memory: LoomMemory, snippet_id: str) -> MemoryUnit | None:
         """Resolve a snippet ID to the full memory unit."""
         return memory.get(snippet_id)
 
     def _insert_cache_boundaries(
-        self,
-        messages: list[dict[str, Any]],
-        selected_units: list[MemoryUnit]
+        self, messages: list[dict[str, Any]], selected_units: list[MemoryUnit]
     ) -> list[dict[str, Any]]:
         """Insert cache_control markers at strategic points for prompt caching."""
         if not self.config.enable_prompt_caching:
@@ -303,7 +297,9 @@ class ContextAssembler:
         # Mark L4 boundary in messages (static content)
         if l4_boundary_idx is not None and l4_boundary_idx < len(messages) - 1:
             # Find corresponding message index (accounting for system prompt)
-            msg_idx = l4_boundary_idx + (1 if messages and messages[0].get("role") == "system" else 0)
+            msg_idx = l4_boundary_idx + (
+                1 if messages and messages[0].get("role") == "system" else 0
+            )
             if msg_idx < len(messages):
                 messages[msg_idx]["cache_control"] = {"type": "ephemeral"}
 
@@ -315,12 +311,7 @@ class ContextManager:
     High-level facade for Agent interaction.
     """
 
-    def __init__(
-        self,
-        node_id: str,
-        memory: LoomMemory,
-        assembler: ContextAssembler
-    ):
+    def __init__(self, node_id: str, memory: LoomMemory, assembler: ContextAssembler):
         self.node_id = node_id
         self.memory = memory
         self.assembler = assembler
@@ -328,15 +319,11 @@ class ContextManager:
         self.last_snapshot: list[dict[str, Any]] = []
 
     async def build_prompt(
-        self,
-        task: str,
-        system_prompt: str | None = None
+        self, task: str, system_prompt: str | None = None
     ) -> list[dict[str, Any]]:
         """Build the complete prompt for the current context."""
         messages = await self.assembler.assemble(
-            self.memory,
-            task=task,
-            system_prompt=system_prompt
+            self.memory, task=task, system_prompt=system_prompt
         )
 
         self.last_snapshot = messages
@@ -354,11 +341,11 @@ class ContextManager:
         # Or we can just link it?
         # For now, we clone content to L2 so it appears in next prompt
         new_unit = MemoryUnit(
-            content=unit.content, # Full content
+            content=unit.content,  # Full content
             tier=MemoryTier.L2_WORKING,
             type=unit.type,
             metadata={**unit.metadata, "loaded_from": resource_id},
-            importance=1.0 # High importance as requested
+            importance=1.0,  # High importance as requested
         )
         await self.memory.add(new_unit)
 
@@ -368,7 +355,7 @@ class ContextManager:
         """Get debug stats."""
         return {
             "last_message_count": len(self.last_snapshot),
-            "memory_stats": self.memory.get_statistics()
+            "memory_stats": self.memory.get_statistics(),
         }
 
     def visualize(self) -> str:

@@ -15,6 +15,7 @@ class LLMResponse(BaseModel):
     """
     Standardized response from an LLM.
     """
+
     content: str
     tool_calls: list[dict[str, Any]] = []
     token_usage: dict[str, int] | None = None
@@ -35,6 +36,7 @@ class StreamChunk(BaseModel):
     - error: 错误信息
     - done: 流结束（包含 token_usage）
     """
+
     type: Literal[
         "text",
         "tool_call_start",
@@ -42,7 +44,7 @@ class StreamChunk(BaseModel):
         "tool_call_complete",
         "thought_injection",
         "error",
-        "done"
+        "done",
     ]
     content: str | dict
     metadata: dict[str, Any] = {}
@@ -58,7 +60,7 @@ class LLMProvider(LLMProviderProtocol, ABC):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
-        config: dict[str, Any] | None = None
+        config: dict[str, Any] | None = None,
     ) -> LLMResponse:
         """
         Generate a response for a given chat history.
@@ -67,9 +69,7 @@ class LLMProvider(LLMProviderProtocol, ABC):
 
     @abstractmethod
     async def stream_chat(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
     ) -> AsyncGenerator[StreamChunk, None]:
         """
         Stream the response as structured chunks.

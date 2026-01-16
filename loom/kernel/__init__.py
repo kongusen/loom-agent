@@ -80,7 +80,6 @@ __all__ = [
     "ProjectionOperator",
     "Thought",
     "ThoughtState",
-
     # Layer 2: Control
     "Interceptor",
     "TracingInterceptor",
@@ -90,7 +89,6 @@ __all__ = [
     "TimeoutInterceptor",
     "HITLInterceptor",
     "AdaptiveLLMInterceptor",
-
     # Layer 3: Fractal Decomposition
     "FractalOrchestrator",
     "OrchestratorConfig",
@@ -98,14 +96,12 @@ __all__ = [
     "SynthesisConfig",
     "TemplateManager",
     "StructureTemplate",
-
     # Layer 4: Structure Optimization
     # Structure Controller
     "StructureController",
     "StructureEvent",
     "StructureEventType",
     "StructureStats",
-
     # Pruning
     "PruningStrategy",
     "PruningDecision",
@@ -115,19 +111,16 @@ __all__ = [
     "ResourcePruningStrategy",
     "CompositePruningStrategy",
     "SmartPruner",
-
     # Health
     "StructureHealthAssessor",
     "HealthReport",
     "HealthStatus",
     "HealthIssue",
     "HealthDiagnostic",
-
     # Landscape Optimization
     "FitnessLandscapeOptimizer",
     "StructureSnapshot",
     "StructurePattern",
-
     # Evolution
     "StructureEvolver",
     "StructureGenome",

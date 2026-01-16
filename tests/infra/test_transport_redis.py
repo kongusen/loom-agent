@@ -13,6 +13,7 @@ from loom.protocol.cloudevents import CloudEvent
 
 class MockRedis:
     """Mock Redis client."""
+
     def __init__(self):
         self.data = {}
         self.channels = {}
@@ -40,6 +41,7 @@ class MockRedis:
 
 class MockPubSub:
     """Mock Redis PubSub."""
+
     def __init__(self):
         self.subscribed = []
         self.patterns = {}
@@ -68,11 +70,7 @@ class MockPubSub:
 
     def add_message(self, channel, data):
         """Add a message to the queue."""
-        self.messages.put_nowait({
-            "type": "pmessage",
-            "channel": channel,
-            "data": data
-        })
+        self.messages.put_nowait({"type": "pmessage", "channel": channel, "data": data})
 
 
 @pytest.fixture
@@ -95,7 +93,7 @@ class TestRedisTransport:
 
     def test_initialization_with_redis(self, mock_redis_module):
         """Test initialization when redis package is available."""
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport("redis://localhost:6379")
             assert transport.redis_url == "redis://localhost:6379"
             assert transport.redis is None
@@ -105,15 +103,15 @@ class TestRedisTransport:
 
     def test_initialization_custom_url(self, mock_redis_module):
         """Test initialization with custom URL."""
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport("redis://remote:6380")
             assert transport.redis_url == "redis://remote:6380"
 
     def test_initialization_without_redis(self):
         """Test initialization when redis package is not available."""
         with (
-            patch('loom.infra.transport.redis.aioredis', None),
-            pytest.raises(ImportError, match="redis package is required")
+            patch("loom.infra.transport.redis.aioredis", None),
+            pytest.raises(ImportError, match="redis package is required"),
         ):
             RedisTransport()
 
@@ -124,7 +122,7 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
             await transport.connect()
 
@@ -140,7 +138,7 @@ class TestRedisTransport:
         """Test connection failure handling."""
         mock_redis_module.from_url = MagicMock(side_effect=ConnectionError("Connection failed"))
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
             with pytest.raises(ConnectionError):
                 await transport.connect()
@@ -152,7 +150,7 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
             await transport.connect()
             assert transport._connected is True
@@ -168,7 +166,7 @@ class TestRedisTransport:
         mock_redis = MockRedis()
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
             await transport.connect()
 
@@ -182,13 +180,9 @@ class TestRedisTransport:
     @pytest.mark.asyncio
     async def test_publish_not_connected(self, mock_redis_module):
         """Test publishing when not connected raises error."""
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"test": "data"}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"test": "data"})
 
             with pytest.raises(RuntimeError, match="not connected"):
                 await transport.publish("test.topic", event)
@@ -199,15 +193,11 @@ class TestRedisTransport:
         mock_redis = MockRedis()
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
             await transport.connect()
 
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"test": "data"}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"test": "data"})
 
             await transport.publish("test.topic", event)
 
@@ -219,7 +209,7 @@ class TestRedisTransport:
     @pytest.mark.asyncio
     async def test_subscribe_not_connected(self, mock_redis_module):
         """Test subscribing when not connected raises error."""
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
             async def handler(event):
@@ -237,11 +227,11 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
             # Mock the pubsub creation
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 async def handler(event):
@@ -264,10 +254,10 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 async def handler1(event):
@@ -294,10 +284,10 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 async def handler(event):
@@ -321,10 +311,10 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 async def handler(event):
@@ -347,10 +337,10 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 async def handler(event):
@@ -364,7 +354,7 @@ class TestRedisTransport:
     @pytest.mark.asyncio
     async def test_to_channel(self, mock_redis_module):
         """Test _to_channel method."""
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
             assert transport._to_channel("test.topic") == "loom.test.topic"
@@ -373,7 +363,7 @@ class TestRedisTransport:
 
     def test_match_exact(self, mock_redis_module):
         """Test _match with exact channel."""
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
             assert transport._match("loom.test.topic", "loom.test.topic") is True
@@ -381,7 +371,7 @@ class TestRedisTransport:
 
     def test_match_wildcard(self, mock_redis_module):
         """Test _match with wildcard patterns."""
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
             assert transport._match("loom.test.topic", "loom.*") is True
@@ -394,14 +384,10 @@ class TestRedisTransport:
         mock_redis = MockRedis()
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"test": "data"}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"test": "data"})
 
             received = []
 
@@ -423,14 +409,10 @@ class TestRedisTransport:
         mock_redis = MockRedis()
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"test": "data"}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"test": "data"})
 
             received = []
 
@@ -451,14 +433,10 @@ class TestRedisTransport:
         mock_redis = MockRedis()
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"test": "data"}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"test": "data"})
 
             async def failing_handler(e):
                 raise ValueError("Handler failed")
@@ -474,10 +452,10 @@ class TestRedisTransport:
         mock_redis.pubsub = MagicMock(return_value=mock_pubsub)
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 # Listener should be running
@@ -500,10 +478,10 @@ class TestRedisTransport:
         mock_redis.pubsub = MagicMock(return_value=mock_pubsub)
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 # Wait for listener to fail
@@ -523,10 +501,10 @@ class TestRedisTransport:
 
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
 
-            with patch.object(transport, 'pubsub', mock_pubsub):
+            with patch.object(transport, "pubsub", mock_pubsub):
                 await transport.connect()
 
                 async def handler1(e):
@@ -551,15 +529,11 @@ class TestRedisTransport:
         mock_redis = MockRedis()
         mock_redis_module.from_url = MagicMock(return_value=mock_redis)
 
-        with patch('loom.infra.transport.redis.aioredis', mock_redis_module):
+        with patch("loom.infra.transport.redis.aioredis", mock_redis_module):
             transport = RedisTransport()
             await transport.connect()
 
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"test": "data"}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"test": "data"})
 
             await transport.publish("test.*", event)
 

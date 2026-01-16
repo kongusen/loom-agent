@@ -42,18 +42,15 @@ class FractalAgentNode(AgentNode):
         provider: LLMProvider | None = None,
         tools: list[Any] | None = None,
         memory: LoomMemory | None = None,
-
         # Fractal-specific parameters
         role: NodeRole = NodeRole.COORDINATOR,
-        parent: Optional['FractalAgentNode'] = None,
+        parent: Optional["FractalAgentNode"] = None,
         depth: int = 0,
         fractal_config: FractalConfig | None = None,
-
         # Simplified mode (skip AgentNode init for standalone use)
         standalone: bool = True,
-
         # Pass through to parent
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize fractal agent node
@@ -75,7 +72,7 @@ class FractalAgentNode(AgentNode):
         if standalone:
             # Minimal initialization without AgentNode
             self.node_id = node_id
-            self.provider = provider or kwargs.get('llm') or MockLLMProvider()  # Support both names
+            self.provider = provider or kwargs.get("llm") or MockLLMProvider()  # Support both names
             self.llm = self.provider  # Alias
             self.tools = tools or []
             self.memory = memory or LoomMemory(self.node_id)
@@ -84,25 +81,25 @@ class FractalAgentNode(AgentNode):
             # AgentNode types dispatcher as Dispatcher.
             # So we create a dummy or rely on standard bus.
             from loom.kernel.core import Dispatcher, UniversalEventBus
+
             self.dispatcher = dispatcher or Dispatcher(UniversalEventBus())
 
             # Initialize tool helper structures
-            self.known_tools = {t.name: t for t in self.tools} if hasattr(self.tools, '__iter__') else {}
+            self.known_tools = (
+                {t.name: t for t in self.tools} if hasattr(self.tools, "__iter__") else {}
+            )
             # Mock tool registry for standalone
-            self.tool_registry = type('MockRegistry', (), {'_tools': {}})()
+            self.tool_registry = type("MockRegistry", (), {"_tools": {}})()
         else:
             # Full AgentNode initialization
             from loom.kernel.core import Dispatcher
             from loom.kernel.core.bus import UniversalEventBus
+
             if dispatcher is None:
                 bus = UniversalEventBus()
                 dispatcher = Dispatcher(bus)
             super().__init__(
-                node_id=node_id,
-                dispatcher=dispatcher,
-                provider=provider,
-                tools=tools,
-                **kwargs
+                node_id=node_id, dispatcher=dispatcher, provider=provider, tools=tools, **kwargs
             )
             self.llm = provider  # Alias for convenience
 
@@ -110,7 +107,9 @@ class FractalAgentNode(AgentNode):
         self.node_id = node_id or f"node_{uuid.uuid4().hex[:8]}"
         self.role = role.value
         self.parent = parent
-        self.children: list[FractalAgentNode] = [] # Kept for backward compat/inspection, but managed by Orchestrator technically?
+        self.children: list[
+            FractalAgentNode
+        ] = []  # Kept for backward compat/inspection, but managed by Orchestrator technically?
         # Actually, Orchestrator doesn't persist children list in state, it returns them.
         # But we might want to track them for visibility.
         # For Phase 2 simplicity, let's keep self.children but populate it from Orchestrator results if needed,
@@ -139,7 +138,7 @@ class FractalAgentNode(AgentNode):
                 max_recursive_depth=self.fractal_config.max_recursive_depth,
                 default_child_token_budget=self.fractal_config.default_child_token_budget,
                 max_concurrent_children=self.fractal_config.max_concurrent_children,
-                implicit_mode_enabled=True # Always enable for FractalAgentNode
+                implicit_mode_enabled=True,  # Always enable for FractalAgentNode
             )
             self.orchestrator = FractalOrchestrator(self, orchestrator_config)
 
@@ -147,12 +146,7 @@ class FractalAgentNode(AgentNode):
     # Core Execution
     # ============================================================================
 
-    async def execute(
-        self,
-        task: str,
-        force_fractal: bool = False,
-        **kwargs
-    ) -> dict[str, Any]:
+    async def execute(self, task: str, force_fractal: bool = False, **kwargs) -> dict[str, Any]:
         """
         Execute task with optional fractal decomposition
 
@@ -169,7 +163,7 @@ class FractalAgentNode(AgentNode):
                 - metrics: Performance metrics
         """
         start_time = time.time()
-        tokens_before = self._count_tokens() if hasattr(self, '_count_tokens') else 0
+        tokens_before = self._count_tokens() if hasattr(self, "_count_tokens") else 0
 
         try:
             # Decide whether to use fractal mode
@@ -184,36 +178,36 @@ class FractalAgentNode(AgentNode):
 
             # Record success
             execution_time = time.time() - start_time
-            tokens_used = self._count_tokens() - tokens_before if hasattr(self, '_count_tokens') else 0
+            tokens_used = (
+                self._count_tokens() - tokens_before if hasattr(self, "_count_tokens") else 0
+            )
 
             self.metrics.record_execution(
                 success=True,
                 tokens=tokens_used,
                 time=execution_time,
-                cost=self._estimate_cost(tokens_used)
+                cost=self._estimate_cost(tokens_used),
             )
 
             # Return enriched result
             return {
                 "result": result,
                 "node_id": self.node_id,
-
                 "execution_time": execution_time,
                 "tokens_used": tokens_used,
                 "structure": self.get_structure_tree() if use_fractal else None,
-                "metrics": self.metrics.to_dict()
+                "metrics": self.metrics.to_dict(),
             }
 
         except Exception:
             # Record failure
             execution_time = time.time() - start_time
-            tokens_used = self._count_tokens() - tokens_before if hasattr(self, '_count_tokens') else 0
+            tokens_used = (
+                self._count_tokens() - tokens_before if hasattr(self, "_count_tokens") else 0
+            )
 
             self.metrics.record_execution(
-                success=False,
-                tokens=tokens_used,
-                time=execution_time,
-                cost=0.0
+                success=False, tokens=tokens_used, time=execution_time, cost=0.0
             )
 
             raise
@@ -235,7 +229,7 @@ class FractalAgentNode(AgentNode):
         decomposition = await self._decompose_task(task)
 
         if not self.orchestrator:
-             raise RuntimeError("Orchestrator not initialized")
+            raise RuntimeError("Orchestrator not initialized")
 
         # 2. Delegate via Orchestrator
         delegation_result = await self.orchestrator.process_decomposition(decomposition)
@@ -249,8 +243,8 @@ class FractalAgentNode(AgentNode):
             "decomposition": {
                 "strategy": decomposition.strategy.value,
                 "reasoning": decomposition.reasoning,
-                "subtask_count": len(decomposition.subtasks)
-            }
+                "subtask_count": len(decomposition.subtasks),
+            },
         }
 
     # ============================================================================
@@ -297,7 +291,7 @@ class FractalAgentNode(AgentNode):
         # Use chat method as LLMProvider does not have generate
         response_obj = await self.llm.chat(
             messages=[{"role": "user", "content": prompt}],
-            config={"max_tokens": 1000, "temperature": 0.3}
+            config={"max_tokens": 1000, "temperature": 0.3},
         )
         response = response_obj.content
 
@@ -308,7 +302,7 @@ class FractalAgentNode(AgentNode):
             subtasks=subtasks,
             strategy=strategy,
             reasoning=reasoning,
-            estimated_complexity=self._estimate_task_complexity(task)
+            estimated_complexity=self._estimate_task_complexity(task),
         )
 
     def _detect_growth_strategy(self, task: str) -> GrowthStrategy:
@@ -329,7 +323,7 @@ class FractalAgentNode(AgentNode):
             GrowthStrategy.DECOMPOSE: "Break into sequential steps that must be done in order.",
             GrowthStrategy.SPECIALIZE: "Identify specialized domains/expertise needed.",
             GrowthStrategy.PARALLELIZE: "Split into independent tasks that can run concurrently.",
-            GrowthStrategy.ITERATE: "Define iterative refinement steps."
+            GrowthStrategy.ITERATE: "Define iterative refinement steps.",
         }
 
         return f"""Decompose the following task into subtasks.
@@ -352,7 +346,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
 
     def _parse_decomposition_response(self, response: str) -> tuple[list[str], str]:
         """Parse LLM decomposition response"""
-        lines = response.strip().split('\n')
+        lines = response.strip().split("\n")
 
         reasoning = ""
         subtasks = []
@@ -400,7 +394,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
             "role": self.role,
             "depth": self.depth,
             "metrics": self.metrics.to_dict(),
-            "children": [child.get_structure_tree() for child in self.children]
+            "children": [child.get_structure_tree() for child in self.children],
         }
 
     def _count_total_nodes(self) -> int:
@@ -437,10 +431,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         if self.children:
             extension = "   " if is_last else "│  "
             for i, child in enumerate(self.children):
-                result += child._visualize_tree(
-                    prefix + extension,
-                    i == len(self.children) - 1
-                )
+                result += child._visualize_tree(prefix + extension, i == len(self.children) - 1)
 
         return result
 
@@ -473,13 +464,9 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         Select tools for child node based on subtask
         For backward compatibility with add_child.
         """
-        return self.tools if hasattr(self, 'tools') else []
+        return self.tools if hasattr(self, "tools") else []
 
-    async def _execute_children(
-        self,
-        subtasks: list[str],
-        **kwargs
-    ) -> list[dict[str, Any]]:
+    async def _execute_children(self, subtasks: list[str], **kwargs) -> list[dict[str, Any]]:
         """
         Execute subtasks on child nodes
         For backward compatibility with execute_pipeline.
@@ -498,15 +485,15 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         # Helper to process results
         processed: list[dict[str, Any]] = []
         for i, res in enumerate(results):
-             if isinstance(res, Exception):
-                 child_node = self.children[i]
-                 error_data: dict[str, Any] = {
-                     "success": False,
-                     "error": str(res),
-                     "node_id": child_node.node_id if child_node else "unknown"
-                 }
-                 processed.append(error_data)
-             else:
+            if isinstance(res, Exception):
+                child_node = self.children[i]
+                error_data: dict[str, Any] = {
+                    "success": False,
+                    "error": str(res),
+                    "node_id": child_node.node_id if child_node else "unknown",
+                }
+                processed.append(error_data)
+            else:
                 # We assume execute returns a dict, but explicit cast helps mypy
                 processed.append(cast(dict[str, Any], res))
         return processed
@@ -526,11 +513,8 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
     # ============================================================================
 
     def add_child(
-        self,
-        role: NodeRole = NodeRole.EXECUTOR,
-        tools: list[Any] | None = None,
-        **kwargs
-    ) -> 'FractalAgentNode':
+        self, role: NodeRole = NodeRole.EXECUTOR, tools: list[Any] | None = None, **kwargs
+    ) -> "FractalAgentNode":
         """
         Manually add a child node (for pipeline building)
 
@@ -553,7 +537,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
             tools=tools or self._select_tools_for_child(""),
             memory=self.memory,
             fractal_config=self.fractal_config,
-            **kwargs
+            **kwargs,
         )
 
         self.children.append(child)
@@ -561,15 +545,13 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
 
         return child
 
-    def remove_child(self, child: 'FractalAgentNode'):
+    def remove_child(self, child: "FractalAgentNode"):
         """Remove a child node"""
         self.children.remove(child)
         self._structure_version += 1
 
     async def execute_pipeline(
-        self,
-        tasks: list[str],
-        mode: str = "sequential"
+        self, tasks: list[str], mode: str = "sequential"
     ) -> list[dict[str, Any]]:
         """
         Execute tasks on children in specified mode

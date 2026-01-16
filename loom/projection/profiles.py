@@ -13,11 +13,12 @@ class ProjectionMode(Enum):
 
     定义了5种不同的投影模式，适用于不同的任务场景。
     """
-    MINIMAL = "minimal"        # 工具调用、简单计算
-    STANDARD = "standard"      # 默认平衡模式
+
+    MINIMAL = "minimal"  # 工具调用、简单计算
+    STANDARD = "standard"  # 默认平衡模式
     CONTEXTUAL = "contextual"  # 需要理解对话上下文
     ANALYTICAL = "analytical"  # 需要深度知识检索
-    DEBUG = "debug"            # 错误修复、重试
+    DEBUG = "debug"  # 错误修复、重试
 
 
 @dataclass
@@ -34,6 +35,7 @@ class ProjectionConfig:
         importance_weight: 重要性权重（用于混合评分）
         relevance_weight: 相关性权重（用于混合评分）
     """
+
     mode: ProjectionMode
     vip_ratio: float
     l4_ratio: float
@@ -42,7 +44,7 @@ class ProjectionConfig:
     relevance_weight: float = 0.7
 
     @classmethod
-    def from_mode(cls, mode: ProjectionMode) -> 'ProjectionConfig':
+    def from_mode(cls, mode: ProjectionMode) -> "ProjectionConfig":
         """根据模式创建配置
 
         Args:
@@ -58,7 +60,7 @@ class ProjectionConfig:
                 l4_ratio=0.8,
                 max_l4_facts=2,
                 importance_weight=0.5,
-                relevance_weight=0.5
+                relevance_weight=0.5,
             ),
             ProjectionMode.STANDARD: cls(
                 mode=mode,
@@ -66,7 +68,7 @@ class ProjectionConfig:
                 l4_ratio=0.6,
                 max_l4_facts=8,
                 importance_weight=0.3,
-                relevance_weight=0.7
+                relevance_weight=0.7,
             ),
             ProjectionMode.CONTEXTUAL: cls(
                 mode=mode,
@@ -74,7 +76,7 @@ class ProjectionConfig:
                 l4_ratio=0.4,
                 max_l4_facts=5,
                 importance_weight=0.2,
-                relevance_weight=0.8
+                relevance_weight=0.8,
             ),
             ProjectionMode.ANALYTICAL: cls(
                 mode=mode,
@@ -82,7 +84,7 @@ class ProjectionConfig:
                 l4_ratio=0.7,
                 max_l4_facts=15,
                 importance_weight=0.3,
-                relevance_weight=0.7
+                relevance_weight=0.7,
             ),
             ProjectionMode.DEBUG: cls(
                 mode=mode,
@@ -90,7 +92,7 @@ class ProjectionConfig:
                 l4_ratio=0.3,
                 max_l4_facts=5,
                 importance_weight=0.1,
-                relevance_weight=0.9
+                relevance_weight=0.9,
             ),
         }
         return configs[mode]

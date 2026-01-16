@@ -44,7 +44,9 @@ class ErrorFormatter:
 
         # Permission Errors
         if "permission denied" in msg_lower or "eacces" in msg_lower:
-            hints.append("Check if you have the necessary permissions to access the file/directory.")
+            hints.append(
+                "Check if you have the necessary permissions to access the file/directory."
+            )
             hints.append("This might require elevated privileges or checking file mode bits.")
 
         # File Not Found
@@ -54,18 +56,24 @@ class ErrorFormatter:
 
         # Shell Errors (Generic 127/1)
         if hasattr(error, "returncode"):
-             if error.returncode == 127:
-                 hints.append("Command not found. Is it installed and in your PATH?")
-             if error.returncode != 0:
-                 hints.append("Review the stderr output above for specific error details from the command.")
+            if error.returncode == 127:
+                hints.append("Command not found. Is it installed and in your PATH?")
+            if error.returncode != 0:
+                hints.append(
+                    "Review the stderr output above for specific error details from the command."
+                )
 
         # Python Syntax/Execution
         if "syntaxerror" in msg_lower:
-            hints.append("The code provided to the tool has a syntax error. Please verify the code string.")
+            hints.append(
+                "The code provided to the tool has a syntax error. Please verify the code string."
+            )
 
         # JSON/Parsing
         if "jsondecodeerror" in msg_lower:
-             hints.append(" The tool output was not valid JSON. This might happen if the tool printed extra logs.")
+            hints.append(
+                " The tool output was not valid JSON. This might happen if the tool printed extra logs."
+            )
 
         if not hints:
             hints.append("Review the arguments provided to the tool.")

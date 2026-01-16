@@ -17,6 +17,7 @@ from typing import Any
 
 class ThoughtState(str, Enum):
     """State of a thought process."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -31,6 +32,7 @@ class Thought:
 
     Represents an active sub-process in System 2 (Deep Thinking).
     """
+
     id: str
     task: str
     state: ThoughtState = ThoughtState.PENDING
@@ -127,6 +129,7 @@ class Observable:
 
     The low-dimensional output that can be observed and communicated.
     """
+
     content: str  # The text/speech output
     type: str = "text"  # text, tool_call, etc.
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -174,8 +177,8 @@ class ProjectionOperator:
                         "thought_id": thought.id,
                         "depth": thought.depth,
                         "duration": thought.duration(),
-                        "task": thought.task
-                    }
+                        "task": thought.task,
+                    },
                 )
                 observables.append(observable)
 
@@ -186,7 +189,7 @@ class ProjectionOperator:
                     observable = Observable(
                         content=f"[Thinking] {thought.task}",
                         type="thought_progress",
-                        metadata={"thought_id": thought.id, "state": thought.state.value}
+                        metadata={"thought_id": thought.id, "state": thought.state.value},
                     )
                     observables.append(observable)
 
@@ -213,14 +216,14 @@ class ProjectionOperator:
                 type="state_collapse",
                 metadata={
                     "num_insights": len(insights),
-                    "state_dimensionality": state.dimensionality()
-                }
+                    "state_dimensionality": state.dimensionality(),
+                },
             )
         else:
             return Observable(
                 content="",
                 type="state_collapse",
-                metadata={"state_dimensionality": state.dimensionality()}
+                metadata={"state_dimensionality": state.dimensionality()},
             )
 
 

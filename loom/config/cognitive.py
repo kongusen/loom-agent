@@ -322,13 +322,10 @@ class CognitiveSystemConfig:
         )
 
         if not (0.95 < total_budget < 1.05):  # Allow small floating point error
-            raise ValueError(
-                f"Token budget allocation must sum to 1.0, got {total_budget}"
-            )
+            raise ValueError(f"Token budget allocation must sum to 1.0, got {total_budget}")
 
-        # Validate thresholds
-            raise ValueError(
-            )
+            # Validate thresholds
+            raise ValueError()
 
         # Validate positive integers
         if self.curation_max_tokens <= 0:

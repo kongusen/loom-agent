@@ -23,9 +23,11 @@ logger = logging.getLogger(__name__)
 # Data Structures
 # ============================================================================
 
+
 @dataclass
 class StructureSnapshot:
     """Snapshot of a structure at a point in time"""
+
     timestamp: float
     structure_id: str
     task_type: str
@@ -51,52 +53,53 @@ class StructureSnapshot:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
-            'timestamp': self.timestamp,
-            'structure_id': self.structure_id,
-            'task_type': self.task_type,
-            'task_complexity': self.task_complexity,
-            'topology': {
-                'total_nodes': self.total_nodes,
-                'max_depth': self.max_depth,
-                'avg_depth': self.avg_depth,
-                'avg_branching': self.avg_branching,
-                'node_roles': self.node_roles
+            "timestamp": self.timestamp,
+            "structure_id": self.structure_id,
+            "task_type": self.task_type,
+            "task_complexity": self.task_complexity,
+            "topology": {
+                "total_nodes": self.total_nodes,
+                "max_depth": self.max_depth,
+                "avg_depth": self.avg_depth,
+                "avg_branching": self.avg_branching,
+                "node_roles": self.node_roles,
             },
-            'performance': {
-                'fitness_score': self.fitness_score,
-                'success_rate': self.success_rate,
-                'avg_tokens': self.avg_tokens,
-                'avg_time': self.avg_time,
-                'avg_cost': self.avg_cost
+            "performance": {
+                "fitness_score": self.fitness_score,
+                "success_rate": self.success_rate,
+                "avg_tokens": self.avg_tokens,
+                "avg_time": self.avg_time,
+                "avg_cost": self.avg_cost,
             },
-            'strategies': self.growth_strategies
+            "strategies": self.growth_strategies,
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'StructureSnapshot':
+    def from_dict(cls, data: dict[str, Any]) -> "StructureSnapshot":
         """Create from dictionary"""
         return cls(
-            timestamp=data['timestamp'],
-            structure_id=data['structure_id'],
-            task_type=data['task_type'],
-            task_complexity=data['task_complexity'],
-            total_nodes=data['topology']['total_nodes'],
-            max_depth=data['topology']['max_depth'],
-            avg_depth=data['topology']['avg_depth'],
-            avg_branching=data['topology']['avg_branching'],
-            node_roles=data['topology']['node_roles'],
-            fitness_score=data['performance']['fitness_score'],
-            success_rate=data['performance']['success_rate'],
-            avg_tokens=data['performance']['avg_tokens'],
-            avg_time=data['performance']['avg_time'],
-            avg_cost=data['performance']['avg_cost'],
-            growth_strategies=data['strategies']
+            timestamp=data["timestamp"],
+            structure_id=data["structure_id"],
+            task_type=data["task_type"],
+            task_complexity=data["task_complexity"],
+            total_nodes=data["topology"]["total_nodes"],
+            max_depth=data["topology"]["max_depth"],
+            avg_depth=data["topology"]["avg_depth"],
+            avg_branching=data["topology"]["avg_branching"],
+            node_roles=data["topology"]["node_roles"],
+            fitness_score=data["performance"]["fitness_score"],
+            success_rate=data["performance"]["success_rate"],
+            avg_tokens=data["performance"]["avg_tokens"],
+            avg_time=data["performance"]["avg_time"],
+            avg_cost=data["performance"]["avg_cost"],
+            growth_strategies=data["strategies"],
         )
 
 
 @dataclass
 class StructurePattern:
     """Learned optimal structure pattern"""
+
     pattern_id: str
     task_pattern: str  # Regex or description
     avg_fitness: float
@@ -118,28 +121,29 @@ class StructurePattern:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
-            'pattern_id': self.pattern_id,
-            'task_pattern': self.task_pattern,
-            'avg_fitness': self.avg_fitness,
-            'usage_count': self.usage_count,
-            'topology': {
-                'recommended_depth': self.recommended_depth,
-                'recommended_branching': self.recommended_branching,
-                'recommended_roles': self.recommended_roles,
-                'recommended_strategies': [s.value for s in self.recommended_strategies]
+            "pattern_id": self.pattern_id,
+            "task_pattern": self.task_pattern,
+            "avg_fitness": self.avg_fitness,
+            "usage_count": self.usage_count,
+            "topology": {
+                "recommended_depth": self.recommended_depth,
+                "recommended_branching": self.recommended_branching,
+                "recommended_roles": self.recommended_roles,
+                "recommended_strategies": [s.value for s in self.recommended_strategies],
             },
-            'performance': {
-                'min_fitness': self.min_fitness,
-                'max_tokens': self.max_tokens,
-                'success_rate': self.success_rate
+            "performance": {
+                "min_fitness": self.min_fitness,
+                "max_tokens": self.max_tokens,
+                "success_rate": self.success_rate,
             },
-            'confidence': self.confidence
+            "confidence": self.confidence,
         }
 
 
 # ============================================================================
 # Fitness Landscape Optimizer
 # ============================================================================
+
 
 class FitnessLandscapeOptimizer:
     """
@@ -156,7 +160,7 @@ class FitnessLandscapeOptimizer:
         self,
         memory_size: int = 1000,
         min_samples_for_pattern: int = 5,
-        confidence_threshold: float = 0.7
+        confidence_threshold: float = 0.7,
     ):
         """
         Initialize landscape optimizer
@@ -189,7 +193,7 @@ class FitnessLandscapeOptimizer:
         root: Any,  # FractalAgentNode
         task_type: str,
         task_complexity: float,
-        structure_id: str | None = None
+        structure_id: str | None = None,
     ) -> StructureSnapshot:
         """
         Record a structure's performance
@@ -216,7 +220,7 @@ class FitnessLandscapeOptimizer:
             task_complexity=task_complexity,
             **topology,
             **performance,
-            growth_strategies=strategies
+            growth_strategies=strategies,
         )
 
         # Add to history
@@ -224,15 +228,17 @@ class FitnessLandscapeOptimizer:
 
         # Trim if needed
         if len(self.snapshots) > self.memory_size:
-            self.snapshots = self.snapshots[-self.memory_size:]
+            self.snapshots = self.snapshots[-self.memory_size :]
 
         # Update landscape data
         complexity_bin = int(task_complexity * 10)  # 0-10
         depth_bin = snapshot.max_depth
         self.landscape_data[(complexity_bin, depth_bin)].append(snapshot.fitness_score)
 
-        logger.info(f"Recorded structure performance: {snapshot.structure_id}, "
-                   f"fitness={snapshot.fitness_score:.2f}")
+        logger.info(
+            f"Recorded structure performance: {snapshot.structure_id}, "
+            f"fitness={snapshot.fitness_score:.2f}"
+        )
 
         return snapshot
 
@@ -256,11 +262,13 @@ class FitnessLandscapeOptimizer:
         _collect(root)
 
         return {
-            'total_nodes': len(nodes),
-            'max_depth': max(depths) if depths else 0,
-            'avg_depth': sum(depths) / len(depths) if depths else 0,
-            'avg_branching': sum(branching_factors) / len(branching_factors) if branching_factors else 0,
-            'node_roles': dict(role_counts)
+            "total_nodes": len(nodes),
+            "max_depth": max(depths) if depths else 0,
+            "avg_depth": sum(depths) / len(depths) if depths else 0,
+            "avg_branching": sum(branching_factors) / len(branching_factors)
+            if branching_factors
+            else 0,
+            "node_roles": dict(role_counts),
         }
 
     def _analyze_performance(self, root: Any) -> dict[str, Any]:
@@ -277,11 +285,11 @@ class FitnessLandscapeOptimizer:
 
         if not nodes:
             return {
-                'fitness_score': 0.0,
-                'success_rate': 0.0,
-                'avg_tokens': 0.0,
-                'avg_time': 0.0,
-                'avg_cost': 0.0
+                "fitness_score": 0.0,
+                "success_rate": 0.0,
+                "avg_tokens": 0.0,
+                "avg_time": 0.0,
+                "avg_cost": 0.0,
             }
 
         fitness_scores = [n.metrics.fitness_score() for n in nodes]
@@ -291,11 +299,11 @@ class FitnessLandscapeOptimizer:
         avg_costs = [n.metrics.avg_cost for n in nodes]
 
         return {
-            'fitness_score': sum(fitness_scores) / len(fitness_scores),
-            'success_rate': sum(success_rates) / len(success_rates),
-            'avg_tokens': sum(avg_tokens) / len(avg_tokens),
-            'avg_time': sum(avg_times) / len(avg_times),
-            'avg_cost': sum(avg_costs) / len(avg_costs)
+            "fitness_score": sum(fitness_scores) / len(fitness_scores),
+            "success_rate": sum(success_rates) / len(success_rates),
+            "avg_tokens": sum(avg_tokens) / len(avg_tokens),
+            "avg_time": sum(avg_times) / len(avg_times),
+            "avg_cost": sum(avg_costs) / len(avg_costs),
         }
 
     def _analyze_strategies(self, _root: Any) -> dict[str, int]:
@@ -308,10 +316,7 @@ class FitnessLandscapeOptimizer:
     # Pattern Learning
     # ========================================================================
 
-    def learn_patterns(
-        self,
-        task_type_filter: str | None = None
-    ) -> list[StructurePattern]:
+    def learn_patterns(self, task_type_filter: str | None = None) -> list[StructurePattern]:
         """
         Learn optimal patterns from historical data
 
@@ -336,7 +341,8 @@ class FitnessLandscapeOptimizer:
 
             # Find high-performing snapshots
             high_performers = [
-                s for s in snapshots
+                s
+                for s in snapshots
                 if s.fitness_score >= 0.7  # High fitness threshold
             ]
 
@@ -348,15 +354,15 @@ class FitnessLandscapeOptimizer:
             self.patterns[pattern.pattern_id] = pattern
             new_patterns.append(pattern)
 
-            logger.info(f"Learned pattern: {pattern.pattern_id} with "
-                       f"{len(high_performers)} high-performing examples")
+            logger.info(
+                f"Learned pattern: {pattern.pattern_id} with "
+                f"{len(high_performers)} high-performing examples"
+            )
 
         return new_patterns
 
     def _extract_pattern(
-        self,
-        task_type: str,
-        snapshots: list[StructureSnapshot]
+        self, task_type: str, snapshots: list[StructureSnapshot]
     ) -> StructurePattern:
         """Extract optimal pattern from snapshots"""
         # Aggregate statistics
@@ -379,8 +385,7 @@ class FitnessLandscapeOptimizer:
                 all_roles[role].append(count / total if total > 0 else 0)
 
         recommended_roles = {
-            role: float(np.median(proportions))
-            for role, proportions in all_roles.items()
+            role: float(np.median(proportions)) for role, proportions in all_roles.items()
         }
 
         # Confidence based on sample size and consistency
@@ -398,7 +403,7 @@ class FitnessLandscapeOptimizer:
             min_fitness=min_fitness,
             max_tokens=avg_tokens,
             success_rate=success_rate,
-            confidence=confidence
+            confidence=confidence,
         )
 
     # ========================================================================
@@ -409,7 +414,7 @@ class FitnessLandscapeOptimizer:
         self,
         task_type: str,
         task_complexity: float,  # noqa: ARG002 - Reserved for future complexity-based filtering
-        current_fitness: float | None = None
+        current_fitness: float | None = None,
     ) -> StructurePattern | None:
         """
         Recommend optimal structure configuration for a task
@@ -424,7 +429,8 @@ class FitnessLandscapeOptimizer:
         """
         # Find matching patterns
         candidates = [
-            p for p in self.patterns.values()
+            p
+            for p in self.patterns.values()
             if self._task_matches_pattern(task_type, p.task_pattern)
             and p.confidence >= self.confidence_threshold
         ]
@@ -436,7 +442,8 @@ class FitnessLandscapeOptimizer:
         # If current fitness provided, filter for improvements
         if current_fitness is not None:
             candidates = [
-                p for p in candidates
+                p
+                for p in candidates
                 if p.avg_fitness > current_fitness + 0.1  # Require 10% improvement
             ]
 
@@ -447,8 +454,10 @@ class FitnessLandscapeOptimizer:
         # Return best pattern
         best = max(candidates, key=lambda p: p.avg_fitness * p.confidence)
 
-        logger.info(f"Recommended pattern: {best.pattern_id} "
-                   f"(fitness={best.avg_fitness:.2f}, confidence={best.confidence:.2f})")
+        logger.info(
+            f"Recommended pattern: {best.pattern_id} "
+            f"(fitness={best.avg_fitness:.2f}, confidence={best.confidence:.2f})"
+        )
 
         return best
 
@@ -465,7 +474,7 @@ class FitnessLandscapeOptimizer:
     def visualize_landscape(
         self,
         _complexity_range: tuple[float, float] = (0.0, 1.0),
-        depth_range: tuple[int, int] = (0, 5)
+        depth_range: tuple[int, int] = (0, 5),
     ) -> str:
         """
         Visualize fitness landscape
@@ -551,27 +560,22 @@ class FitnessLandscapeOptimizer:
     def get_statistics(self) -> dict[str, Any]:
         """Get optimizer statistics"""
         if not self.snapshots:
-            return {
-                'total_snapshots': 0,
-                'patterns_learned': 0
-            }
+            return {"total_snapshots": 0, "patterns_learned": 0}
 
         fitnesses = [s.fitness_score for s in self.snapshots]
 
         return {
-            'total_snapshots': len(self.snapshots),
-            'patterns_learned': len(self.patterns),
-            'avg_fitness': np.mean(fitnesses),
-            'best_fitness': np.max(fitnesses),
-            'worst_fitness': np.min(fitnesses),
-            'fitness_std': np.std(fitnesses),
-            'task_types': len({s.task_type for s in self.snapshots})
+            "total_snapshots": len(self.snapshots),
+            "patterns_learned": len(self.patterns),
+            "avg_fitness": np.mean(fitnesses),
+            "best_fitness": np.max(fitnesses),
+            "worst_fitness": np.min(fitnesses),
+            "fitness_std": np.std(fitnesses),
+            "task_types": len({s.task_type for s in self.snapshots}),
         }
 
     def get_best_structures(
-        self,
-        task_type: str | None = None,
-        limit: int = 5
+        self, task_type: str | None = None, limit: int = 5
     ) -> list[StructureSnapshot]:
         """Get best performing structures"""
         snapshots = self.snapshots
@@ -591,15 +595,12 @@ class FitnessLandscapeOptimizer:
     def save(self, filepath: str):
         """Save optimizer state to file"""
         data = {
-            'snapshots': [s.to_dict() for s in self.snapshots],
-            'patterns': {k: v.to_dict() for k, v in self.patterns.items()},
-            'landscape_data': {
-                f"{k[0]}_{k[1]}": v
-                for k, v in self.landscape_data.items()
-            }
+            "snapshots": [s.to_dict() for s in self.snapshots],
+            "patterns": {k: v.to_dict() for k, v in self.patterns.items()},
+            "landscape_data": {f"{k[0]}_{k[1]}": v for k, v in self.landscape_data.items()},
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
         logger.info(f"Saved optimizer state to {filepath}")
@@ -609,32 +610,34 @@ class FitnessLandscapeOptimizer:
         with open(filepath) as f:
             data = json.load(f)
 
-        self.snapshots = [
-            StructureSnapshot.from_dict(s)
-            for s in data['snapshots']
-        ]
+        self.snapshots = [StructureSnapshot.from_dict(s) for s in data["snapshots"]]
 
         self.patterns = {}
-        for k, v in data['patterns'].items():
+        for k, v in data["patterns"].items():
             pattern = StructurePattern(
-                pattern_id=v['pattern_id'],
-                task_pattern=v['task_pattern'],
-                avg_fitness=v['avg_fitness'],
-                usage_count=v['usage_count'],
-                recommended_depth=v['topology']['recommended_depth'],
-                recommended_branching=v['topology']['recommended_branching'],
-                recommended_roles=v['topology']['recommended_roles'],
-                recommended_strategies=[GrowthStrategy[s.upper()] if hasattr(GrowthStrategy, s.upper()) else GrowthStrategy.DECOMPOSE for s in v['topology']['recommended_strategies']],
-                min_fitness=v['performance']['min_fitness'],
-                max_tokens=v['performance']['max_tokens'],
-                success_rate=v['performance']['success_rate'],
-                confidence=v['confidence']
+                pattern_id=v["pattern_id"],
+                task_pattern=v["task_pattern"],
+                avg_fitness=v["avg_fitness"],
+                usage_count=v["usage_count"],
+                recommended_depth=v["topology"]["recommended_depth"],
+                recommended_branching=v["topology"]["recommended_branching"],
+                recommended_roles=v["topology"]["recommended_roles"],
+                recommended_strategies=[
+                    GrowthStrategy[s.upper()]
+                    if hasattr(GrowthStrategy, s.upper())
+                    else GrowthStrategy.DECOMPOSE
+                    for s in v["topology"]["recommended_strategies"]
+                ],
+                min_fitness=v["performance"]["min_fitness"],
+                max_tokens=v["performance"]["max_tokens"],
+                success_rate=v["performance"]["success_rate"],
+                confidence=v["confidence"],
             )
             self.patterns[k] = pattern
 
         self.landscape_data = defaultdict(list)
-        for key_str, fitnesses in data['landscape_data'].items():
-            c, d = map(int, key_str.split('_'))
+        for key_str, fitnesses in data["landscape_data"].items():
+            c, d = map(int, key_str.split("_"))
             self.landscape_data[(c, d)] = fitnesses
 
         logger.info(f"Loaded optimizer state from {filepath}")

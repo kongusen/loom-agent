@@ -5,7 +5,6 @@ OpenAI Compatible Provider Base Class
 适用于：DeepSeek、智谱AI、Kimi、通义千问、豆包等。
 """
 
-
 from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
 from loom.llm.providers.openai import OpenAIProvider
 
@@ -31,7 +30,7 @@ class OpenAICompatibleProvider(OpenAIProvider):
         base_url: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-        **kwargs
+        **kwargs,
     ):
         """初始化兼容 Provider"""
         # 如果没有提供 config，创建默认配置
@@ -40,14 +39,13 @@ class OpenAICompatibleProvider(OpenAIProvider):
 
             # 使用子类定义的默认值
             config.connection = ConnectionConfig(
-                api_key=api_key,
-                base_url=base_url or self.DEFAULT_BASE_URL
+                api_key=api_key, base_url=base_url or self.DEFAULT_BASE_URL
             )
 
             config.generation = GenerationConfig(
                 model=model or self.DEFAULT_MODEL or "gpt-3.5-turbo",
                 temperature=temperature if temperature is not None else 0.7,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
         # 调用父类初始化

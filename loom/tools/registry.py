@@ -11,6 +11,7 @@ from loom.tools.converters import FunctionToMCP
 # Ideally Registry produces definitions + execution callables.
 # Factory creates Nodes.
 
+
 class ToolRegistry:
     """
     Central repository for tools available to Agents.

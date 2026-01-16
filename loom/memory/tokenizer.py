@@ -33,10 +33,10 @@ class TokenCounter:
     - Fallback when tiktoken is unavailable
     """
 
-    _instance: Optional['TokenCounter'] = None
+    _instance: Optional["TokenCounter"] = None
     _initialized = False
 
-    def __new__(cls, _encoding: str = "cl100k_base") -> 'TokenCounter':
+    def __new__(cls, _encoding: str = "cl100k_base") -> "TokenCounter":
         """Implement singleton pattern."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -249,7 +249,7 @@ class TokenCounter:
             "hits": self._cache_hits,
             "misses": self._cache_misses,
             "currsize": len(self._cache),
-            "maxsize": self._cache_maxsize
+            "maxsize": self._cache_maxsize,
         }
 
     def clear_cache(self):

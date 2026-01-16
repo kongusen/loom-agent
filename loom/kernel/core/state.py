@@ -51,7 +51,7 @@ class StateStore:
         if path == "/":
             return copy.deepcopy(self._root)
 
-        tokens = [t for t in path.split('/') if t]
+        tokens = [t for t in path.split("/") if t]
         current: Any = self._root
 
         for token in tokens:
@@ -63,7 +63,7 @@ class StateStore:
             elif isinstance(current, list):
                 try:
                     idx = int(token)
-                    current = current[idx] if 0 <= idx < len(current) else None # type: ignore
+                    current = current[idx] if 0 <= idx < len(current) else None  # type: ignore
                 except ValueError:
                     current = None
 

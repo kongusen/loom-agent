@@ -15,13 +15,14 @@ from loom.kernel.optimization import FitnessLandscapeOptimizer, StructurePattern
 # Mock Structures for Testing
 # ============================================================================
 
+
 def create_mock_node(
     role: str = "coordinator",
     children_count: int = 0,
     fitness: float = 0.8,
     success_rate: float = 0.9,
     task_count: int = 10,
-    depth: int = 0
+    depth: int = 0,
 ) -> Mock:
     """Create a mock FractalAgentNode for testing"""
     node = Mock()
@@ -48,6 +49,7 @@ def create_mock_node(
 
 def create_mock_tree(depth: int = 2, branching: int = 2, fitness: float = 0.8) -> Mock:
     """Create a mock tree structure for testing"""
+
     def _create_node(d: int):
         if d >= depth:
             return create_mock_node(depth=d, fitness=fitness, task_count=5)
@@ -56,11 +58,7 @@ def create_mock_tree(depth: int = 2, branching: int = 2, fitness: float = 0.8) -
         current_role = role_map.get(d, "executor")
 
         node = create_mock_node(
-            role=current_role,
-            children_count=branching,
-            fitness=fitness,
-            depth=d,
-            task_count=10
+            role=current_role, children_count=branching, fitness=fitness, depth=d, task_count=10
         )
 
         for i in range(branching):
@@ -74,6 +72,7 @@ def create_mock_tree(depth: int = 2, branching: int = 2, fitness: float = 0.8) -
 # ============================================================================
 # Test Cases
 # ============================================================================
+
 
 class TestStructureSnapshot(unittest.TestCase):
     """Test StructureSnapshot data structure"""
@@ -95,7 +94,7 @@ class TestStructureSnapshot(unittest.TestCase):
             avg_tokens=150.0,
             avg_time=3.0,
             avg_cost=0.1,
-            growth_strategies={}
+            growth_strategies={},
         )
 
         self.assertEqual(snapshot.structure_id, "struct_001")
@@ -120,7 +119,7 @@ class TestStructureSnapshot(unittest.TestCase):
             avg_tokens=150.0,
             avg_time=3.0,
             avg_cost=0.1,
-            growth_strategies={}
+            growth_strategies={},
         )
 
         data = snapshot.to_dict()
@@ -147,7 +146,7 @@ class TestStructureSnapshot(unittest.TestCase):
             avg_tokens=150.0,
             avg_time=3.0,
             avg_cost=0.1,
-            growth_strategies={}
+            growth_strategies={},
         )
 
         data = original.to_dict()
@@ -164,9 +163,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.optimizer = FitnessLandscapeOptimizer(
-            memory_size=100,
-            min_samples_for_pattern=3,
-            confidence_threshold=0.5
+            memory_size=100, min_samples_for_pattern=3, confidence_threshold=0.5
         )
 
     def test_optimizer_initialization(self):
@@ -180,10 +177,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         root = create_mock_tree(depth=2, branching=2, fitness=0.85)
 
         snapshot = self.optimizer.record_structure_performance(
-            root=root,
-            task_type="research",
-            task_complexity=0.7,
-            structure_id="test_struct_001"
+            root=root, task_type="research", task_complexity=0.7, structure_id="test_struct_001"
         )
 
         self.assertIsNotNone(snapshot)
@@ -198,10 +192,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(10):
             root = create_mock_tree(depth=2, fitness=0.7 + i * 0.02)
             optimizer.record_structure_performance(
-                root=root,
-                task_type="task",
-                task_complexity=0.5,
-                structure_id=f"struct_{i}"
+                root=root, task_type="task", task_complexity=0.5, structure_id=f"struct_{i}"
             )
 
         self.assertEqual(len(optimizer.snapshots), 5)
@@ -213,10 +204,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(5):
             root = create_mock_tree(depth=2, fitness=0.75)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="research",
-                task_complexity=0.5,
-                structure_id=f"struct_{i}"
+                root=root, task_type="research", task_complexity=0.5, structure_id=f"struct_{i}"
             )
 
         self.assertGreater(len(self.optimizer.landscape_data), 0)
@@ -250,10 +238,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(5):
             root = create_mock_tree(depth=2, branching=2, fitness=0.8 + i * 0.01)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="research",
-                task_complexity=0.6,
-                structure_id=f"research_{i}"
+                root=root, task_type="research", task_complexity=0.6, structure_id=f"research_{i}"
             )
 
         # Learn patterns
@@ -270,10 +255,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(8):
             root = create_mock_tree(depth=2, fitness=0.75)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="analysis",
-                task_complexity=0.5,
-                structure_id=f"analysis_{i}"
+                root=root, task_type="analysis", task_complexity=0.5, structure_id=f"analysis_{i}"
             )
 
         patterns = self.optimizer.learn_patterns()
@@ -290,10 +272,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(5):
             root = create_mock_tree(depth=2, fitness=0.85)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="research",
-                task_complexity=0.7,
-                structure_id=f"research_{i}"
+                root=root, task_type="research", task_complexity=0.7, structure_id=f"research_{i}"
             )
 
         # Learn patterns
@@ -301,9 +280,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
 
         # Get recommendation
         self.optimizer.recommend_structure(
-            task_type="research",
-            task_complexity=0.7,
-            current_fitness=None
+            task_type="research", task_complexity=0.7, current_fitness=None
         )
 
         # If we have patterns, we might get a recommendation
@@ -315,10 +292,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(5):
             root = create_mock_tree(depth=2, fitness=0.75)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="research",
-                task_complexity=0.7,
-                structure_id=f"research_{i}"
+                root=root, task_type="research", task_complexity=0.7, structure_id=f"research_{i}"
             )
 
         self.optimizer.learn_patterns()
@@ -327,7 +301,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         self.optimizer.recommend_structure(
             task_type="research",
             task_complexity=0.7,
-            current_fitness=0.80  # Higher than recorded structures
+            current_fitness=0.80,  # Higher than recorded structures
         )
 
         # Unlikely to get recommendation since no improvement
@@ -339,10 +313,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(3):
             root = create_mock_tree(depth=2, fitness=0.7 + i * 0.05)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="task",
-                task_complexity=0.5,
-                structure_id=f"struct_{i}"
+                root=root, task_type="task", task_complexity=0.5, structure_id=f"struct_{i}"
             )
 
         stats = self.optimizer.get_statistics()
@@ -359,10 +330,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i, fitness in enumerate(fitness_values):
             root = create_mock_tree(depth=2, fitness=fitness)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="task",
-                task_complexity=0.5,
-                structure_id=f"struct_{i}"
+                root=root, task_type="task", task_complexity=0.5, structure_id=f"struct_{i}"
             )
 
         best = self.optimizer.get_best_structures(limit=2)
@@ -377,19 +345,13 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(3):
             root = create_mock_tree(depth=2, fitness=0.7)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="research",
-                task_complexity=0.5,
-                structure_id=f"research_{i}"
+                root=root, task_type="research", task_complexity=0.5, structure_id=f"research_{i}"
             )
 
         for i in range(3):
             root = create_mock_tree(depth=2, fitness=0.8)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="analysis",
-                task_complexity=0.6,
-                structure_id=f"analysis_{i}"
+                root=root, task_type="analysis", task_complexity=0.6, structure_id=f"analysis_{i}"
             )
 
         best_research = self.optimizer.get_best_structures(task_type="research", limit=2)
@@ -404,10 +366,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
             complexity = (i % 5) / 10.0
             root = create_mock_tree(depth=1 + (i % 3), fitness=0.5 + complexity)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="task",
-                task_complexity=complexity,
-                structure_id=f"struct_{i}"
+                root=root, task_type="task", task_complexity=complexity, structure_id=f"struct_{i}"
             )
 
         visualization = self.optimizer.visualize_landscape()
@@ -425,16 +384,13 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(3):
             root = create_mock_tree(depth=2, fitness=0.75)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="research",
-                task_complexity=0.6,
-                structure_id=f"struct_{i}"
+                root=root, task_type="research", task_complexity=0.6, structure_id=f"struct_{i}"
             )
 
         self.optimizer.learn_patterns()
 
         # Save
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             temp_file = f.name
 
         try:
@@ -458,10 +414,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         for i in range(5):
             root = create_mock_tree(depth=2, fitness=0.8)
             self.optimizer.record_structure_performance(
-                root=root,
-                task_type="text_analysis",
-                task_complexity=0.6,
-                structure_id=f"text_{i}"
+                root=root, task_type="text_analysis", task_complexity=0.6, structure_id=f"text_{i}"
             )
 
         self.optimizer.learn_patterns()
@@ -490,7 +443,7 @@ class TestStructurePattern(unittest.TestCase):
             min_fitness=0.75,
             max_tokens=200.0,
             success_rate=0.9,
-            confidence=0.8
+            confidence=0.8,
         )
 
         self.assertEqual(pattern.pattern_id, "pat_001")
@@ -511,7 +464,7 @@ class TestStructurePattern(unittest.TestCase):
             min_fitness=0.75,
             max_tokens=200.0,
             success_rate=0.9,
-            confidence=0.8
+            confidence=0.8,
         )
 
         data = pattern.to_dict()

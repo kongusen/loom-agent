@@ -112,54 +112,46 @@ DELEGATE_SUBTASKS_TOOL = MCPToolDefinition(
                 "items": {
                     "type": "object",
                     "properties": {
-                        "description": {
-                            "type": "string",
-                            "description": "子任务的详细描述"
-                        },
+                        "description": {"type": "string", "description": "子任务的详细描述"},
                         "role": {
                             "type": "string",
                             "enum": ["specialist", "executor", "researcher", "aggregator"],
-                            "description": "子代理的角色类型"
+                            "description": "子代理的角色类型",
                         },
                         "tools": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "子代理可用的工具白名单（不指定则继承父代理工具）"
+                            "description": "子代理可用的工具白名单（不指定则继承父代理工具）",
                         },
-                        "max_tokens": {
-                            "type": "integer",
-                            "description": "子任务的 token 预算限制"
-                        }
+                        "max_tokens": {"type": "integer", "description": "子任务的 token 预算限制"},
                     },
-                    "required": ["description"]
+                    "required": ["description"],
                 },
-                "minItems": 1
+                "minItems": 1,
             },
             "execution_mode": {
                 "type": "string",
                 "enum": ["parallel", "sequential", "adaptive"],
                 "default": "parallel",
-                "description": "执行模式：parallel（并行）、sequential（顺序）、adaptive（自适应）"
+                "description": "执行模式：parallel（并行）、sequential（顺序）、adaptive（自适应）",
             },
             "synthesis_strategy": {
                 "type": "string",
                 "enum": ["auto", "concatenate", "structured"],
                 "default": "auto",
-                "description": "结果合成策略：auto（LLM合成）、concatenate（简单拼接）、structured（结构化输出）"
+                "description": "结果合成策略：auto（LLM合成）、concatenate（简单拼接）、structured（结构化输出）",
             },
-            "reasoning": {
-                "type": "string",
-                "description": "任务分解的理由说明（可选）"
-            }
+            "reasoning": {"type": "string", "description": "任务分解的理由说明（可选）"},
         },
-        "required": ["subtasks"]
-    }
+        "required": ["subtasks"],
+    },
 )
 
 
 @dataclass
 class TaskDecomposition:
     """Result of task decomposition"""
+
     subtasks: list[str]
     """List of subtasks"""
 

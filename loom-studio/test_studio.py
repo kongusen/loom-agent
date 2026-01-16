@@ -31,7 +31,7 @@ class SmartMockProvider(MockLLMProvider):
         self,
         messages: list[dict[str, Any]],
         _tools: list[dict[str, Any]] | None = None,
-        _config: dict[str, Any] | None = None
+        _config: dict[str, Any] | None = None,
     ) -> LLMResponse:
         last_msg = messages[-1]["content"].lower()
 
@@ -117,6 +117,7 @@ class SmartMockProvider(MockLLMProvider):
 
         return LLMResponse(content=content)
 
+
 async def main():
     print("=" * 80)
     print("🧪 Loom Studio 测试脚本 - 分形结构版本")
@@ -134,12 +135,7 @@ async def main():
     print("请在浏览器中打开 http://localhost:5173/topology 观察事件流\n")
 
     # 启用 Studio 拦截器
-    app = LoomApp(control_config={
-        "studio": {
-            "enabled": True,
-            "url": "ws://localhost:8765"
-        }
-    })
+    app = LoomApp(control_config={"studio": {"enabled": True, "url": "ws://localhost:8765"}})
 
     print("✅ Studio 拦截器已启用")
 
@@ -157,7 +153,7 @@ async def main():
 3. 以结构化的方式输出关键信息点
 
 输出格式：使用清晰的列表和分类。""",
-        provider=SmartMockProvider("collector")
+        provider=SmartMockProvider("collector"),
     )
 
     # 分析 Agent
@@ -172,7 +168,7 @@ async def main():
 3. 提取关键洞察和结论
 
 输出格式：提供结构化的分析报告，包含主要发现和建议。""",
-        provider=SmartMockProvider("analyzer")
+        provider=SmartMockProvider("analyzer"),
     )
 
     # 规划 Agent
@@ -187,7 +183,7 @@ async def main():
 3. 考虑优先级和依赖关系
 
 输出格式：提供清晰的行动计划，包含步骤和预期结果。""",
-        provider=SmartMockProvider("planner")
+        provider=SmartMockProvider("planner"),
     )
 
     # 执行 Agent
@@ -202,7 +198,7 @@ async def main():
 3. 提供执行结果和反馈
 
 输出格式：提供详细的执行报告，包含结果、遇到的问题和解决方案。""",
-        provider=SmartMockProvider("executor")
+        provider=SmartMockProvider("executor"),
     )
 
     # 注册所有 Agent
@@ -224,7 +220,7 @@ async def main():
         node_id="crew/research",
         dispatcher=app.dispatcher,
         agents=[collector, analyzer],
-        pattern="sequential"
+        pattern="sequential",
     )
 
     # 创作 Crew：规划 → 执行
@@ -232,7 +228,7 @@ async def main():
         node_id="crew/creative",
         dispatcher=app.dispatcher,
         agents=[planner, executor],
-        pattern="sequential"
+        pattern="sequential",
     )
 
     app.add_node(research_crew)
@@ -246,13 +242,14 @@ async def main():
     # 创建一个包装器 Agent，它内部调用 Crew
     class CrewWrapperAgent(AgentNode):
         """包装 CrewNode 使其可以作为 AgentNode 使用"""
+
         def __init__(self, crew_node: CrewNode, role_name: str):
             super().__init__(
                 node_id=f"{crew_node.node_id}-wrapper",
                 dispatcher=crew_node.dispatcher,
                 role=role_name,
                 system_prompt=f"你是一个包装器，负责调用 {crew_node.node_id} 并传递结果。",
-                provider=SmartMockProvider(role_name)
+                provider=SmartMockProvider(role_name),
             )
             self.crew_node = crew_node
 
@@ -271,7 +268,7 @@ async def main():
         node_id="crew/master",
         dispatcher=app.dispatcher,
         agents=[research_wrapper, creative_wrapper],
-        pattern="sequential"
+        pattern="sequential",
     )
 
     app.add_node(master_crew)
@@ -294,10 +291,8 @@ async def main():
 2. 分析这些概念之间的关系和模式
 3. 制定一个清晰的分享计划
 4. 准备具体的执行方案""",
-
         """研究一下分形架构在实际项目中的应用，并制定实施计划。""",
-
-        """分析多 Agent 系统的协作模式，并规划一个演示项目。"""
+        """分析多 Agent 系统的协作模式，并规划一个演示项目。""",
     ]
 
     for i, task in enumerate(tasks, 1):
@@ -306,17 +301,18 @@ async def main():
             result = await app.run(task, target="node/crew/master")
             print(f"✅ 任务 {i} 完成")
             if isinstance(result, dict) and "final_output" in result:
-                output_preview = result['final_output'][:150]
+                output_preview = result["final_output"][:150]
                 print(f"   输出预览: {output_preview}...")
 
             # 显示执行轨迹
             if isinstance(result, dict) and "trace" in result:
                 print(f"   执行步骤: {len(result['trace'])} 个节点")
-                for step in result['trace']:
+                for step in result["trace"]:
                     print(f"     - {step.get('agent', 'unknown')}")
         except Exception as e:
             print(f"❌ 任务 {i} 出错: {e}")
             import traceback
+
             traceback.print_exc()
 
         # 等待一下，让事件有时间发送到 Studio
@@ -345,6 +341,7 @@ async def main():
         await asyncio.sleep(3600)  # 运行1小时
     except KeyboardInterrupt:
         print("\n\n👋 再见！")
+
 
 if __name__ == "__main__":
     try:

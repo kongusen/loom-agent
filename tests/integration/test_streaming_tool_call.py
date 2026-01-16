@@ -18,6 +18,7 @@ from loom.llm import OpenAIProvider, StreamChunk
 # Test Fixtures
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def set_dummy_api_key(monkeypatch):
     """Set dummy API key for all tests in this module."""
@@ -42,6 +43,7 @@ def provider(mock_openai_client):
 @dataclass
 class MockToolCall:
     """Mock OpenAI tool call chunk."""
+
     index: int
     id: str | None = None
     name: str | None = None
@@ -61,6 +63,7 @@ class MockToolCall:
 @dataclass
 class MockOpenAIChunk:
     """Mock OpenAI stream chunk."""
+
     content: str | None = None
     tool_calls: list[MockToolCall] = field(default_factory=list)
     finish_reason: str | None = None
@@ -71,9 +74,7 @@ class MockOpenAIChunk:
         mock_chunk.choices = [Mock()]
         mock_chunk.choices[0].delta = Mock()
         mock_chunk.choices[0].delta.content = self.content
-        mock_chunk.choices[0].delta.tool_calls = [
-            tc.to_mock() for tc in self.tool_calls
-        ]
+        mock_chunk.choices[0].delta.tool_calls = [tc.to_mock() for tc in self.tool_calls]
         mock_chunk.choices[0].finish_reason = self.finish_reason
         return mock_chunk
 
@@ -100,29 +101,41 @@ def create_mock_stream(chunks: list[MockOpenAIChunk], mock_client: MagicMock):
 # Helper Functions for Assertions
 # =============================================================================
 
+
 def assert_tool_call_equal(
     actual_chunk: StreamChunk,
     expected_id: str,
     expected_name: str,
     expected_arguments: str,
-    msg: str = ""
+    msg: str = "",
 ):
     """Assert that a tool_call StreamChunk has the expected values."""
-    assert actual_chunk.type == "tool_call", f"{msg}: Expected type 'tool_call', got '{actual_chunk.type}'"
-    assert actual_chunk.content["id"] == expected_id, f"{msg}: Expected id '{expected_id}', got '{actual_chunk.content.get('id')}'"
-    assert actual_chunk.content["name"] == expected_name, f"{msg}: Expected name '{expected_name}', got '{actual_chunk.content.get('name')}'"
-    assert actual_chunk.content["arguments"] == expected_arguments, f"{msg}: Expected arguments '{expected_arguments}', got '{actual_chunk.content.get('arguments')}'"
+    assert (
+        actual_chunk.type == "tool_call"
+    ), f"{msg}: Expected type 'tool_call', got '{actual_chunk.type}'"
+    assert (
+        actual_chunk.content["id"] == expected_id
+    ), f"{msg}: Expected id '{expected_id}', got '{actual_chunk.content.get('id')}'"
+    assert (
+        actual_chunk.content["name"] == expected_name
+    ), f"{msg}: Expected name '{expected_name}', got '{actual_chunk.content.get('name')}'"
+    assert (
+        actual_chunk.content["arguments"] == expected_arguments
+    ), f"{msg}: Expected arguments '{expected_arguments}', got '{actual_chunk.content.get('arguments')}'"
 
 
 def assert_text_chunk(actual_chunk: StreamChunk, expected_content: str, msg: str = ""):
     """Assert that a text StreamChunk has the expected content."""
     assert actual_chunk.type == "text", f"{msg}: Expected type 'text', got '{actual_chunk.type}'"
-    assert actual_chunk.content == expected_content, f"{msg}: Expected content '{expected_content}', got '{actual_chunk.content}'"
+    assert (
+        actual_chunk.content == expected_content
+    ), f"{msg}: Expected content '{expected_content}', got '{actual_chunk.content}'"
 
 
 # =============================================================================
 # Test Cases
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_single_tool_call_aggregation(provider, mock_openai_client):
@@ -136,15 +149,9 @@ async def test_single_tool_call_aggregation(provider, mock_openai_client):
     - Chunk 4: finish_reason triggers yielding the aggregated tool_call
     """
     chunks = [
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id="call_abc123", name="test_tool")]
-        ),
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, arguments='{"arg1":')]
-        ),
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, arguments=' "value1"}')]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id="call_abc123", name="test_tool")]),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, arguments='{"arg1":')]),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, arguments=' "value1"}')]),
         MockOpenAIChunk(finish_reason="tool_calls"),
     ]
 
@@ -153,17 +160,17 @@ async def test_single_tool_call_aggregation(provider, mock_openai_client):
     collected_chunks = []
     async for chunk in provider.stream_chat(
         messages=[{"role": "user", "content": "test"}],
-        tools=[{"name": "test_tool", "description": "Test", "inputSchema": {}}]
+        tools=[{"name": "test_tool", "description": "Test", "inputSchema": {}}],
     ):
         collected_chunks.append(chunk)
 
     # Verify: 1 tool_call_start + 1 tool_call_complete + 1 done chunk
     assert len(collected_chunks) == 3, f"Expected 3 chunks, got {len(collected_chunks)}"
     assert collected_chunks[0].type == "tool_call_start"
-    assert collected_chunks[0].content['id'] == "call_abc123"
-    assert collected_chunks[0].content['name'] == "test_tool"
+    assert collected_chunks[0].content["id"] == "call_abc123"
+    assert collected_chunks[0].content["name"] == "test_tool"
     assert collected_chunks[1].type == "tool_call_complete"
-    assert collected_chunks[1].content['arguments'] == '{"arg1": "value1"}'
+    assert collected_chunks[1].content["arguments"] == '{"arg1": "value1"}'
     assert collected_chunks[2].type == "done"
 
 
@@ -179,13 +186,9 @@ async def test_multiple_parallel_tool_calls(provider, mock_openai_client):
             ]
         ),
         # First tool_call gets arguments
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, arguments='{"x":1}')]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, arguments='{"x":1}')]),
         # Second tool_call gets arguments
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=1, arguments='{"y":2}')]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=1, arguments='{"y":2}')]),
         MockOpenAIChunk(finish_reason="tool_calls"),
     ]
 
@@ -197,22 +200,22 @@ async def test_multiple_parallel_tool_calls(provider, mock_openai_client):
         tools=[
             {"name": "tool_a", "description": "Tool A", "inputSchema": {}},
             {"name": "tool_b", "description": "Tool B", "inputSchema": {}},
-        ]
+        ],
     ):
         collected_chunks.append(chunk)
 
     # Verify: 2 tool_call_start + 2 tool_call_complete + 1 done chunk
     assert len(collected_chunks) == 5, f"Expected 5 chunks, got {len(collected_chunks)}"
     assert collected_chunks[0].type == "tool_call_start"
-    assert collected_chunks[0].content['id'] == "call_abc123"
-    assert collected_chunks[0].content['name'] == "tool_a"
+    assert collected_chunks[0].content["id"] == "call_abc123"
+    assert collected_chunks[0].content["name"] == "tool_a"
     assert collected_chunks[1].type == "tool_call_start"
-    assert collected_chunks[1].content['id'] == "call_def456"
-    assert collected_chunks[1].content['name'] == "tool_b"
+    assert collected_chunks[1].content["id"] == "call_def456"
+    assert collected_chunks[1].content["name"] == "tool_b"
     assert collected_chunks[2].type == "tool_call_complete"
-    assert collected_chunks[2].content['arguments'] == '{"x":1}'
+    assert collected_chunks[2].content["arguments"] == '{"x":1}'
     assert collected_chunks[3].type == "tool_call_complete"
-    assert collected_chunks[3].content['arguments'] == '{"y":2}'
+    assert collected_chunks[3].content["arguments"] == '{"y":2}'
     assert collected_chunks[4].type == "done"
 
 
@@ -222,12 +225,8 @@ async def test_text_and_tool_calls_mixed(provider, mock_openai_client):
     chunks = [
         MockOpenAIChunk(content="I'll help you with "),
         MockOpenAIChunk(content="that task. "),
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id="call_xyz", name="search")]
-        ),
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, arguments='{"q":"test"}')]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id="call_xyz", name="search")]),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, arguments='{"q":"test"}')]),
         MockOpenAIChunk(finish_reason="tool_calls"),
     ]
 
@@ -236,7 +235,7 @@ async def test_text_and_tool_calls_mixed(provider, mock_openai_client):
     collected_chunks = []
     async for chunk in provider.stream_chat(
         messages=[{"role": "user", "content": "test"}],
-        tools=[{"name": "search", "description": "Search", "inputSchema": {}}]
+        tools=[{"name": "search", "description": "Search", "inputSchema": {}}],
     ):
         collected_chunks.append(chunk)
 
@@ -245,10 +244,10 @@ async def test_text_and_tool_calls_mixed(provider, mock_openai_client):
     assert_text_chunk(collected_chunks[0], "I'll help you with ")
     assert_text_chunk(collected_chunks[1], "that task. ")
     assert collected_chunks[2].type == "tool_call_start"
-    assert collected_chunks[2].content['id'] == "call_xyz"
-    assert collected_chunks[2].content['name'] == "search"
+    assert collected_chunks[2].content["id"] == "call_xyz"
+    assert collected_chunks[2].content["name"] == "search"
     assert collected_chunks[3].type == "tool_call_complete"
-    assert collected_chunks[3].content['arguments'] == '{"q":"test"}'
+    assert collected_chunks[3].content["arguments"] == '{"q":"test"}'
     assert collected_chunks[4].type == "done"
 
 
@@ -256,9 +255,7 @@ async def test_text_and_tool_calls_mixed(provider, mock_openai_client):
 async def test_empty_arguments_stream(provider, mock_openai_client):
     """Test tool call with no arguments (edge case)."""
     chunks = [
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id="call_empty", name="no_args_tool")]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id="call_empty", name="no_args_tool")]),
         MockOpenAIChunk(finish_reason="tool_calls"),
     ]
 
@@ -267,7 +264,7 @@ async def test_empty_arguments_stream(provider, mock_openai_client):
     collected_chunks = []
     async for chunk in provider.stream_chat(
         messages=[{"role": "user", "content": "test"}],
-        tools=[{"name": "no_args_tool", "description": "No args", "inputSchema": {}}]
+        tools=[{"name": "no_args_tool", "description": "No args", "inputSchema": {}}],
     ):
         collected_chunks.append(chunk)
 
@@ -294,7 +291,7 @@ async def test_text_only_stream_no_tools(provider, mock_openai_client):
     collected_chunks = []
     async for chunk in provider.stream_chat(
         messages=[{"role": "user", "content": "test"}],
-        tools=None  # No tools provided
+        tools=None,  # No tools provided
     ):
         collected_chunks.append(chunk)
 
@@ -315,17 +312,11 @@ async def test_tool_call_id_is_never_null(provider, mock_openai_client):
     were being yielded, causing OpenAI API errors.
     """
     chunks = [
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id="call_123", name="test")]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id="call_123", name="test")]),
         # This chunk has id=None - should NOT be yielded directly
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id=None, arguments='{"a":')]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id=None, arguments='{"a":')]),
         # This chunk also has id=None - should NOT be yielded directly
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id=None, arguments=' "b"}')]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id=None, arguments=' "b"}')]),
         MockOpenAIChunk(finish_reason="tool_calls"),
     ]
 
@@ -334,7 +325,7 @@ async def test_tool_call_id_is_never_null(provider, mock_openai_client):
     collected_chunks = []
     async for chunk in provider.stream_chat(
         messages=[{"role": "user", "content": "test"}],
-        tools=[{"name": "test", "description": "Test", "inputSchema": {}}]
+        tools=[{"name": "test", "description": "Test", "inputSchema": {}}],
     ):
         collected_chunks.append(chunk)
 
@@ -353,11 +344,11 @@ async def test_tool_call_id_is_never_null(provider, mock_openai_client):
 async def test_complex_json_arguments(provider, mock_openai_client):
     """Test tool call with complex nested JSON arguments."""
     chunks = [
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id="call_complex", name="complex_tool")]),
         MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id="call_complex", name="complex_tool")]
-        ),
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, arguments='{"nested": {"key": "value"}, "array": [1, 2]}')]
+            tool_calls=[
+                MockToolCall(index=0, arguments='{"nested": {"key": "value"}, "array": [1, 2]}')
+            ]
         ),
         MockOpenAIChunk(finish_reason="tool_calls"),
     ]
@@ -367,28 +358,26 @@ async def test_complex_json_arguments(provider, mock_openai_client):
     collected_chunks = []
     async for chunk in provider.stream_chat(
         messages=[{"role": "user", "content": "test"}],
-        tools=[{"name": "complex_tool", "description": "Complex", "inputSchema": {}}]
+        tools=[{"name": "complex_tool", "description": "Complex", "inputSchema": {}}],
     ):
         collected_chunks.append(chunk)
 
     # Check tool_call_start and tool_call_complete
     assert collected_chunks[0].type == "tool_call_start"
-    assert collected_chunks[0].content['id'] == "call_complex"
-    assert collected_chunks[0].content['name'] == "complex_tool"
+    assert collected_chunks[0].content["id"] == "call_complex"
+    assert collected_chunks[0].content["name"] == "complex_tool"
     assert collected_chunks[1].type == "tool_call_complete"
-    assert collected_chunks[1].content['arguments'] == '{"nested": {"key": "value"}, "array": [1, 2]}'
+    assert (
+        collected_chunks[1].content["arguments"] == '{"nested": {"key": "value"}, "array": [1, 2]}'
+    )
 
 
 @pytest.mark.asyncio
 async def test_unicode_in_arguments(provider, mock_openai_client):
     """Test tool call with unicode characters in arguments."""
     chunks = [
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, id="call_unicode", name="unicode_tool")]
-        ),
-        MockOpenAIChunk(
-            tool_calls=[MockToolCall(index=0, arguments='{"text": "Hello 世界 🌍"}')]
-        ),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, id="call_unicode", name="unicode_tool")]),
+        MockOpenAIChunk(tool_calls=[MockToolCall(index=0, arguments='{"text": "Hello 世界 🌍"}')]),
         MockOpenAIChunk(finish_reason="tool_calls"),
     ]
 
@@ -397,13 +386,13 @@ async def test_unicode_in_arguments(provider, mock_openai_client):
     collected_chunks = []
     async for chunk in provider.stream_chat(
         messages=[{"role": "user", "content": "test"}],
-        tools=[{"name": "unicode_tool", "description": "Unicode", "inputSchema": {}}]
+        tools=[{"name": "unicode_tool", "description": "Unicode", "inputSchema": {}}],
     ):
         collected_chunks.append(chunk)
 
     # Check tool_call_start and tool_call_complete
     assert collected_chunks[0].type == "tool_call_start"
-    assert collected_chunks[0].content['id'] == "call_unicode"
-    assert collected_chunks[0].content['name'] == "unicode_tool"
+    assert collected_chunks[0].content["id"] == "call_unicode"
+    assert collected_chunks[0].content["name"] == "unicode_tool"
     assert collected_chunks[1].type == "tool_call_complete"
-    assert collected_chunks[1].content['arguments'] == '{"text": "Hello 世界 🌍"}'
+    assert collected_chunks[1].content["arguments"] == '{"text": "Hello 世界 🌍"}'

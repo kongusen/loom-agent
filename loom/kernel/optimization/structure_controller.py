@@ -21,17 +21,20 @@ logger = logging.getLogger(__name__)
 # Events and History
 # ============================================================================
 
+
 class StructureEventType(Enum):
     """Types of structure events"""
-    GROWTH = "growth"           # Node growth/spawning
-    PRUNING = "pruning"         # Node removal
+
+    GROWTH = "growth"  # Node growth/spawning
+    PRUNING = "pruning"  # Node removal
     OPTIMIZATION = "optimization"  # Structure optimization
-    REBALANCE = "rebalance"     # Load rebalancing
+    REBALANCE = "rebalance"  # Load rebalancing
 
 
 @dataclass
 class StructureEvent:
     """Record of a structure change event"""
+
     timestamp: float
     event_type: StructureEventType
     node_id: str
@@ -53,6 +56,7 @@ class StructureEvent:
 @dataclass
 class StructureStats:
     """Statistics about structure evolution"""
+
     total_nodes: int = 0
     total_growth_events: int = 0
     total_pruning_events: int = 0
@@ -75,6 +79,7 @@ class StructureStats:
 # Structure Controller
 # ============================================================================
 
+
 class StructureController:
     """
     Controls fractal node structure growth, pruning, and optimization
@@ -88,10 +93,7 @@ class StructureController:
     """
 
     def __init__(
-        self,
-        config: FractalConfig,
-        enable_history: bool = True,
-        max_history_size: int = 1000
+        self, config: FractalConfig, enable_history: bool = True, max_history_size: int = 1000
     ):
         """
         Initialize structure controller
@@ -123,7 +125,7 @@ class StructureController:
         self,
         node: Any,  # FractalAgentNode
         task_complexity: float,
-        current_confidence: float = 0.5
+        current_confidence: float = 0.5,
     ) -> bool:
         """
         Determine if node should spawn children
@@ -137,13 +139,15 @@ class StructureController:
             True if node should grow
         """
         # Check if auto-growth is enabled (default to True if not set)
-        enable_growth = getattr(self.config, 'enable_auto_growth', True)
+        enable_growth = getattr(self.config, "enable_auto_growth", True)
         if not enable_growth:
             return False
 
         # Condition 1: Complexity threshold
         if task_complexity < self.config.complexity_threshold:
-            logger.debug(f"Node {node.node_id}: Complexity {task_complexity:.2f} below threshold {self.config.complexity_threshold}")
+            logger.debug(
+                f"Node {node.node_id}: Complexity {task_complexity:.2f} below threshold {self.config.complexity_threshold}"
+            )
             return False
 
         # Condition 2: Depth limit
@@ -164,7 +168,9 @@ class StructureController:
 
         # Condition 5: Low confidence (need help)
         if current_confidence < self.config.confidence_threshold:
-            logger.info(f"Node {node.node_id}: Low confidence {current_confidence:.2f}, should grow")
+            logger.info(
+                f"Node {node.node_id}: Low confidence {current_confidence:.2f}, should grow"
+            )
             return True
 
         # Condition 6: High complexity (even with good confidence)
@@ -182,10 +188,7 @@ class StructureController:
         return False
 
     def choose_growth_strategy(
-        self,
-        node: Any,
-        task: str,
-        task_features: dict[str, Any] | None = None
+        self, node: Any, task: str, task_features: dict[str, Any] | None = None
     ) -> GrowthStrategy:
         """
         Choose optimal growth strategy based on task characteristics
@@ -202,19 +205,19 @@ class StructureController:
             task_features = self._analyze_task(task)
 
         # Strategy 1: Detect sequential patterns
-        if task_features.get('has_sequence', False):
+        if task_features.get("has_sequence", False):
             return GrowthStrategy.DECOMPOSE
 
         # Strategy 2: Detect parallel opportunities
-        if task_features.get('has_parallel', False):
+        if task_features.get("has_parallel", False):
             return GrowthStrategy.PARALLELIZE
 
         # Strategy 3: Detect specialization needs
-        if task_features.get('has_domains', False):
+        if task_features.get("has_domains", False):
             return GrowthStrategy.SPECIALIZE
 
         # Strategy 4: Detect iterative needs
-        if task_features.get('has_iteration', False):
+        if task_features.get("has_iteration", False):
             return GrowthStrategy.ITERATE
 
         # Strategy 5: Based on node role
@@ -233,7 +236,16 @@ class StructureController:
         task_lower = task.lower()
 
         # Sequential indicators
-        sequence_keywords = ["step", "first", "then", "after", "finally", "sequence", "order", "phase"]
+        sequence_keywords = [
+            "step",
+            "first",
+            "then",
+            "after",
+            "finally",
+            "sequence",
+            "order",
+            "phase",
+        ]
         has_sequence = any(kw in task_lower for kw in sequence_keywords)
 
         # Parallel indicators
@@ -249,34 +261,26 @@ class StructureController:
         has_iteration = any(kw in task_lower for kw in iteration_keywords)
 
         return {
-            'has_sequence': has_sequence,
-            'has_parallel': has_parallel,
-            'has_domains': has_domains,
-            'has_iteration': has_iteration,
-            'length': len(task),
-            'word_count': len(task.split())
+            "has_sequence": has_sequence,
+            "has_parallel": has_parallel,
+            "has_domains": has_domains,
+            "has_iteration": has_iteration,
+            "length": len(task),
+            "word_count": len(task.split()),
         }
 
     def record_growth(
-        self,
-        node: Any,
-        strategy: GrowthStrategy,
-        children_count: int,
-        fitness_before: float = 0.0
+        self, node: Any, strategy: GrowthStrategy, children_count: int, fitness_before: float = 0.0
     ):
         """Record a growth event"""
         event = StructureEvent(
             timestamp=time.time(),
             event_type=StructureEventType.GROWTH,
             node_id=node.node_id,
-            details={
-                'role': node.role,
-                'depth': node.depth,
-                'children_count': children_count
-            },
+            details={"role": node.role, "depth": node.depth, "children_count": children_count},
             strategy=strategy,
             children_added=children_count,
-            before_fitness=fitness_before
+            before_fitness=fitness_before,
         )
 
         self._add_event(event)
@@ -293,11 +297,7 @@ class StructureController:
     # Pruning Control
     # ========================================================================
 
-    def should_prune(
-        self,
-        node: Any,
-        parent: Any | None = None
-    ) -> tuple[bool, str | None]:
+    def should_prune(self, node: Any, parent: Any | None = None) -> tuple[bool, str | None]:
         """
         Determine if node should be pruned
 
@@ -333,18 +333,17 @@ class StructureController:
         if parent and parent.metrics.task_count > 0:
             parent_fitness = parent.metrics.fitness_score()
             if parent_fitness > fitness + 0.2:  # Parent significantly better
-                return True, f"Redundant: parent fitness {parent_fitness:.2f} >> node fitness {fitness:.2f}"
+                return (
+                    True,
+                    f"Redundant: parent fitness {parent_fitness:.2f} >> node fitness {fitness:.2f}",
+                )
 
         # Criterion 4: Idle node (no recent activity)
         # This would require timestamp tracking - skip for now
 
         return False, None
 
-    def prune_inefficient_nodes(
-        self,
-        root: Any,
-        dry_run: bool = False
-    ) -> list[str]:
+    def prune_inefficient_nodes(self, root: Any, dry_run: bool = False) -> list[str]:
         """
         Recursively prune inefficient nodes from structure
 
@@ -377,7 +376,7 @@ class StructureController:
                         self.record_pruning(
                             node,
                             reason=reason or "No reason provided",
-                            fitness_before=node.metrics.fitness_score()
+                            fitness_before=node.metrics.fitness_score(),
                         )
 
                         logger.info(f"🪓 Pruned node {node.node_id}: {reason}")
@@ -388,25 +387,16 @@ class StructureController:
 
         return pruned
 
-    def record_pruning(
-        self,
-        node: Any,
-        reason: str,
-        fitness_before: float = 0.0
-    ):
+    def record_pruning(self, node: Any, reason: str, fitness_before: float = 0.0):
         """Record a pruning event"""
         event = StructureEvent(
             timestamp=time.time(),
             event_type=StructureEventType.PRUNING,
             node_id=node.node_id,
-            details={
-                'role': node.role,
-                'depth': node.depth,
-                'task_count': node.metrics.task_count
-            },
+            details={"role": node.role, "depth": node.depth, "task_count": node.metrics.task_count},
             nodes_removed=1 + self._count_total_nodes(node) - 1,  # Include subtree
             pruning_reason=reason,
-            before_fitness=fitness_before
+            before_fitness=fitness_before,
         )
 
         self._add_event(event)
@@ -458,8 +448,7 @@ class StructureController:
         self.stats.avg_depth = sum(depths) / len(depths) if depths else 0
         self.stats.max_depth = max(depths) if depths else 0
         self.stats.avg_branching_factor = (
-            sum(branching_factors) / len(branching_factors)
-            if branching_factors else 0
+            sum(branching_factors) / len(branching_factors) if branching_factors else 0
         )
 
         if fitness_scores:
@@ -468,15 +457,15 @@ class StructureController:
             self.stats.max_fitness = max(fitness_scores)
 
         return {
-            'total_nodes': self.stats.total_nodes,
-            'max_depth': self.stats.max_depth,
-            'avg_depth': self.stats.avg_depth,
-            'avg_branching_factor': self.stats.avg_branching_factor,
-            'avg_fitness': self.stats.avg_fitness,
-            'fitness_range': (self.stats.min_fitness, self.stats.max_fitness),
-            'growth_events': self.stats.total_growth_events,
-            'pruning_events': self.stats.total_pruning_events,
-            'nodes_pruned': self.stats.total_nodes_pruned
+            "total_nodes": self.stats.total_nodes,
+            "max_depth": self.stats.max_depth,
+            "avg_depth": self.stats.avg_depth,
+            "avg_branching_factor": self.stats.avg_branching_factor,
+            "avg_fitness": self.stats.avg_fitness,
+            "fitness_range": (self.stats.min_fitness, self.stats.max_fitness),
+            "growth_events": self.stats.total_growth_events,
+            "pruning_events": self.stats.total_pruning_events,
+            "nodes_pruned": self.stats.total_nodes_pruned,
         }
 
     def get_inefficient_nodes(self, root: Any) -> list[tuple[Any, float, str]]:
@@ -534,12 +523,10 @@ class StructureController:
 
         # Trim history if needed
         if len(self.history) > self.max_history_size:
-            self.history = self.history[-self.max_history_size:]
+            self.history = self.history[-self.max_history_size :]
 
     def get_history(
-        self,
-        event_type: StructureEventType | None = None,
-        limit: int = 100
+        self, event_type: StructureEventType | None = None, limit: int = 100
     ) -> list[StructureEvent]:
         """Get structure event history"""
         events = self.history

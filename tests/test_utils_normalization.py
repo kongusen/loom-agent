@@ -126,6 +126,7 @@ class TestDataNormalizer:
 
     def test_estimate_size_with_exception(self):
         """Test size estimation when JSON serialization fails."""
+
         class BadObject:
             def __str__(self):
                 raise Exception("Cannot serialize")
@@ -154,6 +155,7 @@ class TestDataNormalizer:
 
     def test_normalize_custom_object(self):
         """Test normalizing custom object."""
+
         class CustomClass:
             def __init__(self):
                 self.value = 42
@@ -166,12 +168,7 @@ class TestDataNormalizer:
 
     def test_normalize_mixed_structure(self):
         """Test normalizing mixed structure."""
-        data = {
-            "string": "test",
-            "number": 42,
-            "list": [1, 2, 3],
-            "nested": {"a": "b"}
-        }
+        data = {"string": "test", "number": 42, "list": [1, 2, 3], "nested": {"a": "b"}}
         result = DataNormalizer.normalize_to_size(data)
 
         assert result["string"] == "test"
@@ -194,12 +191,7 @@ class TestDataNormalizer:
 
     def test_normalize_preserves_types(self):
         """Test that primitive types are preserved."""
-        data = {
-            "int": 42,
-            "float": 3.14,
-            "bool": True,
-            "str": "test"
-        }
+        data = {"int": 42, "float": 3.14, "bool": True, "str": "test"}
         result = DataNormalizer.normalize_to_size(data)
 
         assert isinstance(result["int"], int)

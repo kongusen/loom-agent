@@ -13,11 +13,7 @@ class TestVectorSearchResult:
 
     def test_create_result(self):
         """Test creating a search result."""
-        result = VectorSearchResult(
-            id="test_id",
-            score=0.95,
-            metadata={"key": "value"}
-        )
+        result = VectorSearchResult(id="test_id", score=0.95, metadata={"key": "value"})
 
         assert result.id == "test_id"
         assert result.score == 0.95
@@ -25,11 +21,7 @@ class TestVectorSearchResult:
 
     def test_create_with_empty_metadata(self):
         """Test creating result with empty metadata."""
-        result = VectorSearchResult(
-            id="test_id",
-            score=0.5,
-            metadata={}
-        )
+        result = VectorSearchResult(id="test_id", score=0.5, metadata={})
 
         assert result.metadata == {}
 
@@ -69,7 +61,7 @@ class TestInMemoryVectorStore:
             id="doc1",
             text="test document",
             embedding=sample_embedding,
-            metadata={"category": "test"}
+            metadata={"category": "test"},
         )
 
         assert result is True
@@ -89,12 +81,7 @@ class TestInMemoryVectorStore:
 
     async def test_add_with_none_metadata(self, store, sample_embedding):
         """Test adding vector with None metadata."""
-        result = await store.add(
-            id="doc1",
-            text="test",
-            embedding=sample_embedding,
-            metadata=None
-        )
+        result = await store.add(id="doc1", text="test", embedding=sample_embedding, metadata=None)
 
         assert result is True
         assert store._metadata["doc1"] == {}
@@ -133,10 +120,7 @@ class TestInMemoryVectorStore:
         await store.add("doc2", "text2", sample_embedding, {"category": "news"})
 
         # Filter for tech category
-        results = await store.search(
-            sample_embedding,
-            filter_metadata={"category": "tech"}
-        )
+        results = await store.search(sample_embedding, filter_metadata={"category": "tech"})
 
         assert len(results) == 1
         assert results[0].id == "doc1"
@@ -146,10 +130,7 @@ class TestInMemoryVectorStore:
         await store.add("doc1", "text1", sample_embedding, {"tag": "a"})
         await store.add("doc2", "text2", sample_embedding, {"tag": "b"})
 
-        results = await store.search(
-            sample_embedding,
-            filter_metadata={"tag": "c"}
-        )
+        results = await store.search(sample_embedding, filter_metadata={"tag": "c"})
 
         assert len(results) == 0
 
@@ -190,10 +171,7 @@ class TestInMemoryVectorStore:
         result = await store.update("doc1", embedding=new_embedding)
 
         assert result is True
-        np.testing.assert_array_almost_equal(
-            store._vectors["doc1"],
-            np.array(new_embedding)
-        )
+        np.testing.assert_array_almost_equal(store._vectors["doc1"], np.array(new_embedding))
 
     async def test_update_metadata(self, store, sample_embedding):
         """Test updating vector metadata."""
@@ -218,10 +196,7 @@ class TestInMemoryVectorStore:
         result = await store.update("doc1", embedding=new_embedding, metadata={"v": 2})
 
         assert result is True
-        np.testing.assert_array_almost_equal(
-            store._vectors["doc1"],
-            np.array(new_embedding)
-        )
+        np.testing.assert_array_almost_equal(store._vectors["doc1"], np.array(new_embedding))
         assert store._metadata["doc1"]["v"] == 2
 
     async def test_get_existing_vector(self, store, sample_embedding):

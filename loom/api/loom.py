@@ -42,7 +42,7 @@ class LoomConfig:
     """Memory 和 Context 配置"""
 
     @staticmethod
-    def from_pattern(name: str) -> 'LoomConfig':
+    def from_pattern(name: str) -> "LoomConfig":
         """
         从模式创建配置
 
@@ -58,7 +58,7 @@ class LoomConfig:
         return cast(LoomConfig, pattern.get_config())
 
     @staticmethod
-    def from_preset(name: str) -> 'LoomConfig':
+    def from_preset(name: str) -> "LoomConfig":
         """
         从预设创建配置（已弃用，使用 from_pattern 代替）
 
@@ -69,10 +69,11 @@ class LoomConfig:
             LoomConfig 实例
         """
         import warnings
+
         warnings.warn(
             "from_preset() is deprecated, use from_pattern() instead",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         return LoomConfig.from_pattern(name)
 
@@ -99,7 +100,7 @@ class Loom:
         tools: list[ToolNode] | None = None,
         config: LoomConfig | None = None,
         dispatcher: Dispatcher | None = None,
-        **kwargs
+        **kwargs,
     ) -> AgentNode:
         """
         创建 Agent（主入口）
@@ -131,10 +132,11 @@ class Loom:
                 config = LoomConfig.from_pattern(pattern)
             elif preset:
                 import warnings
+
                 warnings.warn(
                     "preset parameter is deprecated, use pattern instead",
                     DeprecationWarning,
-                    stacklevel=2
+                    stacklevel=2,
                 )
                 config = LoomConfig.from_preset(preset)
             else:
@@ -186,6 +188,7 @@ class Loom:
     def builder():
         """返回 Builder 实例"""
         from loom.builder import LoomBuilder
+
         return LoomBuilder()
 
     @staticmethod
@@ -197,4 +200,5 @@ class Loom:
     def list_presets() -> list[str]:
         """列出所有可用的预设"""
         from loom.presets import PRESETS
+
         return list(PRESETS.keys())

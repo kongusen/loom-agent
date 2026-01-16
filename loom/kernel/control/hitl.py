@@ -42,7 +42,7 @@ class HITLInterceptor(Interceptor):
 
             if approval.lower().strip() != "y":
                 print("       ❌ Denied.")
-                return None # Drop event
+                return None  # Drop event
 
             print("       ✅ Approved.")
 

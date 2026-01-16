@@ -15,9 +15,7 @@ class TestBGEEmbeddingProvider:
     def test_initialization(self):
         """Test BGEEmbeddingProvider initialization."""
         provider = BGEEmbeddingProvider(
-            model_name="BAAI/bge-small-zh-v1.5",
-            use_onnx=True,
-            use_quantization=True
+            model_name="BAAI/bge-small-zh-v1.5", use_onnx=True, use_quantization=True
         )
 
         assert provider.model_name == "BAAI/bge-small-zh-v1.5"
@@ -31,7 +29,7 @@ class TestBGEEmbeddingProvider:
             model_name="custom-model",
             use_onnx=False,
             use_quantization=False,
-            cache_dir="/tmp/cache"
+            cache_dir="/tmp/cache",
         )
 
         assert provider.model_name == "custom-model"
@@ -45,27 +43,28 @@ class TestBGEEmbeddingProvider:
         provider = BGEEmbeddingProvider()
 
         # Mock the initialization and model
-        with patch.object(provider, '_initialize'):
+        with patch.object(provider, "_initialize"):
             provider._tokenizer = MagicMock()
             provider._model = MagicMock()
 
             # Mock tokenizer output
             mock_encoded = {
-                'input_ids': MagicMock(),
-                'attention_mask': MagicMock(),
+                "input_ids": MagicMock(),
+                "attention_mask": MagicMock(),
             }
-            mock_encoded['input_ids'].numpy = MagicMock(return_value=[[1, 2, 3]])
-            mock_encoded['attention_mask'].numpy = MagicMock(return_value=[[1, 1, 1]])
+            mock_encoded["input_ids"].numpy = MagicMock(return_value=[[1, 2, 3]])
+            mock_encoded["attention_mask"].numpy = MagicMock(return_value=[[1, 1, 1]])
             provider._tokenizer.return_value = mock_encoded
 
             # Mock model output
             import torch
+
             mock_output = MagicMock()
             mock_output.last_hidden_state = torch.randn(1, 3, 512)
             provider._model.return_value = mock_output
 
             # Mock attention mask for mean pooling
-            mock_encoded['attention_mask'] = torch.ones(1, 3)
+            mock_encoded["attention_mask"] = torch.ones(1, 3)
 
             # Test embed_text
             embedding = await provider.embed_text("test text")
@@ -80,27 +79,28 @@ class TestBGEEmbeddingProvider:
         provider = BGEEmbeddingProvider()
 
         # Mock the initialization and model
-        with patch.object(provider, '_initialize'):
+        with patch.object(provider, "_initialize"):
             provider._tokenizer = MagicMock()
             provider._model = MagicMock()
 
             # Mock tokenizer output
             mock_encoded = {
-                'input_ids': MagicMock(),
-                'attention_mask': MagicMock(),
+                "input_ids": MagicMock(),
+                "attention_mask": MagicMock(),
             }
-            mock_encoded['input_ids'].numpy = MagicMock(return_value=[[1, 2, 3], [4, 5, 6]])
-            mock_encoded['attention_mask'].numpy = MagicMock(return_value=[[1, 1, 1], [1, 1, 1]])
+            mock_encoded["input_ids"].numpy = MagicMock(return_value=[[1, 2, 3], [4, 5, 6]])
+            mock_encoded["attention_mask"].numpy = MagicMock(return_value=[[1, 1, 1], [1, 1, 1]])
             provider._tokenizer.return_value = mock_encoded
 
             # Mock model output
             import torch
+
             mock_output = MagicMock()
             mock_output.last_hidden_state = torch.randn(2, 3, 512)
             provider._model.return_value = mock_output
 
             # Mock attention mask for mean pooling
-            mock_encoded['attention_mask'] = torch.ones(2, 3)
+            mock_encoded["attention_mask"] = torch.ones(2, 3)
 
             # Test embed_batch
             embeddings = await provider.embed_batch(["text1", "text2"])
@@ -123,7 +123,7 @@ class TestBGEEmbeddingIntegration:
 
     @pytest.mark.skipif(
         not pytest.importorskip("transformers", reason="transformers not installed"),
-        reason="transformers not installed"
+        reason="transformers not installed",
     )
     async def test_real_embedding(self):
         """Test real embedding generation (slow, requires model download)."""
@@ -131,7 +131,7 @@ class TestBGEEmbeddingIntegration:
         provider = BGEEmbeddingProvider(
             model_name="BAAI/bge-small-zh-v1.5",
             use_onnx=False,  # Use PyTorch for simplicity in test
-            use_quantization=False
+            use_quantization=False,
         )
 
         # Test single text
@@ -147,14 +147,12 @@ class TestBGEEmbeddingIntegration:
 
     @pytest.mark.skipif(
         not pytest.importorskip("transformers", reason="transformers not installed"),
-        reason="transformers not installed"
+        reason="transformers not installed",
     )
     async def test_chinese_text(self):
         """Test embedding generation for Chinese text."""
         provider = BGEEmbeddingProvider(
-            model_name="BAAI/bge-small-zh-v1.5",
-            use_onnx=False,
-            use_quantization=False
+            model_name="BAAI/bge-small-zh-v1.5", use_onnx=False, use_quantization=False
         )
 
         # Test Chinese text

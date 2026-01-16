@@ -9,6 +9,7 @@ from loom.protocol.cloudevents import CloudEvent
 class RecursionLimitExceededError(Exception):
     pass
 
+
 class DepthInterceptor(Interceptor):
     """
     Prevents infinite fractal recursion.
@@ -33,7 +34,7 @@ class DepthInterceptor(Interceptor):
         current_depth = int(getattr(event, "depth", 0) or 0)
 
         if current_depth > self.max_depth:
-             raise RecursionLimitExceededError(f"Max recursion depth {self.max_depth} exceeded.")
+            raise RecursionLimitExceededError(f"Max recursion depth {self.max_depth} exceeded.")
 
         # When an Agent receives an event and sends a NEW event (Tool Call),
         # the Agent is responsible for correct propagation (depth+1).

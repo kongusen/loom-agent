@@ -21,6 +21,7 @@ class TestToolNode:
     async def dispatcher(self):
         """Create a Dispatcher with a test bus."""
         from loom.kernel.core.bus import UniversalEventBus
+
         bus = UniversalEventBus()
         await bus.connect()
         dispatcher = Dispatcher(bus)
@@ -51,9 +52,7 @@ class TestToolNode:
         node = ToolNode("test_node", dispatcher, tool_def, func)
 
         event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {"input": "test_data"}}
+            source="/caller", type="node.request", data={"arguments": {"input": "test_data"}}
         )
 
         result = await node.process(event)
@@ -69,11 +68,7 @@ class TestToolNode:
 
         node = ToolNode("test_node", dispatcher, tool_def, func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {}}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"arguments": {}})
 
         result = await node.process(event)
         assert result == {"result": "got: {}"}
@@ -82,6 +77,7 @@ class TestToolNode:
     async def test_process_with_async_function(self, dispatcher):
         """Test processing with async function."""
         import asyncio
+
         tool_def = Mock(spec=MCPToolDefinition)
 
         async def async_func(args):
@@ -91,9 +87,7 @@ class TestToolNode:
         node = ToolNode("test_node", dispatcher, tool_def, async_func)
 
         event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {"value": 42}}
+            source="/caller", type="node.request", data={"arguments": {"value": 42}}
         )
 
         result = await node.process(event)
@@ -110,9 +104,7 @@ class TestToolNode:
         node = ToolNode("test_node", dispatcher, tool_def, sync_func)
 
         event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {"data": "test"}}
+            source="/caller", type="node.request", data={"arguments": {"data": "test"}}
         )
 
         result = await node.process(event)
@@ -128,11 +120,7 @@ class TestToolNode:
 
         node = ToolNode("test_node", dispatcher, tool_def, failing_func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {}}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"arguments": {}})
 
         with pytest.raises(RuntimeError, match="Tool execution failed"):
             await node.process(event)
@@ -143,27 +131,15 @@ class TestToolNode:
         tool_def = Mock(spec=MCPToolDefinition)
 
         def complex_func(args):
-            return {
-                "status": "success",
-                "data": [1, 2, 3],
-                "nested": {"key": "value"}
-            }
+            return {"status": "success", "data": [1, 2, 3], "nested": {"key": "value"}}
 
         node = ToolNode("test_node", dispatcher, tool_def, complex_func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {}}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"arguments": {}})
 
         result = await node.process(event)
         assert result == {
-            "result": {
-                "status": "success",
-                "data": [1, 2, 3],
-                "nested": {"key": "value"}
-            }
+            "result": {"status": "success", "data": [1, 2, 3], "nested": {"key": "value"}}
         }
 
     @pytest.mark.asyncio
@@ -176,11 +152,7 @@ class TestToolNode:
 
         node = ToolNode("test_node", dispatcher, tool_def, none_func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {}}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"arguments": {}})
 
         result = await node.process(event)
         assert result == {"result": None}
@@ -189,6 +161,7 @@ class TestToolNode:
     async def test_process_with_exception_in_async_func(self, dispatcher):
         """Test processing when async function raises error."""
         import asyncio
+
         tool_def = Mock(spec=MCPToolDefinition)
 
         async def failing_async_func(args):
@@ -197,11 +170,7 @@ class TestToolNode:
 
         node = ToolNode("test_node", dispatcher, tool_def, failing_async_func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {}}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"arguments": {}})
 
         with pytest.raises(RuntimeError, match="Tool execution failed"):
             await node.process(event)
@@ -217,7 +186,7 @@ class TestToolNode:
                 "number": float(args.get("number", 0)),
                 "boolean": bool(args.get("boolean", False)),
                 "list": list(args.get("list", [])),
-                "none": args.get("none") is None
+                "none": args.get("none") is None,
             }
 
         node = ToolNode("test_node", dispatcher, tool_def, type_check_func)
@@ -231,9 +200,9 @@ class TestToolNode:
                     "number": 42,
                     "boolean": True,
                     "list": [1, 2, 3],
-                    "none": None
+                    "none": None,
                 }
-            }
+            },
         )
 
         result = await node.process(event)
@@ -243,7 +212,7 @@ class TestToolNode:
                 "number": 42.0,
                 "boolean": True,
                 "list": [1, 2, 3],
-                "none": True
+                "none": True,
             }
         }
         assert result == expected
@@ -258,11 +227,7 @@ class TestToolNode:
 
         node = ToolNode("test_node", dispatcher, tool_def, detailed_error_func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {}}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"arguments": {}})
 
         with pytest.raises(RuntimeError) as exc_info:
             await node.process(event)
@@ -279,11 +244,7 @@ class TestToolNode:
 
         node = ToolNode("test_node", dispatcher, tool_def, empty_args_func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={})
 
         result = await node.process(event)
         assert result == {"result": {"args_length": 0}}
@@ -298,11 +259,7 @@ class TestToolNode:
 
         node = ToolNode("test_node", dispatcher, tool_def, string_func)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"arguments": {}}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"arguments": {}})
 
         result = await node.process(event)
         assert isinstance(result, dict)

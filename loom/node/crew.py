@@ -32,7 +32,7 @@ class CrewNode(Node):
         dispatcher: Dispatcher,
         agents: list[NodeProtocol],
         pattern: Literal["sequential", "parallel"] = "sequential",
-        sanitizer: ContextSanitizer | None = None
+        sanitizer: ContextSanitizer | None = None,
     ):
         super().__init__(node_id, dispatcher)
         self.agents = agents
@@ -70,16 +70,10 @@ class CrewNode(Node):
             # Use self.call() to invoke through event bus
             # This ensures proper event flow: request -> dispatch -> interceptors -> agent -> response
             try:
-                result = await self.call(
-                    target_node=agent.source_uri,
-                    data={"task": current_input}
-                )
+                result = await self.call(target_node=agent.source_uri, data={"task": current_input})
             except Exception as e:
                 # Error already propagated through event bus
-                return {
-                    "error": f"Agent {agent.node_id} failed: {str(e)}",
-                    "trace": chain_results
-                }
+                return {"error": f"Agent {agent.node_id} failed: {str(e)}", "trace": chain_results}
 
             # Extract response
             # self.call() returns the result data from node.response event
@@ -90,19 +84,20 @@ class CrewNode(Node):
 
             # Sanitization (Fractal Metabolism)
             # Limit the bubble-up context to prevent context pollution in long chains
-            sanitized_response = await self.sanitizer.sanitize(str(response), target_token_limit=100)
+            sanitized_response = await self.sanitizer.sanitize(
+                str(response), target_token_limit=100
+            )
 
-            chain_results.append({
-                "agent": agent.node_id,
-                "output": response, # Full output in trace
-                "sanitized": sanitized_response
-            })
+            chain_results.append(
+                {
+                    "agent": agent.node_id,
+                    "output": response,  # Full output in trace
+                    "sanitized": sanitized_response,
+                }
+            )
 
             # Pass to next agent
             # Design choice: pass full output (agent's memory will metabolize if needed)
             current_input = response
 
-        return {
-            "final_output": current_input,
-            "trace": chain_results
-        }
+        return {"final_output": current_input, "trace": chain_results}

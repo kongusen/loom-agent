@@ -30,13 +30,14 @@ class AttentionRouter(Node):
         node_id: str,
         dispatcher: Dispatcher,
         agents: list[NodeProtocol],
-        provider: LLMProvider
+        provider: LLMProvider,
     ):
         super().__init__(node_id, dispatcher)
         self.agents = {agent.node_id: agent for agent in agents}
         self.provider = provider
         # Agent descriptions map
-        self.registry = {agent.node_id: getattr(agent, 'role', 'agent') for agent in agents}
+        self.registry = {agent.node_id: getattr(agent, "role", "agent") for agent in agents}
+
     async def process(self, event: CloudEvent) -> Any:
         data = event.data or {}
         task = str(data.get("task", ""))
@@ -44,7 +45,9 @@ class AttentionRouter(Node):
             return {"error": "No task provided"}
 
         # 1. Construct Prompt
-        options = "\n".join([f"- {aid}: {getattr(self.agents[aid], 'role', 'agent')}" for aid in self.agents])
+        options = "\n".join(
+            [f"- {aid}: {getattr(self.agents[aid], 'role', 'agent')}" for aid in self.agents]
+        )
         prompt = f"""
         You are a routing system. Given the task, select the best agent ID to handle it.
         Return ONLY the agent ID.
@@ -69,7 +72,7 @@ class AttentionRouter(Node):
                 break
 
         if not target_agent:
-             return {"error": f"Could not route task. Selected: {selected_id}"}
+            return {"error": f"Could not route task. Selected: {selected_id}"}
 
         # 3. Dispatch to Target
         # Request-Reply: We wait for the agent and return its result.

@@ -30,7 +30,7 @@ class TestRetryConfig:
             max_delay=30.0,
             exponential_base=3.0,
             retry_on_timeout=False,
-            retry_on_rate_limit=False
+            retry_on_rate_limit=False,
         )
         assert config.max_retries == 5
         assert config.initial_delay == 0.5
@@ -118,11 +118,7 @@ class TestCalculateDelay:
 
     def test_max_delay_cap(self):
         """Test that delay is capped at max_delay."""
-        config = RetryConfig(
-            initial_delay=1.0,
-            exponential_base=10.0,
-            max_delay=5.0
-        )
+        config = RetryConfig(initial_delay=1.0, exponential_base=10.0, max_delay=5.0)
         delay = calculate_delay(5, config)
 
         # 1 * 10^5 would be 100000, but should be capped at 5.0
@@ -142,6 +138,7 @@ class TestRetryAsync:
     @pytest.mark.asyncio
     async def test_success_on_first_try(self):
         """Test function that succeeds on first try."""
+
         async def success_func():
             return "success"
 
@@ -169,6 +166,7 @@ class TestRetryAsync:
     @pytest.mark.asyncio
     async def test_max_retries_exceeded(self):
         """Test that max retries is respected."""
+
         async def always_fail_func():
             raise TimeoutError("Always timeout")
 
@@ -180,6 +178,7 @@ class TestRetryAsync:
     @pytest.mark.asyncio
     async def test_non_retryable_error_fails_immediately(self):
         """Test non-retryable errors fail immediately."""
+
         async def value_error_func():
             raise ValueError("Non-retryable error")
 
@@ -207,6 +206,7 @@ class TestRetryAsync:
     @pytest.mark.asyncio
     async def test_passes_arguments(self):
         """Test that arguments are passed through."""
+
         async def func_with_args():
             return {"success": True}
 
@@ -268,6 +268,7 @@ class TestRetryAsync:
     @pytest.mark.asyncio
     async def test_returns_function_result(self):
         """Test that function result is returned correctly."""
+
         async def return_dict():
             return {"key": "value", "number": 42}
 

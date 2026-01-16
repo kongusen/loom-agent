@@ -23,8 +23,7 @@ class OptimizationConfig(BaseModel):
 
     # Evolution Strategy
     evolution_strategy: str = Field(
-        default="adaptive",
-        description="Evolution strategy: adaptive, aggressive, conservative"
+        default="adaptive", description="Evolution strategy: adaptive, aggressive, conservative"
     )
 
     # Health Monitoring
@@ -33,8 +32,7 @@ class OptimizationConfig(BaseModel):
 
     # Landscape Optimization
     enable_landscape_optimization: bool = Field(
-        default=False,
-        description="Enable landscape optimization"
+        default=False, description="Enable landscape optimization"
     )
 
     # Pruning
@@ -47,25 +45,26 @@ class OptimizationConfig(BaseModel):
 
     class Config:
         """Pydantic config"""
+
         arbitrary_types_allowed = True
 
     @classmethod
-    def default(cls) -> 'OptimizationConfig':
+    def default(cls) -> "OptimizationConfig":
         """Create default configuration (disabled)"""
         return cls(enabled=False)
 
     @classmethod
-    def basic(cls) -> 'OptimizationConfig':
+    def basic(cls) -> "OptimizationConfig":
         """Create basic optimization configuration"""
         return cls(
             enabled=True,
             evolution_strategy="adaptive",
             enable_health_check=True,
-            health_check_interval=10
+            health_check_interval=10,
         )
 
     @classmethod
-    def advanced(cls) -> 'OptimizationConfig':
+    def advanced(cls) -> "OptimizationConfig":
         """Create advanced optimization configuration"""
         return cls(
             enabled=True,
@@ -74,5 +73,5 @@ class OptimizationConfig(BaseModel):
             health_check_interval=5,
             enable_landscape_optimization=True,
             enable_pruning=True,
-            pruning_threshold=0.3
+            pruning_threshold=0.3,
         )

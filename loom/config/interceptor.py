@@ -4,7 +4,6 @@ Interceptor Configuration
 Provides configuration for Layer 2 control capabilities.
 """
 
-
 from pydantic import BaseModel, Field
 
 
@@ -34,8 +33,12 @@ class InterceptorConfig(BaseModel):
     timeout_seconds: float | None = Field(default=30.0, description="Timeout in seconds")
 
     # Human-in-the-Loop
-    enable_hitl: bool = Field(default=False, description="Enable human approval for sensitive operations")
-    hitl_patterns: list[str] = Field(default_factory=list, description="Patterns requiring approval")
+    enable_hitl: bool = Field(
+        default=False, description="Enable human approval for sensitive operations"
+    )
+    hitl_patterns: list[str] = Field(
+        default_factory=list, description="Patterns requiring approval"
+    )
 
     # Tracing
     enable_tracing: bool = Field(default=False, description="Enable distributed tracing")
@@ -46,15 +49,16 @@ class InterceptorConfig(BaseModel):
 
     class Config:
         """Pydantic config"""
+
         arbitrary_types_allowed = True
 
     @classmethod
-    def default(cls) -> 'InterceptorConfig':
+    def default(cls) -> "InterceptorConfig":
         """Create default configuration (all disabled)"""
         return cls()
 
     @classmethod
-    def safe_mode(cls) -> 'InterceptorConfig':
+    def safe_mode(cls) -> "InterceptorConfig":
         """Create safe mode configuration (basic protections enabled)"""
         return cls(
             enable_budget=True,
@@ -62,11 +66,11 @@ class InterceptorConfig(BaseModel):
             enable_depth_limit=True,
             max_depth=5,
             enable_timeout=True,
-            timeout_seconds=60.0
+            timeout_seconds=60.0,
         )
 
     @classmethod
-    def production_mode(cls) -> 'InterceptorConfig':
+    def production_mode(cls) -> "InterceptorConfig":
         """Create production mode configuration (all protections enabled)"""
         return cls(
             enable_budget=True,
@@ -76,5 +80,5 @@ class InterceptorConfig(BaseModel):
             enable_timeout=True,
             timeout_seconds=30.0,
             enable_tracing=True,
-            enable_auth=True
+            enable_auth=True,
         )

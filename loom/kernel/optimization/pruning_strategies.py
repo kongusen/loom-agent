@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class PruningCriterion(Enum):
     """Criteria for pruning decisions"""
+
     LOW_FITNESS = "low_fitness"
     HIGH_FAILURE_RATE = "high_failure_rate"
     REDUNDANT = "redundant"
@@ -26,6 +27,7 @@ class PruningCriterion(Enum):
 @dataclass
 class PruningDecision:
     """Result of pruning evaluation"""
+
     should_prune: bool
     confidence: float  # 0-1
     criteria: list[PruningCriterion]
@@ -38,11 +40,7 @@ class PruningStrategy(ABC):
 
     @abstractmethod
     def evaluate(
-        self,
-        node: Any,
-        parent: Any | None,
-        siblings: list[Any],
-        context: dict[str, Any]
+        self, node: Any, parent: Any | None, siblings: list[Any], context: dict[str, Any]
     ) -> PruningDecision:
         """
         Evaluate if node should be pruned
@@ -63,25 +61,17 @@ class PruningStrategy(ABC):
 # Fitness-Based Pruning
 # ============================================================================
 
+
 class FitnessPruningStrategy(PruningStrategy):
     """Prune nodes with low fitness scores"""
 
-    def __init__(
-        self,
-        fitness_threshold: float = 0.3,
-        min_tasks: int = 3
-    ):
+    def __init__(self, fitness_threshold: float = 0.3, min_tasks: int = 3):
         self.fitness_threshold = fitness_threshold
         self.min_tasks = min_tasks
 
     def evaluate(
-        self,
-        node: Any,
-        _parent: Any | None,
-        _siblings: list[Any],
-        _context: dict[str, Any]
+        self, node: Any, _parent: Any | None, _siblings: list[Any], _context: dict[str, Any]
     ) -> PruningDecision:
-
         # Need minimum task count
         if node.metrics.task_count < self.min_tasks:
             return PruningDecision(
@@ -89,7 +79,7 @@ class FitnessPruningStrategy(PruningStrategy):
                 confidence=0.0,
                 criteria=[],
                 reason="Insufficient task history",
-                expected_impact=0.0
+                expected_impact=0.0,
             )
 
         fitness = node.metrics.fitness_score()
@@ -100,7 +90,7 @@ class FitnessPruningStrategy(PruningStrategy):
                 confidence=0.9,
                 criteria=[PruningCriterion.LOW_FITNESS],
                 reason=f"Fitness {fitness:.2f} < threshold {self.fitness_threshold}",
-                expected_impact=0.1  # Removing low performer
+                expected_impact=0.1,  # Removing low performer
             )
 
         return PruningDecision(
@@ -108,7 +98,7 @@ class FitnessPruningStrategy(PruningStrategy):
             confidence=0.0,
             criteria=[],
             reason="Fitness acceptable",
-            expected_impact=0.0
+            expected_impact=0.0,
         )
 
 
@@ -116,32 +106,24 @@ class FitnessPruningStrategy(PruningStrategy):
 # Redundancy-Based Pruning
 # ============================================================================
 
+
 class RedundancyPruningStrategy(PruningStrategy):
     """Prune redundant nodes (parent/sibling does better)"""
 
-    def __init__(
-        self,
-        fitness_gap_threshold: float = 0.2,
-        min_tasks: int = 3
-    ):
+    def __init__(self, fitness_gap_threshold: float = 0.2, min_tasks: int = 3):
         self.fitness_gap_threshold = fitness_gap_threshold
         self.min_tasks = min_tasks
 
     def evaluate(
-        self,
-        node: Any,
-        parent: Any | None,
-        siblings: list[Any],
-        _context: dict[str, Any]
+        self, node: Any, parent: Any | None, siblings: list[Any], _context: dict[str, Any]
     ) -> PruningDecision:
-
         if node.metrics.task_count < self.min_tasks:
             return PruningDecision(
                 should_prune=False,
                 confidence=0.0,
                 criteria=[],
                 reason="Insufficient task history",
-                expected_impact=0.0
+                expected_impact=0.0,
             )
 
         node_fitness = node.metrics.fitness_score()
@@ -157,7 +139,7 @@ class RedundancyPruningStrategy(PruningStrategy):
                     confidence=0.8,
                     criteria=[PruningCriterion.REDUNDANT],
                     reason=f"Parent fitness {parent_fitness:.2f} >> node {node_fitness:.2f}",
-                    expected_impact=0.05
+                    expected_impact=0.05,
                 )
 
         # Check against siblings
@@ -178,7 +160,7 @@ class RedundancyPruningStrategy(PruningStrategy):
                         confidence=0.7,
                         criteria=[PruningCriterion.REDUNDANT],
                         reason=f"Sibling fitness {best_sibling_fitness:.2f} >> node {node_fitness:.2f}",
-                        expected_impact=0.03
+                        expected_impact=0.03,
                     )
 
         return PruningDecision(
@@ -186,7 +168,7 @@ class RedundancyPruningStrategy(PruningStrategy):
             confidence=0.0,
             criteria=[],
             reason="Not redundant",
-            expected_impact=0.0
+            expected_impact=0.0,
         )
 
 
@@ -194,34 +176,25 @@ class RedundancyPruningStrategy(PruningStrategy):
 # Resource-Based Pruning
 # ============================================================================
 
+
 class ResourcePruningStrategy(PruningStrategy):
     """Prune resource-heavy nodes with poor ROI"""
 
-    def __init__(
-        self,
-        max_avg_tokens: int = 10000,
-        max_avg_time: float = 30.0,
-        min_tasks: int = 3
-    ):
+    def __init__(self, max_avg_tokens: int = 10000, max_avg_time: float = 30.0, min_tasks: int = 3):
         self.max_avg_tokens = max_avg_tokens
         self.max_avg_time = max_avg_time
         self.min_tasks = min_tasks
 
     def evaluate(
-        self,
-        node: Any,
-        _parent: Any | None,
-        _siblings: list[Any],
-        _context: dict[str, Any]
+        self, node: Any, _parent: Any | None, _siblings: list[Any], _context: dict[str, Any]
     ) -> PruningDecision:
-
         if node.metrics.task_count < self.min_tasks:
             return PruningDecision(
                 should_prune=False,
                 confidence=0.0,
                 criteria=[],
                 reason="Insufficient task history",
-                expected_impact=0.0
+                expected_impact=0.0,
             )
 
         avg_tokens = node.metrics.avg_tokens
@@ -229,10 +202,7 @@ class ResourcePruningStrategy(PruningStrategy):
         fitness = node.metrics.fitness_score()
 
         # High resource usage + low fitness = prune
-        is_resource_heavy = (
-            avg_tokens > self.max_avg_tokens or
-            avg_time > self.max_avg_time
-        )
+        is_resource_heavy = avg_tokens > self.max_avg_tokens or avg_time > self.max_avg_time
 
         if is_resource_heavy and fitness < 0.5:
             return PruningDecision(
@@ -240,7 +210,7 @@ class ResourcePruningStrategy(PruningStrategy):
                 confidence=0.85,
                 criteria=[PruningCriterion.RESOURCE_HEAVY],
                 reason=f"High resources (tokens={avg_tokens:.0f}, time={avg_time:.1f}s) + low fitness {fitness:.2f}",
-                expected_impact=0.15  # Good savings
+                expected_impact=0.15,  # Good savings
             )
 
         return PruningDecision(
@@ -248,7 +218,7 @@ class ResourcePruningStrategy(PruningStrategy):
             confidence=0.0,
             criteria=[],
             reason="Resource usage acceptable",
-            expected_impact=0.0
+            expected_impact=0.0,
         )
 
 
@@ -256,32 +226,25 @@ class ResourcePruningStrategy(PruningStrategy):
 # Composite Pruning Strategy
 # ============================================================================
 
+
 class CompositePruningStrategy(PruningStrategy):
     """Combines multiple pruning strategies"""
 
     def __init__(
-        self,
-        strategies: list[PruningStrategy] | None = None,
-        min_confidence: float = 0.7
+        self, strategies: list[PruningStrategy] | None = None, min_confidence: float = 0.7
     ):
         self.strategies = strategies or [
             FitnessPruningStrategy(),
             RedundancyPruningStrategy(),
-            ResourcePruningStrategy()
+            ResourcePruningStrategy(),
         ]
         self.min_confidence = min_confidence
 
     def evaluate(
-        self,
-        node: Any,
-        parent: Any | None,
-        siblings: list[Any],
-        context: dict[str, Any]
+        self, node: Any, parent: Any | None, siblings: list[Any], context: dict[str, Any]
     ) -> PruningDecision:
-
         decisions = [
-            strategy.evaluate(node, parent, siblings, context)
-            for strategy in self.strategies
+            strategy.evaluate(node, parent, siblings, context) for strategy in self.strategies
         ]
 
         # Aggregate decisions
@@ -305,7 +268,7 @@ class CompositePruningStrategy(PruningStrategy):
                     confidence=avg_confidence,
                     criteria=list(set(all_criteria)),
                     reason="; ".join(all_reasons),
-                    expected_impact=max(d.expected_impact for d in decisions)
+                    expected_impact=max(d.expected_impact for d in decisions),
                 )
 
         return PruningDecision(
@@ -313,13 +276,14 @@ class CompositePruningStrategy(PruningStrategy):
             confidence=0.0,
             criteria=[],
             reason="No strong pruning signal",
-            expected_impact=0.0
+            expected_impact=0.0,
         )
 
 
 # ============================================================================
 # Smart Pruner
 # ============================================================================
+
 
 class SmartPruner:
     """
@@ -330,7 +294,7 @@ class SmartPruner:
         self,
         strategy: PruningStrategy | None = None,
         dry_run: bool = False,
-        preserve_min_nodes: int = 1
+        preserve_min_nodes: int = 1,
     ):
         """
         Initialize smart pruner
@@ -348,11 +312,7 @@ class SmartPruner:
         self.pruned_nodes: list[str] = []
         self.evaluation_cache: dict[str, PruningDecision] = {}
 
-    def prune_structure(
-        self,
-        root: Any,
-        context: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    def prune_structure(self, root: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Prune structure using intelligent strategy
 
@@ -389,26 +349,26 @@ class SmartPruner:
                 parent.children.remove(node)
 
             self.pruned_nodes.append(node.node_id)
-            logger.info(f"{'[DRY RUN] ' if self.dry_run else ''}Pruned {node.node_id}: {decision.reason}")
+            logger.info(
+                f"{'[DRY RUN] ' if self.dry_run else ''}Pruned {node.node_id}: {decision.reason}"
+            )
 
         total_nodes_after = self._count_nodes(root)
         fitness_after = root.metrics.fitness_score() if root.metrics.task_count > 0 else 0.0
 
         return {
-            'pruned_count': len(self.pruned_nodes),
-            'pruned_nodes': self.pruned_nodes,
-            'nodes_before': total_nodes_before,
-            'nodes_after': total_nodes_after,
-            'fitness_before': fitness_before,
-            'fitness_after': fitness_after,
-            'fitness_improvement': fitness_after - fitness_before,
-            'dry_run': self.dry_run
+            "pruned_count": len(self.pruned_nodes),
+            "pruned_nodes": self.pruned_nodes,
+            "nodes_before": total_nodes_before,
+            "nodes_after": total_nodes_after,
+            "fitness_before": fitness_before,
+            "fitness_after": fitness_after,
+            "fitness_improvement": fitness_after - fitness_before,
+            "dry_run": self.dry_run,
         }
 
     def _identify_candidates(
-        self,
-        root: Any,
-        context: dict[str, Any]
+        self, root: Any, context: dict[str, Any]
     ) -> list[tuple[Any, Any, PruningDecision]]:
         """Identify pruning candidates"""
         candidates = []

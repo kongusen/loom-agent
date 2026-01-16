@@ -17,12 +17,9 @@ from loom.kernel.optimization import StructureSnapshot
 # Test Helper Functions
 # ============================================================================
 
+
 def create_test_snapshot(
-    structure_id: str,
-    task_type: str,
-    fitness: float = 0.8,
-    total_nodes: int = 5,
-    depth: int = 2
+    structure_id: str, task_type: str, fitness: float = 0.8, total_nodes: int = 5, depth: int = 2
 ) -> StructureSnapshot:
     """Create a test snapshot"""
     return StructureSnapshot(
@@ -37,20 +34,21 @@ def create_test_snapshot(
         node_roles={
             NodeRole.COORDINATOR.value: 1,
             NodeRole.EXECUTOR.value: total_nodes - 2,
-            NodeRole.AGGREGATOR.value: 1
+            NodeRole.AGGREGATOR.value: 1,
         },
         fitness_score=fitness,
         success_rate=0.9,
         avg_tokens=150.0,
         avg_time=3.0,
         avg_cost=0.1,
-        growth_strategies={}
+        growth_strategies={},
     )
 
 
 # ============================================================================
 # Test Cases
 # ============================================================================
+
 
 class TestStructureTemplate(unittest.TestCase):
     """Test StructureTemplate data structure"""
@@ -64,13 +62,13 @@ class TestStructureTemplate(unittest.TestCase):
             task_categories=["research", "analysis"],
             topology_type="hierarchical",
             node_specs=[
-                {'role': NodeRole.COORDINATOR.value, 'depth': 0},
-                {'role': NodeRole.EXECUTOR.value, 'depth': 1}
+                {"role": NodeRole.COORDINATOR.value, "depth": 0},
+                {"role": NodeRole.EXECUTOR.value, "depth": 1},
             ],
             avg_fitness=0.85,
             min_fitness=0.75,
             success_rate=0.9,
-            usage_count=5
+            usage_count=5,
         )
 
         self.assertEqual(template.template_id, "tmpl_001")
@@ -88,7 +86,7 @@ class TestStructureTemplate(unittest.TestCase):
             node_specs=[],
             avg_fitness=0.8,
             min_fitness=0.7,
-            success_rate=0.9
+            success_rate=0.9,
         )
 
         # Exact match
@@ -115,7 +113,7 @@ class TestStructureTemplate(unittest.TestCase):
             avg_fitness=0.8,
             min_fitness=0.7,
             success_rate=0.9,
-            tags=["analysis", "data", "extraction"]
+            tags=["analysis", "data", "extraction"],
         )
 
         # Match with description
@@ -130,12 +128,12 @@ class TestStructureTemplate(unittest.TestCase):
             description="For research tasks",
             task_categories=["research"],
             topology_type="hierarchical",
-            node_specs=[{'role': NodeRole.COORDINATOR.value, 'depth': 0}],
+            node_specs=[{"role": NodeRole.COORDINATOR.value, "depth": 0}],
             avg_fitness=0.85,
             min_fitness=0.75,
             success_rate=0.9,
             usage_count=10,
-            confidence=0.8
+            confidence=0.8,
         )
 
         data = original.to_dict()
@@ -157,7 +155,7 @@ class TestStructureTemplate(unittest.TestCase):
             avg_fitness=0.7,
             min_fitness=0.6,
             success_rate=0.85,
-            usage_count=15  # Frequently used
+            usage_count=15,  # Frequently used
         )
 
         score = template.matches_task("common")
@@ -170,10 +168,7 @@ class TestTemplateManager(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures"""
-        self.manager = TemplateManager(
-            min_fitness_for_template=0.75,
-            min_usage_for_template=2
-        )
+        self.manager = TemplateManager(min_fitness_for_template=0.75, min_usage_for_template=2)
 
     def test_manager_initialization(self):
         """Test manager initialization"""
@@ -192,7 +187,7 @@ class TestTemplateManager(unittest.TestCase):
             node_specs=[],
             avg_fitness=0.8,
             min_fitness=0.7,
-            success_rate=0.9
+            success_rate=0.9,
         )
 
         self.manager.add_template(template)
@@ -211,7 +206,7 @@ class TestTemplateManager(unittest.TestCase):
             node_specs=[],
             avg_fitness=0.8,
             min_fitness=0.7,
-            success_rate=0.9
+            success_rate=0.9,
         )
 
         self.manager.add_template(template)
@@ -230,7 +225,7 @@ class TestTemplateManager(unittest.TestCase):
             node_specs=[],
             avg_fitness=0.8,
             min_fitness=0.7,
-            success_rate=0.9
+            success_rate=0.9,
         )
 
         self.manager.add_template(template)
@@ -255,7 +250,7 @@ class TestTemplateManager(unittest.TestCase):
             node_specs=[],
             avg_fitness=0.8,
             min_fitness=0.7,
-            success_rate=0.9
+            success_rate=0.9,
         )
 
         self.manager.add_template(template)
@@ -275,7 +270,7 @@ class TestTemplateManager(unittest.TestCase):
             node_specs=[],
             avg_fitness=0.8,
             min_fitness=0.7,
-            success_rate=0.9
+            success_rate=0.9,
         )
 
         self.manager.add_template(template)
@@ -289,7 +284,7 @@ class TestTemplateManager(unittest.TestCase):
         snapshots = [
             create_test_snapshot("struct_1", "research", fitness=0.80, total_nodes=5),
             create_test_snapshot("struct_2", "research", fitness=0.82, total_nodes=5),
-            create_test_snapshot("struct_3", "research", fitness=0.81, total_nodes=5)
+            create_test_snapshot("struct_3", "research", fitness=0.81, total_nodes=5),
         ]
 
         template = self.manager.learn_from_snapshots(snapshots, "research")
@@ -312,7 +307,7 @@ class TestTemplateManager(unittest.TestCase):
         # Low fitness snapshots
         snapshots = [
             create_test_snapshot("struct_1", "research", fitness=0.50),
-            create_test_snapshot("struct_2", "research", fitness=0.50)
+            create_test_snapshot("struct_2", "research", fitness=0.50),
         ]
 
         template = self.manager.learn_from_snapshots(snapshots, "research")
@@ -333,7 +328,7 @@ class TestTemplateManager(unittest.TestCase):
                 node_specs=[],
                 avg_fitness=0.8 + i * 0.05,
                 min_fitness=0.7,
-                success_rate=0.9
+                success_rate=0.9,
             )
             self.manager.add_template(template)
 
@@ -356,7 +351,7 @@ class TestTemplateManager(unittest.TestCase):
             avg_fitness=0.9,
             min_fitness=0.8,
             success_rate=0.95,
-            usage_count=50  # High usage = boost
+            usage_count=50,  # High usage = boost
         )
         template2 = StructureTemplate(
             template_id="tmpl_2",
@@ -368,7 +363,7 @@ class TestTemplateManager(unittest.TestCase):
             avg_fitness=0.7,
             min_fitness=0.6,
             success_rate=0.8,
-            usage_count=1  # Low usage
+            usage_count=1,  # Low usage
         )
 
         self.manager.add_template(template1)
@@ -393,13 +388,12 @@ class TestTemplateManager(unittest.TestCase):
             avg_fitness=0.85,
             min_fitness=0.75,
             success_rate=0.9,
-            confidence=0.8
+            confidence=0.8,
         )
         self.manager.add_template(template)
 
         recommendation = self.manager.recommend_template(
-            task_type="research",
-            task_description="Research data analysis"
+            task_type="research", task_description="Research data analysis"
         )
 
         self.assertIsNotNone(recommendation)
@@ -417,14 +411,14 @@ class TestTemplateManager(unittest.TestCase):
             avg_fitness=0.75,  # Template fitness
             min_fitness=0.65,
             success_rate=0.85,
-            confidence=0.7
+            confidence=0.7,
         )
         self.manager.add_template(template)
 
         # Ask for improvement from current fitness of 0.80 (higher than template)
         self.manager.recommend_template(
             task_type="research",
-            current_fitness=0.80  # No template can improve this
+            current_fitness=0.80,  # No template can improve this
         )
 
         # Unlikely to get recommendation
@@ -442,7 +436,7 @@ class TestTemplateManager(unittest.TestCase):
             avg_fitness=0.8,
             min_fitness=0.7,
             success_rate=0.9,
-            usage_count=0
+            usage_count=0,
         )
         self.manager.add_template(template)
 
@@ -464,7 +458,7 @@ class TestTemplateManager(unittest.TestCase):
             node_specs=[],
             avg_fitness=0.8,
             min_fitness=0.7,
-            success_rate=0.9
+            success_rate=0.9,
         )
         self.manager.add_template(template)
 
@@ -487,13 +481,13 @@ class TestTemplateManager(unittest.TestCase):
                 template_id=f"tmpl_{i}",
                 name=f"Template {i}",
                 description="For testing",
-                task_categories=["test", "analysis"][i % 2:],
+                task_categories=["test", "analysis"][i % 2 :],
                 topology_type=["sequential", "parallel"][i % 2],
                 node_specs=[],
                 avg_fitness=0.7 + i * 0.05,
                 min_fitness=0.6,
                 success_rate=0.85,
-                usage_count=i + 1
+                usage_count=i + 1,
             )
             self.manager.add_template(template)
 
@@ -517,7 +511,7 @@ class TestTemplateManager(unittest.TestCase):
                 avg_fitness=0.75 + i * 0.05,
                 min_fitness=0.65,
                 success_rate=0.9,
-                usage_count=i + 1
+                usage_count=i + 1,
             )
             self.manager.add_template(template)
 
@@ -525,7 +519,7 @@ class TestTemplateManager(unittest.TestCase):
         self.manager.record_usage("tmpl_0", 0.76)
 
         # Save
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             temp_file = f.name
 
         try:
@@ -551,9 +545,9 @@ class TestTemplateManager(unittest.TestCase):
             [
                 create_test_snapshot("s1", "text_analysis_research", fitness=0.80),
                 create_test_snapshot("s2", "text_analysis_research", fitness=0.82),
-                create_test_snapshot("s3", "text_analysis_research", fitness=0.81)
+                create_test_snapshot("s3", "text_analysis_research", fitness=0.81),
             ],
-            "text_analysis_research"
+            "text_analysis_research",
         )
 
         if template:
@@ -565,7 +559,7 @@ class TestTemplateManager(unittest.TestCase):
         # Shallow, high branching = parallel
         snapshots = [
             create_test_snapshot("s1", "parallel_task", fitness=0.80, total_nodes=5, depth=1),
-            create_test_snapshot("s2", "parallel_task", fitness=0.82, total_nodes=5, depth=1)
+            create_test_snapshot("s2", "parallel_task", fitness=0.82, total_nodes=5, depth=1),
         ]
 
         template = self.manager.learn_from_snapshots(snapshots, "parallel_task")

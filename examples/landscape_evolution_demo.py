@@ -26,12 +26,13 @@ from loom.kernel.optimization import (
 # Helper Functions
 # ============================================================================
 
+
 def create_mock_structure(
     _structure_id: str,
     _task_type: str,
     _total_nodes: int = 5,
     max_depth: int = 2,
-    fitness: float = 0.7
+    fitness: float = 0.7,
 ) -> Mock:
     """Create a mock structure for demo purposes"""
     root = Mock()
@@ -101,6 +102,7 @@ def print_subsection(title: str):
 # Example 1: Recording and Analyzing Fitness Landscape
 # ============================================================================
 
+
 def example_1_fitness_landscape():
     """
     Demonstrates how to record structure performance and analyze the
@@ -136,18 +138,20 @@ def example_1_fitness_landscape():
                     task_type=task_type,
                     total_nodes=3 + int(complexity * 5),
                     max_depth=actual_depth,
-                    fitness=fitness
+                    fitness=fitness,
                 )
 
                 snapshot = optimizer.record_structure_performance(
                     root=structure,
                     task_type=task_type,
                     task_complexity=complexity,
-                    structure_id=f"{task_type}_{complexity}_{i}"
+                    structure_id=f"{task_type}_{complexity}_{i}",
                 )
 
-                print(f"  ✓ {task_type:15} | complexity={complexity:.1f} | "
-                      f"depth={actual_depth} | fitness={fitness:.2f}")
+                print(
+                    f"  ✓ {task_type:15} | complexity={complexity:.1f} | "
+                    f"depth={actual_depth} | fitness={fitness:.2f}"
+                )
 
     print(f"\nTotal snapshots recorded: {len(optimizer.snapshots)}")
 
@@ -170,8 +174,10 @@ def example_1_fitness_landscape():
         best = optimizer.get_best_structures(task_type=task_type, limit=1)
         if best:
             snapshot = best[0]
-            print(f"  {task_type:15}: nodes={snapshot.total_nodes}, "
-                  f"depth={snapshot.max_depth}, fitness={snapshot.fitness_score:.2f}")
+            print(
+                f"  {task_type:15}: nodes={snapshot.total_nodes}, "
+                f"depth={snapshot.max_depth}, fitness={snapshot.fitness_score:.2f}"
+            )
 
     return optimizer
 
@@ -180,6 +186,7 @@ def example_1_fitness_landscape():
 # Example 2: Learning and Recommending Templates
 # ============================================================================
 
+
 def example_2_template_learning_and_recommendation(optimizer: FitnessLandscapeOptimizer):
     """
     Demonstrates learning templates from high-performing structures
@@ -187,10 +194,7 @@ def example_2_template_learning_and_recommendation(optimizer: FitnessLandscapeOp
     """
     print_section("Example 2: Learning and Recommending Templates")
 
-    manager = TemplateManager(
-        min_fitness_for_template=0.75,
-        min_usage_for_template=2
-    )
+    manager = TemplateManager(min_fitness_for_template=0.75, min_usage_for_template=2)
 
     # Learn templates for each task type
     print("Learning templates from high-performing structures...")
@@ -227,17 +231,14 @@ def example_2_template_learning_and_recommendation(optimizer: FitnessLandscapeOp
     new_tasks = [
         ("research_new", "Research data sources and compile information", 0.65),
         ("analysis_new", "Analyze market trends and patterns", 0.7),
-        ("extract_new", "Extract structured data from documents", 0.6)
+        ("extract_new", "Extract structured data from documents", 0.6),
     ]
 
     for task_id, task_desc, _task_complexity in new_tasks:
         # Extract base task type
         base_task = task_id.replace("_new", "")
 
-        recommendation = manager.recommend_template(
-            task_type=base_task,
-            task_description=task_desc
-        )
+        recommendation = manager.recommend_template(task_type=base_task, task_description=task_desc)
 
         if recommendation:
             print(f"  Task: {task_id}")
@@ -254,6 +255,7 @@ def example_2_template_learning_and_recommendation(optimizer: FitnessLandscapeOp
 # Example 3: Genetic Algorithm for Structure Evolution
 # ============================================================================
 
+
 def example_3_structure_evolution():
     """
     Demonstrates using genetic algorithms to evolve structures
@@ -268,7 +270,7 @@ def example_3_structure_evolution():
         mutation_rate=0.3,
         crossover_rate=0.7,
         max_structure_depth=4,
-        max_structure_nodes=15
+        max_structure_nodes=15,
     )
 
     print("Evolution Configuration:")
@@ -287,11 +289,7 @@ def example_3_structure_evolution():
         - Depth (prefer moderate depth)
         - Balance (consistent structure)
         """
-        weights = {
-            'simplicity': 0.4,
-            'depth': 0.3,
-            'balance': 0.3
-        }
+        weights = {"simplicity": 0.4, "depth": 0.3, "balance": 0.3}
 
         # Simplicity
         max_nodes = config.max_structure_nodes
@@ -309,7 +307,7 @@ def example_3_structure_evolution():
         # Balance (check branching factor consistency)
         children_counts = {}
         for gene in genome.genes:
-            parent_id = gene.get('parent_id')
+            parent_id = gene.get("parent_id")
             if parent_id:
                 children_counts[parent_id] = children_counts.get(parent_id, 0) + 1
 
@@ -322,9 +320,9 @@ def example_3_structure_evolution():
 
         # Combine
         fitness = (
-            simplicity * weights['simplicity'] +
-            depth_score * weights['depth'] +
-            balance * weights['balance']
+            simplicity * weights["simplicity"]
+            + depth_score * weights["depth"]
+            + balance * weights["balance"]
         )
 
         return min(1.0, max(0.0, fitness))
@@ -357,12 +355,20 @@ def example_3_structure_evolution():
     print_subsection("Fitness Progression")
     history = evolver.history
     if history:
-        sample_generations = [0, len(history)//4, len(history)//2, 3*len(history)//4, len(history)-1]
+        sample_generations = [
+            0,
+            len(history) // 4,
+            len(history) // 2,
+            3 * len(history) // 4,
+            len(history) - 1,
+        ]
         for gen_idx in sample_generations:
             if gen_idx < len(history):
                 gen = history[gen_idx]
-                print(f"  Gen {gen['generation']:2d}: best={gen['best_fitness']:.3f}, "
-                      f"avg={gen['avg_fitness']:.3f}")
+                print(
+                    f"  Gen {gen['generation']:2d}: best={gen['best_fitness']:.3f}, "
+                    f"avg={gen['avg_fitness']:.3f}"
+                )
 
     return evolver, best_genome
 
@@ -370,6 +376,7 @@ def example_3_structure_evolution():
 # ============================================================================
 # Example 4: End-to-End Workflow
 # ============================================================================
+
 
 def example_4_end_to_end_workflow():
     """
@@ -396,13 +403,11 @@ def example_4_end_to_end_workflow():
                     task_type=task_type,
                     total_nodes=4 + i,
                     max_depth=2 + (1 if complexity > 0.6 else 0),
-                    fitness=0.65 + complexity * 0.2 + random.random() * 0.05
+                    fitness=0.65 + complexity * 0.2 + random.random() * 0.05,
                 )
 
                 optimizer.record_structure_performance(
-                    root=structure,
-                    task_type=task_type,
-                    task_complexity=complexity
+                    root=structure, task_type=task_type, task_complexity=complexity
                 )
                 recorded_count += 1
 
@@ -420,8 +425,9 @@ def example_4_end_to_end_workflow():
             template = manager.learn_from_snapshots(snapshots, task_type)
             if template:
                 learned_templates += 1
-                print(f"✓ Learned template for '{task_type}' "
-                      f"(fitness={template.avg_fitness:.2f})")
+                print(
+                    f"✓ Learned template for '{task_type}' " f"(fitness={template.avg_fitness:.2f})"
+                )
 
     # Step 3: Evolve structures for a specific optimization goal
     print_subsection("Step 3: Evolving Structures for Optimization")
@@ -432,7 +438,7 @@ def example_4_end_to_end_workflow():
         mutation_rate=0.35,
         crossover_rate=0.7,
         max_structure_depth=3,
-        max_structure_nodes=12
+        max_structure_nodes=12,
     )
 
     evolver = StructureEvolver(config)
@@ -447,7 +453,7 @@ def example_4_end_to_end_workflow():
 
     test_tasks = [
         ("research", "Research new market trends", 0.6),
-        ("analysis", "Analyze user behavior patterns", 0.65)
+        ("analysis", "Analyze user behavior patterns", 0.65),
     ]
 
     for task_type, description, complexity in test_tasks:
@@ -540,6 +546,7 @@ Next steps:
     except Exception as e:
         print(f"\n❌ Error running demo: {e}")
         import traceback
+
         traceback.print_exc()
 
     print("\n" + "=" * 70 + "\n")

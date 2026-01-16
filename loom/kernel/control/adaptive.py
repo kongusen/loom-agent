@@ -22,63 +22,68 @@ from loom.protocol.cloudevents import CloudEvent
 # 1. ANOMALY TYPES (Framework defines WHAT can be detected)
 # =============================================================================
 
+
 class AnomalyType(Enum):
     """
     Types of anomalies that the framework can detect.
     Framework responsibility: Detection only.
     """
-    REPETITIVE_REASONING = auto()   # Agent repeating same thoughts
-    HALLUCINATION = auto()          # Agent producing unreliable content
-    STALLED = auto()                # Agent stuck, no progress
-    VALIDATION_FAILED = auto()      # Output failed quality checks
-    DEPTH_EXCEEDED = auto()         # Fractal depth limit hit
-    BUDGET_EXHAUSTED = auto()       # Token/resource budget depleted
-    TIMEOUT_APPROACHING = auto()    # Deadline pressure
-    TOOL_ERROR = auto()             # Tool execution failed
-    CONVERGENCE_DETECTED = auto()   # Agent successfully converging (positive)
+
+    REPETITIVE_REASONING = auto()  # Agent repeating same thoughts
+    HALLUCINATION = auto()  # Agent producing unreliable content
+    STALLED = auto()  # Agent stuck, no progress
+    VALIDATION_FAILED = auto()  # Output failed quality checks
+    DEPTH_EXCEEDED = auto()  # Fractal depth limit hit
+    BUDGET_EXHAUSTED = auto()  # Token/resource budget depleted
+    TIMEOUT_APPROACHING = auto()  # Deadline pressure
+    TOOL_ERROR = auto()  # Tool execution failed
+    CONVERGENCE_DETECTED = auto()  # Agent successfully converging (positive)
 
 
 # =============================================================================
 # 2. RECOVERY ACTIONS (Framework defines WHAT can be done)
 # =============================================================================
 
+
 class RecoveryAction(Enum):
     """
     Atomic recovery actions that framework can execute.
     These are building blocks; developers compose them into strategies.
     """
+
     # Temperature Control
-    INCREASE_TEMPERATURE = auto()   # Add noise to escape local minima
-    DECREASE_TEMPERATURE = auto()   # Reduce noise for convergence
-    RESET_TEMPERATURE = auto()      # Return to default
+    INCREASE_TEMPERATURE = auto()  # Add noise to escape local minima
+    DECREASE_TEMPERATURE = auto()  # Reduce noise for convergence
+    RESET_TEMPERATURE = auto()  # Return to default
 
     # Prompt Engineering
     INJECT_REFLECTION_PROMPT = auto()  # Force agent to reflect
-    INJECT_SIMPLIFY_PROMPT = auto()    # Ask agent to simplify approach
-    INJECT_ALTERNATIVE_PROMPT = auto() # Suggest trying different approach
+    INJECT_SIMPLIFY_PROMPT = auto()  # Ask agent to simplify approach
+    INJECT_ALTERNATIVE_PROMPT = auto()  # Suggest trying different approach
 
     # Control Flow
-    TRIGGER_HITL = auto()           # Human-in-the-Loop approval
-    FORCE_TERMINATE = auto()        # Stop execution immediately
-    RETRY_CURRENT_STEP = auto()     # Retry the same step
-    ROLLBACK_TO_CHECKPOINT = auto() # Restore previous state
+    TRIGGER_HITL = auto()  # Human-in-the-Loop approval
+    FORCE_TERMINATE = auto()  # Stop execution immediately
+    RETRY_CURRENT_STEP = auto()  # Retry the same step
+    ROLLBACK_TO_CHECKPOINT = auto()  # Restore previous state
 
     # Model/Resource Control
-    SWITCH_MODEL = auto()           # Try different LLM
-    REDUCE_MAX_TOKENS = auto()      # Limit output length
-    EXTEND_TIMEOUT = auto()         # Give more time
+    SWITCH_MODEL = auto()  # Try different LLM
+    REDUCE_MAX_TOKENS = auto()  # Limit output length
+    EXTEND_TIMEOUT = auto()  # Give more time
 
     # Observability
-    EMIT_WARNING_EVENT = auto()     # Alert but continue
-    LOG_FOR_ANALYSIS = auto()       # Record for post-mortem
+    EMIT_WARNING_EVENT = auto()  # Alert but continue
+    LOG_FOR_ANALYSIS = auto()  # Record for post-mortem
 
     # Developer Extension
-    CUSTOM_HANDLER = auto()         # Execute developer callback
+    CUSTOM_HANDLER = auto()  # Execute developer callback
 
 
 # =============================================================================
 # 3. RECOVERY STRATEGY (Developer configures HOW to respond)
 # =============================================================================
+
 
 @dataclass
 class RecoveryStrategy:
@@ -87,11 +92,14 @@ class RecoveryStrategy:
 
     Developers configure these to define recovery behavior.
     """
+
     actions: list[RecoveryAction]
     params: dict[str, Any] = field(default_factory=dict)
 
     # Optional custom handler for CUSTOM_HANDLER action
-    custom_handler: Callable[[CloudEvent, 'AnomalyContext'], Awaitable[CloudEvent | None]] | None = None
+    custom_handler: (
+        Callable[[CloudEvent, "AnomalyContext"], Awaitable[CloudEvent | None]] | None
+    ) = None
 
     # Strategy metadata
     description: str = ""
@@ -103,17 +111,19 @@ class AnomalyContext:
     """
     Context passed to custom handlers with full anomaly information.
     """
+
     anomaly_type: AnomalyType
     event: CloudEvent
     agent_id: str
     occurrence_count: int  # How many times this anomaly occurred for this agent
-    history: list[dict]    # Recent anomaly history
+    history: list[dict]  # Recent anomaly history
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # =============================================================================
 # 4. ADAPTIVE CONFIG (Developer's control surface)
 # =============================================================================
+
 
 @dataclass
 class AdaptiveConfig:
@@ -142,6 +152,7 @@ class AdaptiveConfig:
     )
     ```
     """
+
     # Core strategy mapping
     strategies: dict[AnomalyType, RecoveryStrategy] = field(default_factory=dict)
 
@@ -150,7 +161,7 @@ class AdaptiveConfig:
     temperature_bounds: tuple = (0.0, 1.0)  # (min, max)
 
     # Detection thresholds (developer can tune sensitivity)
-    repetition_threshold: int = 3      # N similar thoughts = repetitive
+    repetition_threshold: int = 3  # N similar thoughts = repetitive
     stall_threshold_seconds: float = 30.0  # No progress for N seconds = stalled
 
     # Escalation config
@@ -167,6 +178,7 @@ class AdaptiveConfig:
 # 5. DEFAULT STRATEGIES (Sensible defaults, fully overridable)
 # =============================================================================
 
+
 def create_default_config() -> AdaptiveConfig:
     """
     Factory for default configuration.
@@ -180,35 +192,41 @@ def create_default_config() -> AdaptiveConfig:
     return AdaptiveConfig(
         strategies={
             AnomalyType.REPETITIVE_REASONING: RecoveryStrategy(
-                actions=[RecoveryAction.EMIT_WARNING_EVENT, RecoveryAction.INJECT_REFLECTION_PROMPT],
-                params={"reflection_prompt": "I notice you may be repeating yourself. Please try a different approach."},
-                description="Warn and suggest reflection on repetition"
+                actions=[
+                    RecoveryAction.EMIT_WARNING_EVENT,
+                    RecoveryAction.INJECT_REFLECTION_PROMPT,
+                ],
+                params={
+                    "reflection_prompt": "I notice you may be repeating yourself. Please try a different approach."
+                },
+                description="Warn and suggest reflection on repetition",
             ),
             AnomalyType.STALLED: RecoveryStrategy(
                 actions=[RecoveryAction.EMIT_WARNING_EVENT, RecoveryAction.RETRY_CURRENT_STEP],
                 params={"max_retries": 2},
-                description="Warn and retry on stall"
+                description="Warn and retry on stall",
             ),
             AnomalyType.VALIDATION_FAILED: RecoveryStrategy(
                 actions=[RecoveryAction.LOG_FOR_ANALYSIS, RecoveryAction.RETRY_CURRENT_STEP],
-                description="Log and retry on validation failure"
+                description="Log and retry on validation failure",
             ),
             AnomalyType.CONVERGENCE_DETECTED: RecoveryStrategy(
                 actions=[RecoveryAction.DECREASE_TEMPERATURE],
                 params={"temperature_delta": -0.2},
-                description="Reduce noise when converging"
+                description="Reduce noise when converging",
             ),
         },
         escalation_strategy=RecoveryStrategy(
             actions=[RecoveryAction.TRIGGER_HITL, RecoveryAction.FORCE_TERMINATE],
-            description="Ultimate fallback: human intervention then terminate"
-        )
+            description="Ultimate fallback: human intervention then terminate",
+        ),
     )
 
 
 # =============================================================================
 # 6. ANOMALY DETECTOR (Framework's detection logic)
 # =============================================================================
+
 
 class AnomalyDetector:
     """
@@ -286,6 +304,7 @@ class AnomalyDetector:
 # 7. STRATEGY EXECUTOR (Framework executes developer's choices)
 # =============================================================================
 
+
 class StrategyExecutor:
     """
     Executes recovery strategies.
@@ -300,10 +319,7 @@ class StrategyExecutor:
         self._current_temps: dict[str, float] = {}  # agent_id -> temperature
 
     async def execute(
-        self,
-        strategy: RecoveryStrategy,
-        context: AnomalyContext,
-        event: CloudEvent
+        self, strategy: RecoveryStrategy, context: AnomalyContext, event: CloudEvent
     ) -> CloudEvent | None:
         """
         Execute a recovery strategy, returning modified event (or None to block).
@@ -325,7 +341,7 @@ class StrategyExecutor:
         action: RecoveryAction,
         strategy: RecoveryStrategy,
         context: AnomalyContext,
-        event: CloudEvent
+        event: CloudEvent,
     ) -> CloudEvent | None:
         """Execute a single recovery action."""
 
@@ -359,16 +375,18 @@ class StrategyExecutor:
         elif action == RecoveryAction.TRIGGER_HITL:
             # Emit HITL request event
             if self.dispatcher:
-                await self.dispatcher.dispatch(CloudEvent.create(
-                    source="/kernel/adaptive",
-                    type="hitl.request",
-                    subject=agent_id,
-                    data={
-                        "anomaly": context.anomaly_type.name,
-                        "reason": strategy.description,
-                        "context": context.metadata
-                    }
-                ))
+                await self.dispatcher.dispatch(
+                    CloudEvent.create(
+                        source="/kernel/adaptive",
+                        type="hitl.request",
+                        subject=agent_id,
+                        data={
+                            "anomaly": context.anomaly_type.name,
+                            "reason": strategy.description,
+                            "context": context.metadata,
+                        },
+                    )
+                )
             # Block until approved (or let HITL interceptor handle)
             event.extensions = event.extensions or {}
             event.extensions["requires_hitl"] = True
@@ -377,39 +395,45 @@ class StrategyExecutor:
         elif action == RecoveryAction.FORCE_TERMINATE:
             # Return None to block the event
             if self.dispatcher:
-                await self.dispatcher.dispatch(CloudEvent.create(
-                    source="/kernel/adaptive",
-                    type="agent.terminated",
-                    subject=agent_id,
-                    data={
-                        "reason": f"Force terminated due to: {context.anomaly_type.name}",
-                        "strategy": strategy.description
-                    }
-                ))
+                await self.dispatcher.dispatch(
+                    CloudEvent.create(
+                        source="/kernel/adaptive",
+                        type="agent.terminated",
+                        subject=agent_id,
+                        data={
+                            "reason": f"Force terminated due to: {context.anomaly_type.name}",
+                            "strategy": strategy.description,
+                        },
+                    )
+                )
             return None
 
         elif action == RecoveryAction.EMIT_WARNING_EVENT:
             if self.dispatcher:
-                await self.dispatcher.dispatch(CloudEvent.create(
-                    source="/kernel/adaptive",
-                    type="agent.warning",
-                    subject=agent_id,
-                    data={
-                        "anomaly": context.anomaly_type.name,
-                        "occurrence_count": context.occurrence_count,
-                        "message": strategy.description
-                    }
-                ))
+                await self.dispatcher.dispatch(
+                    CloudEvent.create(
+                        source="/kernel/adaptive",
+                        type="agent.warning",
+                        subject=agent_id,
+                        data={
+                            "anomaly": context.anomaly_type.name,
+                            "occurrence_count": context.occurrence_count,
+                            "message": strategy.description,
+                        },
+                    )
+                )
             return event
 
         elif action == RecoveryAction.LOG_FOR_ANALYSIS:
             # Log for post-mortem (implement logging)
             event.extensions = event.extensions or {}
-            event.extensions.setdefault("anomaly_log", []).append({
-                "type": context.anomaly_type.name,
-                "count": context.occurrence_count,
-                "timestamp": event.time
-            })
+            event.extensions.setdefault("anomaly_log", []).append(
+                {
+                    "type": context.anomaly_type.name,
+                    "count": context.occurrence_count,
+                    "timestamp": event.time,
+                }
+            )
             return event
 
         elif action == RecoveryAction.CUSTOM_HANDLER:
@@ -425,7 +449,7 @@ class StrategyExecutor:
         current = self._current_temps.get(agent_id, self.config.default_temperature)
         new_temp = max(
             self.config.temperature_bounds[0],
-            min(self.config.temperature_bounds[1], current + delta)
+            min(self.config.temperature_bounds[1], current + delta),
         )
         self._current_temps[agent_id] = new_temp
         return self._inject_temperature(event, new_temp)
@@ -450,6 +474,7 @@ class StrategyExecutor:
 # =============================================================================
 # 8. MAIN INTERCEPTOR (Orchestrates Detection → Strategy → Execution)
 # =============================================================================
+
 
 class AdaptiveLLMInterceptor(Interceptor):
     """
@@ -517,7 +542,7 @@ class AdaptiveLLMInterceptor(Interceptor):
             agent_id=agent_id,
             occurrence_count=occurrence_count,
             history=self._anomaly_history.get(agent_id, []),
-            metadata={"extensions": event.extensions}
+            metadata={"extensions": event.extensions},
         )
 
         # Record in history
@@ -530,7 +555,12 @@ class AdaptiveLLMInterceptor(Interceptor):
         strategy = self.config.get_strategy(anomaly)
 
         # Check for escalation
-        if strategy and occurrence_count > strategy.max_retries and self.config.escalation_enabled and occurrence_count > self.config.escalation_after_failures:
+        if (
+            strategy
+            and occurrence_count > strategy.max_retries
+            and self.config.escalation_enabled
+            and occurrence_count > self.config.escalation_after_failures
+        ):
             strategy = self.config.escalation_strategy
 
         if strategy is None:

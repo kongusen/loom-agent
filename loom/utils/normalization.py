@@ -16,10 +16,7 @@ class DataNormalizer:
 
     @staticmethod
     def normalize_to_size(
-        obj: Any,
-        max_depth: int = 3,
-        max_bytes: int = 100_000,
-        string_limit: int = 20_000
+        obj: Any, max_depth: int = 3, max_bytes: int = 100_000, string_limit: int = 20_000
     ) -> Any:
         """
         Normalize an object to fit within a size limit by iteratively reducing depth.
@@ -40,7 +37,7 @@ class DataNormalizer:
         max_depth: int,
         current_depth: int = 0,
         visited: set[int] | None = None,
-        string_limit: int = 20_000
+        string_limit: int = 20_000,
     ) -> Any:
         if visited is None:
             visited = set()
@@ -66,51 +63,51 @@ class DataNormalizer:
         if current_depth >= max_depth:
             if isinstance(obj, list | tuple):
                 return f"[Array({len(obj)})]"
-            if hasattr(obj, '__class__'):
-                 return f"[{obj.__class__.__name__}]"
+            if hasattr(obj, "__class__"):
+                return f"[{obj.__class__.__name__}]"
             return "[Object]"
 
         # specific framework handling (e.g. Pydantic)
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
-             try:
-                 # Pydantic v2
-                 data = obj.model_dump()
-                 return DataNormalizer._normalize(data, max_depth, current_depth, visited.copy())
-             except Exception:
-                 pass
+            try:
+                # Pydantic v2
+                data = obj.model_dump()
+                return DataNormalizer._normalize(data, max_depth, current_depth, visited.copy())
+            except Exception:
+                pass
 
         if hasattr(obj, "dict") and callable(obj.dict):
-             try:
-                 # Pydantic v1
-                 data = obj.dict()
-                 return DataNormalizer._normalize(data, max_depth, current_depth, visited.copy())
-             except Exception:
-                 pass
+            try:
+                # Pydantic v1
+                data = obj.dict()
+                return DataNormalizer._normalize(data, max_depth, current_depth, visited.copy())
+            except Exception:
+                pass
 
         # Dictionaries
         if isinstance(obj, dict):
-             dict_result = {}
-             keys = list(obj.keys())
-             # Limit keys just in case
-             for key in keys[:50]:
-                 dict_result[str(key)] = DataNormalizer._normalize(
-                     obj[key], max_depth, current_depth + 1, visited.copy()
-                 )
-             if len(keys) > 50:
-                 dict_result["..."] = f"{len(keys) - 50} more keys"
-             return dict_result
+            dict_result = {}
+            keys = list(obj.keys())
+            # Limit keys just in case
+            for key in keys[:50]:
+                dict_result[str(key)] = DataNormalizer._normalize(
+                    obj[key], max_depth, current_depth + 1, visited.copy()
+                )
+            if len(keys) > 50:
+                dict_result["..."] = f"{len(keys) - 50} more keys"
+            return dict_result
 
         # Lists/Tuples
         if isinstance(obj, list | tuple):
-             list_result = []
-             # Limit array items
-             for item in obj[:50]:
-                 list_result.append(DataNormalizer._normalize(
-                     item, max_depth, current_depth + 1, visited.copy()
-                 ))
-             if len(obj) > 50:
-                 list_result.append(f"... {len(obj) - 50} more items")
-             return list_result
+            list_result = []
+            # Limit array items
+            for item in obj[:50]:
+                list_result.append(
+                    DataNormalizer._normalize(item, max_depth, current_depth + 1, visited.copy())
+                )
+            if len(obj) > 50:
+                list_result.append(f"... {len(obj) - 50} more items")
+            return list_result
 
         # General Objects (__dict__)
         if hasattr(obj, "__dict__"):

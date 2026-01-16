@@ -44,8 +44,8 @@ async def test_configurable_entropy_control():
             trigger_words=["analyze"],
             # But still have warning thresholds
             warn_depth=3,
-            warn_thoughts=5
-        )
+            warn_thoughts=5,
+        ),
     )
 
     print("✓ Agent created with unlimited policy:")
@@ -65,12 +65,8 @@ async def test_streaming_with_tool_calls():
             # Stream a tool call
             yield StreamChunk(
                 type="tool_call",
-                content={
-                    "name": "test_calculator",
-                    "arguments": {"expr": "2+2"},
-                    "id": "tc_123"
-                },
-                metadata={}
+                content={"name": "test_calculator", "arguments": {"expr": "2+2"}, "id": "tc_123"},
+                metadata={},
             )
             yield StreamChunk(type="done", content="", metadata={})
 
@@ -82,32 +78,26 @@ async def test_streaming_with_tool_calls():
         return {"result": 4}
 
     tool_def = MCPToolDefinition(
-        name="test_calculator",
-        description="A calculator",
-        input_schema={"type": "object"}
+        name="test_calculator", description="A calculator", input_schema={"type": "object"}
     )
 
     tool = ToolNode(
         node_id="tool/test_calculator",
         dispatcher=dispatcher,
         tool_def=tool_def,
-        func=calculator_func
+        func=calculator_func,
     )
 
     agent = AgentNode(
         node_id="streaming-agent",
         dispatcher=dispatcher,
         provider=ToolCallStreamProvider(),
-        tools=[tool]
+        tools=[tool],
     )
 
     await asyncio.sleep(0.1)  # Let subscriptions settle
 
-    event = CloudEvent.create(
-        source="user",
-        type="node.request",
-        data={"task": "Calculate 2+2"}
-    )
+    event = CloudEvent.create(source="user", type="node.request", data={"task": "Calculate 2+2"})
 
     result = await agent.process(event)
     print(f"✓ Streaming mode handled tool call: {result}")
@@ -128,9 +118,9 @@ async def test_cognitive_state_modeling():
         thinking_policy=ThinkingPolicy(
             enabled=True,
             trigger_words=["analyze"],
-            max_depth=2  # Some limit for testing
+            max_depth=2,  # Some limit for testing
         ),
-        projection_strategy="selective"  # Use projection operator
+        projection_strategy="selective",  # Use projection operator
     )
 
     # Check initial state
@@ -196,9 +186,9 @@ async def test_projection_operator():
 
 
 async def main():
-    print("="*60)
+    print("=" * 60)
     print("ADVANCED FEATURES VERIFICATION")
-    print("="*60)
+    print("=" * 60)
 
     try:
         await test_configurable_entropy_control()
@@ -206,9 +196,9 @@ async def main():
         await test_cognitive_state_modeling()
         await test_projection_operator()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✅ ALL ADVANCED FEATURES TESTS PASSED")
-        print("="*60)
+        print("=" * 60)
         print("\nImplemented:")
         print("- ✅ Configurable entropy control (user choice)")
         print("- ✅ Streaming mode with tool calls")
@@ -218,11 +208,13 @@ async def main():
     except AssertionError as e:
         print(f"\n❌ TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
     except Exception as e:
         print(f"\n❌ ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

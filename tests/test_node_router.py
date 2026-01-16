@@ -35,6 +35,7 @@ class TestAttentionRouter:
     async def dispatcher(self):
         """Create a Dispatcher with a test bus."""
         from loom.kernel.core.bus import UniversalEventBus
+
         bus = UniversalEventBus()
         await bus.connect()
         dispatcher = Dispatcher(bus)
@@ -49,20 +50,14 @@ class TestAttentionRouter:
 
     def test_initialization(self, dispatcher, mock_provider):
         """Test router initialization."""
-        agents = [
-            MockAgent("agent1", "Role 1"),
-            MockAgent("agent2", "Role 2")
-        ]
+        agents = [MockAgent("agent1", "Role 1"), MockAgent("agent2", "Role 2")]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
         assert router.node_id == "router"
         assert len(router.agents) == 2
         assert "agent1" in router.agents
         assert "agent2" in router.agents
-        assert router.registry == {
-            "agent1": "Role 1",
-            "agent2": "Role 2"
-        }
+        assert router.registry == {"agent1": "Role 1", "agent2": "Role 2"}
 
     def test_initialization_with_empty_agents(self, dispatcher, mock_provider):
         """Test router with no agents."""
@@ -76,11 +71,7 @@ class TestAttentionRouter:
         agents = [MockAgent("agent1", "Role 1")]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={})
 
         result = await router.process(event)
         assert result == {"error": "No task provided"}
@@ -88,10 +79,7 @@ class TestAttentionRouter:
     @pytest.mark.asyncio
     async def test_process_successful_routing(self, dispatcher, mock_provider):
         """Test successful routing to an agent."""
-        agents = [
-            MockAgent("coder", "Code expert"),
-            MockAgent("writer", "Writing expert")
-        ]
+        agents = [MockAgent("coder", "Code expert"), MockAgent("writer", "Writing expert")]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
         # Mock LLM response
@@ -110,9 +98,7 @@ class TestAttentionRouter:
         router.call = mock_call
 
         event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"task": "Write a Python function"}
+            source="/caller", type="node.request", data={"task": "Write a Python function"}
         )
 
         result = await router.process(event)
@@ -127,10 +113,7 @@ class TestAttentionRouter:
     @pytest.mark.asyncio
     async def test_process_with_fuzzy_match(self, dispatcher, mock_provider):
         """Test routing with fuzzy matching in LLM response."""
-        agents = [
-            MockAgent("agent_a", "Role A"),
-            MockAgent("agent_b", "Role B")
-        ]
+        agents = [MockAgent("agent_a", "Role A"), MockAgent("agent_b", "Role B")]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
         # Mock LLM response with extra text
@@ -144,11 +127,7 @@ class TestAttentionRouter:
 
         router.call = mock_call
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"task": "test task"}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"task": "test task"})
 
         result = await router.process(event)
 
@@ -165,11 +144,7 @@ class TestAttentionRouter:
         mock_response.content = "nonexistent_agent"
         mock_provider.chat = AsyncMock(return_value=mock_response)
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"task": "test task"}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"task": "test task"})
 
         result = await router.process(event)
 
@@ -179,10 +154,7 @@ class TestAttentionRouter:
     @pytest.mark.asyncio
     async def test_process_with_whitespace_selection(self, dispatcher, mock_provider):
         """Test routing when LLM response has whitespace."""
-        agents = [
-            MockAgent("agent1", "Role 1"),
-            MockAgent("agent2", "Role 2")
-        ]
+        agents = [MockAgent("agent1", "Role 1"), MockAgent("agent2", "Role 2")]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
         # Mock LLM response with whitespace
@@ -196,11 +168,7 @@ class TestAttentionRouter:
 
         router.call = mock_call
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"task": "test task"}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"task": "test task"})
 
         result = await router.process(event)
 
@@ -212,14 +180,14 @@ class TestAttentionRouter:
         agents = [
             MockAgent("agent_1", "Expert in Python"),
             MockAgent("agent_2", "Expert in JavaScript"),
-            MockAgent("agent_3", "Expert in Go")
+            MockAgent("agent_3", "Expert in Go"),
         ]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
         expected_registry = {
             "agent_1": "Expert in Python",
             "agent_2": "Expert in JavaScript",
-            "agent_3": "Expert in Go"
+            "agent_3": "Expert in Go",
         }
         assert router.registry == expected_registry
 
@@ -229,7 +197,7 @@ class TestAttentionRouter:
         agents = [
             MockAgent("agent1", "Role 1"),
             MockAgent("agent2", "Role 2"),
-            MockAgent("agent3", "Role 3")
+            MockAgent("agent3", "Role 3"),
         ]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
@@ -243,11 +211,7 @@ class TestAttentionRouter:
 
         router.call = mock_call
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"task": "test task"}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"task": "test task"})
 
         await router.process(event)
 
@@ -270,7 +234,7 @@ class TestAttentionRouter:
         """Test that router actually calls the selected agent."""
         agents = [
             MockAgent("agent1", "Role 1", process_result={"output": "Result 1"}),
-            MockAgent("agent2", "Role 2", process_result={"output": "Result 2"})
+            MockAgent("agent2", "Role 2", process_result={"output": "Result 2"}),
         ]
         router = AttentionRouter("router", dispatcher, agents, mock_provider)
 
@@ -288,11 +252,7 @@ class TestAttentionRouter:
 
         router.call = mock_call
 
-        event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"task": "test task"}
-        )
+        event = CloudEvent.create(source="/caller", type="node.request", data={"task": "test task"})
 
         result = await router.process(event)
 
@@ -320,9 +280,7 @@ class TestAttentionRouter:
         router.call = mock_call
 
         event = CloudEvent.create(
-            source="/caller",
-            type="node.request",
-            data={"task": "Write code"}
+            source="/caller", type="node.request", data={"task": "Write code"}
         )
 
         await router.process(event)

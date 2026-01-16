@@ -15,11 +15,13 @@ if TYPE_CHECKING:
 # Node Protocol
 # ----------------------------------------------------------------------
 
+
 @runtime_checkable
 class NodeProtocol(Protocol):
     """
     Protocol for any Node in the Loom Fractal System.
     """
+
     node_id: str
     source_uri: str
 
@@ -35,15 +37,18 @@ class NodeProtocol(Protocol):
         """
         ...
 
+
 # ----------------------------------------------------------------------
 # Memory Protocol
 # ----------------------------------------------------------------------
+
 
 @runtime_checkable
 class MemoryStrategy(Protocol):
     """
     Protocol for Memory interactions.
     """
+
     async def add(self, role: str, content: str, metadata: dict[str, Any] | None = None) -> None:
         """Add a memory entry."""
         ...
@@ -110,6 +115,7 @@ class ReflectiveMemoryStrategy(MemoryStrategy, Protocol):
         """
         ...
 
+
 # ----------------------------------------------------------------------
 # LLM Protocol
 # ----------------------------------------------------------------------
@@ -122,31 +128,31 @@ class ReflectiveMemoryStrategy(MemoryStrategy, Protocol):
 # OR we rely on structural subtyping.
 # But let's try to be precise if possible.
 
+
 @runtime_checkable
 class LLMProviderProtocol(Protocol):
     """
     Protocol for LLM Providers.
     """
+
     async def chat(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None
-    ) -> Any: # Returns LLMResponse compatible object
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> Any:  # Returns LLMResponse compatible object
         ...
 
     async def stream_chat(
-        self,
-        _messages: list[dict[str, Any]],
-        _tools: list[dict[str, Any]] | None = None
+        self, _messages: list[dict[str, Any]], _tools: list[dict[str, Any]] | None = None
     ) -> AsyncGenerator["StreamChunk", None]:
         # Stub to indicate this is an async generator
         if False:
             yield  # type: ignore[unreachable]
         raise NotImplementedError
 
+
 # ----------------------------------------------------------------------
 # Infra Protocols
 # ----------------------------------------------------------------------
+
 
 @runtime_checkable
 class TransportProtocol(Protocol):
@@ -156,16 +162,19 @@ class TransportProtocol(Protocol):
     FIXED: Added unsubscribe() to prevent memory leaks.
     Handlers must be unsubscribed when no longer needed.
     """
+
     async def connect(self) -> None: ...
     async def disconnect(self) -> None: ...
     async def publish(self, topic: str, event: CloudEvent) -> None: ...
     async def subscribe(self, topic: str, handler: Any) -> None: ...
     async def unsubscribe(self, topic: str, handler: Any) -> None: ...
 
+
 @runtime_checkable
 class EventBusProtocol(Protocol):
     """
     Protocol for the Universal Event Bus.
     """
+
     async def publish(self, event: CloudEvent) -> None: ...
     async def subscribe(self, topic: str, handler: Any) -> None: ...

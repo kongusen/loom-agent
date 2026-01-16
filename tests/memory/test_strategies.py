@@ -64,15 +64,13 @@ class TestAutoStrategy:
     async def test_curate_includes_l2_working_memory(self, mock_memory, config):
         """Test that L2 working memory is included."""
         l2_unit = MemoryUnit(
-            content="Working memory content",
-            tier=MemoryTier.L2_WORKING,
-            type=MemoryType.PLAN
+            content="Working memory content", tier=MemoryTier.L2_WORKING, type=MemoryType.PLAN
         )
         mock_memory.query.side_effect = [
             [l2_unit],  # L2 query
-            [],         # L1 query
-            [],         # L3 query
-            [],         # L4 query
+            [],  # L1 query
+            [],  # L3 query
+            [],  # L4 query
         ]
 
         strategy = AutoStrategy()
@@ -86,18 +84,14 @@ class TestAutoStrategy:
         """Test that recent L1 items are included."""
         # Create 15 L1 items
         l1_items = [
-            MemoryUnit(
-                content=f"Message {i}",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            )
+            MemoryUnit(content=f"Message {i}", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
             for i in range(15)
         ]
         mock_memory.query.side_effect = [
-            [],              # L2 query
-            l1_items,        # L1 query
-            [],              # L3 query
-            [],              # L4 query
+            [],  # L2 query
+            l1_items,  # L1 query
+            [],  # L3 query
+            [],  # L4 query
         ]
 
         strategy = AutoStrategy()
@@ -112,14 +106,12 @@ class TestAutoStrategy:
         config.focus_distance = 1
 
         l3_unit = MemoryUnit(
-            content="Session plan",
-            tier=MemoryTier.L3_SESSION,
-            type=MemoryType.PLAN
+            content="Session plan", tier=MemoryTier.L3_SESSION, type=MemoryType.PLAN
         )
         mock_memory.query.side_effect = [
-            [],              # L2 query
-            [],              # L1 query
-            [l3_unit],       # L3 query
+            [],  # L2 query
+            [],  # L1 query
+            [l3_unit],  # L3 query
         ]
 
         strategy = AutoStrategy()
@@ -133,16 +125,12 @@ class TestAutoStrategy:
         """Test curation with focus_distance=2 (includes L4)."""
         config.focus_distance = 2
 
-        l4_unit = MemoryUnit(
-            content="Global fact",
-            tier=MemoryTier.L4_GLOBAL,
-            type=MemoryType.FACT
-        )
+        l4_unit = MemoryUnit(content="Global fact", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT)
         mock_memory.query.side_effect = [
-            [],              # L2 query
-            [],              # L1 query
-            [],              # L3 query
-            [l4_unit],       # L4 query (with task_context)
+            [],  # L2 query
+            [],  # L1 query
+            [],  # L3 query
+            [l4_unit],  # L4 query (with task_context)
         ]
 
         strategy = AutoStrategy()
@@ -187,15 +175,13 @@ class TestSnippetsStrategy:
     async def test_curate_includes_plan(self, mock_memory, config):
         """Test that core plans are included in full."""
         plan_unit = MemoryUnit(
-            content="Full plan content",
-            tier=MemoryTier.L2_WORKING,
-            type=MemoryType.PLAN
+            content="Full plan content", tier=MemoryTier.L2_WORKING, type=MemoryType.PLAN
         )
         mock_memory.query.side_effect = [
             [plan_unit],  # Plan query
-            [],           # Tool query
-            [],           # Fact query
-            [],           # Recent chat query
+            [],  # Tool query
+            [],  # Fact query
+            [],  # Recent chat query
         ]
 
         strategy = SnippetsStrategy()
@@ -213,16 +199,16 @@ class TestSnippetsStrategy:
             content="Full skill documentation",
             tier=MemoryTier.L2_WORKING,
             type=MemoryType.SKILL,
-            metadata={"name": "test_tool"}
+            metadata={"name": "test_tool"},
         )
         # Mock to_snippet method
         skill_unit.to_snippet = MagicMock(return_value="Skill snippet...")
 
         mock_memory.query.side_effect = [
-            [],           # Plan query
+            [],  # Plan query
             [skill_unit],  # Tool query
-            [],           # Fact query
-            [],           # Recent chat query
+            [],  # Fact query
+            [],  # Recent chat query
         ]
 
         strategy = SnippetsStrategy()
@@ -254,15 +240,15 @@ class TestSnippetsStrategy:
         fact_unit = MemoryUnit(
             content="Important fact with lots of details",
             tier=MemoryTier.L4_GLOBAL,
-            type=MemoryType.FACT
+            type=MemoryType.FACT,
         )
         fact_unit.to_snippet = MagicMock(return_value="Fact snippet...")
 
         mock_memory.query.side_effect = [
-            [],           # Plan query
-            [],           # Tool query
+            [],  # Plan query
+            [],  # Tool query
             [fact_unit],  # Fact query
-            [],           # Recent chat query
+            [],  # Recent chat query
         ]
 
         strategy = SnippetsStrategy()
@@ -279,16 +265,12 @@ class TestSnippetsStrategy:
         config.include_facts = False  # Disable facts
 
         messages = [
-            MemoryUnit(
-                content=f"Message {i}",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            )
+            MemoryUnit(content=f"Message {i}", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
             for i in range(10)
         ]
         mock_memory.query.side_effect = [
-            [],         # Plan query
-            messages,   # Recent chat query
+            [],  # Plan query
+            messages,  # Recent chat query
         ]
 
         strategy = SnippetsStrategy()
@@ -304,24 +286,18 @@ class TestSnippetsStrategy:
         config.include_facts = True
 
         skill = MemoryUnit(
-            content="Skill content",
-            tier=MemoryTier.L4_GLOBAL,
-            type=MemoryType.SKILL
+            content="Skill content", tier=MemoryTier.L4_GLOBAL, type=MemoryType.SKILL
         )
         skill.to_snippet = MagicMock(return_value="Skill snippet")
 
-        fact = MemoryUnit(
-            content="Fact content",
-            tier=MemoryTier.L4_GLOBAL,
-            type=MemoryType.FACT
-        )
+        fact = MemoryUnit(content="Fact content", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT)
         fact.to_snippet = MagicMock(return_value="Fact snippet")
 
         mock_memory.query.side_effect = [
-            [],         # Plan query
-            [skill],    # Tool query
-            [fact],     # Fact query
-            [],         # Recent chat query
+            [],  # Plan query
+            [skill],  # Tool query
+            [fact],  # Fact query
+            [],  # Recent chat query
         ]
 
         strategy = SnippetsStrategy()
@@ -337,6 +313,7 @@ class TestFocusedStrategy:
     def mock_memory(self):
         """Create a mock memory object."""
         from unittest.mock import AsyncMock
+
         memory = MagicMock()
         # FocusedStrategy uses memory.query() with await
         memory.query = AsyncMock(return_value=[])
@@ -357,30 +334,21 @@ class TestFocusedStrategy:
 
         # Result will be a coroutine (implementation bug/quirk)
         import inspect
+
         assert inspect.iscoroutine(result)
 
         # For now, skip this test as it exposes a bug
         # The implementation should be: return await AutoStrategy().curate(...)
-        pytest.skip("FocusedStrategy.curate() doesn't await AutoStrategy result (implementation bug)")
+        pytest.skip(
+            "FocusedStrategy.curate() doesn't await AutoStrategy result (implementation bug)"
+        )
 
     async def test_curate_with_task_context(self, mock_memory, config):
         """Test semantic search across all tiers with task context."""
         relevant_units = [
-            MemoryUnit(
-                content="Result 1",
-                tier=MemoryTier.L2_WORKING,
-                type=MemoryType.FACT
-            ),
-            MemoryUnit(
-                content="Plan result",
-                tier=MemoryTier.L3_SESSION,
-                type=MemoryType.PLAN
-            ),
-            MemoryUnit(
-                content="Result 3",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT
-            ),
+            MemoryUnit(content="Result 1", tier=MemoryTier.L2_WORKING, type=MemoryType.FACT),
+            MemoryUnit(content="Plan result", tier=MemoryTier.L3_SESSION, type=MemoryType.PLAN),
+            MemoryUnit(content="Result 3", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT),
         ]
         mock_memory.query.return_value = relevant_units
 

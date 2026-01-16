@@ -1,11 +1,10 @@
-
 import asyncio
 import logging
 
 try:
     import redis.asyncio as aioredis
 except ImportError:
-    aioredis = None # type: ignore
+    aioredis = None  # type: ignore
 
 import contextlib
 
@@ -15,6 +14,7 @@ from .base import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
 
+
 class RedisTransport(Transport):
     """
     Redis Pub/Sub Transport.
@@ -23,7 +23,9 @@ class RedisTransport(Transport):
 
     def __init__(self, redis_url: str = "redis://localhost:6379"):
         if not aioredis:
-            raise ImportError("redis package is required for RedisTransport. Install with 'pip install redis'")
+            raise ImportError(
+                "redis package is required for RedisTransport. Install with 'pip install redis'"
+            )
 
         self.redis_url = redis_url
         self.redis: aioredis.Redis | None = None
@@ -111,7 +113,7 @@ class RedisTransport(Transport):
     async def _listener(self):
         try:
             if not self.pubsub:
-                 return
+                return
             async for message in self.pubsub.listen():
                 if message["type"] == "pmessage":
                     channel = message["channel"]
@@ -147,9 +149,9 @@ class RedisTransport(Transport):
 
     async def _safe_exec(self, handler: EventHandler, event: CloudEvent):
         try:
-             await handler(event)
+            await handler(event)
         except Exception as e:
-             logger.error(f"Handler failed: {e}")
+            logger.error(f"Handler failed: {e}")
 
     def _to_channel(self, topic: str) -> str:
         # loom.topic.sub
@@ -162,4 +164,5 @@ class RedisTransport(Transport):
     def _match(self, channel: str, pattern: str) -> bool:
         # Redis-style glob matching implemented in Python for dispatch
         import fnmatch
+
         return fnmatch.fnmatch(channel, pattern)

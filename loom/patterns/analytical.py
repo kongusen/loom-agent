@@ -24,10 +24,7 @@ class AnalyticalPattern(Pattern):
     """
 
     def __init__(self):
-        super().__init__(
-            name="analytical",
-            description="Deep analysis with systematic reasoning"
-        )
+        super().__init__(name="analytical", description="Deep analysis with systematic reasoning")
 
     def get_config(self):
         """获取分析模式配置"""
@@ -42,6 +39,6 @@ class AnalyticalPattern(Pattern):
                     "You are an analytical thinker. "
                     "Approach problems systematically, consider multiple perspectives, "
                     "and provide well-reasoned conclusions."
-                )
+                ),
             )
         )

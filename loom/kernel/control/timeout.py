@@ -2,7 +2,6 @@
 Standard Kernel Interceptors.
 """
 
-
 from loom.kernel.control.base import Interceptor
 from loom.protocol.cloudevents import CloudEvent
 
@@ -12,6 +11,7 @@ class TimeoutInterceptor(Interceptor):
     Enforces a timeout on event processing by injecting a deadline constraint.
     The Dispatcher or Transport is responsible for respecting this constraint.
     """
+
     def __init__(self, default_timeout_sec: float = 30.0):
         self.default_timeout_sec = default_timeout_sec
 

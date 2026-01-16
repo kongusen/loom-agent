@@ -33,8 +33,9 @@ def configure_logging(log_level: str = "INFO", json_format: bool = False) -> Non
         wrapper_class=structlog.make_filtering_bound_logger(level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True
+        cache_logger_on_first_use=True,
     )
+
 
 def get_logger(name: str) -> Any:
     """

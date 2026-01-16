@@ -10,22 +10,26 @@ class MemoryValidator(Protocol):
     """
     Protocol for assessing the value/importance of a memory entry.
     """
+
     async def validate(self, content: Any) -> float:
         """
         Return an importance score between 0.0 and 1.0.
         """
         ...
 
+
 @runtime_checkable
 class ContextSanitizer(Protocol):
     """
     Protocol for cleaning and summarizing context.
     """
+
     async def sanitize(self, context: str, target_token_limit: int) -> str:
         """
         Reduce context to meet token limit while preserving meaning.
         """
         ...
+
 
 @runtime_checkable
 class ProjectStateObject(Protocol):
@@ -33,6 +37,7 @@ class ProjectStateObject(Protocol):
     Protocol for the Project State Object (PSO).
     Maintains a structured representation of the current project state.
     """
+
     async def update(self, events: list[dict[str, Any]]) -> None:
         """
         Update the state based on a list of recent events or memory entries.

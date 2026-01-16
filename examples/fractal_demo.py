@@ -24,13 +24,14 @@ from loom.node import (
 # Example 1: Automatic Fractal Mode (System 2 Integration)
 # ============================================================================
 
+
 async def example1_auto_fractal():
     """
     Demonstrates automatic fractal decomposition triggered by System 2
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 1: Automatic Fractal Mode (System 2 Triggered)")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Create LLM provider
     llm = OpenAIProvider(model="gpt-4")
@@ -45,7 +46,7 @@ async def example1_auto_fractal():
         fractal_trigger=GrowthTrigger.COMPLEXITY,  # Trigger on complexity
         max_depth=3,
         max_children=4,
-        complexity_threshold=0.6
+        complexity_threshold=0.6,
     )
 
     print("✅ Created auto-fractal agent")
@@ -76,12 +77,12 @@ async def example1_auto_fractal():
     print(f"Structure used: {'Fractal' if result2.get('structure') else 'Direct'}")
     print(f"Execution time: {result2.get('execution_time', 0):.2f}s")
 
-    if result2.get('structure'):
+    if result2.get("structure"):
         print("\n🌲 Generated Structure:")
         print(agent.visualize_structure())
 
     # Get statistics
-    stats = agent.get_activation_stats() if hasattr(agent, 'get_activation_stats') else {}
+    stats = agent.get_activation_stats() if hasattr(agent, "get_activation_stats") else {}
     if stats:
         print("\n📊 Statistics:")
         print(f"   System 2 activations: {stats.get('system2_activations', 0)}")
@@ -93,13 +94,14 @@ async def example1_auto_fractal():
 # Example 2: Manual Pipeline Building
 # ============================================================================
 
+
 async def example2_manual_pipeline():
     """
     Demonstrates manual pipeline construction using the builder API
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 2: Manual Pipeline Building")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     llm = OpenAIProvider(model="gpt-4")
     memory = LoomMemory(node_id="manual_pipeline")
@@ -108,11 +110,14 @@ async def example2_manual_pipeline():
     pipeline = (
         build_pipeline("research_pipeline", llm, memory)
         .coordinator("orchestrator")
-        .parallel([
-            ("ai_research", "specialist"),
-            ("market_research", "specialist"),
-            ("tech_research", "specialist")
-        ], join_with_aggregator=True)
+        .parallel(
+            [
+                ("ai_research", "specialist"),
+                ("market_research", "specialist"),
+                ("tech_research", "specialist"),
+            ],
+            join_with_aggregator=True,
+        )
         .build()
     )
 
@@ -127,7 +132,7 @@ async def example2_manual_pipeline():
     subtasks = [
         "Research recent AI startup funding trends",
         "Analyze market size and growth projections",
-        "Identify key technology trends in AI startups"
+        "Identify key technology trends in AI startups",
     ]
 
     result = await pipeline.execute_pipeline(subtasks, mode="parallel")
@@ -141,13 +146,14 @@ async def example2_manual_pipeline():
 # Example 3: Using Templates
 # ============================================================================
 
+
 async def example3_templates():
     """
     Demonstrates using pre-built pipeline templates
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 3: Using Pipeline Templates")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     llm = OpenAIProvider(model="gpt-4")
     memory = LoomMemory(node_id="template_pipeline")
@@ -155,10 +161,7 @@ async def example3_templates():
     # Template 1: Sequential Pipeline
     print("📋 Creating sequential pipeline...\n")
     seq_pipeline = PipelineTemplate.sequential_pipeline(
-        name="analysis",
-        llm=llm,
-        steps=["gather_data", "analyze", "synthesize"],
-        memory=memory
+        name="analysis", llm=llm, steps=["gather_data", "analyze", "synthesize"], memory=memory
     )
 
     print("✅ Sequential Pipeline:")
@@ -167,10 +170,7 @@ async def example3_templates():
     # Template 2: Research Pipeline
     print("\n📋 Creating research pipeline...\n")
     research_pipeline = PipelineTemplate.research_pipeline(
-        name="research",
-        llm=llm,
-        domains=["healthcare", "finance", "education"],
-        memory=memory
+        name="research", llm=llm, domains=["healthcare", "finance", "education"], memory=memory
     )
 
     print("✅ Research Pipeline:")
@@ -179,10 +179,7 @@ async def example3_templates():
     # Template 3: Iterative Refinement
     print("\n📋 Creating iterative refinement pipeline...\n")
     iterative_pipeline = PipelineTemplate.iterative_refinement(
-        name="refinement",
-        llm=llm,
-        iterations=3,
-        memory=memory
+        name="refinement", llm=llm, iterations=3, memory=memory
     )
 
     print("✅ Iterative Pipeline:")
@@ -193,13 +190,14 @@ async def example3_templates():
 # Example 4: Hybrid Approach (Manual + Auto-Growth)
 # ============================================================================
 
+
 async def example4_hybrid():
     """
     Demonstrates hybrid approach: manual base + auto-growth
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 4: Hybrid Approach (Manual + Auto-Growth)")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     llm = OpenAIProvider(model="gpt-4")
     memory = LoomMemory(node_id="hybrid")
@@ -209,7 +207,7 @@ async def example4_hybrid():
         enabled=True,
         growth_trigger=GrowthTrigger.ALWAYS,  # Auto-grow when complexity is high
         max_depth=4,
-        complexity_threshold=0.5
+        complexity_threshold=0.5,
     )
 
     pipeline = (
@@ -234,7 +232,7 @@ async def example4_hybrid():
     # Execute - complex subtasks may trigger auto-growth
     subtasks = [
         "Research quantum computing developments (comprehensive analysis across 5 dimensions)",
-        "Analyze market impact with statistical modeling and trend forecasting"
+        "Analyze market impact with statistical modeling and trend forecasting",
     ]
 
     await pipeline.execute_pipeline(subtasks, mode="sequential")
@@ -247,33 +245,27 @@ async def example4_hybrid():
 # Example 5: Runtime Enhancement
 # ============================================================================
 
+
 async def example5_runtime_enhancement():
     """
     Demonstrates adding fractal capabilities to existing agent at runtime
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 5: Runtime Enhancement (Add Fractal to Existing Agent)")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     llm = OpenAIProvider(model="gpt-4")
 
     # Create standard FractalAgentNode without fractal mode
     agent = FractalAgentNode(
-        node_id="standard_agent",
-        llm=llm,
-        fractal_config=FractalConfig(enabled=False)
+        node_id="standard_agent", llm=llm, fractal_config=FractalConfig(enabled=False)
     )
 
     print("✅ Created standard agent (fractal disabled)")
     print(f"   Fractal enabled: {agent.fractal_config.enabled}\n")
 
     # Add fractal capabilities at runtime
-    add_fractal_to_agent(
-        agent,
-        enable=True,
-        growth_trigger=GrowthTrigger.COMPLEXITY,
-        max_depth=3
-    )
+    add_fractal_to_agent(agent, enable=True, growth_trigger=GrowthTrigger.COMPLEXITY, max_depth=3)
 
     print("✅ Enhanced agent with fractal capabilities")
     print(f"   Fractal enabled: {agent.is_fractal_enabled()}")
@@ -284,11 +276,12 @@ async def example5_runtime_enhancement():
 # Main
 # ============================================================================
 
+
 async def main():
     """Run all examples"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(" " * 15 + "FRACTAL NODE SYSTEM - DEMO")
-    print("="*70)
+    print("=" * 70)
 
     # Run examples
     await example1_auto_fractal()
@@ -297,9 +290,9 @@ async def main():
     await example4_hybrid()
     await example5_runtime_enhancement()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(" " * 20 + "ALL EXAMPLES COMPLETED")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

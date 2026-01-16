@@ -25,8 +25,7 @@ class CollaborativePattern(Pattern):
 
     def __init__(self):
         super().__init__(
-            name="collaborative",
-            description="Task decomposition with parallel collaboration"
+            name="collaborative", description="Task decomposition with parallel collaboration"
         )
 
     def get_config(self):
@@ -43,17 +42,14 @@ class CollaborativePattern(Pattern):
                     "You are a coordinator. "
                     "Break down complex tasks into manageable subtasks, "
                     "delegate to specialized agents, and synthesize results."
-                )
+                ),
             ),
             fractal=FractalConfig(
                 enabled=True,
                 max_depth=3,
                 enable_explicit_delegation=True,
                 synthesis_model="lightweight",  # 使用轻量级模型合成
-                growth_trigger=GrowthTrigger.COMPLEXITY
+                growth_trigger=GrowthTrigger.COMPLEXITY,
             ),
-            execution=ExecutionConfig(
-                parallel_execution=True,
-                concurrency_limit=5
-            )
+            execution=ExecutionConfig(parallel_execution=True, concurrency_limit=5),
         )

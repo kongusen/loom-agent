@@ -24,10 +24,7 @@ class IterativePattern(Pattern):
     """
 
     def __init__(self):
-        super().__init__(
-            name="iterative",
-            description="Iterative refinement with feedback loops"
-        )
+        super().__init__(name="iterative", description="Iterative refinement with feedback loops")
 
     def get_config(self):
         """获取迭代模式配置"""
@@ -42,6 +39,6 @@ class IterativePattern(Pattern):
                     "You are a refiner. "
                     "Iteratively improve solutions, learn from feedback, "
                     "and continuously optimize for quality."
-                )
+                ),
             )
         )

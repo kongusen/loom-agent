@@ -15,6 +15,7 @@ from loom.node.fractal import FractalAgentNode
 @dataclass
 class PipelineStep:
     """Represents a single step in the pipeline"""
+
     name: str
     role: NodeRole
     tools: list[Any] | None = None
@@ -49,7 +50,7 @@ class PipelineBuilder:
         pipeline_name: str,
         provider: Any,
         memory: Any | None = None,
-        fractal_config: FractalConfig | None = None
+        fractal_config: FractalConfig | None = None,
     ):
         """
         Initialize pipeline builder
@@ -67,7 +68,7 @@ class PipelineBuilder:
         # Disable auto-growth for manual pipelines
         self.fractal_config = fractal_config or FractalConfig(
             enabled=False,  # Manual control
-            growth_trigger=GrowthTrigger.MANUAL
+            growth_trigger=GrowthTrigger.MANUAL,
         )
 
         self._root: FractalAgentNode | None = None
@@ -75,11 +76,8 @@ class PipelineBuilder:
         self._steps: list[PipelineStep] = []
 
     def coordinator(
-        self,
-        name: str,
-        tools: list[Any] | None = None,
-        prompt: str | None = None
-    ) -> 'PipelineBuilder':
+        self, name: str, tools: list[Any] | None = None, prompt: str | None = None
+    ) -> "PipelineBuilder":
         """
         Add a coordinator node (task decomposer)
 
@@ -98,8 +96,8 @@ class PipelineBuilder:
         name: str,
         tools: list[Any] | None = None,
         prompt: str | None = None,
-        domain: str | None = None
-    ) -> 'PipelineBuilder':
+        domain: str | None = None,
+    ) -> "PipelineBuilder":
         """
         Add a specialist node (domain expert)
 
@@ -118,11 +116,8 @@ class PipelineBuilder:
         return self._add_node(name, NodeRole.SPECIALIST, tools, prompt)
 
     def executor(
-        self,
-        name: str,
-        tools: list[Any] | None = None,
-        prompt: str | None = None
-    ) -> 'PipelineBuilder':
+        self, name: str, tools: list[Any] | None = None, prompt: str | None = None
+    ) -> "PipelineBuilder":
         """
         Add an executor node (task executor)
 
@@ -137,11 +132,8 @@ class PipelineBuilder:
         return self._add_node(name, NodeRole.EXECUTOR, tools, prompt)
 
     def aggregator(
-        self,
-        name: str,
-        tools: list[Any] | None = None,
-        prompt: str | None = None
-    ) -> 'PipelineBuilder':
+        self, name: str, tools: list[Any] | None = None, prompt: str | None = None
+    ) -> "PipelineBuilder":
         """
         Add an aggregator node (result synthesizer)
 
@@ -158,11 +150,7 @@ class PipelineBuilder:
 
         return self._add_node(name, NodeRole.AGGREGATOR, tools, prompt)
 
-    def parallel(
-        self,
-        nodes: list[tuple],
-        join_with_aggregator: bool = True
-    ) -> 'PipelineBuilder':
+    def parallel(self, nodes: list[tuple], join_with_aggregator: bool = True) -> "PipelineBuilder":
         """
         Add multiple parallel nodes
 
@@ -195,15 +183,13 @@ class PipelineBuilder:
             elif len(node_spec) == 3:
                 name, role_str, tools = node_spec
             else:
-                raise ValueError(f"Invalid node spec: {node_spec}. Expected (name, role) or (name, role, tools)")
+                raise ValueError(
+                    f"Invalid node spec: {node_spec}. Expected (name, role) or (name, role, tools)"
+                )
 
             role = NodeRole[role_str.upper()]
 
-            step = PipelineStep(
-                name=name,
-                role=role,
-                tools=tools
-            )
+            step = PipelineStep(name=name, role=role, tools=tools)
 
             node = self._create_node(step, parent=parent)
             parent.children.append(node)
@@ -216,10 +202,7 @@ class PipelineBuilder:
 
         return self
 
-    def chain(
-        self,
-        nodes: list[tuple]
-    ) -> 'PipelineBuilder':
+    def chain(self, nodes: list[tuple]) -> "PipelineBuilder":
         """
         Add a chain of sequential nodes
 
@@ -253,12 +236,8 @@ class PipelineBuilder:
         return self
 
     def custom_node(
-        self,
-        name: str,
-        role: NodeRole,
-        config: dict[str, Any] | None = None,
-        **kwargs
-    ) -> 'PipelineBuilder':
+        self, name: str, role: NodeRole, config: dict[str, Any] | None = None, **kwargs
+    ) -> "PipelineBuilder":
         """
         Add a custom node with full control
 
@@ -280,15 +259,10 @@ class PipelineBuilder:
         tools: list[Any] | None = None,
         prompt: str | None = None,
         _config: dict[str, Any] | None = None,
-        **kwargs
-    ) -> 'PipelineBuilder':
+        **kwargs,
+    ) -> "PipelineBuilder":
         """Internal method to add a node"""
-        step = PipelineStep(
-            name=name,
-            role=role,
-            tools=tools,
-            prompt_template=prompt
-        )
+        step = PipelineStep(name=name, role=role, tools=tools, prompt_template=prompt)
 
         # Create node
         if self._root is None:
@@ -314,10 +288,7 @@ class PipelineBuilder:
         return self
 
     def _create_node(
-        self,
-        step: PipelineStep,
-        parent: FractalAgentNode | None = None,
-        **kwargs
+        self, step: PipelineStep, parent: FractalAgentNode | None = None, **kwargs
     ) -> FractalAgentNode:
         """Create a FractalAgentNode from a step"""
         depth = parent.depth + 1 if parent else 0
@@ -333,7 +304,7 @@ class PipelineBuilder:
             memory=self.memory,
             fractal_config=self.fractal_config,
             standalone=True,
-            **kwargs
+            **kwargs,
         )
 
     def build(self) -> FractalAgentNode:
@@ -375,17 +346,16 @@ class PipelineBuilder:
             "total_nodes": len(self._steps),
             "max_depth": max((s.node.depth for s in self._steps if s.node), default=0),
             "roles": {
-                role.value: sum(1 for s in self._steps if s.role == role)
-                for role in NodeRole
+                role.value: sum(1 for s in self._steps if s.role == role) for role in NodeRole
             },
             "steps": [
                 {
                     "name": s.name,
                     "role": s.role.value,
-                    "has_tools": s.tools is not None and len(s.tools) > 0
+                    "has_tools": s.tools is not None and len(s.tools) > 0,
                 }
                 for s in self._steps
-            ]
+            ],
         }
 
 
@@ -394,10 +364,7 @@ class PipelineTemplate:
 
     @staticmethod
     def sequential_pipeline(
-        name: str,
-        provider: Any,
-        steps: list[str],
-        memory: Any | None = None
+        name: str, provider: Any, steps: list[str], memory: Any | None = None
     ) -> FractalAgentNode:
         """
         Create a simple sequential pipeline
@@ -424,10 +391,7 @@ class PipelineTemplate:
 
     @staticmethod
     def research_pipeline(
-        name: str,
-        provider: Any,
-        domains: list[str],
-        memory: Any | None = None
+        name: str, provider: Any, domains: list[str], memory: Any | None = None
     ) -> FractalAgentNode:
         """
         Create a parallel research pipeline
@@ -446,10 +410,7 @@ class PipelineTemplate:
         builder.coordinator(f"{name}_coordinator")
 
         # Parallel specialists
-        parallel_nodes = [
-            (f"research_{domain}", "specialist", None)
-            for domain in domains
-        ]
+        parallel_nodes = [(f"research_{domain}", "specialist", None) for domain in domains]
 
         builder.parallel(parallel_nodes, join_with_aggregator=True)
 
@@ -457,10 +418,7 @@ class PipelineTemplate:
 
     @staticmethod
     def iterative_refinement(
-        name: str,
-        provider: Any,
-        iterations: int = 3,
-        memory: Any | None = None
+        name: str, provider: Any, iterations: int = 3, memory: Any | None = None
     ) -> FractalAgentNode:
         """
         Create an iterative refinement pipeline
@@ -488,11 +446,7 @@ class PipelineTemplate:
 
 
 # Convenience function
-def build_pipeline(
-    name: str,
-    provider: Any,
-    memory: Any | None = None
-) -> PipelineBuilder:
+def build_pipeline(name: str, provider: Any, memory: Any | None = None) -> PipelineBuilder:
     """
     Create a new pipeline builder
 

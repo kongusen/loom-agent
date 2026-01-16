@@ -27,7 +27,7 @@ class TestContextCompressor:
                 content=f"message {i}",
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
-                created_at=datetime.now()
+                created_at=datetime.now(),
             )
             for i in range(3)
         ]
@@ -42,17 +42,14 @@ class TestContextCompressor:
         now = datetime.now()
         units = [
             MemoryUnit(
-                content="fact 1",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                created_at=now
+                content="fact 1", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT, created_at=now
             ),
             MemoryUnit(
                 content="message 1",
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
-                created_at=now
-            )
+                created_at=now,
+            ),
         ]
 
         result = ContextCompressor.compress_history(units, keep_last_n=0)
@@ -69,7 +66,7 @@ class TestContextCompressor:
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
                 created_at=now,
-                metadata={"role": "user"}
+                metadata={"role": "user"},
             )
             for i in range(10)
         ]
@@ -87,14 +84,14 @@ class TestContextCompressor:
                 content="fact content",
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.FACT,
-                created_at=now
+                created_at=now,
             ),
             MemoryUnit(
                 content="message",
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
-                created_at=now
-            )
+                created_at=now,
+            ),
         ]
 
         result = ContextCompressor.compress_history(units, keep_last_n=0)
@@ -111,7 +108,7 @@ class TestContextCompressor:
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
                 created_at=now,
-                metadata={"role": "user"}
+                metadata={"role": "user"},
             )
             for i in range(5)
         ]
@@ -136,15 +133,15 @@ class TestContextCompressor:
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
                 created_at=now,
-                metadata={"role": "user"}
+                metadata={"role": "user"},
             ),
             MemoryUnit(
                 content="assistant message",
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
                 created_at=now,
-                metadata={"role": "assistant"}
-            )
+                metadata={"role": "assistant"},
+            ),
         ]
 
         result = ContextCompressor._compress_segment(segment)
@@ -161,7 +158,7 @@ class TestContextCompressor:
                 content=[{"name": "calculator", "args": {"x": 1}}],
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.TOOL_CALL,
-                created_at=now
+                created_at=now,
             )
         ]
 
@@ -178,15 +175,15 @@ class TestContextCompressor:
                 content="thinking process",
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.THOUGHT,
-                created_at=now
+                created_at=now,
             ),
             MemoryUnit(
                 content="message",
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
                 created_at=now,
-                metadata={"role": "user"}
-            )
+                metadata={"role": "user"},
+            ),
         ]
 
         result = ContextCompressor._compress_segment(segment)
@@ -218,7 +215,7 @@ class TestMemoryCompressor:
             l1_to_l3_threshold=10,
             l3_to_l4_threshold=20,
             token_threshold=2000,
-            enable_llm_summarization=False
+            enable_llm_summarization=False,
         )
 
         assert compressor.llm_provider is mock_llm
@@ -232,13 +229,7 @@ class TestMemoryCompressor:
         compressor = MemoryCompressor()
         compressor.encoder = None  # Simulate no encoder
 
-        units = [
-            MemoryUnit(
-                content="a" * 100,
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            )
-        ]
+        units = [MemoryUnit(content="a" * 100, tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)]
 
         count = compressor._count_tokens(units)
 
@@ -250,11 +241,7 @@ class TestMemoryCompressor:
         compressor = MemoryCompressor()
 
         units = [
-            MemoryUnit(
-                content="test content",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            )
+            MemoryUnit(content="test content", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
         ]
 
         count = compressor._count_tokens(units)
@@ -269,11 +256,7 @@ class TestMemoryCompressor:
 
         # Mock query to return few items
         memory.query.return_value = [
-            MemoryUnit(
-                content="message",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            )
+            MemoryUnit(content="message", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
         ]
 
         result = await compressor.compress_l1_to_l3(memory)
@@ -291,7 +274,7 @@ class TestMemoryCompressor:
         compressor = MemoryCompressor(
             llm_provider=mock_llm,
             l1_to_l3_threshold=5,
-            token_threshold=100  # Lower threshold for testing
+            token_threshold=100,  # Lower threshold for testing
         )
         memory = AsyncMock()
 
@@ -302,7 +285,7 @@ class TestMemoryCompressor:
                 content="a" * 200,  # Long content to exceed token threshold
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
-                created_at=now
+                created_at=now,
             )
             for i in range(10)
         ]
@@ -323,7 +306,7 @@ class TestMemoryCompressor:
         compressor = MemoryCompressor(
             l1_to_l3_threshold=5,
             token_threshold=100,  # Lower threshold for testing
-            enable_llm_summarization=False
+            enable_llm_summarization=False,
         )
         memory = AsyncMock()
 
@@ -333,7 +316,7 @@ class TestMemoryCompressor:
                 content="a" * 200,  # Long content
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
-                created_at=now
+                created_at=now,
             )
             for i in range(10)
         ]
@@ -349,7 +332,7 @@ class TestMemoryCompressor:
         compressor = MemoryCompressor(
             l1_to_l3_threshold=5,
             token_threshold=100,  # Lower threshold for testing
-            enable_llm_summarization=False
+            enable_llm_summarization=False,
         )
         memory = AsyncMock()
 
@@ -359,7 +342,7 @@ class TestMemoryCompressor:
                 content="a" * 200,  # Long content
                 tier=MemoryTier.L1_RAW_IO,
                 type=MemoryType.MESSAGE,
-                created_at=now
+                created_at=now,
             )
             for i in range(10)
         ]
@@ -390,18 +373,11 @@ class TestMemoryCompressor:
         mock_llm = AsyncMock()
         mock_llm.chat.return_value = MagicMock(content="Fact 1\nFact 2\nFact 3")
 
-        compressor = MemoryCompressor(
-            llm_provider=mock_llm,
-            l3_to_l4_threshold=5
-        )
+        compressor = MemoryCompressor(llm_provider=mock_llm, l3_to_l4_threshold=5)
         memory = AsyncMock()
 
         memory.query.return_value = [
-            MemoryUnit(
-                content="some content",
-                tier=MemoryTier.L2_WORKING,
-                type=MemoryType.MESSAGE
-            )
+            MemoryUnit(content="some content", tier=MemoryTier.L2_WORKING, type=MemoryType.MESSAGE)
             for _ in range(10)
         ]
         memory.add.return_value = "fact_id"
@@ -413,10 +389,7 @@ class TestMemoryCompressor:
     @pytest.mark.asyncio
     async def test_extract_facts_simple_mode(self):
         """Test simple fact extraction without LLM."""
-        compressor = MemoryCompressor(
-            l3_to_l4_threshold=5,
-            enable_llm_summarization=False
-        )
+        compressor = MemoryCompressor(l3_to_l4_threshold=5, enable_llm_summarization=False)
         memory = AsyncMock()
 
         now = datetime.now()
@@ -426,7 +399,7 @@ class TestMemoryCompressor:
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.MESSAGE,
                 importance=0.9,
-                created_at=now
+                created_at=now,
             )
             for _ in range(10)
         ]
@@ -442,16 +415,8 @@ class TestMemoryCompressor:
         compressor = MemoryCompressor()
 
         units = [
-            MemoryUnit(
-                content="message",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            ),
-            MemoryUnit(
-                content="tool call",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.TOOL_CALL
-            )
+            MemoryUnit(content="message", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE),
+            MemoryUnit(content="tool call", tier=MemoryTier.L1_RAW_IO, type=MemoryType.TOOL_CALL),
         ]
 
         summary = compressor._simple_summary(units)
@@ -468,13 +433,7 @@ class TestMemoryCompressor:
 
         compressor = MemoryCompressor(llm_provider=mock_llm)
 
-        units = [
-            MemoryUnit(
-                content="message",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            )
-        ]
+        units = [MemoryUnit(content="message", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)]
 
         result = await compressor._summarize_with_llm(units)
 
@@ -494,7 +453,7 @@ class TestMemoryCompressor:
                 content="important fact here with more content",
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.MESSAGE,
-                importance=0.9
+                importance=0.9,
             )
         ]
 
@@ -512,14 +471,14 @@ class TestMemoryCompressor:
                 content="important fact with enough content here",
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.MESSAGE,
-                importance=0.9
+                importance=0.9,
             ),
             MemoryUnit(
                 content="low importance",
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.MESSAGE,
-                importance=0.5
-            )
+                importance=0.5,
+            ),
         ]
 
         result = compressor._extract_facts_simple(units)
@@ -536,7 +495,7 @@ class TestMemoryCompressor:
                 content="short",  # Less than 20 chars
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.MESSAGE,
-                importance=0.9
+                importance=0.9,
             )
         ]
 
@@ -554,7 +513,7 @@ class TestMemoryCompressor:
                 content="important fact " + "content " * 20,
                 tier=MemoryTier.L2_WORKING,
                 type=MemoryType.MESSAGE,
-                importance=0.9
+                importance=0.9,
             )
             for _ in range(20)
         ]
@@ -580,7 +539,7 @@ class TestL4Compressor:
             embedding_provider=mock_embedding,
             threshold=150,
             similarity_threshold=0.75,
-            min_cluster_size=3
+            min_cluster_size=3,
         )
 
         assert compressor.llm == mock_llm
@@ -597,17 +556,11 @@ class TestL4Compressor:
         mock_embedding = AsyncMock()
 
         compressor = L4Compressor(
-            llm_provider=mock_llm,
-            embedding_provider=mock_embedding,
-            threshold=150
+            llm_provider=mock_llm, embedding_provider=mock_embedding, threshold=150
         )
 
         facts = [
-            MemoryUnit(
-                content=f"Fact {i}",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT
-            )
+            MemoryUnit(content=f"Fact {i}", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT)
             for i in range(100)
         ]
 
@@ -622,17 +575,11 @@ class TestL4Compressor:
         mock_embedding = AsyncMock()
 
         compressor = L4Compressor(
-            llm_provider=mock_llm,
-            embedding_provider=mock_embedding,
-            threshold=150
+            llm_provider=mock_llm, embedding_provider=mock_embedding, threshold=150
         )
 
         facts = [
-            MemoryUnit(
-                content=f"Fact {i}",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT
-            )
+            MemoryUnit(content=f"Fact {i}", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT)
             for i in range(200)
         ]
 
@@ -653,7 +600,7 @@ class TestL4Compressor:
             llm_provider=mock_llm,
             embedding_provider=mock_embedding,
             threshold=150,
-            min_cluster_size=3
+            min_cluster_size=3,
         )
 
         # Create facts with embeddings
@@ -663,7 +610,7 @@ class TestL4Compressor:
                 tier=MemoryTier.L4_GLOBAL,
                 type=MemoryType.FACT,
                 importance=0.8,
-                embedding=[0.1 + i * 0.01] * 768
+                embedding=[0.1 + i * 0.01] * 768,
             )
             for i in range(10)
         ]
@@ -688,10 +635,7 @@ class TestL4CompressionIntegration:
         mock_llm = AsyncMock()
 
         # Enable compression
-        memory.enable_l4_compression(
-            llm_provider=mock_llm,
-            threshold=10
-        )
+        memory.enable_l4_compression(llm_provider=mock_llm, threshold=10)
 
         assert memory.l4_compressor is not None
         assert memory.l4_compressor.threshold == 10
@@ -705,34 +649,37 @@ class TestL4CompressionIntegration:
         mock_llm.complete = AsyncMock(return_value=MagicMock(content="Summarized fact"))
 
         # Enable compression with low threshold
-        memory.enable_l4_compression(
-            llm_provider=mock_llm,
-            threshold=5
-        )
+        memory.enable_l4_compression(llm_provider=mock_llm, threshold=5)
 
         # Add facts below threshold
         for i in range(5):
-            await memory.add(MemoryUnit(
-                content=f"Fact {i}",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                importance=0.8
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content=f"Fact {i}",
+                    tier=MemoryTier.L4_GLOBAL,
+                    type=MemoryType.FACT,
+                    importance=0.8,
+                )
+            )
 
         # Should have 5 facts
         assert len(memory._l4_global) == 5
 
         # Add one more to trigger compression
         # Mock the compress method to avoid sklearn dependency
-        with patch.object(memory.l4_compressor, 'compress', new_callable=AsyncMock) as mock_compress:
+        with patch.object(
+            memory.l4_compressor, "compress", new_callable=AsyncMock
+        ) as mock_compress:
             mock_compress.return_value = memory._l4_global[:3]  # Simulate compression
 
-            await memory.add(MemoryUnit(
-                content="Fact 6",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                importance=0.8
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content="Fact 6",
+                    tier=MemoryTier.L4_GLOBAL,
+                    type=MemoryType.FACT,
+                    importance=0.8,
+                )
+            )
 
             # Compression should have been triggered
             mock_compress.assert_called_once()

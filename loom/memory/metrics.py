@@ -1,6 +1,7 @@
 """
 Performance Metrics and Monitoring for LoomMemory System
 """
+
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 @dataclass
 class MemoryMetrics:
     """Memory system performance metrics"""
+
     # Query Performance
     total_queries: int = 0
     avg_query_time_ms: float = 0.0
@@ -40,6 +42,7 @@ class MemoryMetrics:
 @dataclass
 class RoutingMetrics:
     """System 1/2 routing performance metrics"""
+
     # Routing Decisions
     total_decisions: int = 0
     system1_routed: int = 0
@@ -72,6 +75,7 @@ class RoutingMetrics:
 @dataclass
 class ContextMetrics:
     """Context assembly performance metrics"""
+
     # Assembly Performance
     total_assemblies: int = 0
     avg_assembly_time_ms: float = 0.0
@@ -137,8 +141,8 @@ class MetricsCollector:
         """Record a vector search operation."""
         self.memory_metrics.vector_searches += 1
         self._vector_search_times.append(duration_ms)
-        self.memory_metrics.avg_vector_search_time_ms = (
-            sum(self._vector_search_times) / len(self._vector_search_times)
+        self.memory_metrics.avg_vector_search_time_ms = sum(self._vector_search_times) / len(
+            self._vector_search_times
         )
 
         if cache_hit:
@@ -182,11 +186,7 @@ class MetricsCollector:
             self.routing_metrics.adaptive_routed += 1
 
     def record_s1_execution(
-        self,
-        duration_ms: float,
-        tokens: int,
-        confidence: float,
-        success: bool
+        self, duration_ms: float, tokens: int, confidence: float, success: bool
     ):
         """Record a System 1 execution."""
         self.routing_metrics.s1_calls += 1
@@ -202,16 +202,11 @@ class MetricsCollector:
         # Update averages
         self.routing_metrics.s1_avg_time_ms = sum(self._s1_times) / len(self._s1_times)
         self.routing_metrics.s1_avg_tokens = sum(self._s1_tokens) / len(self._s1_tokens)
-        self.routing_metrics.s1_avg_confidence = (
-            sum(self._s1_confidences) / len(self._s1_confidences)
+        self.routing_metrics.s1_avg_confidence = sum(self._s1_confidences) / len(
+            self._s1_confidences
         )
 
-    def record_s2_execution(
-        self,
-        duration_ms: float,
-        tokens: int,
-        _iterations: int
-    ):
+    def record_s2_execution(self, duration_ms: float, tokens: int, _iterations: int):
         """Record a System 2 execution."""
         self.routing_metrics.s2_calls += 1
         self._s2_times.append(duration_ms)
@@ -239,11 +234,7 @@ class MetricsCollector:
         )
 
     def record_context_assembly(
-        self,
-        duration_ms: float,
-        tokens: int,
-        units_curated: int,
-        units_selected: int
+        self, duration_ms: float, tokens: int, units_curated: int, units_selected: int
     ):
         """Record a context assembly operation."""
         self.context_metrics.total_assemblies += 1
@@ -251,25 +242,36 @@ class MetricsCollector:
         self._context_tokens.append(tokens)
 
         # Update averages
-        self.context_metrics.avg_assembly_time_ms = (
-            sum(self._assembly_times) / len(self._assembly_times)
+        self.context_metrics.avg_assembly_time_ms = sum(self._assembly_times) / len(
+            self._assembly_times
         )
-        self.context_metrics.avg_context_tokens = (
-            sum(self._context_tokens) / len(self._context_tokens)
+        self.context_metrics.avg_context_tokens = sum(self._context_tokens) / len(
+            self._context_tokens
         )
 
         # Update min/max
         if tokens > self.context_metrics.max_context_tokens:
             self.context_metrics.max_context_tokens = tokens
-        if self.context_metrics.min_context_tokens == 0 or tokens < self.context_metrics.min_context_tokens:
+        if (
+            self.context_metrics.min_context_tokens == 0
+            or tokens < self.context_metrics.min_context_tokens
+        ):
             self.context_metrics.min_context_tokens = tokens
 
         # Update curation stats
-        total_curated = self.context_metrics.avg_units_curated * (self.context_metrics.total_assemblies - 1)
-        self.context_metrics.avg_units_curated = (total_curated + units_curated) / self.context_metrics.total_assemblies
+        total_curated = self.context_metrics.avg_units_curated * (
+            self.context_metrics.total_assemblies - 1
+        )
+        self.context_metrics.avg_units_curated = (
+            total_curated + units_curated
+        ) / self.context_metrics.total_assemblies
 
-        total_selected = self.context_metrics.avg_units_selected * (self.context_metrics.total_assemblies - 1)
-        self.context_metrics.avg_units_selected = (total_selected + units_selected) / self.context_metrics.total_assemblies
+        total_selected = self.context_metrics.avg_units_selected * (
+            self.context_metrics.total_assemblies - 1
+        )
+        self.context_metrics.avg_units_selected = (
+            total_selected + units_selected
+        ) / self.context_metrics.total_assemblies
 
         if units_curated > 0:
             self.context_metrics.selection_ratio = units_selected / units_curated
@@ -293,7 +295,7 @@ class MetricsCollector:
             "memory": asdict(self.memory_metrics),
             "routing": asdict(self.routing_metrics),
             "context": asdict(self.context_metrics),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     def reset(self):

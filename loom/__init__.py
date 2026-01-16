@@ -53,38 +53,31 @@ from loom.patterns import PATTERNS, get_pattern, list_patterns
 __all__ = [
     # 版本
     "__version__",
-
     # 高层 API
     "Loom",
     "LoomBuilder",
     "LoomConfig",
-
     # 模式系统
     "PATTERNS",
     "get_pattern",
     "list_patterns",
-
     # 核心类
     "AgentNode",
     "FractalAgentNode",
     "ToolNode",
-
     # 配置类
     "AgentConfig",
     "FractalConfig",
     "ExecutionConfig",
     "ContextConfig",
     "CurationConfig",
-
     # 枚举
     "NodeRole",
     "GrowthStrategy",
     "GrowthTrigger",
-
     # LLM
     "LLMProvider",
     "OpenAIProvider",
-
     # Memory
     "LoomMemory",
     "MemoryUnit",

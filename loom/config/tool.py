@@ -17,11 +17,15 @@ class ToolConfig(BaseModel):
     """
     Configuration for a Tool.
     """
+
     name: str
     description: str = ""
-    python_path: str = Field(..., description="Dot-path to the python function e.g. 'my_pkg.tools.search'")
+    python_path: str = Field(
+        ..., description="Dot-path to the python function e.g. 'my_pkg.tools.search'"
+    )
     parameters: dict[str, Any] = Field(default_factory=dict, description="Input schema properties")
     env_vars: dict[str, str] = Field(default_factory=dict)
+
 
 class ToolFactory:
     """
@@ -29,11 +33,7 @@ class ToolFactory:
     """
 
     @staticmethod
-    def create_node(
-        config: ToolConfig,
-        node_id: str,
-        dispatcher: Dispatcher
-    ) -> ToolNode:
+    def create_node(config: ToolConfig, node_id: str, dispatcher: Dispatcher) -> ToolNode:
         # 1. Load function
         module_name, func_name = config.python_path.rsplit(".", 1)
         try:
@@ -50,16 +50,8 @@ class ToolFactory:
         tool_def = MCPToolDefinition(
             name=config.name,
             description=config.description,
-            input_schema={
-                "type": "object",
-                "properties": config.parameters
-            }
+            input_schema={"type": "object", "properties": config.parameters},
         )
 
         # 4. Create Node
-        return ToolNode(
-            node_id=node_id,
-            dispatcher=dispatcher,
-            tool_def=tool_def,
-            func=func
-        )
+        return ToolNode(node_id=node_id, dispatcher=dispatcher, tool_def=tool_def, func=func)

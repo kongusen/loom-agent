@@ -12,26 +12,29 @@ from typing import Any
 
 class NodeRole(Enum):
     """Node roles in the fractal structure"""
+
     COORDINATOR = "coordinator"  # Decomposes tasks and delegates
-    SPECIALIST = "specialist"    # Handles domain-specific tasks
-    EXECUTOR = "executor"        # Leaf node that executes tasks directly
-    AGGREGATOR = "aggregator"    # Combines results from multiple nodes
+    SPECIALIST = "specialist"  # Handles domain-specific tasks
+    EXECUTOR = "executor"  # Leaf node that executes tasks directly
+    AGGREGATOR = "aggregator"  # Combines results from multiple nodes
 
 
 class GrowthTrigger(Enum):
     """When to trigger fractal growth"""
-    COMPLEXITY = "complexity" # When task complexity is high (formerly SYSTEM2)
-    ALWAYS = "always"        # Always evaluate for growth
-    MANUAL = "manual"        # Only when explicitly requested
-    NEVER = "never"          # Disable fractal mode entirely
+
+    COMPLEXITY = "complexity"  # When task complexity is high (formerly SYSTEM2)
+    ALWAYS = "always"  # Always evaluate for growth
+    MANUAL = "manual"  # Only when explicitly requested
+    NEVER = "never"  # Disable fractal mode entirely
 
 
 class GrowthStrategy(Enum):
     """Strategy for node growth"""
-    DECOMPOSE = "decompose"      # Split into sequential subtasks (1→N chain)
-    SPECIALIZE = "specialize"    # Create domain experts (1→N star)
+
+    DECOMPOSE = "decompose"  # Split into sequential subtasks (1→N chain)
+    SPECIALIZE = "specialize"  # Create domain experts (1→N star)
     PARALLELIZE = "parallelize"  # Clone for parallel execution (1→N parallel)
-    ITERATE = "iterate"          # Create iterative refinement loop
+    ITERATE = "iterate"  # Create iterative refinement loop
 
 
 @dataclass
@@ -79,12 +82,14 @@ class FractalConfig:
     default_strategy: GrowthStrategy = GrowthStrategy.DECOMPOSE
     """Default growth strategy when auto-detection fails"""
 
-    strategy_keywords: dict[GrowthStrategy, list[str]] = field(default_factory=lambda: {
-        GrowthStrategy.DECOMPOSE: ["step", "phase", "sequential", "order"],
-        GrowthStrategy.SPECIALIZE: ["expert", "specialist", "domain", "field"],
-        GrowthStrategy.PARALLELIZE: ["parallel", "concurrent", "independent", "simultaneous"],
-        GrowthStrategy.ITERATE: ["iterate", "refine", "improve", "optimize"],
-    })
+    strategy_keywords: dict[GrowthStrategy, list[str]] = field(
+        default_factory=lambda: {
+            GrowthStrategy.DECOMPOSE: ["step", "phase", "sequential", "order"],
+            GrowthStrategy.SPECIALIZE: ["expert", "specialist", "domain", "field"],
+            GrowthStrategy.PARALLELIZE: ["parallel", "concurrent", "independent", "simultaneous"],
+            GrowthStrategy.ITERATE: ["iterate", "refine", "improve", "optimize"],
+        }
+    )
     """Keywords to detect appropriate growth strategy"""
 
     # === Performance Tracking ===
@@ -220,7 +225,7 @@ class NodeMetrics:
         success_weight: float = 0.4,
         token_weight: float = 0.3,
         time_weight: float = 0.2,
-        cost_weight: float = 0.1
+        cost_weight: float = 0.1,
     ) -> float:
         """
         Calculate composite fitness score (0-1, higher is better)
@@ -251,21 +256,15 @@ class NodeMetrics:
 
         # Weighted sum
         fitness = (
-            success_component * success_weight +
-            token_component * token_weight +
-            time_component * time_weight +
-            cost_component * cost_weight
+            success_component * success_weight
+            + token_component * token_weight
+            + time_component * time_weight
+            + cost_component * cost_weight
         )
 
         return min(1.0, max(0.0, fitness))
 
-    def record_execution(
-        self,
-        success: bool,
-        tokens: int,
-        time: float,
-        cost: float = 0.0
-    ):
+    def record_execution(self, success: bool, tokens: int, time: float, cost: float = 0.0):
         """Record a task execution"""
         self.task_count += 1
         if success:
@@ -290,5 +289,5 @@ class NodeMetrics:
             "avg_tokens": self.avg_tokens,
             "avg_time": self.avg_time,
             "avg_cost": self.avg_cost,
-            "fitness_score": self.fitness_score()
+            "fitness_score": self.fitness_score(),
         }

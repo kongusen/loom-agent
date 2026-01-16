@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 from collections import defaultdict
@@ -8,6 +7,7 @@ from loom.protocol.cloudevents import CloudEvent
 from .base import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
+
 
 class InMemoryTransport(Transport):
     """
@@ -33,8 +33,8 @@ class InMemoryTransport(Transport):
 
     async def publish(self, topic: str, event: CloudEvent) -> None:
         if not self._connected:
-             logger.warning("InMemoryTransport not connected, dropping event")
-             return
+            logger.warning("InMemoryTransport not connected, dropping event")
+            return
 
         # Direct dispatch to handlers
         await self._dispatch(topic, event)
@@ -93,13 +93,13 @@ class InMemoryTransport(Transport):
                 # For in-memory bus, typically we want some concurrency.
                 asyncio.create_task(self._safe_exec(handler, event))
             except Exception as e:
-                 logger.error(f"Error dispatching to handler: {e}")
+                logger.error(f"Error dispatching to handler: {e}")
 
     async def _safe_exec(self, handler: EventHandler, event: CloudEvent):
         try:
-             await handler(event)
+            await handler(event)
         except Exception as e:
-             logger.error(f"Handler failed: {e}")
+            logger.error(f"Handler failed: {e}")
 
     def _match(self, topic: str, pattern: str) -> bool:
         # Simple glob matching

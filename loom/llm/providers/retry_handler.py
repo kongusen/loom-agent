@@ -14,7 +14,7 @@ from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class RetryConfig:
@@ -27,7 +27,7 @@ class RetryConfig:
         max_delay: float = 60.0,
         exponential_base: float = 2.0,
         retry_on_timeout: bool = True,
-        retry_on_rate_limit: bool = True
+        retry_on_rate_limit: bool = True,
     ):
         self.max_retries = max_retries
         self.initial_delay = initial_delay
@@ -63,15 +63,12 @@ def should_retry(exception: Exception, config: RetryConfig) -> bool:
 
 def calculate_delay(attempt: int, config: RetryConfig) -> float:
     """计算重试延迟（指数退避）"""
-    delay = config.initial_delay * (config.exponential_base ** attempt)
+    delay = config.initial_delay * (config.exponential_base**attempt)
     return min(delay, config.max_delay)
 
 
 async def retry_async(
-    func: Callable[..., Any],
-    config: RetryConfig | None = None,
-    *args: Any,
-    **kwargs: Any
+    func: Callable[..., Any], config: RetryConfig | None = None, *args: Any, **kwargs: Any
 ) -> Any:
     """
     异步函数重试包装器

@@ -37,8 +37,7 @@ def get_pattern(name: str) -> Pattern:
     """
     if name not in PATTERNS:
         raise ValueError(
-            f"Unknown pattern: {name}. "
-            f"Available patterns: {', '.join(PATTERNS.keys())}"
+            f"Unknown pattern: {name}. " f"Available patterns: {', '.join(PATTERNS.keys())}"
         )
     return PATTERNS[name]
 

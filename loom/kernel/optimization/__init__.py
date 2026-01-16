@@ -52,7 +52,6 @@ __all__ = [
     "StructureEvent",
     "StructureEventType",
     "StructureStats",
-
     # Structure Evolution
     "StructureEvolver",
     "StructureGenome",
@@ -60,19 +59,16 @@ __all__ = [
     "EvolutionConfig",
     "GeneticOperators",
     "MutationType",
-
     # Structure Health
     "StructureHealthAssessor",
     "HealthReport",
     "HealthStatus",
     "HealthIssue",
     "HealthDiagnostic",
-
     # Landscape Optimizer
     "FitnessLandscapeOptimizer",
     "StructureSnapshot",
     "StructurePattern",
-
     # Pruning
     "PruningStrategy",
     "PruningDecision",

@@ -83,16 +83,15 @@ class FractalOrchestrator:
 
         # Initialize Execution Engine
         self.execution_config = ExecutionConfig(
-            parallel_execution=True, # Controlled by Orchestrator logic
-            concurrency_limit=self.config.max_concurrent_children
+            parallel_execution=True,  # Controlled by Orchestrator logic
+            concurrency_limit=self.config.max_concurrent_children,
         )
         self.executor = ToolExecutor(
-            self.execution_config,
-            read_only_check=self._child_read_only_check
+            self.execution_config, read_only_check=self._child_read_only_check
         )
 
         # 获取父节点的深度
-        self.parent_depth = getattr(parent_node, 'depth', 0)
+        self.parent_depth = getattr(parent_node, "depth", 0)
 
         logger.info(f"初始化 FractalOrchestrator，父节点深度: {self.parent_depth}")
 
@@ -106,7 +105,9 @@ class FractalOrchestrator:
         Returns:
             委托结果
         """
-        logger.info(f"开始委托，子任务数: {len(request.subtasks)}, 执行模式: {request.execution_mode}")
+        logger.info(
+            f"开始委托，子任务数: {len(request.subtasks)}, 执行模式: {request.execution_mode}"
+        )
 
         try:
             # 1. 验证请求
@@ -128,8 +129,8 @@ class FractalOrchestrator:
                 subtask_results=results,
                 metadata={
                     "execution_mode": request.execution_mode,
-                    "subtask_count": len(request.subtasks)
-                }
+                    "subtask_count": len(request.subtasks),
+                },
             )
 
         except Exception as e:
@@ -138,7 +139,7 @@ class FractalOrchestrator:
                 success=False,
                 synthesized_result=f"委托执行失败: {str(e)}",
                 subtask_results=[],
-                metadata={"error": str(e)}
+                metadata={"error": str(e)},
             )
 
     async def process_decomposition(self, decomposition: TaskDecomposition) -> DelegationResult:
@@ -153,7 +154,9 @@ class FractalOrchestrator:
         Returns:
             DelegationResult
         """
-        logger.info(f"Processing implicit decomposition: {len(decomposition.subtasks)} subtasks, strategy: {decomposition.strategy}")
+        logger.info(
+            f"Processing implicit decomposition: {len(decomposition.subtasks)} subtasks, strategy: {decomposition.strategy}"
+        )
 
         # 1. Convert to SubtaskSpecifictions
         subtasks = []
@@ -162,24 +165,29 @@ class FractalOrchestrator:
             # In Phase 2, we map strategy to roles more intelligently if needed
             role = self._map_strategy_to_role(decomposition.strategy, desc)
 
-            subtasks.append(SubtaskSpecification(
-                description=desc,
-                role=role.value if role else "executor",
-                tools=None, # Inherit from parent
-                metadata={"strategy": decomposition.strategy.value}
-            ))
+            subtasks.append(
+                SubtaskSpecification(
+                    description=desc,
+                    role=role.value if role else "executor",
+                    tools=None,  # Inherit from parent
+                    metadata={"strategy": decomposition.strategy.value},
+                )
+            )
 
         # 2. Determine execution mode
         execution_mode = "parallel"
-        if decomposition.strategy == GrowthStrategy.DECOMPOSE or decomposition.strategy == GrowthStrategy.ITERATE: # Sequential chain
+        if (
+            decomposition.strategy == GrowthStrategy.DECOMPOSE
+            or decomposition.strategy == GrowthStrategy.ITERATE
+        ):  # Sequential chain
             execution_mode = "sequential"
 
         # 3. Create Request
         request = DelegationRequest(
             subtasks=subtasks,
             execution_mode=execution_mode,
-            synthesis_strategy="auto", # Implicit always uses auto synthesis
-            reasoning=decomposition.reasoning
+            synthesis_strategy="auto",  # Implicit always uses auto synthesis
+            reasoning=decomposition.reasoning,
         )
 
         # 4. Delegate
@@ -220,19 +228,15 @@ class FractalOrchestrator:
             )
 
         # 检查深度限制
-        if hasattr(self.parent, 'fractal_config'):
+        if hasattr(self.parent, "fractal_config"):
             max_depth = self.parent.fractal_config.max_depth
             if self.parent_depth >= max_depth:
-                raise ValueError(
-                    f"已达到最大深度 ({max_depth})，无法继续委托"
-                )
+                raise ValueError(f"已达到最大深度 ({max_depth})，无法继续委托")
 
         logger.debug("请求验证通过")
 
     def _filter_tools_for_child(
-        self,
-        subtask: SubtaskSpecification,
-        current_depth: int
+        self, subtask: SubtaskSpecification, current_depth: int
     ) -> set[str]:
         """
         工具过滤逻辑（上下文隔离的核心）
@@ -297,8 +301,8 @@ class FractalOrchestrator:
         child_depth = self.parent_depth + 1
 
         # Compatibility: Update parent's children list if it exists
-        if hasattr(self.parent, 'children') and isinstance(self.parent.children, list):
-             self.parent.children.clear()
+        if hasattr(self.parent, "children") and isinstance(self.parent.children, list):
+            self.parent.children.clear()
 
         for i, subtask in enumerate(subtasks):
             # 过滤工具
@@ -315,7 +319,7 @@ class FractalOrchestrator:
                 "specialist": NodeRole.SPECIALIST,
                 "executor": NodeRole.EXECUTOR,
                 "researcher": NodeRole.SPECIALIST,
-                "aggregator": NodeRole.AGGREGATOR
+                "aggregator": NodeRole.AGGREGATOR,
             }
             role = role_map.get(subtask.role or "executor", NodeRole.EXECUTOR)
 
@@ -330,8 +334,10 @@ class FractalOrchestrator:
                     system_prompt=f"你是一个专门处理以下任务的助手：{subtask.description}",
                     tools=child_tools,
                     provider=self.parent.provider,
-                    fractal_config=self.parent.fractal_config if hasattr(self.parent, 'fractal_config') else None,
-                    depth=child_depth
+                    fractal_config=self.parent.fractal_config
+                    if hasattr(self.parent, "fractal_config")
+                    else None,
+                    depth=child_depth,
                 )
 
                 # 确保子节点订阅到消息总线（恢复协议优先架构）
@@ -340,10 +346,12 @@ class FractalOrchestrator:
                 children.append(child)
 
                 # Compatibility: Add to parent's children list
-                if hasattr(self.parent, 'children') and isinstance(self.parent.children, list):
+                if hasattr(self.parent, "children") and isinstance(self.parent.children, list):
                     self.parent.children.append(child)
 
-                logger.info(f"创建子节点: {child_id}, 角色: {role.value}, 工具数: {len(child_tools)}")
+                logger.info(
+                    f"创建子节点: {child_id}, 角色: {role.value}, 工具数: {len(child_tools)}"
+                )
 
             except Exception as e:
                 logger.error(f"创建子节点失败: {e}")
@@ -352,9 +360,7 @@ class FractalOrchestrator:
         return children
 
     async def _execute_children(
-        self,
-        children: list,
-        request: DelegationRequest
+        self, children: list, request: DelegationRequest
     ) -> list[dict[str, Any]]:
         """
         执行子节点
@@ -381,9 +387,7 @@ class FractalOrchestrator:
             raise ValueError(f"未知的执行模式: {mode}")
 
     async def _execute_parallel(
-        self,
-        children: list,
-        subtasks: list[SubtaskSpecification]
+        self, children: list, subtasks: list[SubtaskSpecification]
     ) -> list[dict[str, Any]]:
         """并行执行所有子节点 (via ToolExecutor)"""
         logger.info("并行执行子节点 (Engine)")
@@ -391,13 +395,12 @@ class FractalOrchestrator:
         # 1. Construct "tool calls" for executor
         tool_calls = []
         for _i, (child, subtask) in enumerate(zip(children, subtasks, strict=False)):
-            tool_calls.append({
-                "name": child.node_id, # Use node_id as virtual tool name
-                "arguments": {
-                    "child": child,
-                    "subtask": subtask
+            tool_calls.append(
+                {
+                    "name": child.node_id,  # Use node_id as virtual tool name
+                    "arguments": {"child": child, "subtask": subtask},
                 }
-            })
+            )
 
         # 2. Define adapter
         async def _child_execution_adapter(_name: str, args: dict) -> Any:
@@ -412,18 +415,26 @@ class FractalOrchestrator:
         processed_results = []
         for res in results:
             if res.error:
-                 processed_results.append({
-                    "success": False,
-                    "result": f"执行失败: {res.result}",
-                    "error": str(res.result)
-                })
+                processed_results.append(
+                    {
+                        "success": False,
+                        "result": f"执行失败: {res.result}",
+                        "error": str(res.result),
+                    }
+                )
             else:
                 result_val = res.result
-                processed_results.append({
-                    "success": True,
-                    "result": result_val.get("result", str(result_val)) if isinstance(result_val, dict) else str(result_val),
-                    "metadata": result_val.get("metadata", {}) if isinstance(result_val, dict) else {}
-                })
+                processed_results.append(
+                    {
+                        "success": True,
+                        "result": result_val.get("result", str(result_val))
+                        if isinstance(result_val, dict)
+                        else str(result_val),
+                        "metadata": result_val.get("metadata", {})
+                        if isinstance(result_val, dict)
+                        else {},
+                    }
+                )
 
         return processed_results
 
@@ -437,9 +448,7 @@ class FractalOrchestrator:
         return True
 
     async def _execute_sequential(
-        self,
-        children: list,
-        subtasks: list[SubtaskSpecification]
+        self, children: list, subtasks: list[SubtaskSpecification]
     ) -> list[dict[str, Any]]:
         """顺序执行子节点"""
         logger.info("顺序执行子节点")
@@ -452,50 +461,39 @@ class FractalOrchestrator:
                 results.append(result)
             except Exception as e:
                 logger.error(f"子任务 {i+1} 执行失败: {e}")
-                results.append({
-                    "success": False,
-                    "result": f"执行失败: {str(e)}",
-                    "error": str(e)
-                })
+                results.append({"success": False, "result": f"执行失败: {str(e)}", "error": str(e)})
 
         return results
 
     async def _execute_adaptive(
-        self,
-        children: list,
-        subtasks: list[SubtaskSpecification]
+        self, children: list, subtasks: list[SubtaskSpecification]
     ) -> list[dict[str, Any]]:
         """自适应执行（简化版：默认并行）"""
         logger.info("自适应执行（当前实现：并行）")
         # TODO: 实现依赖分析和自适应调度
         return await self._execute_parallel(children, subtasks)
 
-    async def _execute_single_child(
-        self,
-        child,
-        subtask: SubtaskSpecification
-    ) -> dict[str, Any]:
+    async def _execute_single_child(self, child, subtask: SubtaskSpecification) -> dict[str, Any]:
         """通过消息总线执行子节点"""
         try:
             # 使用消息总线调用子节点（恢复协议优先架构）
             result = await self.parent.call(
-                target_node=child.source_uri,
-                data={"content": subtask.description}
+                target_node=child.source_uri, data={"content": subtask.description}
             )
 
             return {
                 "success": True,
-                "result": result.get("result", str(result)) if isinstance(result, dict) else str(result),
-                "metadata": result.get("metadata", {}) if isinstance(result, dict) else {}
+                "result": result.get("result", str(result))
+                if isinstance(result, dict)
+                else str(result),
+                "metadata": result.get("metadata", {}) if isinstance(result, dict) else {},
             }
         except Exception as e:
             logger.error(f"子节点执行异常: {e}")
             raise
 
     async def _synthesize_results(
-        self,
-        request: DelegationRequest,
-        results: list[dict[str, Any]]
+        self, request: DelegationRequest, results: list[dict[str, Any]]
     ) -> str:
         """
         合成结果
@@ -513,13 +511,13 @@ class FractalOrchestrator:
             task = f"原始任务包含 {len(request.subtasks)} 个子任务"
 
         # 使用父节点的 synthesizer（如果有）
-        if hasattr(self.parent, 'synthesizer') and self.parent.synthesizer:
+        if hasattr(self.parent, "synthesizer") and self.parent.synthesizer:
             logger.info("使用父节点的 synthesizer 进行合成")
-            return str(await self.parent.synthesizer.synthesize(
-                task,
-                results,
-                strategy=request.synthesis_strategy
-            ))
+            return str(
+                await self.parent.synthesizer.synthesize(
+                    task, results, strategy=request.synthesis_strategy
+                )
+            )
         else:
             # 降级到简单拼接
             logger.warning("父节点没有 synthesizer，使用简单拼接")

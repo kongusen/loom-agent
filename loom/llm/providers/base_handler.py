@@ -35,7 +35,7 @@ class ToolCallAggregator:
         index: int,
         tool_id: str | None = None,
         name: str | None = None,
-        arguments: str | None = None
+        arguments: str | None = None,
     ) -> StreamChunk | None:
         """
         添加工具调用片段
@@ -45,11 +45,7 @@ class ToolCallAggregator:
         """
         # 初始化缓冲区
         if index not in self.buffer:
-            self.buffer[index] = {
-                "id": "",
-                "name": "",
-                "arguments": ""
-            }
+            self.buffer[index] = {"id": "", "name": "", "arguments": ""}
             self.started[index] = False
 
         # 聚合内容
@@ -68,9 +64,9 @@ class ToolCallAggregator:
                 content={
                     "id": self.buffer[index]["id"],
                     "name": self.buffer[index]["name"],
-                    "index": index
+                    "index": index,
                 },
-                metadata={}
+                metadata={},
             )
 
         return None
@@ -89,23 +85,17 @@ class ToolCallAggregator:
             # 验证 arguments 是否是有效 JSON
             try:
                 json.loads(tc["arguments"])
-                yield StreamChunk(
-                    type="tool_call_complete",
-                    content=tc,
-                    metadata={"index": idx}
-                )
+                yield StreamChunk(type="tool_call_complete", content=tc, metadata={"index": idx})
             except json.JSONDecodeError as e:
-                logger.error(
-                    f"Invalid JSON in tool {tc['name']} arguments: {str(e)}"
-                )
+                logger.error(f"Invalid JSON in tool {tc['name']} arguments: {str(e)}")
                 yield StreamChunk(
                     type="error",
                     content={
                         "error": "invalid_tool_arguments",
                         "message": f"Tool {tc['name']} arguments are not valid JSON: {str(e)}",
-                        "tool_call": tc
+                        "tool_call": tc,
                     },
-                    metadata={"index": idx}
+                    metadata={"index": idx},
                 )
 
     def clear(self):
@@ -126,9 +116,10 @@ class BaseResponseHandler(ABC):
 
     @abstractmethod
     async def stream_response(
-        self,
-        response: Any
-    ) -> AsyncGenerator[StreamChunk, None]:  # Ideally this should be AsyncGenerator but matching abstract definition
+        self, response: Any
+    ) -> AsyncGenerator[
+        StreamChunk, None
+    ]:  # Ideally this should be AsyncGenerator but matching abstract definition
         """
         处理单个流式响应块
 
@@ -143,9 +134,7 @@ class BaseResponseHandler(ABC):
         pass
 
     def create_error_chunk(
-        self,
-        error: Exception,
-        context: dict[str, Any] | None = None
+        self, error: Exception, context: dict[str, Any] | None = None
     ) -> StreamChunk:
         """
         创建错误事件
@@ -163,15 +152,13 @@ class BaseResponseHandler(ABC):
                 "error": "stream_error",
                 "message": str(error),
                 "type": type(error).__name__,
-                "context": context or {}
+                "context": context or {},
             },
-            metadata={}
+            metadata={},
         )
 
     def create_done_chunk(
-        self,
-        finish_reason: str,
-        token_usage: dict[str, int] | None = None
+        self, finish_reason: str, token_usage: dict[str, int] | None = None
     ) -> StreamChunk:
         """
         创建完成事件
@@ -187,8 +174,4 @@ class BaseResponseHandler(ABC):
         if token_usage:
             metadata["token_usage"] = token_usage
 
-        return StreamChunk(
-            type="done",
-            content="",
-            metadata=metadata
-        )
+        return StreamChunk(type="done", content="", metadata=metadata)

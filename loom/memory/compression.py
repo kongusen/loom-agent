@@ -1,6 +1,7 @@
 """
 Context Compression Engine
 """
+
 import datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -13,8 +14,9 @@ if TYPE_CHECKING:
 
 class LLMProvider(Protocol):
     """Protocol for LLM providers used in compression."""
-    async def chat(self, messages: list[dict[str, str]], **kwargs) -> Any:
-        ...
+
+    async def chat(self, messages: list[dict[str, str]], **kwargs) -> Any: ...
+
 
 class ContextCompressor:
     """
@@ -25,10 +27,7 @@ class ContextCompressor:
     """
 
     @staticmethod
-    def compress_history(
-        units: list[MemoryUnit],
-        keep_last_n: int = 4
-    ) -> list[MemoryUnit]:
+    def compress_history(units: list[MemoryUnit], keep_last_n: int = 4) -> list[MemoryUnit]:
         """
         Compress a list of memory units.
         Args:
@@ -54,7 +53,7 @@ class ContextCompressor:
         # 2. Identify Compression Region
         # We want to keep the last N items (or turns) intact.
         if len(compressible) <= keep_last_n:
-            return units # precise order might need reconstruction if we split lists.
+            return units  # precise order might need reconstruction if we split lists.
             # Actually, if we just return units, we are fine.
 
         if keep_last_n > 0:
@@ -110,14 +109,14 @@ class ContextCompressor:
                     if isinstance(c, dict):
                         name = c.get("name", "unknown")
                     elif isinstance(c, str):
-                        name = "unknown" # Content might be raw string of args?
+                        name = "unknown"  # Content might be raw string of args?
                         # In agent.py we store list of dicts.
 
                     # If u.content is just a dict (single call)
                     if isinstance(u.content, dict):
-                         name = u.content.get("name", "unknown")
+                        name = u.content.get("name", "unknown")
                     elif isinstance(u.content, list):
-                         pass # handled by iteration above if c is dict
+                        pass  # handled by iteration above if c is dict
 
                     # Better robustness
                     if isinstance(c, dict):
@@ -130,14 +129,16 @@ class ContextCompressor:
         if summary_text:
             summary_content += summary_text
         if tool_counts:
-            summary_content += "Tools used: " + ", ".join([f"{k} ({v})" for k,v in tool_counts.items()])
+            summary_content += "Tools used: " + ", ".join(
+                [f"{k} ({v})" for k, v in tool_counts.items()]
+            )
 
         summary_unit = MemoryUnit(
             content=summary_content,
-            tier=MemoryTier.L2_WORKING, # Summary lives in Working Memory? Or L3?
+            tier=MemoryTier.L2_WORKING,  # Summary lives in Working Memory? Or L3?
             type=MemoryType.SUMMARY,
-            created_at=segment[-1].created_at, # Timestamp of last item
-            importance=0.5
+            created_at=segment[-1].created_at,  # Timestamp of last item
+            importance=0.5,
         )
 
         return [summary_unit]
@@ -155,7 +156,7 @@ class MemoryCompressor:
         l1_to_l3_threshold: int = 30,
         l3_to_l4_threshold: int = 50,
         token_threshold: int = 4000,
-        enable_llm_summarization: bool = True
+        enable_llm_summarization: bool = True,
     ):
         """
         Initialize the memory compressor.
@@ -181,9 +182,7 @@ class MemoryCompressor:
         return self.token_counter.count_memory_units(units)
 
     async def compress_l1_to_l3(
-        self,
-        memory: "LoomMemory",
-        session_id: str = "default"
+        self, memory: "LoomMemory", session_id: str = "default"
     ) -> str | None:
         """
         Compress L1 raw IO buffer to L3 session summary.
@@ -198,7 +197,12 @@ class MemoryCompressor:
         # Query L1 messages
         l1_query = MemoryQuery(
             tiers=[MemoryTier.L1_RAW_IO],
-            types=[MemoryType.MESSAGE, MemoryType.THOUGHT, MemoryType.TOOL_CALL, MemoryType.TOOL_RESULT]
+            types=[
+                MemoryType.MESSAGE,
+                MemoryType.THOUGHT,
+                MemoryType.TOOL_CALL,
+                MemoryType.TOOL_RESULT,
+            ],
         )
         l1_messages = await memory.query(l1_query)
 
@@ -226,8 +230,8 @@ class MemoryCompressor:
             metadata={
                 "session_id": session_id,
                 "compressed_count": len(l1_messages),
-                "original_tokens": token_count
-            }
+                "original_tokens": token_count,
+            },
         )
 
         summary_id = await memory.add(summary_unit)
@@ -238,10 +242,7 @@ class MemoryCompressor:
 
         return summary_id
 
-    async def extract_facts_to_l4(
-        self,
-        memory: "LoomMemory"
-    ) -> list[str]:
+    async def extract_facts_to_l4(self, memory: "LoomMemory") -> list[str]:
         """
         Extract facts from L2/L3 and promote to L4 global knowledge.
 
@@ -254,7 +255,7 @@ class MemoryCompressor:
         # Query L2 and L3 for potential facts
         query = MemoryQuery(
             tiers=[MemoryTier.L2_WORKING, MemoryTier.L3_SESSION],
-            types=[MemoryType.MESSAGE, MemoryType.SUMMARY, MemoryType.CONTEXT]
+            types=[MemoryType.MESSAGE, MemoryType.SUMMARY, MemoryType.CONTEXT],
         )
         candidates = await memory.query(query)
 
@@ -275,7 +276,7 @@ class MemoryCompressor:
                 tier=MemoryTier.L4_GLOBAL,
                 type=MemoryType.FACT,
                 importance=0.9,
-                metadata={"extracted_from": "L2/L3"}
+                metadata={"extracted_from": "L2/L3"},
             )
             fact_id = await memory.add(fact_unit)
             fact_ids.append(fact_id)
@@ -303,12 +304,9 @@ class MemoryCompressor:
         messages = [
             {
                 "role": "system",
-                "content": "You are a memory compression assistant. Summarize the conversation history concisely, preserving key information."
+                "content": "You are a memory compression assistant. Summarize the conversation history concisely, preserving key information.",
             },
-            {
-                "role": "user",
-                "content": f"Summarize this conversation:\n\n{context_text}"
-            }
+            {"role": "user", "content": f"Summarize this conversation:\n\n{context_text}"},
         ]
 
         try:
@@ -331,7 +329,7 @@ class MemoryCompressor:
     async def _extract_facts_with_llm(self, units: list[MemoryUnit]) -> list[str]:
         """Use LLM to extract facts from memory units."""
         if not self.llm_provider:
-             return self._extract_facts_simple(units)
+            return self._extract_facts_simple(units)
 
         # Build context from units
         context_parts = []
@@ -344,12 +342,12 @@ class MemoryCompressor:
         messages = [
             {
                 "role": "system",
-                "content": "You are a knowledge extraction assistant. Extract key facts from the conversation. Return each fact on a new line."
+                "content": "You are a knowledge extraction assistant. Extract key facts from the conversation. Return each fact on a new line.",
             },
             {
                 "role": "user",
-                "content": f"Extract key facts from this conversation:\n\n{context_text}"
-            }
+                "content": f"Extract key facts from this conversation:\n\n{context_text}",
+            },
         ]
 
         try:
@@ -395,7 +393,7 @@ class L4Compressor:
         embedding_provider: Any,
         threshold: int = 150,
         similarity_threshold: float = 0.75,
-        min_cluster_size: int = 3
+        min_cluster_size: int = 3,
     ):
         self.llm = llm_provider
         self.embedding = embedding_provider
@@ -414,10 +412,7 @@ class L4Compressor:
         """
         return len(l4_facts) > self.threshold
 
-    async def compress(
-        self,
-        l4_facts: list[MemoryUnit]
-    ) -> list[MemoryUnit]:
+    async def compress(self, l4_facts: list[MemoryUnit]) -> list[MemoryUnit]:
         """压缩L4 facts
 
         Args:
@@ -442,10 +437,7 @@ class L4Compressor:
 
         return compressed
 
-    async def _cluster_facts(
-        self,
-        facts: list[MemoryUnit]
-    ) -> list[list[MemoryUnit]]:
+    async def _cluster_facts(self, facts: list[MemoryUnit]) -> list[list[MemoryUnit]]:
         """聚类相似的facts（自实现，不依赖sklearn）
 
         使用基于相似度阈值的简单聚类算法：
@@ -495,19 +487,12 @@ class L4Compressor:
         similarity_matrix = np.clip(similarity_matrix, -1.0, 1.0)
 
         # 使用并查集进行聚类
-        clusters = self._union_find_clustering(
-            facts,
-            similarity_matrix,
-            self.similarity_threshold
-        )
+        clusters = self._union_find_clustering(facts, similarity_matrix, self.similarity_threshold)
 
         return clusters
 
     def _union_find_clustering(
-        self,
-        facts: list[MemoryUnit],
-        similarity_matrix,
-        threshold: float
+        self, facts: list[MemoryUnit], similarity_matrix, threshold: float
     ) -> list[list[MemoryUnit]]:
         """使用并查集进行聚类
 
@@ -563,10 +548,7 @@ class L4Compressor:
 
         return list(clusters_dict.values())
 
-    async def _summarize_cluster(
-        self,
-        cluster: list[MemoryUnit]
-    ) -> MemoryUnit:
+    async def _summarize_cluster(self, cluster: list[MemoryUnit]) -> MemoryUnit:
         """使用LLM总结一个cluster
 
         Args:
@@ -576,10 +558,7 @@ class L4Compressor:
             总结后的单个fact
         """
         # 构建prompt
-        facts_text = "\n".join([
-            f"{i+1}. {fact.content}"
-            for i, fact in enumerate(cluster)
-        ])
+        facts_text = "\n".join([f"{i+1}. {fact.content}" for i, fact in enumerate(cluster)])
 
         prompt = f"""Summarize these related facts into a single concise fact.
 Keep the key information, remove redundancy.
@@ -594,7 +573,7 @@ Concise summary (1-2 sentences):"""
             response = await self.llm.complete(
                 prompt,
                 max_tokens=150,
-                temperature=0.3  # 低温度，更确定性
+                temperature=0.3,  # 低温度，更确定性
             )
             summary = getattr(response, "content", str(response))
         except Exception:
@@ -610,6 +589,6 @@ Concise summary (1-2 sentences):"""
             metadata={
                 "compressed_from": len(cluster),
                 "original_ids": [f.id for f in cluster],
-                "compressed_at": datetime.datetime.now().isoformat()
-            }
+                "compressed_at": datetime.datetime.now().isoformat(),
+            },
         )

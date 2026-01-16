@@ -39,24 +39,20 @@ from loom.config.models import AgentConfig
 __all__ = [
     # Agent 配置
     "AgentConfig",
-
     # 分型配置
     "FractalConfig",
     "NodeRole",
     "NodeMetrics",
     "GrowthTrigger",
     "GrowthStrategy",
-
     # 执行配置
     "ExecutionConfig",
-
     # Memory 配置
     "ContextConfig",
     "CurationConfig",
     "MemoryConfig",
     "VectorStoreConfig",
     "EmbeddingConfig",
-
     # LLM 配置
     "LLMConfig",
     "ConnectionConfig",

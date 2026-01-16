@@ -22,6 +22,7 @@ class ToolExecutionResult:
     result: Any
     error: bool = False
 
+
 class ToolExecutor:
     """
     Orchestrates the execution of multiple tool calls.
@@ -29,17 +30,23 @@ class ToolExecutor:
     """
 
     def __init__(
-        self,
-        config: ExecutionConfig,
-        read_only_check: Callable[[str], bool] | None = None
+        self, config: ExecutionConfig, read_only_check: Callable[[str], bool] | None = None
     ):
         self.config = config
         self.custom_read_only_check = read_only_check
 
         # Heuristic patterns for read-only tools
         self.read_only_patterns = [
-            r"^read_", r"^get_", r"^list_", r"^ls", r"^grep", r"^find",
-            r"^search", r"^query", r"^fetch", r"^view"
+            r"^read_",
+            r"^get_",
+            r"^list_",
+            r"^ls",
+            r"^grep",
+            r"^find",
+            r"^search",
+            r"^query",
+            r"^fetch",
+            r"^view",
         ]
 
         # Tool result caching
@@ -61,8 +68,7 @@ class ToolExecutor:
         return False
 
     def _deduplicate_calls(
-        self,
-        tool_calls: list[dict[str, Any]]
+        self, tool_calls: list[dict[str, Any]]
     ) -> tuple[list[dict[str, Any]], dict[int, int]]:
         """
         Remove duplicate tool calls, return unique calls and index mapping.
@@ -105,7 +111,7 @@ class ToolExecutor:
     async def execute_batch(
         self,
         tool_calls: list[dict[str, Any]],
-        executor_func: Callable[[str, dict], Coroutine[Any, Any, Any]]
+        executor_func: Callable[[str, dict], Coroutine[Any, Any, Any]],
     ) -> list[ToolExecutionResult]:
         """
         Execute a batch of tool calls respecting read/write barriers.
@@ -167,7 +173,7 @@ class ToolExecutor:
                 # But actually, if we have [W1, W2], can they run together? No. Side effects order matters.
                 # So W1 is its own group.
                 groups.append([(idx, call)])
-                is_current_read = False # Reset
+                is_current_read = False  # Reset
 
         if current_group:
             groups.append(current_group)
@@ -182,7 +188,9 @@ class ToolExecutor:
 
             first_idx, first_call = group[0]
             first_name = first_call.get("name", "")
-            is_read_group = self.is_read_only(first_name) if self.config.parallel_execution else False
+            is_read_group = (
+                self.is_read_only(first_name) if self.config.parallel_execution else False
+            )
 
             if is_read_group and len(group) > 0:
                 # Parallel Execution
@@ -192,7 +200,7 @@ class ToolExecutor:
 
                 group_results = await asyncio.gather(*tasks)
                 for res in group_results:
-                     results_map[res.index] = res
+                    results_map[res.index] = res
             else:
                 # Sequential Execution
                 for idx, call in group:
@@ -209,21 +217,24 @@ class ToolExecutor:
                 if unique_idx in results_map:
                     unique_result = results_map[unique_idx]
                     # Create result with original index
-                    final_results.append(ToolExecutionResult(
-                        orig_idx,
-                        unique_result.name,
-                        unique_result.result,
-                        unique_result.error
-                    ))
+                    final_results.append(
+                        ToolExecutionResult(
+                            orig_idx, unique_result.name, unique_result.result, unique_result.error
+                        )
+                    )
                 else:
-                    final_results.append(ToolExecutionResult(orig_idx, "unknown", "Error: Missing Result", True))
+                    final_results.append(
+                        ToolExecutionResult(orig_idx, "unknown", "Error: Missing Result", True)
+                    )
         else:
             # No duplicates, return results as-is
             for idx in range(len(tool_calls)):
                 if idx in results_map:
                     final_results.append(results_map[idx])
                 else:
-                    final_results.append(ToolExecutionResult(idx, "unknown", "Error: Missing Result", True))
+                    final_results.append(
+                        ToolExecutionResult(idx, "unknown", "Error: Missing Result", True)
+                    )
 
         return final_results
 
@@ -249,7 +260,8 @@ class ToolExecutor:
         """Remove expired entries from cache."""
         current_time = time.time()
         expired_keys = [
-            key for key, timestamp in self.cache_timestamps.items()
+            key
+            for key, timestamp in self.cache_timestamps.items()
             if current_time - timestamp >= self.cache_ttl
         ]
         for key in expired_keys:
@@ -257,11 +269,7 @@ class ToolExecutor:
             self.cache_timestamps.pop(key, None)
 
     async def _safe_execute_with_retry(
-        self,
-        index: int,
-        call: dict,
-        executor_func: Callable,
-        max_retries: int = 2
+        self, index: int, call: dict, executor_func: Callable, max_retries: int = 2
     ) -> ToolExecutionResult:
         """
         Execute tool with automatic retry and error recovery.
@@ -310,14 +318,12 @@ class ToolExecutor:
                 raise
 
         # Should not reach here, but return error result as fallback
-        return ToolExecutionResult(index, call.get("name", "unknown"),
-                                   "Max retries exceeded", error=True)
+        return ToolExecutionResult(
+            index, call.get("name", "unknown"), "Max retries exceeded", error=True
+        )
 
     async def _safe_execute(
-        self,
-        index: int,
-        call: dict,
-        executor_func: Callable
+        self, index: int, call: dict, executor_func: Callable
     ) -> ToolExecutionResult:
         name = str(call.get("name", ""))
         args = call.get("arguments") or {}

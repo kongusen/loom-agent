@@ -9,6 +9,7 @@ from loom.protocol.cloudevents import CloudEvent
 class BudgetExceededError(Exception):
     pass
 
+
 class BudgetInterceptor(Interceptor):
     """
     Controls resource usage (tokens/cost) per agent/node.
@@ -50,11 +51,11 @@ class BudgetInterceptor(Interceptor):
         if event.data and isinstance(event.data, dict):
             # If explicit usage field exists
             if "usage" in event.data:
-                 tokens = event.data["usage"].get("total_tokens", 0)
+                tokens = event.data["usage"].get("total_tokens", 0)
             else:
-                 # Heuristic
-                 content = str(event.data.get("thought", "") or event.data.get("result", "") or "")
-                 tokens = len(content) // 4 # Approx
+                # Heuristic
+                content = str(event.data.get("thought", "") or event.data.get("result", "") or "")
+                tokens = len(content) // 4  # Approx
 
         if tokens > 0:
             self._usage[node_id] = self._usage.get(node_id, 0) + tokens

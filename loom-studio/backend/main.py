@@ -1,4 +1,3 @@
-
 from typing import Any
 
 from fastapi import FastAPI, Query, WebSocket
@@ -15,6 +14,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # --- In-Memory Store ---
 # In a real impl, this would wrap database access
@@ -42,7 +42,9 @@ class SimpleEventStore:
             if rid:
                 self._seen_ids.discard(rid)
 
-    async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> list[dict[str, Any]]:
+    async def get_events(
+        self, limit: int = 100, offset: int = 0, **filters
+    ) -> list[dict[str, Any]]:
         # Apply filters (basic implementation)
         filtered = self.events
 
@@ -71,12 +73,15 @@ class SimpleEventStore:
         res = filtered[offset : offset + limit]
         return res
 
+
 event_store = SimpleEventStore()
 
 # --- Connection Manager ---
 
+
 class ConnectionManager:
     """Manages WebSocket connections"""
+
     def __init__(self):
         self.active_connections: set[WebSocket] = set()
 
@@ -98,9 +103,11 @@ class ConnectionManager:
 
         self.active_connections -= disconnected
 
+
 manager = ConnectionManager()
 
 # --- WebSocket Endpoints ---
+
 
 @app.websocket("/ws/events")
 async def websocket_endpoint(websocket: WebSocket):
@@ -112,6 +119,7 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
+
 
 @app.websocket("/ws/ingest")
 async def ingest_endpoint(websocket: WebSocket):
@@ -129,17 +137,11 @@ async def ingest_endpoint(websocket: WebSocket):
                     await event_store.append(event)
 
                     # Broadcast event
-                    await manager.broadcast({
-                        "type": "event",
-                        "data": event
-                    })
+                    await manager.broadcast({"type": "event", "data": event})
 
                 # After processing events, broadcast topology update via WebSocket
                 topology = _compute_topology()
-                await manager.broadcast({
-                    "type": "topology",
-                    "data": topology
-                })
+                await manager.broadcast({"type": "topology", "data": topology})
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -148,12 +150,13 @@ async def ingest_endpoint(websocket: WebSocket):
 
 # --- REST API Endpoints ---
 
+
 @app.get("/api/events")
 async def get_events(
     limit: int = Query(100, le=1000),
     offset: int = Query(0),
     node_id: str | None = None,
-    event_type: str | None = None
+    event_type: str | None = None,
 ):
     """Query history events"""
     filters = {}
@@ -163,7 +166,8 @@ async def get_events(
         filters["type"] = event_type
 
     events = await event_store.get_events(limit=limit, offset=offset, **filters)
-    return {"events": events, "total": len(events)} # Total is rough approx
+    return {"events": events, "total": len(events)}  # Total is rough approx
+
 
 def _infer_node_type(event: dict[str, Any]) -> str:
     """Simple heuristic to infer node type from event"""
@@ -172,7 +176,7 @@ def _infer_node_type(event: dict[str, Any]) -> str:
         return "Node"
 
     # 规范化 source（移除开头的 /）
-    normalized = source.lstrip('/')
+    normalized = source.lstrip("/")
 
     # 检查路径中是否包含类型标识
     if "/agent/" in normalized or normalized.startswith("agent/"):
@@ -192,9 +196,10 @@ def _infer_node_type(event: dict[str, Any]) -> str:
 
     return "Node"
 
+
 def _compute_topology():
     """Compute topology from events (extracted as function for reuse)"""
-    events = event_store.events # Get all for topology
+    events = event_store.events  # Get all for topology
 
     nodes = {}
     edges: dict[str, int] = {}
@@ -205,21 +210,17 @@ def _compute_topology():
 
         # Record Node
         if source and source not in nodes:
-            nodes[source] = {
-                "id": source,
-                "type": _infer_node_type(event),
-                "metadata": {}
-            }
+            nodes[source] = {"id": source, "type": _infer_node_type(event), "metadata": {}}
 
         # Also maybe the subject is a node (e.g. invalid target?)
         # But usually subject is just a string target ID.
         if subject and subject not in nodes:
-             # Heuristic: if subject looks like a path, infer type
-             nodes[subject] = {
-                 "id": subject,
-                 "type": _infer_node_type({"source": subject}),  # 使用相同的推断逻辑
-                 "metadata": {}
-             }
+            # Heuristic: if subject looks like a path, infer type
+            nodes[subject] = {
+                "id": subject,
+                "type": _infer_node_type({"source": subject}),  # 使用相同的推断逻辑
+                "metadata": {},
+            }
 
         # Record Edge
         if source and subject:
@@ -229,15 +230,16 @@ def _compute_topology():
     return {
         "nodes": list(nodes.values()),
         "edges": [
-            {"from": k.split("->")[0], "to": k.split("->")[1], "count": v}
-            for k, v in edges.items()
-        ]
+            {"from": k.split("->")[0], "to": k.split("->")[1], "count": v} for k, v in edges.items()
+        ],
     }
+
 
 @app.get("/api/topology")
 async def get_topology():
     """Get node topology inferred from events"""
     return _compute_topology()
+
 
 @app.get("/api/memory/{node_id:path}")
 async def get_memory(node_id: str):
@@ -248,7 +250,7 @@ async def get_memory(node_id: str):
     events = await event_store.get_events(
         limit=1000,
         source__contains=node_id,
-        type__in=["memory.add", "memory.consolidate", "agent.thought"]
+        type__in=["memory.add", "memory.consolidate", "agent.thought"],
     )
 
     # In a real system, we would query the Agent's actual memory state via a control plane command

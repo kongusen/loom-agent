@@ -2,7 +2,6 @@
 Tests for Infrastructure Logging
 """
 
-
 import pytest
 
 from loom.infra.logging import configure_logging, get_logger
@@ -15,6 +14,7 @@ class TestConfigureLogging:
     def reset_logging(self):
         """Reset logging configuration after each test."""
         import structlog
+
         # Reset structlog configuration
         structlog.reset_defaults()
 
@@ -29,6 +29,7 @@ class TestConfigureLogging:
 
         # Check that structlog is configured
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -37,6 +38,7 @@ class TestConfigureLogging:
         configure_logging(log_level="DEBUG")
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -45,6 +47,7 @@ class TestConfigureLogging:
         configure_logging(log_level="WARNING")
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -53,6 +56,7 @@ class TestConfigureLogging:
         configure_logging(log_level="ERROR")
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -62,6 +66,7 @@ class TestConfigureLogging:
         configure_logging(log_level="INVALID")
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -70,6 +75,7 @@ class TestConfigureLogging:
         configure_logging(log_level="info")
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -78,6 +84,7 @@ class TestConfigureLogging:
         configure_logging(json_format=True)
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -86,6 +93,7 @@ class TestConfigureLogging:
         configure_logging(json_format=False)
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 
@@ -95,6 +103,7 @@ class TestConfigureLogging:
         configure_logging(log_level="DEBUG", json_format=True)
 
         import structlog
+
         logger = structlog.get_logger()
         assert logger is not None
 

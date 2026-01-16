@@ -4,6 +4,7 @@ Determines if a System 1 response is reliable or needs fallback to System 2.
 
 Now uses unified QueryFeatureExtractor for consistent feature extraction.
 """
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +14,7 @@ from loom.cognition.features import QueryFeatureExtractor
 @dataclass
 class ConfidenceScore:
     """Result of confidence estimation"""
+
     score: float  # 0.0 to 1.0
     reasoning: str
     features: dict[str, float]  # Individual feature scores
@@ -37,7 +39,7 @@ class ConfidenceEstimator:
         self,
         base_confidence: float = 0.7,
         length_penalty_threshold: int = 50,
-        uncertainty_penalty: float = 0.3
+        uncertainty_penalty: float = 0.3,
     ):
         self.base_confidence = base_confidence
         self.length_penalty_threshold = length_penalty_threshold
@@ -45,10 +47,7 @@ class ConfidenceEstimator:
         self.feature_extractor = QueryFeatureExtractor()
 
     def estimate(
-        self,
-        query: str,
-        response: str,
-        _context: dict[str, Any] | None = None
+        self, query: str, response: str, _context: dict[str, Any] | None = None
     ) -> ConfidenceScore:
         """
         Estimate confidence in a System 1 response.
@@ -94,11 +93,7 @@ class ConfidenceEstimator:
         # Generate reasoning
         reasoning = self._generate_reasoning(features, confidence)
 
-        return ConfidenceScore(
-            score=confidence,
-            reasoning=reasoning,
-            features=features
-        )
+        return ConfidenceScore(score=confidence, reasoning=reasoning, features=features)
 
     @staticmethod
     def _generate_reasoning(features: dict[str, float], confidence: float) -> str:

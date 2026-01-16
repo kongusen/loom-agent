@@ -35,7 +35,7 @@ class GPUStackProvider(OpenAICompatibleProvider):
         api_key: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-        **kwargs
+        **kwargs,
     ):
         """初始化 GPU Stack Provider"""
         if config is None:
@@ -44,14 +44,13 @@ class GPUStackProvider(OpenAICompatibleProvider):
             api_key = api_key or os.getenv(self.API_KEY_ENV_VAR) or "gpustack"
 
             config.connection = ConnectionConfig(
-                api_key=api_key,
-                base_url=base_url or self.DEFAULT_BASE_URL
+                api_key=api_key, base_url=base_url or self.DEFAULT_BASE_URL
             )
 
             config.generation = GenerationConfig(
                 model=model or self.DEFAULT_MODEL,
                 temperature=temperature if temperature is not None else 0.7,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
         super().__init__(config=config, **kwargs)

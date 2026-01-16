@@ -1,12 +1,13 @@
 """
 Test advanced compression features (Phase 3 completion)
 """
+
 import asyncio
 import os
 import sys
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from loom.memory.compression import MemoryCompressor
 from loom.memory.core import LoomMemory
@@ -15,9 +16,9 @@ from loom.memory.types import MemoryStatus, MemoryTier, MemoryType, MemoryUnit
 
 async def test_memory_status_enum():
     """Test 1: MemoryStatus enum"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 1: MemoryStatus Enum")
-    print("="*60)
+    print("=" * 60)
 
     try:
         # Test enum values
@@ -28,9 +29,7 @@ async def test_memory_status_enum():
 
         # Test MemoryUnit with status
         unit = MemoryUnit(
-            content="Test message",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
+            content="Test message", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE
         )
         assert unit.status == MemoryStatus.ACTIVE
 
@@ -43,22 +42,20 @@ async def test_memory_status_enum():
     except Exception as e:
         print(f"❌ MemoryStatus enum: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_memory_compressor_init():
     """Test 2: MemoryCompressor initialization"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 2: MemoryCompressor Initialization")
-    print("="*60)
+    print("=" * 60)
 
     try:
         compressor = MemoryCompressor(
-            llm_provider=None,
-            l1_to_l3_threshold=30,
-            l3_to_l4_threshold=50,
-            token_threshold=4000
+            llm_provider=None, l1_to_l3_threshold=30, l3_to_l4_threshold=50, token_threshold=4000
         )
 
         assert compressor.l1_to_l3_threshold == 30
@@ -71,31 +68,34 @@ async def test_memory_compressor_init():
     except Exception as e:
         print(f"❌ MemoryCompressor initialization: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_compress_l1_to_l3():
     """Test 3: L1 to L3 compression"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 3: L1 to L3 Compression")
-    print("="*60)
+    print("=" * 60)
 
     try:
         memory = LoomMemory(node_id="test_compress")
         compressor = MemoryCompressor(
             llm_provider=None,
             l1_to_l3_threshold=5,  # Low threshold for testing
-            token_threshold=100
+            token_threshold=100,
         )
 
         # Add L1 messages
         for i in range(10):
-            await memory.add(MemoryUnit(
-                content=f"User message {i}: This is a test message with some content.",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content=f"User message {i}: This is a test message with some content.",
+                    tier=MemoryTier.L1_RAW_IO,
+                    type=MemoryType.MESSAGE,
+                )
+            )
 
         # Compress
         summary_id = await compressor.compress_l1_to_l3(memory)
@@ -114,32 +114,35 @@ async def test_compress_l1_to_l3():
     except Exception as e:
         print(f"❌ L1 to L3 compression: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_extract_facts_to_l4():
     """Test 4: Extract facts to L4"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 4: Extract Facts to L4")
-    print("="*60)
+    print("=" * 60)
 
     try:
         memory = LoomMemory(node_id="test_facts")
         compressor = MemoryCompressor(
             llm_provider=None,
             l3_to_l4_threshold=3,  # Low threshold for testing
-            token_threshold=100
+            token_threshold=100,
         )
 
         # Add L2/L3 content with high importance
         for i in range(5):
-            await memory.add(MemoryUnit(
-                content=f"Important fact {i}: The system uses advanced memory compression.",
-                tier=MemoryTier.L2_WORKING,
-                type=MemoryType.MESSAGE,
-                importance=0.9
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content=f"Important fact {i}: The system uses advanced memory compression.",
+                    tier=MemoryTier.L2_WORKING,
+                    type=MemoryType.MESSAGE,
+                    importance=0.9,
+                )
+            )
 
         # Extract facts
         fact_ids = await compressor.extract_facts_to_l4(memory)
@@ -159,6 +162,7 @@ async def test_extract_facts_to_l4():
     except Exception as e:
         print(f"❌ Extract facts to L4: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -174,7 +178,7 @@ async def main():
         test_memory_status_enum,
         test_memory_compressor_init,
         test_compress_l1_to_l3,
-        test_extract_facts_to_l4
+        test_extract_facts_to_l4,
     ]
 
     results = []
@@ -183,9 +187,9 @@ async def main():
         results.append(result)
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
     passed = sum(results)
     total = len(results)
     print(f"Passed: {passed}/{total}")

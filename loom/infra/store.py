@@ -51,8 +51,7 @@ class InMemoryEventStore(EventStore):
         # e.g. get_events(source="/agent/a")
         if filters:
             filtered = [
-                e for e in filtered
-                if all(getattr(e, k, None) == v for k, v in filters.items())
+                e for e in filtered if all(getattr(e, k, None) == v for k, v in filters.items())
             ]
 
         # Apply pagination

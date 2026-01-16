@@ -63,7 +63,7 @@ class OpenAIProvider(LLMProvider):
         temperature: float | None = None,
         max_tokens: int | None = None,
         stream: bool | None = None,
-        **kwargs
+        **kwargs,
     ):
         """
         初始化 OpenAI Provider
@@ -84,16 +84,13 @@ class OpenAIProvider(LLMProvider):
 
             # 应用快速配置参数
             if api_key or base_url:
-                config.connection = ConnectionConfig(
-                    api_key=api_key,
-                    base_url=base_url
-                )
+                config.connection = ConnectionConfig(api_key=api_key, base_url=base_url)
 
             if model or temperature is not None or max_tokens:
                 config.generation = GenerationConfig(
                     model=model or "gpt-4",
                     temperature=temperature if temperature is not None else 0.7,
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
                 )
 
             if stream is not None:
@@ -108,7 +105,7 @@ class OpenAIProvider(LLMProvider):
             timeout=config.connection.timeout,
             max_retries=config.connection.max_retries,
             organization=config.connection.organization,
-            **kwargs
+            **kwargs,
         )
 
     def _convert_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -126,20 +123,17 @@ class OpenAIProvider(LLMProvider):
             function_def = {
                 "name": tool.get("name"),
                 "description": tool.get("description"),
-                "parameters": tool.get("inputSchema", tool.get("parameters", {}))
+                "parameters": tool.get("inputSchema", tool.get("parameters", {})),
             }
 
-            openai_tools.append({
-                "type": "function",
-                "function": function_def
-            })
+            openai_tools.append({"type": "function", "function": function_def})
         return openai_tools
 
     async def chat(
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
-        config: dict[str, Any] | None = None
+        config: dict[str, Any] | None = None,
     ) -> LLMResponse:
         """调用 OpenAI Chat API（使用配置体系）"""
         # 获取基础参数
@@ -177,11 +171,9 @@ class OpenAIProvider(LLMProvider):
         tool_calls = []
         if message.tool_calls:
             for tc in message.tool_calls:
-                tool_calls.append({
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments
-                })
+                tool_calls.append(
+                    {"id": tc.id, "name": tc.function.name, "arguments": tc.function.arguments}
+                )
 
         return LLMResponse(
             content=content,
@@ -189,14 +181,14 @@ class OpenAIProvider(LLMProvider):
             token_usage={
                 "prompt_tokens": response.usage.prompt_tokens,
                 "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens
-            } if response.usage else None
+                "total_tokens": response.usage.total_tokens,
+            }
+            if response.usage
+            else None,
         )
 
     async def stream_chat(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
     ) -> AsyncGenerator[StreamChunk, None]:
         """流式调用 OpenAI Chat API（增强版：实时工具调用通知）"""
         # 获取基础参数
@@ -228,7 +220,7 @@ class OpenAIProvider(LLMProvider):
             async for chunk in stream:
                 if not chunk.choices:
                     # 处理 usage chunk（OpenAI 在最后发送）
-                    if hasattr(chunk, 'usage') and chunk.usage:
+                    if hasattr(chunk, "usage") and chunk.usage:
                         yield StreamChunk(
                             type="done",
                             content="",
@@ -237,9 +229,9 @@ class OpenAIProvider(LLMProvider):
                                 "token_usage": {
                                     "prompt_tokens": chunk.usage.prompt_tokens,
                                     "completion_tokens": chunk.usage.completion_tokens,
-                                    "total_tokens": chunk.usage.total_tokens
-                                }
-                            }
+                                    "total_tokens": chunk.usage.total_tokens,
+                                },
+                            },
                         )
                     continue
 
@@ -247,11 +239,7 @@ class OpenAIProvider(LLMProvider):
 
                 # 文本内容
                 if delta.content:
-                    yield StreamChunk(
-                        type="text",
-                        content=delta.content,
-                        metadata={}
-                    )
+                    yield StreamChunk(type="text", content=delta.content, metadata={})
 
                 # 工具调用 - 实时通知 + 聚合
                 if delta.tool_calls:
@@ -263,7 +251,7 @@ class OpenAIProvider(LLMProvider):
                             tool_calls_buffer[idx] = {
                                 "id": tc.id or "",
                                 "name": tc.function.name or "",
-                                "arguments": ""
+                                "arguments": "",
                             }
                             tool_calls_started[idx] = False
 
@@ -276,16 +264,15 @@ class OpenAIProvider(LLMProvider):
                             tool_calls_buffer[idx]["arguments"] += tc.function.arguments
 
                         # 当我们有了 name 且还没发送 start 事件时，发送它
-                        if (tool_calls_buffer[idx]["name"] and
-                            not tool_calls_started[idx]):
+                        if tool_calls_buffer[idx]["name"] and not tool_calls_started[idx]:
                             yield StreamChunk(
                                 type="tool_call_start",
                                 content={
                                     "id": tool_calls_buffer[idx]["id"],
                                     "name": tool_calls_buffer[idx]["name"],
-                                    "index": idx
+                                    "index": idx,
                                 },
-                                metadata={}
+                                metadata={},
                             )
                             tool_calls_started[idx] = True
 
@@ -297,11 +284,10 @@ class OpenAIProvider(LLMProvider):
                             # 验证 arguments 是否是有效 JSON
                             try:
                                 import json
+
                                 json.loads(tc["arguments"])  # 验证
                                 yield StreamChunk(
-                                    type="tool_call_complete",
-                                    content=tc,
-                                    metadata={"index": idx}
+                                    type="tool_call_complete", content=tc, metadata={"index": idx}
                                 )
                             except json.JSONDecodeError as e:
                                 yield StreamChunk(
@@ -309,36 +295,28 @@ class OpenAIProvider(LLMProvider):
                                     content={
                                         "error": "invalid_tool_arguments",
                                         "message": f"Tool {tc['name']} arguments are not valid JSON: {str(e)}",
-                                        "tool_call": tc
+                                        "tool_call": tc,
                                     },
-                                    metadata={"index": idx}
+                                    metadata={"index": idx},
                                 )
 
                     # 发送 done 事件
                     done_metadata = {"finish_reason": chunk.choices[0].finish_reason}
 
                     # 如果有 usage 信息，添加到 metadata
-                    if hasattr(chunk, 'usage') and chunk.usage:
+                    if hasattr(chunk, "usage") and chunk.usage:
                         done_metadata["token_usage"] = {
                             "prompt_tokens": chunk.usage.prompt_tokens,
                             "completion_tokens": chunk.usage.completion_tokens,
-                            "total_tokens": chunk.usage.total_tokens
+                            "total_tokens": chunk.usage.total_tokens,
                         }
 
-                    yield StreamChunk(
-                        type="done",
-                        content="",
-                        metadata=done_metadata
-                    )
+                    yield StreamChunk(type="done", content="", metadata=done_metadata)
 
         except Exception as e:
             # 捕获所有异常并作为 error chunk 返回
             yield StreamChunk(
                 type="error",
-                content={
-                    "error": "stream_error",
-                    "message": str(e),
-                    "type": type(e).__name__
-                },
-                metadata={}
+                content={"error": "stream_error", "message": str(e), "type": type(e).__name__},
+                metadata={},
             )

@@ -18,6 +18,7 @@ def infrastructure():
     provider = MockLLMProvider()
     return bus, dispatcher, provider
 
+
 @pytest.mark.asyncio
 async def test_hot_plug_lifecycle(infrastructure):
     """
@@ -35,7 +36,7 @@ async def test_hot_plug_lifecycle(infrastructure):
         dispatcher=dispatcher,
         provider=provider,
         role=NodeRole.COORDINATOR,
-        fractal_config=FractalConfig(enabled=True)
+        fractal_config=FractalConfig(enabled=True),
     )
 
     assert len(root_agent.children) == 0
@@ -44,8 +45,7 @@ async def test_hot_plug_lifecycle(infrastructure):
     # 2. Hot-plug Child
     print("🔌 Hot-plugging child node...")
     child_agent = root_agent.add_child(
-        role=NodeRole.SPECIALIST,
-        system_prompt="I am a dynamic specialist."
+        role=NodeRole.SPECIALIST, system_prompt="I am a dynamic specialist."
     )
 
     # 3. Verify Structure
@@ -81,18 +81,20 @@ async def test_memory_sharing_and_isolation(infrastructure):
         dispatcher=dispatcher,
         provider=provider,
         memory=shared_memory,
-        fractal_config=FractalConfig(enabled=True)
+        fractal_config=FractalConfig(enabled=True),
     )
 
     # 2. Parent learns Fact A (L4)
     print("\n📝 Parent learning Fact A...")
-    await root_agent.memory.add(MemoryUnit(
-        content="Fact A: The sky is blue.",
-        tier=MemoryTier.L4_GLOBAL,
-        type=MemoryType.FACT,
-        importance=1.0,
-        source_node=root_agent.node_id
-    ))
+    await root_agent.memory.add(
+        MemoryUnit(
+            content="Fact A: The sky is blue.",
+            tier=MemoryTier.L4_GLOBAL,
+            type=MemoryType.FACT,
+            importance=1.0,
+            source_node=root_agent.node_id,
+        )
+    )
 
     # Verify Parent sees it
     l4_units = await root_agent.memory.query(MemoryQuery(tiers=[MemoryTier.L4_GLOBAL]))
@@ -118,12 +120,14 @@ async def test_memory_sharing_and_isolation(infrastructure):
     # 5. Child produces Thought B (L1 Local)
     print("💭 Child thinking...")
     thought_content = "Child Thought: I should analyze the color blue."
-    await child_agent.memory.add(MemoryUnit(
-        content=thought_content,
-        tier=MemoryTier.L1_RAW_IO,
-        type=MemoryType.THOUGHT,
-        source_node=child_agent.node_id  # Explicit attribution
-    ))
+    await child_agent.memory.add(
+        MemoryUnit(
+            content=thought_content,
+            tier=MemoryTier.L1_RAW_IO,
+            type=MemoryType.THOUGHT,
+            source_node=child_agent.node_id,  # Explicit attribution
+        )
+    )
 
     # 6. Verify Attribution
     # Query all L1
@@ -150,15 +154,13 @@ async def test_context_projection_init(infrastructure):
         lineage=["root-agent"],
         parent_plan="1. Analyze code\n2. Write test",
         relevant_facts=[
-            MemoryUnit(content="Module X handles payments", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT)
-        ]
+            MemoryUnit(
+                content="Module X handles payments", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT
+            )
+        ],
     )
 
-    root_agent = FractalAgentNode(
-        node_id="root-agent",
-        dispatcher=dispatcher,
-        provider=provider
-    )
+    root_agent = FractalAgentNode(node_id="root-agent", dispatcher=dispatcher, provider=provider)
 
     print("\n🔌 Hot-plugging child with Context Projection...")
 
@@ -168,8 +170,8 @@ async def test_context_projection_init(infrastructure):
         dispatcher=dispatcher,
         provider=provider,
         parent=root_agent,
-        standalone=False, # Use full AgentNode
-        context_projection=projection
+        standalone=False,  # Use full AgentNode
+        context_projection=projection,
     )
 
     # Verify Projection Applied (Sync Add to Memory)
@@ -197,6 +199,7 @@ async def test_context_projection_init(infrastructure):
 
     assert found_fact
     print("✅ Projection Fact found in Child Memory")
+
 
 if __name__ == "__main__":
     asyncio.run(test_hot_plug_lifecycle(infrastructure()))

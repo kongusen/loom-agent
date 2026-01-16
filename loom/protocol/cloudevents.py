@@ -20,8 +20,8 @@ class EventType:
     NODE_ERROR = "node.error"
 
     # Cognitive Streams (System 1 & 2)
-    STREAM_CHUNK = "agent.stream.chunk"   # System 1: Speech Stream
-    THOUGHT_SPARK = "agent.thought.spark" # System 2: Crystallized Insight
+    STREAM_CHUNK = "agent.stream.chunk"  # System 1: Speech Stream
+    THOUGHT_SPARK = "agent.thought.spark"  # System 2: Crystallized Insight
 
     # Kernel Management
     NODE_REGISTER = "kernel.node.register"
@@ -49,7 +49,7 @@ class CloudEvent(BaseModel):
     specversion: str = "1.0"
     id: str = Field(default_factory=lambda: str(uuid4()))
     source: str
-    type: str # e.g., "node.call", "agent.thought"
+    type: str  # e.g., "node.call", "agent.thought"
 
     # Optional Attributes
     datacontenttype: str | None = "application/json"
@@ -63,9 +63,7 @@ class CloudEvent(BaseModel):
     extensions: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
-        populate_by_name=True,
-        json_encoders={datetime: lambda v: v.isoformat()},
-        extra='allow'
+        populate_by_name=True, json_encoders={datetime: lambda v: v.isoformat()}, extra="allow"
     )
 
     def to_dict(self) -> dict[str, Any]:
@@ -79,13 +77,7 @@ class CloudEvent(BaseModel):
         type: str,
         data: Any | None = None,
         subject: str | None = None,
-        traceparent: str | None = None
+        traceparent: str | None = None,
     ) -> CloudEvent:
         """Factory method to create a CloudEvent."""
-        return cls(
-            source=source,
-            type=type,
-            data=data,
-            subject=subject,
-            traceparent=traceparent
-        )
+        return cls(source=source, type=type, data=data, subject=subject, traceparent=traceparent)

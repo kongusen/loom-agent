@@ -29,11 +29,7 @@ class TestInMemoryEventStore:
     @pytest.fixture
     def sample_event(self):
         """Create a sample event."""
-        return CloudEvent.create(
-            source="/test/source",
-            type="test.event",
-            data={"message": "test"}
-        )
+        return CloudEvent.create(source="/test/source", type="test.event", data={"message": "test"})
 
     async def test_initialization(self, store):
         """Test store initialization."""
@@ -50,9 +46,7 @@ class TestInMemoryEventStore:
         """Test appending multiple events."""
         for i in range(5):
             event = CloudEvent.create(
-                source=f"/test/source{i}",
-                type="test.event",
-                data={"index": i}
+                source=f"/test/source{i}", type="test.event", data={"index": i}
             )
             await store.append(event)
 
@@ -76,11 +70,7 @@ class TestInMemoryEventStore:
     async def test_get_events_with_limit(self, store):
         """Test getting events with limit."""
         for i in range(10):
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"index": i}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"index": i})
             await store.append(event)
 
         events = await store.get_events(limit=5)
@@ -90,11 +80,7 @@ class TestInMemoryEventStore:
     async def test_get_events_with_offset(self, store):
         """Test getting events with offset."""
         for i in range(10):
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"index": i}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"index": i})
             await store.append(event)
 
         events = await store.get_events(offset=5)
@@ -106,11 +92,7 @@ class TestInMemoryEventStore:
     async def test_get_events_with_limit_and_offset(self, store):
         """Test getting events with both limit and offset."""
         for i in range(20):
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"index": i}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"index": i})
             await store.append(event)
 
         events = await store.get_events(limit=5, offset=10)
@@ -122,16 +104,8 @@ class TestInMemoryEventStore:
 
     async def test_get_events_with_source_filter(self, store):
         """Test filtering by source."""
-        event1 = CloudEvent.create(
-            source="/source/a",
-            type="test.event",
-            data={"val": 1}
-        )
-        event2 = CloudEvent.create(
-            source="/source/b",
-            type="test.event",
-            data={"val": 2}
-        )
+        event1 = CloudEvent.create(source="/source/a", type="test.event", data={"val": 1})
+        event2 = CloudEvent.create(source="/source/b", type="test.event", data={"val": 2})
 
         await store.append(event1)
         await store.append(event2)
@@ -143,16 +117,8 @@ class TestInMemoryEventStore:
 
     async def test_get_events_with_type_filter(self, store):
         """Test filtering by type."""
-        event1 = CloudEvent.create(
-            source="/test",
-            type="type.a",
-            data={"val": 1}
-        )
-        event2 = CloudEvent.create(
-            source="/test",
-            type="type.b",
-            data={"val": 2}
-        )
+        event1 = CloudEvent.create(source="/test", type="type.a", data={"val": 1})
+        event2 = CloudEvent.create(source="/test", type="type.b", data={"val": 2})
 
         await store.append(event1)
         await store.append(event2)
@@ -164,21 +130,9 @@ class TestInMemoryEventStore:
 
     async def test_get_events_with_multiple_filters(self, store):
         """Test filtering by multiple attributes."""
-        event1 = CloudEvent.create(
-            source="/source/a",
-            type="type.x",
-            data={"val": 1}
-        )
-        event2 = CloudEvent.create(
-            source="/source/a",
-            type="type.y",
-            data={"val": 2}
-        )
-        event3 = CloudEvent.create(
-            source="/source/b",
-            type="type.x",
-            data={"val": 3}
-        )
+        event1 = CloudEvent.create(source="/source/a", type="type.x", data={"val": 1})
+        event2 = CloudEvent.create(source="/source/a", type="type.y", data={"val": 2})
+        event3 = CloudEvent.create(source="/source/b", type="type.x", data={"val": 3})
 
         await store.append(event1)
         await store.append(event2)
@@ -211,11 +165,7 @@ class TestInMemoryEventStore:
     async def test_events_stored_in_order(self, store):
         """Test that events are stored in append order."""
         for i in range(5):
-            event = CloudEvent.create(
-                source="/test",
-                type="test.event",
-                data={"index": i}
-            )
+            event = CloudEvent.create(source="/test", type="test.event", data={"index": i})
             await store.append(event)
 
         events = await store.get_events()

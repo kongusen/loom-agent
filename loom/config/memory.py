@@ -1,6 +1,7 @@
 """
 LoomMemory Configuration
 """
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -10,24 +11,27 @@ class CurationConfig:
     """
     Configuration for Context Curation strategies.
     """
-    max_tokens: int = 4000      # Target maximum context size in tokens
-    use_snippets: bool = True   # Whether to use Progressive Disclosure (Snippets)
-    focus_distance: int = 2     # Graph distance for focus (0=self, 1=parent, 2=grandparent+)
+
+    max_tokens: int = 4000  # Target maximum context size in tokens
+    use_snippets: bool = True  # Whether to use Progressive Disclosure (Snippets)
+    focus_distance: int = 2  # Graph distance for focus (0=self, 1=parent, 2=grandparent+)
     include_tools: bool = True  # Whether to include available tools in context
     include_facts: bool = True  # Whether to include relevant facts from L4
 
     # Summarization thresholds
     auto_summarize_l3: bool = True
-    l3_summary_threshold: int = 20 # Number of turns before summarizing L3
+    l3_summary_threshold: int = 20  # Number of turns before summarizing L3
+
 
 @dataclass
 class ContextConfig:
     """
     Global Configuration for the LoomContext system.
     """
+
     # LLM & Tokenizer Settings
     model_name: str = "gpt-4"
-    max_context_tokens: int = 8192 # Absolute hard limit
+    max_context_tokens: int = 8192  # Absolute hard limit
     tokenizer_encoding: str = "cl100k_base"
 
     # Strategy Selection
@@ -44,7 +48,7 @@ class ContextConfig:
 
     # Advanced Optimizations
     enable_prompt_caching: bool = True  # Reorder prompt for KV cache hit rate
-    enable_dynamic_budget: bool = True # Allow borrowing budget between tiers if unused
+    enable_dynamic_budget: bool = True  # Allow borrowing budget between tiers if unused
 
 
 @dataclass
@@ -53,6 +57,7 @@ class VectorStoreConfig:
     Configuration for Vector Store backend.
     Users can specify their preferred vector database.
     """
+
     # Provider type: 'inmemory', 'qdrant', 'chroma', 'postgres', or custom class path
     provider: str = "inmemory"
 
@@ -100,6 +105,7 @@ class EmbeddingConfig:
     Configuration for Embedding provider.
     Users can specify their preferred embedding service.
     """
+
     # Provider type: 'bge', 'openai', 'mock', or custom class path
     provider: str = "bge"
 
@@ -136,6 +142,7 @@ class MemoryConfig:
     """
     Unified configuration for the entire LoomMemory system.
     """
+
     # L1 Buffer Settings
     max_l1_size: int = 50
 

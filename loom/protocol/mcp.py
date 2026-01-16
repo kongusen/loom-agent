@@ -11,16 +11,20 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # --- MCP Data Models ---
 
+
 class MCPToolDefinition(BaseModel):
     """Definition of an MCP Tool."""
+
     name: str
     description: str
     input_schema: dict[str, Any] = Field(..., alias="inputSchema")
 
     model_config = ConfigDict(populate_by_name=True)
 
+
 class MCPResource(BaseModel):
     """Definition of an MCP Resource."""
+
     uri: str
     name: str
     mime_type: str = Field(..., alias="mimeType")
@@ -28,23 +32,31 @@ class MCPResource(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+
 class MCPPrompt(BaseModel):
     """Definition of an MCP Prompt."""
+
     name: str
     description: str
     arguments: list[dict[str, Any]] = Field(default_factory=list)
 
+
 class MCPToolCall(BaseModel):
     """A request to call a tool."""
+
     name: str
     arguments: dict[str, Any]
 
+
 class MCPToolResult(BaseModel):
     """Result of a tool call."""
-    content: list[dict[str, Any]] # Text or Image content
+
+    content: list[dict[str, Any]]  # Text or Image content
     is_error: bool = False
 
+
 # --- MCP Interfaces ---
+
 
 class MCPServer(ABC):
     """
@@ -80,6 +92,7 @@ class MCPServer(ABC):
     async def get_prompt(self, name: str, arguments: dict[str, Any]) -> str:
         """Get a prompt context."""
         pass
+
 
 class MCPClient(ABC):
     """

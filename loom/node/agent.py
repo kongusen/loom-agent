@@ -82,7 +82,7 @@ class AgentNode(Node):
         thinking_policy: ThinkingPolicy | None = None,
         current_depth: int = 0,
         projection_strategy: str = "selective",
-        fractal_config: Optional['FractalConfig'] = None
+        fractal_config: Optional["FractalConfig"] = None,
     ):
         super().__init__(node_id, dispatcher)
         self.role = role
@@ -92,7 +92,6 @@ class AgentNode(Node):
         self._fractal_config: FractalConfig | None = None
         if fractal_config:
             self.set_fractal_config(fractal_config)
-
 
         # execution config
         self.execution_config = execution_config or ExecutionConfig.default()
@@ -123,22 +122,18 @@ class AgentNode(Node):
                 max_recursive_depth=f_config.max_recursive_depth,
                 tool_blacklist=f_config.child_tool_blacklist,
                 default_child_token_budget=f_config.default_child_token_budget,
-                max_concurrent_children=f_config.max_concurrent_children
+                max_concurrent_children=f_config.max_concurrent_children,
             )
 
             synthesis_config = SynthesisConfig(
                 synthesis_model=f_config.synthesis_model,
                 synthesis_model_override=f_config.synthesis_model_override,
-                max_synthesis_tokens=f_config.synthesis_max_tokens
+                max_synthesis_tokens=f_config.synthesis_max_tokens,
             )
 
-            self.orchestrator = FractalOrchestrator(
-                parent_node=self,
-                config=orchestrator_config
-            )
+            self.orchestrator = FractalOrchestrator(parent_node=self, config=orchestrator_config)
             self.synthesizer = ResultSynthesizer(
-                provider=provider or MockLLMProvider(),
-                config=synthesis_config
+                provider=provider or MockLLMProvider(), config=synthesis_config
             )
         else:
             self.orchestrator = None
@@ -162,7 +157,7 @@ class AgentNode(Node):
 
         # Apply Projection (Fractal Inheritance)
         if context_projection:
-             self._apply_projection(context_projection)
+            self._apply_projection(context_projection)
 
         # Register Internal Context Tools
         self._register_internal_tools()
@@ -205,12 +200,14 @@ class AgentNode(Node):
                 content: The text to save.
                 importance: 0.0 to 1.0 importance score.
             """
-            await self.memory.add(MemoryUnit(
-                content=content,
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                importance=importance
-            ))
+            await self.memory.add(
+                MemoryUnit(
+                    content=content,
+                    tier=MemoryTier.L4_GLOBAL,
+                    type=MemoryType.FACT,
+                    importance=importance,
+                )
+            )
             return "✅ Saved to long-term memory."
 
         self.tool_registry.register_function(load_context)
@@ -218,11 +215,12 @@ class AgentNode(Node):
 
         # Register delegation tool if orchestrator is available
         if self.orchestrator is not None:
+
             async def delegate_subtasks(
                 subtasks: list[dict[str, Any]],
                 execution_mode: str = "parallel",
                 synthesis_strategy: str = "auto",
-                reasoning: str | None = None
+                reasoning: str | None = None,
             ) -> str:
                 """
                 将复杂任务分解为子任务并委托给专门的子代理执行。
@@ -240,16 +238,14 @@ class AgentNode(Node):
                     from loom.protocol.delegation import DelegationRequest, SubtaskSpecification
 
                     # 解析子任务
-                    parsed_subtasks = [
-                        SubtaskSpecification(**st) for st in subtasks
-                    ]
+                    parsed_subtasks = [SubtaskSpecification(**st) for st in subtasks]
 
                     # 创建请求
                     request = DelegationRequest(
                         subtasks=parsed_subtasks,
                         execution_mode=execution_mode,
                         synthesis_strategy=synthesis_strategy,
-                        reasoning=reasoning
+                        reasoning=reasoning,
                     )
 
                     # 执行委托
@@ -285,42 +281,48 @@ class AgentNode(Node):
             task=task,
             state=ThoughtState.RUNNING,
             depth=self.current_depth + 1,
-            metadata={"parent": self.node_id}
+            metadata={"parent": self.node_id},
         )
         self.cognitive_state.add_thought(thought)
 
-        await self.dispatcher.dispatch(CloudEvent.create(
-            source=self.source_uri,
-            type=EventType.NODE_REGISTER,
-            data={
-                "node_id": thought_id,
-                "parent": self.node_id,
-                "depth": self.current_depth + 1
-            }
-        ))
+        await self.dispatcher.dispatch(
+            CloudEvent.create(
+                source=self.source_uri,
+                type=EventType.NODE_REGISTER,
+                data={
+                    "node_id": thought_id,
+                    "parent": self.node_id,
+                    "depth": self.current_depth + 1,
+                },
+            )
+        )
 
         # Create Fractal Child Node with Projection
         # Project current context to child
         projection = await self.memory.create_projection(
             instruction=task,
-            _total_budget=2000  # 投影预算
+            _total_budget=2000,  # 投影预算
         )
 
         units = projection.to_memory_units()
 
         # Publish context projection event (from parent perspective)
-        await self.dispatcher.dispatch(CloudEvent.create(
-            source=self.source_uri,
-            type="agent.context.projected",
-            data={
-                "target_node": thought_id,
-                "parent_node": self.node_id,
-                "projected_items": len(units),
-                "has_plan": projection.parent_plan is not None,
-                "facts_count": len(projection.relevant_facts) if projection.relevant_facts else 0,
-                "instruction_summary": task[:100]
-            }
-        ))
+        await self.dispatcher.dispatch(
+            CloudEvent.create(
+                source=self.source_uri,
+                type="agent.context.projected",
+                data={
+                    "target_node": thought_id,
+                    "parent_node": self.node_id,
+                    "projected_items": len(units),
+                    "has_plan": projection.parent_plan is not None,
+                    "facts_count": len(projection.relevant_facts)
+                    if projection.relevant_facts
+                    else 0,
+                    "instruction_summary": task[:100],
+                },
+            )
+        )
 
         thought_node = AgentNode(
             node_id=thought_id,
@@ -328,25 +330,29 @@ class AgentNode(Node):
             role="Deep Thinker",
             system_prompt="You are a deep thinking sub-process. Analyze the following.",
             provider=self.provider,
-            cognitive_config=self.cognitive_config, # Inherit configs
-            context_projection=projection,      # Inherit context
+            cognitive_config=self.cognitive_config,  # Inherit configs
+            context_projection=projection,  # Inherit context
             thinking_policy=ThinkingPolicy(enabled=False),
-            current_depth=self.current_depth + 1
+            current_depth=self.current_depth + 1,
         )
 
         # Publish projection received event (from child perspective)
-        await self.dispatcher.dispatch(CloudEvent.create(
-            source=f"node/{thought_id}",
-            type="agent.context.projection_received",
-            data={
-                "parent_node": self.node_id,
-                "child_node": thought_id,
-                "received_items": len(units),
-                "has_plan": projection.parent_plan is not None,
-                "facts_count": len(projection.relevant_facts) if projection.relevant_facts else 0,
-                "depth": self.current_depth + 1
-            }
-        ))
+        await self.dispatcher.dispatch(
+            CloudEvent.create(
+                source=f"node/{thought_id}",
+                type="agent.context.projection_received",
+                data={
+                    "parent_node": self.node_id,
+                    "child_node": thought_id,
+                    "received_items": len(units),
+                    "has_plan": projection.parent_plan is not None,
+                    "facts_count": len(projection.relevant_facts)
+                    if projection.relevant_facts
+                    else 0,
+                    "depth": self.current_depth + 1,
+                },
+            )
+        )
 
         await self.dispatcher.register_ephemeral(thought_node)
         self._active_thoughts.append(thought_id)
@@ -370,11 +376,9 @@ class AgentNode(Node):
         task = data.get("content") or data.get("task") or str(data)
 
         # 0. Perceive (Add to Memory)
-        await self.memory.add(MemoryUnit(
-            content=str(task),
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
-        ))
+        await self.memory.add(
+            MemoryUnit(content=str(task), tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
+        )
 
         # Execute task directly (no routing)
         return await self._execute_task(task, event)
@@ -383,18 +387,12 @@ class AgentNode(Node):
         """Execute task using standard ReAct loop."""
         if event is None:
             # Create a simple event if not provided
-            event = CloudEvent(
-                type="node.request",
-                source=self.node_id,
-                data={"task": task}
-            )
+            event = CloudEvent(type="node.request", source=self.node_id, data={"task": task})
         return await self._execute_loop(event)
 
     async def _call_llm_stream(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None
-    ) -> 'LLMResponse':
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> "LLMResponse":
         """
         调用LLM并通过事件总线发布流式响应
         """
@@ -410,11 +408,11 @@ class AgentNode(Node):
                 if chunk.type == "text":
                     # 通过事件总线发布文本内容
                     text = str(chunk.content)
-                    await self.dispatcher.bus.publish(CloudEvent(
-                        type="agent.stream.text",
-                        source=self.node_id,
-                        data={"content": text}
-                    ))
+                    await self.dispatcher.bus.publish(
+                        CloudEvent(
+                            type="agent.stream.text", source=self.node_id, data={"content": text}
+                        )
+                    )
                     full_content += text
 
                 elif chunk.type == "tool_call_start":
@@ -425,63 +423,67 @@ class AgentNode(Node):
                         tool_calls_buffer[tool_id] = {
                             "id": chunk.metadata.get("tool_call_id", ""),
                             "name": tool_name,
-                            "arguments": ""
+                            "arguments": "",
                         }
                         # 发布工具调用开始事件
-                        await self.dispatcher.bus.publish(CloudEvent(
-                            type="agent.stream.tool_call_start",
-                            source=self.node_id,
-                            data={"tool_name": tool_name}
-                        ))
+                        await self.dispatcher.bus.publish(
+                            CloudEvent(
+                                type="agent.stream.tool_call_start",
+                                source=self.node_id,
+                                data={"tool_name": tool_name},
+                            )
+                        )
 
                 elif chunk.type == "tool_call_delta":
                     # 工具调用参数增量
                     if isinstance(chunk.content, dict):
                         tool_id = chunk.metadata.get("tool_call_index", 0)
                         if tool_id in tool_calls_buffer:
-                            tool_calls_buffer[tool_id]["arguments"] += chunk.content.get("arguments", "")
+                            tool_calls_buffer[tool_id]["arguments"] += chunk.content.get(
+                                "arguments", ""
+                            )
 
                 elif chunk.type == "tool_call_complete":
                     # 工具调用完成
                     if isinstance(chunk.content, dict):
                         tool_id = chunk.metadata.get("tool_call_index", 0)
                         if tool_id in tool_calls_buffer:
-                            tool_calls_buffer[tool_id]["arguments"] = chunk.content.get("arguments", "")
+                            tool_calls_buffer[tool_id]["arguments"] = chunk.content.get(
+                                "arguments", ""
+                            )
                             # 发布工具调用完成事件
-                            await self.dispatcher.bus.publish(CloudEvent(
-                                type="agent.stream.tool_call_complete",
-                                source=self.node_id,
-                                data={
-                                    "tool_name": tool_calls_buffer[tool_id]["name"],
-                                    "arguments": tool_calls_buffer[tool_id]["arguments"]
-                                }
-                            ))
+                            await self.dispatcher.bus.publish(
+                                CloudEvent(
+                                    type="agent.stream.tool_call_complete",
+                                    source=self.node_id,
+                                    data={
+                                        "tool_name": tool_calls_buffer[tool_id]["name"],
+                                        "arguments": tool_calls_buffer[tool_id]["arguments"],
+                                    },
+                                )
+                            )
 
                 elif chunk.type == "done":
                     # 流结束
-                    await self.dispatcher.bus.publish(CloudEvent(
-                        type="agent.stream.done",
-                        source=self.node_id,
-                        data={"content": full_content}
-                    ))
+                    await self.dispatcher.bus.publish(
+                        CloudEvent(
+                            type="agent.stream.done",
+                            source=self.node_id,
+                            data={"content": full_content},
+                        )
+                    )
                     break
 
             # 转换tool_calls为列表
             tool_calls = list(tool_calls_buffer.values())
 
-            return LLMResponse(
-                content=full_content,
-                tool_calls=tool_calls,
-                token_usage=None
-            )
+            return LLMResponse(content=full_content, tool_calls=tool_calls, token_usage=None)
 
         except Exception as e:
             # 发布错误事件
-            await self.dispatcher.bus.publish(CloudEvent(
-                type="agent.stream.error",
-                source=self.node_id,
-                data={"error": str(e)}
-            ))
+            await self.dispatcher.bus.publish(
+                CloudEvent(type="agent.stream.error", source=self.node_id, data={"error": str(e)})
+            )
             raise
 
     async def _execute_loop(self, event: CloudEvent) -> Any:
@@ -493,11 +495,9 @@ class AgentNode(Node):
         max_iterations = data.get("max_iterations", 10)
 
         # 1. Perceive (Add to Memory)
-        await self.memory.add(MemoryUnit(
-            content=str(task),
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
-        ))
+        await self.memory.add(
+            MemoryUnit(content=str(task), tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
+        )
 
         iterations = 0
         final_response = ""
@@ -506,10 +506,7 @@ class AgentNode(Node):
             iterations += 1
 
             # 2. Recall (Context Assembly)
-            messages = await self.context.build_prompt(
-                task=str(task),
-                system_prompt=system_prompt
-            )
+            messages = await self.context.build_prompt(task=str(task), system_prompt=system_prompt)
 
             # 3. Think
             # Combine external known_tools (MCP) and internal tools
@@ -519,7 +516,9 @@ class AgentNode(Node):
             # Convert internal definitions to dicts (model_dump) if needed by provider
             # Use by_alias=True to preserve camelCase field names (e.g., inputSchema)
             # that OpenAI and other providers expect
-            all_tools_dumps = [d.model_dump(by_alias=True) for d in internal_definitions + external_definitions]
+            all_tools_dumps = [
+                d.model_dump(by_alias=True) for d in internal_definitions + external_definitions
+            ]
 
             try:
                 # 使用流式输出（实时显示思考过程）
@@ -537,19 +536,19 @@ class AgentNode(Node):
 
             # 4. Act
             if content:
-                await self.memory.add(MemoryUnit(
-                    content=str(content),
-                    tier=MemoryTier.L1_RAW_IO,
-                    type=MemoryType.THOUGHT
-                ))
+                await self.memory.add(
+                    MemoryUnit(
+                        content=str(content), tier=MemoryTier.L1_RAW_IO, type=MemoryType.THOUGHT
+                    )
+                )
 
             if tool_calls:
                 # Record intent (All calls in one block)
-                await self.memory.add(MemoryUnit(
-                    content=tool_calls,
-                    tier=MemoryTier.L1_RAW_IO,
-                    type=MemoryType.TOOL_CALL
-                ))
+                await self.memory.add(
+                    MemoryUnit(
+                        content=tool_calls, tier=MemoryTier.L1_RAW_IO, type=MemoryType.TOOL_CALL
+                    )
+                )
 
                 # 1. Parse and Prepare
                 parsed_calls = []
@@ -561,17 +560,19 @@ class AgentNode(Node):
                             args = json.loads(args)
 
                     if not isinstance(args, dict):
-                         args = {"args": args}
+                        args = {"args": args}
 
                     parsed_calls.append({"name": name, "arguments": args})
 
                     # Emit Tool Call Event (Bus-Awareness) - Immediate feedback
-                    await self.dispatcher.dispatch(CloudEvent.create(
-                        source=self.source_uri,
-                        type="agent.tool.call",
-                        data={"minion": self.node_id, "tool": name, "arguments": args},
-                        traceparent=event.traceparent
-                    ))
+                    await self.dispatcher.dispatch(
+                        CloudEvent.create(
+                            source=self.source_uri,
+                            type="agent.tool.call",
+                            data={"minion": self.node_id, "tool": name, "arguments": args},
+                            traceparent=event.traceparent,
+                        )
+                    )
 
                 # 2. Define Execution Wrapper (for Event Emission)
                 async def monitored_execution(name: str, args: dict) -> Any:
@@ -579,12 +580,14 @@ class AgentNode(Node):
                     result_val = await self._execute_any_tool(name, args)
 
                     # Emit Result Event immediately (for streaming/UI)
-                    await self.dispatcher.dispatch(CloudEvent.create(
-                        source=self.source_uri,
-                        type="agent.tool.result",
-                        data={"minion": self.node_id, "tool": name, "result": str(result_val)},
-                        traceparent=event.traceparent
-                    ))
+                    await self.dispatcher.dispatch(
+                        CloudEvent.create(
+                            source=self.source_uri,
+                            type="agent.tool.result",
+                            data={"minion": self.node_id, "tool": name, "result": str(result_val)},
+                            traceparent=event.traceparent,
+                        )
+                    )
                     return result_val
 
                 # 3. Parallel Execution
@@ -593,14 +596,16 @@ class AgentNode(Node):
 
                 # 4. Update Memory (Sequential & Deterministic)
                 for res in results:
-                    await self.memory.add(MemoryUnit(
-                        content=str(res.result),
-                        tier=MemoryTier.L1_RAW_IO,
-                        type=MemoryType.TOOL_RESULT,
-                        metadata={"tool_name": res.name, "error": res.error}
-                    ))
+                    await self.memory.add(
+                        MemoryUnit(
+                            content=str(res.result),
+                            tier=MemoryTier.L1_RAW_IO,
+                            type=MemoryType.TOOL_RESULT,
+                            metadata={"tool_name": res.name, "error": res.error},
+                        )
+                    )
 
-                continue # Loop again
+                continue  # Loop again
 
             final_response = content
             break
@@ -639,8 +644,7 @@ class AgentNode(Node):
                 if tool_node:
                     # Use call() for distributed / event-bus execution
                     res = await self.call(
-                        target_node=tool_node.source_uri,
-                        data={"arguments": args}
+                        target_node=tool_node.source_uri, data={"arguments": args}
                     )
                     result = res.get("result", str(res)) if isinstance(res, dict) else str(res)
                 else:
@@ -651,14 +655,14 @@ class AgentNode(Node):
                 result,
                 max_depth=self.execution_config.normalization.max_depth,
                 max_bytes=self.execution_config.normalization.max_bytes,
-                string_limit=self.execution_config.normalization.truncate_strings
+                string_limit=self.execution_config.normalization.truncate_strings,
             )
 
         except Exception as e:
             # Actionable Error Formatting (Optional Check)
             if not self.execution_config.error_handling.rich_formatting:
-               # Fallback to simple string if rich formatting disabled
-               return f"Tool Error: {str(e)}"
+                # Fallback to simple string if rich formatting disabled
+                return f"Tool Error: {str(e)}"
 
             # TODO: Pass error_handling config to ErrorFormatter if we add config support there
             return ErrorFormatter.format_tool_error(e, name)

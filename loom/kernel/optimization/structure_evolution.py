@@ -24,8 +24,10 @@ logger = logging.getLogger(__name__)
 # Evolution Configuration
 # ============================================================================
 
+
 class MutationType(Enum):
     """Types of mutations"""
+
     ADD_NODE = "add_node"
     REMOVE_NODE = "remove_node"
     CHANGE_ROLE = "change_role"
@@ -35,6 +37,7 @@ class MutationType(Enum):
 @dataclass
 class EvolutionConfig:
     """Configuration for genetic algorithm"""
+
     population_size: int = 20
     """Size of population"""
 
@@ -65,16 +68,17 @@ class EvolutionConfig:
     def __post_init__(self):
         if self.fitness_weights is None:
             self.fitness_weights = {
-                'performance': 0.4,
-                'efficiency': 0.3,
-                'simplicity': 0.2,
-                'balance': 0.1
+                "performance": 0.4,
+                "efficiency": 0.3,
+                "simplicity": 0.2,
+                "balance": 0.1,
             }
 
 
 # ============================================================================
 # Structure Genome
 # ============================================================================
+
 
 @dataclass
 class StructureGenome:
@@ -84,23 +88,22 @@ class StructureGenome:
     Simplified representation that can be evolved and converted to/from
     actual FractalAgentNode structures.
     """
+
     genes: list[dict[str, Any]]  # Each gene represents a node
     fitness: float = 0.0
     generation: int = 0
 
-    def clone(self) -> 'StructureGenome':
+    def clone(self) -> "StructureGenome":
         """Create a deep copy"""
         return StructureGenome(
-            genes=copy.deepcopy(self.genes),
-            fitness=self.fitness,
-            generation=self.generation
+            genes=copy.deepcopy(self.genes), fitness=self.fitness, generation=self.generation
         )
 
     def get_depth(self) -> int:
         """Get maximum depth"""
         if not self.genes:
             return 0
-        return int(max(gene['depth'] for gene in self.genes))
+        return int(max(gene["depth"] for gene in self.genes))
 
     def get_node_count(self) -> int:
         """Get total node count"""
@@ -108,25 +111,20 @@ class StructureGenome:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
-        return {
-            'genes': self.genes,
-            'fitness': self.fitness,
-            'generation': self.generation
-        }
+        return {"genes": self.genes, "fitness": self.fitness, "generation": self.generation}
 
 
 # ============================================================================
 # Genetic Operators
 # ============================================================================
 
+
 class GeneticOperators:
     """Genetic operators for structure evolution"""
 
     @staticmethod
     def mutate(
-        genome: StructureGenome,
-        mutation_rate: float,
-        config: EvolutionConfig
+        genome: StructureGenome, mutation_rate: float, config: EvolutionConfig
     ) -> StructureGenome:
         """
         Mutate a genome
@@ -160,7 +158,9 @@ class GeneticOperators:
         elif mutation == MutationType.CHANGE_DEPTH:
             mutated = GeneticOperators._change_depth_mutation(mutated, config)
 
-        logger.debug(f"Mutation: {mutation.value}, nodes: {len(genome.genes)} -> {len(mutated.genes)}")
+        logger.debug(
+            f"Mutation: {mutation.value}, nodes: {len(genome.genes)} -> {len(mutated.genes)}"
+        )
 
         return mutated
 
@@ -175,7 +175,7 @@ class GeneticOperators:
         # Choose parent node (any existing node)
         if mutated.genes:
             parent = random.choice(mutated.genes)
-            parent_depth = parent['depth']
+            parent_depth = parent["depth"]
 
             # Check depth limit
             if parent_depth + 1 >= config.max_structure_depth:
@@ -183,10 +183,10 @@ class GeneticOperators:
 
             # Create new node
             new_node = {
-                'id': f"node_{len(mutated.genes)}",
-                'parent_id': parent['id'],
-                'role': random.choice(list(NodeRole)).value,
-                'depth': parent_depth + 1
+                "id": f"node_{len(mutated.genes)}",
+                "parent_id": parent["id"],
+                "role": random.choice(list(NodeRole)).value,
+                "depth": parent_depth + 1,
             }
 
             mutated.genes.append(new_node)
@@ -202,25 +202,26 @@ class GeneticOperators:
         mutated = genome.clone()
 
         # Don't remove root
-        non_root_genes = [g for g in mutated.genes if g.get('parent_id') is not None]
+        non_root_genes = [g for g in mutated.genes if g.get("parent_id") is not None]
 
         if non_root_genes:
             to_remove = random.choice(non_root_genes)
 
             # Remove this node and all its descendants
             def is_descendant(node: dict, ancestor_id: str) -> bool:
-                if node['id'] == ancestor_id:
+                if node["id"] == ancestor_id:
                     return True
-                parent_id = node.get('parent_id')
+                parent_id = node.get("parent_id")
                 if parent_id:
-                    parent = next((g for g in mutated.genes if g['id'] == parent_id), None)
+                    parent = next((g for g in mutated.genes if g["id"] == parent_id), None)
                     if parent:
                         return is_descendant(parent, ancestor_id)
                 return False
 
             mutated.genes = [
-                g for g in mutated.genes
-                if g['id'] != to_remove['id'] and not is_descendant(g, to_remove['id'])
+                g
+                for g in mutated.genes
+                if g["id"] != to_remove["id"] and not is_descendant(g, to_remove["id"])
             ]
 
         return mutated
@@ -237,25 +238,25 @@ class GeneticOperators:
         node = random.choice(mutated.genes)
 
         # Change to different role
-        current_role = node['role']
+        current_role = node["role"]
         other_roles = [r.value for r in NodeRole if r.value != current_role]
 
         if other_roles:
-            node['role'] = random.choice(other_roles)
+            node["role"] = random.choice(other_roles)
 
         return mutated
 
     @staticmethod
-    def _change_depth_mutation(genome: StructureGenome, _config: EvolutionConfig) -> StructureGenome:
+    def _change_depth_mutation(
+        genome: StructureGenome, _config: EvolutionConfig
+    ) -> StructureGenome:
         """Move a subtree to a different depth"""
         # This is complex - skip for now
         return genome
 
     @staticmethod
     def crossover(
-        parent1: StructureGenome,
-        parent2: StructureGenome,
-        crossover_rate: float
+        parent1: StructureGenome, parent2: StructureGenome, crossover_rate: float
     ) -> tuple[StructureGenome, StructureGenome]:
         """
         Perform crossover between two genomes
@@ -276,8 +277,8 @@ class GeneticOperators:
         offspring2 = parent2.clone()
 
         # Find common depths
-        depths1 = {g['depth'] for g in parent1.genes}
-        depths2 = {g['depth'] for g in parent2.genes}
+        depths1 = {g["depth"] for g in parent1.genes}
+        depths2 = {g["depth"] for g in parent2.genes}
         common_depths = list(depths1 & depths2)
 
         if len(common_depths) > 1:
@@ -285,12 +286,12 @@ class GeneticOperators:
             crossover_depth = random.choice(common_depths[1:])  # Skip root
 
             # Swap subtrees at this depth
-            subtree1 = [g for g in parent1.genes if g['depth'] >= crossover_depth]
-            subtree2 = [g for g in parent2.genes if g['depth'] >= crossover_depth]
+            subtree1 = [g for g in parent1.genes if g["depth"] >= crossover_depth]
+            subtree2 = [g for g in parent2.genes if g["depth"] >= crossover_depth]
 
             # Create offspring
-            offspring1.genes = [g for g in parent1.genes if g['depth'] < crossover_depth] + subtree2
-            offspring2.genes = [g for g in parent2.genes if g['depth'] < crossover_depth] + subtree1
+            offspring1.genes = [g for g in parent1.genes if g["depth"] < crossover_depth] + subtree2
+            offspring2.genes = [g for g in parent2.genes if g["depth"] < crossover_depth] + subtree1
 
             logger.debug(f"Crossover at depth {crossover_depth}")
 
@@ -301,6 +302,7 @@ class GeneticOperators:
 # Structure Evolver
 # ============================================================================
 
+
 class StructureEvolver:
     """
     Evolves fractal structures using genetic algorithms
@@ -309,7 +311,7 @@ class StructureEvolver:
     def __init__(
         self,
         config: EvolutionConfig,
-        fitness_evaluator: Callable[[StructureGenome], float] | None = None
+        fitness_evaluator: Callable[[StructureGenome], float] | None = None,
     ):
         """
         Initialize evolver
@@ -325,9 +327,7 @@ class StructureEvolver:
         self.history: list[dict[str, Any]] = []
 
     def evolve(
-        self,
-        initial_population: list[StructureGenome] | None = None,
-        target_fitness: float = 0.9
+        self, initial_population: list[StructureGenome] | None = None, target_fitness: float = 0.9
     ) -> StructureGenome:
         """
         Evolve structures using genetic algorithm
@@ -345,7 +345,9 @@ class StructureEvolver:
         else:
             population = [g.clone() for g in initial_population]
 
-        logger.info(f"Starting evolution: population={len(population)}, generations={self.config.generations}")
+        logger.info(
+            f"Starting evolution: population={len(population)}, generations={self.config.generations}"
+        )
 
         best_genome = None
         best_fitness = 0.0
@@ -364,15 +366,19 @@ class StructureEvolver:
 
             # Record history
             avg_fitness = np.mean([g.fitness for g in population])
-            self.history.append({
-                'generation': generation,
-                'best_fitness': generation_best.fitness,
-                'avg_fitness': avg_fitness,
-                'population_size': len(population)
-            })
+            self.history.append(
+                {
+                    "generation": generation,
+                    "best_fitness": generation_best.fitness,
+                    "avg_fitness": avg_fitness,
+                    "population_size": len(population),
+                }
+            )
 
-            logger.info(f"Generation {generation}: best={generation_best.fitness:.3f}, "
-                       f"avg={avg_fitness:.3f}")
+            logger.info(
+                f"Generation {generation}: best={generation_best.fitness:.3f}, "
+                f"avg={avg_fitness:.3f}"
+            )
 
             # Check if target reached
             if best_fitness >= target_fitness:
@@ -402,22 +408,21 @@ class StructureEvolver:
             genes = []
 
             # Root node
-            genes.append({
-                'id': 'root',
-                'parent_id': None,
-                'role': NodeRole.COORDINATOR.value,
-                'depth': 0
-            })
+            genes.append(
+                {"id": "root", "parent_id": None, "role": NodeRole.COORDINATOR.value, "depth": 0}
+            )
 
             # Add random children
             num_children = random.randint(1, 4)
             for j in range(num_children):
-                genes.append({
-                    'id': f'node_{j}',
-                    'parent_id': 'root',
-                    'role': random.choice(list(NodeRole)).value,
-                    'depth': 1
-                })
+                genes.append(
+                    {
+                        "id": f"node_{j}",
+                        "parent_id": "root",
+                        "role": random.choice(list(NodeRole)).value,
+                        "depth": 1,
+                    }
+                )
 
             genome = StructureGenome(genes=genes)
             population.append(genome)
@@ -430,7 +435,7 @@ class StructureEvolver:
 
         # Elitism: keep best individuals
         sorted_pop = sorted(population, key=lambda g: g.fitness, reverse=True)
-        next_gen.extend([g.clone() for g in sorted_pop[:self.config.elitism_count]])
+        next_gen.extend([g.clone() for g in sorted_pop[: self.config.elitism_count]])
 
         # Fill rest with offspring
         while len(next_gen) < self.config.population_size:
@@ -444,18 +449,14 @@ class StructureEvolver:
             )
 
             # Mutation
-            offspring1 = GeneticOperators.mutate(
-                offspring1, self.config.mutation_rate, self.config
-            )
-            offspring2 = GeneticOperators.mutate(
-                offspring2, self.config.mutation_rate, self.config
-            )
+            offspring1 = GeneticOperators.mutate(offspring1, self.config.mutation_rate, self.config)
+            offspring2 = GeneticOperators.mutate(offspring2, self.config.mutation_rate, self.config)
 
             next_gen.append(offspring1)
             if len(next_gen) < self.config.population_size:
                 next_gen.append(offspring2)
 
-        return next_gen[:self.config.population_size]
+        return next_gen[: self.config.population_size]
 
     def _tournament_selection(self, population: list[StructureGenome]) -> StructureGenome:
         """Select individual using tournament selection"""
@@ -474,13 +475,8 @@ class StructureEvolver:
         """
         weights = self.config.fitness_weights
         if weights is None:
-             # Should not happen due to post_init, but for mypy:
-             weights = {
-                'performance': 0.4,
-                'efficiency': 0.3,
-                'simplicity': 0.2,
-                'balance': 0.1
-            }
+            # Should not happen due to post_init, but for mypy:
+            weights = {"performance": 0.4, "efficiency": 0.3, "simplicity": 0.2, "balance": 0.1}
 
         # Simplicity score
         max_nodes = self.config.max_structure_nodes
@@ -501,7 +497,7 @@ class StructureEvolver:
         # Count children per parent
         children_counts: dict[Any, int] = {}
         for gene in genome.genes:
-            parent_id = gene.get('parent_id')
+            parent_id = gene.get("parent_id")
             if parent_id:
                 children_counts[parent_id] = children_counts.get(parent_id, 0) + 1
 
@@ -514,9 +510,9 @@ class StructureEvolver:
 
         # Combine
         fitness = (
-            simplicity * weights['simplicity'] +
-            depth_score * weights['balance'] +
-            balance * weights['efficiency']
+            simplicity * weights["simplicity"]
+            + depth_score * weights["balance"]
+            + balance * weights["efficiency"]
         )
 
         return float(min(1.0, max(0.0, fitness)))
@@ -526,15 +522,15 @@ class StructureEvolver:
         if not self.history:
             return {}
 
-        best_fitnesses = [h['best_fitness'] for h in self.history]
-        avg_fitnesses = [h['avg_fitness'] for h in self.history]
+        best_fitnesses = [h["best_fitness"] for h in self.history]
+        avg_fitnesses = [h["avg_fitness"] for h in self.history]
 
         return {
-            'generations_run': len(self.history),
-            'final_best_fitness': best_fitnesses[-1],
-            'final_avg_fitness': avg_fitnesses[-1],
-            'fitness_improvement': best_fitnesses[-1] - best_fitnesses[0],
-            'convergence_speed': self._calculate_convergence_speed(best_fitnesses)
+            "generations_run": len(self.history),
+            "final_best_fitness": best_fitnesses[-1],
+            "final_avg_fitness": avg_fitnesses[-1],
+            "fitness_improvement": best_fitnesses[-1] - best_fitnesses[0],
+            "convergence_speed": self._calculate_convergence_speed(best_fitnesses),
         }
 
     def _calculate_convergence_speed(self, fitnesses: list[float]) -> float:
@@ -557,14 +553,13 @@ class StructureEvolver:
 # Genome Converter
 # ============================================================================
 
+
 class GenomeConverter:
     """Convert between StructureGenome and FractalAgentNode"""
 
     @staticmethod
     def genome_to_structure(
-        genome: StructureGenome,
-        provider: Any,
-        config: FractalConfig
+        genome: StructureGenome, provider: Any, config: FractalConfig
     ) -> Any:  # FractalAgentNode
         """
         Convert genome to actual structure
@@ -583,29 +578,29 @@ class GenomeConverter:
         nodes_map: dict[str, FractalAgentNode] = {}
 
         # Sort by depth to create parents first
-        sorted_genes = sorted(genome.genes, key=lambda g: g['depth'])
+        sorted_genes = sorted(genome.genes, key=lambda g: g["depth"])
 
         for gene in sorted_genes:
-            parent_id = gene.get('parent_id')
+            parent_id = gene.get("parent_id")
             parent = nodes_map.get(str(parent_id)) if parent_id else None
 
             node = FractalAgentNode(
-                node_id=gene['id'],
+                node_id=gene["id"],
                 provider=provider,
-                role=NodeRole[gene['role'].upper()],
+                role=NodeRole[gene["role"].upper()],
                 parent=parent,
-                depth=gene['depth'],
+                depth=gene["depth"],
                 fractal_config=config,
-                standalone=True
+                standalone=True,
             )
 
             if parent:
                 parent.children.append(node)
 
-            nodes_map[gene['id']] = node
+            nodes_map[gene["id"]] = node
 
         # Return root
-        return nodes_map.get('root')
+        return nodes_map.get("root")
 
     @staticmethod
     def structure_to_genome(root: Any) -> StructureGenome:
@@ -622,10 +617,10 @@ class GenomeConverter:
 
         def _collect(node: Any, parent_id: str | None = None):
             gene = {
-                'id': node.node_id,
-                'parent_id': parent_id,
-                'role': node.role.value,
-                'depth': node.depth
+                "id": node.node_id,
+                "parent_id": parent_id,
+                "role": node.role.value,
+                "depth": node.depth,
             }
             genes.append(gene)
 

@@ -29,11 +29,7 @@ class TestStateStore:
     def test_apply_event_wrong_type(self):
         """Test that non-patch events are ignored."""
         store = StateStore()
-        event = CloudEvent.create(
-            source="/test",
-            type="wrong.type",
-            data={}
-        )
+        event = CloudEvent.create(source="/test", type="wrong.type", data={})
 
         store.apply_event(event)
         assert store._root == {}
@@ -41,11 +37,7 @@ class TestStateStore:
     def test_apply_event_no_patches(self):
         """Test event with no patches."""
         store = StateStore()
-        event = CloudEvent.create(
-            source="/test",
-            type="state.patch",
-            data={}
-        )
+        event = CloudEvent.create(source="/test", type="state.patch", data={})
 
         store.apply_event(event)
         assert store._root == {}
@@ -53,11 +45,7 @@ class TestStateStore:
     def test_apply_event_empty_patches_list(self):
         """Test event with empty patches list."""
         store = StateStore()
-        event = CloudEvent.create(
-            source="/test",
-            type="state.patch",
-            data={"patches": []}
-        )
+        event = CloudEvent.create(source="/test", type="state.patch", data={"patches": []})
 
         store.apply_event(event)
         assert store._root == {}
@@ -68,15 +56,7 @@ class TestStateStore:
         event = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={
-                "patches": [
-                    {
-                        "op": "add",
-                        "path": "/key1",
-                        "value": "value1"
-                    }
-                ]
-            }
+            data={"patches": [{"op": "add", "path": "/key1", "value": "value1"}]},
         )
 
         store.apply_event(event)
@@ -92,17 +72,13 @@ class TestStateStore:
                 "patches": [
                     {"op": "add", "path": "/key1", "value": "value1"},
                     {"op": "add", "path": "/key2", "value": 42},
-                    {"op": "add", "path": "/key3", "value": True}
+                    {"op": "add", "path": "/key3", "value": True},
                 ]
-            }
+            },
         )
 
         store.apply_event(event)
-        assert store._root == {
-            "key1": "value1",
-            "key2": 42,
-            "key3": True
-        }
+        assert store._root == {"key1": "value1", "key2": 42, "key3": True}
 
     def test_apply_remove_patch(self):
         """Test applying remove patch."""
@@ -113,11 +89,7 @@ class TestStateStore:
         event = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={
-                "patches": [
-                    {"op": "remove", "path": "/key1"}
-                ]
-            }
+            data={"patches": [{"op": "remove", "path": "/key1"}]},
         )
 
         store.apply_event(event)
@@ -131,11 +103,7 @@ class TestStateStore:
         event = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={
-                "patches": [
-                    {"op": "replace", "path": "/key1", "value": "new_value"}
-                ]
-            }
+            data={"patches": [{"op": "replace", "path": "/key1", "value": "new_value"}]},
         )
 
         store.apply_event(event)
@@ -147,11 +115,7 @@ class TestStateStore:
         event = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={
-                "patches": [
-                    {"op": "add", "path": "/level1/level2/key", "value": "nested"}
-                ]
-            }
+            data={"patches": [{"op": "add", "path": "/level1/level2/key", "value": "nested"}]},
         )
 
         store.apply_event(event)
@@ -165,11 +129,7 @@ class TestStateStore:
         event = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={
-                "patches": [
-                    {"op": "invalid", "path": "/key", "value": "val"}
-                ]
-            }
+            data={"patches": [{"op": "invalid", "path": "/key", "value": "val"}]},
         )
 
         # Should not raise, just print error
@@ -180,13 +140,7 @@ class TestStateStore:
     def test_get_snapshot_nested_dict(self):
         """Test getting nested snapshot."""
         store = StateStore()
-        store._root = {
-            "level1": {
-                "level2": {
-                    "key": "value"
-                }
-            }
-        }
+        store._root = {"level1": {"level2": {"key": "value"}}}
 
         snapshot = store.get_snapshot("/level1/level2")
         assert snapshot == {"key": "value"}
@@ -225,9 +179,7 @@ class TestStateStore:
     def test_get_snapshot_with_list(self):
         """Test getting snapshot through list."""
         store = StateStore()
-        store._root = {
-            "items": ["first", "second", "third"]
-        }
+        store._root = {"items": ["first", "second", "third"]}
 
         snapshot = store.get_snapshot("/items/1")
         assert snapshot == "second"
@@ -272,12 +224,12 @@ class TestStateStore:
         event1 = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={"patches": [{"op": "add", "path": "/key1", "value": "val1"}]}
+            data={"patches": [{"op": "add", "path": "/key1", "value": "val1"}]},
         )
         event2 = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={"patches": [{"op": "add", "path": "/key2", "value": "val2"}]}
+            data={"patches": [{"op": "add", "path": "/key2", "value": "val2"}]},
         )
 
         store.apply_event(event1)
@@ -293,11 +245,7 @@ class TestStateStore:
         event = CloudEvent.create(
             source="/test",
             type="state.patch",
-            data={
-                "patches": [
-                    {"op": "replace", "path": "/items/0", "value": 99}
-                ]
-            }
+            data={"patches": [{"op": "replace", "path": "/items/0", "value": 99}]},
         )
 
         store.apply_event(event)
@@ -325,14 +273,10 @@ class TestStateStore:
                     {
                         "op": "add",
                         "path": "/users/0",
-                        "value": {
-                            "name": "Alice",
-                            "age": 30,
-                            "hobbies": ["reading", "coding"]
-                        }
+                        "value": {"name": "Alice", "age": 30, "hobbies": ["reading", "coding"]},
                     }
                 ]
-            }
+            },
         )
 
         store.apply_event(event)

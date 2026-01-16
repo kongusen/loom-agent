@@ -2,7 +2,6 @@
 Tests for LLM Base Handler
 """
 
-
 import pytest
 
 from loom.llm.interface import StreamChunk
@@ -162,6 +161,7 @@ class TestBaseResponseHandler:
 
     def test_initialization(self):
         """Test handler initialization creates aggregator."""
+
         # BaseResponseHandler is abstract, so we create a concrete subclass
         class ConcreteHandler(BaseResponseHandler):
             async def stream_response(self, response):
@@ -173,6 +173,7 @@ class TestBaseResponseHandler:
 
     def test_create_error_chunk_basic(self):
         """Test creating basic error chunk."""
+
         class ConcreteHandler(BaseResponseHandler):
             async def stream_response(self, response):
                 yield StreamChunk(type="text", content="test", metadata={})
@@ -189,6 +190,7 @@ class TestBaseResponseHandler:
 
     def test_create_error_chunk_with_context(self):
         """Test creating error chunk with context."""
+
         class ConcreteHandler(BaseResponseHandler):
             async def stream_response(self, response):
                 yield StreamChunk(type="text", content="test", metadata={})
@@ -204,6 +206,7 @@ class TestBaseResponseHandler:
 
     def test_create_done_chunk_basic(self):
         """Test creating basic done chunk."""
+
         class ConcreteHandler(BaseResponseHandler):
             async def stream_response(self, response):
                 yield StreamChunk(type="text", content="test", metadata={})
@@ -218,6 +221,7 @@ class TestBaseResponseHandler:
 
     def test_create_done_chunk_with_token_usage(self):
         """Test creating done chunk with token usage."""
+
         class ConcreteHandler(BaseResponseHandler):
             async def stream_response(self, response):
                 yield StreamChunk(type="text", content="test", metadata={})

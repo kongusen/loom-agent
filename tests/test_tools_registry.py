@@ -4,7 +4,6 @@ Tests for Tool Registry
 Tests the ToolRegistry class which manages tool definitions and callables.
 """
 
-
 from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.registry import ToolRegistry
 
@@ -20,6 +19,7 @@ class TestToolRegistry:
 
     def test_register_function_with_name(self):
         """Test registering a function with custom name."""
+
         def sample_func(x: int) -> str:
             return f"result: {x}"
 
@@ -32,6 +32,7 @@ class TestToolRegistry:
 
     def test_register_function_without_name(self):
         """Test registering a function without custom name."""
+
         def my_tool(x: int) -> str:
             return f"result: {x}"
 
@@ -43,6 +44,7 @@ class TestToolRegistry:
 
     def test_register_function_stores_callable(self):
         """Test that the callable is stored."""
+
         def my_tool(x: int) -> str:
             return f"result: {x}"
 
@@ -54,6 +56,7 @@ class TestToolRegistry:
 
     def test_get_definition(self):
         """Test getting tool definition."""
+
         def my_tool(x: int) -> str:
             return f"result: {x}"
 
@@ -78,6 +81,7 @@ class TestToolRegistry:
 
     def test_definitions_property(self):
         """Test getting all definitions."""
+
         def tool1(x: int) -> str:
             return f"result: {x}"
 
@@ -94,6 +98,7 @@ class TestToolRegistry:
 
     def test_register_multiple_functions(self):
         """Test registering multiple functions."""
+
         def tool_a(x: int) -> int:
             return x * 2
 
@@ -109,6 +114,7 @@ class TestToolRegistry:
 
     def test_overwrite_existing_function(self):
         """Test that registering same name overwrites."""
+
         def tool_v1(x: int) -> int:
             return x
 
@@ -124,6 +130,7 @@ class TestToolRegistry:
 
     def test_function_with_no_args(self):
         """Test registering function with no arguments."""
+
         def no_args_tool() -> str:
             return "done"
 
@@ -136,6 +143,7 @@ class TestToolRegistry:
 
     def test_function_with_optional_args(self):
         """Test registering function with optional arguments."""
+
         def optional_tool(x: int, y: str = "default") -> str:
             return f"{x}: {y}"
 
@@ -148,13 +156,8 @@ class TestToolRegistry:
 
     def test_function_with_multiple_types(self):
         """Test registering function with various parameter types."""
-        def complex_tool(
-            name: str,
-            count: int,
-            price: float,
-            active: bool,
-            items: list
-        ) -> dict:
+
+        def complex_tool(name: str, count: int, price: float, active: bool, items: list) -> dict:
             return {"result": "ok"}
 
         registry = ToolRegistry()
@@ -169,6 +172,7 @@ class TestToolRegistry:
 
     def test_get_callable_and_definition_are_consistent(self):
         """Test that callable and definition match."""
+
         def my_tool(x: int) -> str:
             return f"result: {x}"
 

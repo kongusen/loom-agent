@@ -37,7 +37,7 @@ class CustomProvider(OpenAICompatibleProvider):
         api_key: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-        **kwargs
+        **kwargs,
     ):
         """
         初始化 Custom Provider
@@ -64,15 +64,12 @@ class CustomProvider(OpenAICompatibleProvider):
             else:
                 api_key = api_key or "custom"
 
-            config.connection = ConnectionConfig(
-                api_key=api_key,
-                base_url=base_url
-            )
+            config.connection = ConnectionConfig(api_key=api_key, base_url=base_url)
 
             config.generation = GenerationConfig(
                 model=model or self.DEFAULT_MODEL,
                 temperature=temperature if temperature is not None else 0.7,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
         super().__init__(config=config, **kwargs)

@@ -1,13 +1,14 @@
 """
 Test Priority 2 optimizations (High-Impact features)
 """
+
 import asyncio
 import os
 import sys
 import time
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from loom.config import ContextConfig
 from loom.config.execution import ExecutionConfig
@@ -19,9 +20,9 @@ from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
 
 async def test_tool_result_caching():
     """Test 1: Tool result caching"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 1: Tool Result Caching")
-    print("="*60)
+    print("=" * 60)
 
     try:
         config = ExecutionConfig()
@@ -29,6 +30,7 @@ async def test_tool_result_caching():
 
         # Mock executor function
         call_count = 0
+
         async def mock_executor(name, args):
             nonlocal call_count
             call_count += 1
@@ -56,15 +58,16 @@ async def test_tool_result_caching():
     except Exception as e:
         print(f"❌ Tool result caching: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_cache_ttl_expiration():
     """Test 2: Cache TTL expiration"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 2: Cache TTL Expiration")
-    print("="*60)
+    print("=" * 60)
 
     try:
         config = ExecutionConfig()
@@ -72,6 +75,7 @@ async def test_cache_ttl_expiration():
         executor.cache_ttl = 0.5  # 0.5 seconds for testing
 
         call_count = 0
+
         async def mock_executor(name, args):
             nonlocal call_count
             call_count += 1
@@ -99,15 +103,16 @@ async def test_cache_ttl_expiration():
     except Exception as e:
         print(f"❌ Cache TTL expiration: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_adaptive_token_budgeting():
     """Test 3: Adaptive token budgeting"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 3: Adaptive Token Budgeting")
-    print("="*60)
+    print("=" * 60)
 
     try:
         memory = LoomMemory(node_id="test_budget")
@@ -121,19 +126,20 @@ async def test_adaptive_token_budgeting():
 
         # Test 2: Complex task - should increase budget
         complex_budget = assembler._calculate_dynamic_budget(
-            "Analyze and refactor the authentication system",
-            memory
+            "Analyze and refactor the authentication system", memory
         )
         assert complex_budget > base_budget, "Complex task should increase budget"
 
         # Test 3: With rich L4 context - should reduce budget
         for i in range(15):
-            await memory.add(MemoryUnit(
-                content=f"Fact {i}",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                importance=0.9
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content=f"Fact {i}",
+                    tier=MemoryTier.L4_GLOBAL,
+                    type=MemoryType.FACT,
+                    importance=0.9,
+                )
+            )
 
         reduced_budget = assembler._calculate_dynamic_budget("Simple task", memory)
         assert reduced_budget < base_budget, "Rich L4 context should reduce budget"
@@ -144,6 +150,7 @@ async def test_adaptive_token_budgeting():
     except Exception as e:
         print(f"❌ Adaptive token budgeting: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -155,11 +162,7 @@ async def main():
     print("║     PRIORITY 2 OPTIMIZATIONS - TEST SUITE               ║")
     print("╚═══════════════════════════════════════════════════════════╝")
 
-    tests = [
-        test_tool_result_caching,
-        test_cache_ttl_expiration,
-        test_adaptive_token_budgeting
-    ]
+    tests = [test_tool_result_caching, test_cache_ttl_expiration, test_adaptive_token_budgeting]
 
     results = []
     for test in tests:
@@ -167,9 +170,9 @@ async def main():
         results.append(result)
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
     passed = sum(results)
     total = len(results)
     print(f"Passed: {passed}/{total}")

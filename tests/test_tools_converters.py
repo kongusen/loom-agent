@@ -4,7 +4,6 @@ Tests for Tool Converters
 Tests the FunctionToMCP class which converts Python functions to MCP definitions.
 """
 
-
 from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.converters import FunctionToMCP
 
@@ -14,6 +13,7 @@ class TestFunctionToMCP:
 
     def test_convert_basic_function(self):
         """Test converting a basic function."""
+
         def my_tool(x: int) -> str:
             return f"result: {x}"
 
@@ -25,6 +25,7 @@ class TestFunctionToMCP:
 
     def test_convert_with_custom_name(self):
         """Test converting with custom name."""
+
         def my_tool(x: int) -> str:
             return f"result: {x}"
 
@@ -34,6 +35,7 @@ class TestFunctionToMCP:
 
     def test_convert_with_docstring(self):
         """Test that docstring is captured."""
+
         def documented_tool(x: int) -> str:
             """This is a test tool."""
             return f"result: {x}"
@@ -44,6 +46,7 @@ class TestFunctionToMCP:
 
     def test_convert_without_docstring(self):
         """Test function without docstring."""
+
         def undocumented_tool(x: int) -> str:
             return f"result: {x}"
 
@@ -53,6 +56,7 @@ class TestFunctionToMCP:
 
     def test_convert_string_param(self):
         """Test string parameter type mapping."""
+
         def string_tool(name: str) -> str:
             return f"Hello {name}"
 
@@ -64,6 +68,7 @@ class TestFunctionToMCP:
 
     def test_convert_int_param(self):
         """Test integer parameter type mapping."""
+
         def int_tool(count: int) -> int:
             return count * 2
 
@@ -74,6 +79,7 @@ class TestFunctionToMCP:
 
     def test_convert_float_param(self):
         """Test float parameter type mapping."""
+
         def float_tool(price: float) -> float:
             return price * 1.1
 
@@ -84,6 +90,7 @@ class TestFunctionToMCP:
 
     def test_convert_bool_param(self):
         """Test boolean parameter type mapping."""
+
         def bool_tool(active: bool) -> bool:
             return not active
 
@@ -94,6 +101,7 @@ class TestFunctionToMCP:
 
     def test_convert_list_param(self):
         """Test list parameter type mapping."""
+
         def list_tool(items: list) -> int:
             return len(items)
 
@@ -104,6 +112,7 @@ class TestFunctionToMCP:
 
     def test_convert_dict_param(self):
         """Test dict parameter type mapping."""
+
         def dict_tool(data: dict) -> int:
             return len(data)
 
@@ -114,6 +123,7 @@ class TestFunctionToMCP:
 
     def test_convert_optional_param(self):
         """Test optional parameter is not required."""
+
         def optional_tool(x: int, y: str = "default") -> str:
             return f"{x}: {y}"
 
@@ -125,6 +135,7 @@ class TestFunctionToMCP:
 
     def test_convert_multiple_params(self):
         """Test function with multiple parameters."""
+
         def multi_tool(name: str, count: int, active: bool) -> dict:
             return {"name": name, "count": count, "active": active}
 
@@ -136,6 +147,7 @@ class TestFunctionToMCP:
 
     def test_convert_with_no_params(self):
         """Test function with no parameters."""
+
         def no_params_tool() -> str:
             return "done"
 
@@ -146,6 +158,7 @@ class TestFunctionToMCP:
 
     def test_skips_self_param(self):
         """Test that 'self' parameter is skipped."""
+
         class MyClass:
             def method_tool(self, x: int) -> int:
                 return x * 2
@@ -159,6 +172,7 @@ class TestFunctionToMCP:
 
     def test_skips_cls_param(self):
         """Test that 'cls' parameter is skipped."""
+
         class MyClass:
             @classmethod
             def classmethod_tool(cls, x: int) -> int:
@@ -173,6 +187,7 @@ class TestFunctionToMCP:
     def test_unknown_type_defaults_to_string(self):
         """Test that unknown types default to string."""
         from typing import Any
+
         def any_tool(x: Any) -> str:
             return str(x)
 
@@ -207,6 +222,7 @@ class TestFunctionToMCP:
 
     def test_map_type_unknown(self):
         """Test _map_type for unknown type."""
+
         class CustomType:
             pass
 
@@ -214,6 +230,7 @@ class TestFunctionToMCP:
 
     def test_input_schema_structure(self):
         """Test that input_schema has correct structure."""
+
         def schema_tool(name: str, count: int = 0) -> str:
             return f"{name}: {count}"
 

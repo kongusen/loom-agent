@@ -22,7 +22,7 @@ class ToolNode(Node):
         node_id: str,
         dispatcher: Dispatcher,
         tool_def: MCPToolDefinition,
-        func: Callable[[dict[str, Any]], Any]
+        func: Callable[[dict[str, Any]], Any],
     ):
         super().__init__(node_id, dispatcher)
         self.tool_def = tool_def
@@ -34,7 +34,7 @@ class ToolNode(Node):
         Expects event.data to contain 'arguments'.
         """
         if event.data is None:
-             raise ValueError("Event data missing arguments")
+            raise ValueError("Event data missing arguments")
         args = event.data.get("arguments", {})
 
         # In a real system, validate against self.tool_def.input_schema
@@ -43,6 +43,7 @@ class ToolNode(Node):
         try:
             # Check if func is async
             import inspect
+
             if inspect.iscoroutinefunction(self.func):
                 result = await self.func(args)  # Pass dict as single argument
             else:

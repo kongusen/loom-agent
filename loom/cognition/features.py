@@ -14,6 +14,7 @@ from functools import lru_cache
 @dataclass
 class QueryFeatures:
     """Container for extracted query features"""
+
     length: float = 0.0
     code_detected: bool = False
     multi_step: bool = False
@@ -28,6 +29,7 @@ class QueryFeatures:
 @dataclass
 class ResponseFeatures:
     """Container for extracted response features"""
+
     length: float = 0.0  # -0.3 to 0.1 range
     uncertainty_markers: int = 0
     uncertainty_score: float = 0.0  # -0.3 to 0.0
@@ -54,22 +56,57 @@ class QueryFeatureExtractor:
 
     # Uncertainty markers used in both router and confidence
     UNCERTAINTY_WORDS = {
-        "maybe", "perhaps", "possibly", "might", "could be",
-        "unclear", "uncertain", "not sure", "depends", "it depends",
-        "hard to say", "difficult to", "i think", "i believe",
-        "probably", "likely", "seems like"
+        "maybe",
+        "perhaps",
+        "possibly",
+        "might",
+        "could be",
+        "unclear",
+        "uncertain",
+        "not sure",
+        "depends",
+        "it depends",
+        "hard to say",
+        "difficult to",
+        "i think",
+        "i believe",
+        "probably",
+        "likely",
+        "seems like",
     }
 
     # Confidence boosters for response directness
     CONFIDENCE_STARTERS = {
-        "yes", "no", "the answer is", "definitely", "certainly",
-        "absolutely", "exactly", "precisely"
+        "yes",
+        "no",
+        "the answer is",
+        "definitely",
+        "certainly",
+        "absolutely",
+        "exactly",
+        "precisely",
     }
 
     # Stop words for alignment calculation
     STOP_WORDS = {
-        "the", "a", "an", "is", "are", "was", "were", "in", "on", "at",
-        "and", "or", "but", "if", "then", "for", "to", "with"
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "but",
+        "if",
+        "then",
+        "for",
+        "to",
+        "with",
     }
 
     # Clarification request patterns
@@ -79,17 +116,39 @@ class QueryFeatureExtractor:
         r"need more information",
         r"what do you mean by",
         r"please specify",
-        r"which .+ are you referring to"
+        r"which .+ are you referring to",
     ]
 
     # Tool intent keywords (multilingual)
     TOOL_INTENT_KEYWORDS = {
         # Chinese
-        "查询", "搜索", "翻译", "计算", "获取", "查找", "检索", "调用",
-        "查看", "查", "搜", "找", "取", "算",
+        "查询",
+        "搜索",
+        "翻译",
+        "计算",
+        "获取",
+        "查找",
+        "检索",
+        "调用",
+        "查看",
+        "查",
+        "搜",
+        "找",
+        "取",
+        "算",
         # English
-        "search", "query", "translate", "calculate", "fetch", "get",
-        "retrieve", "call", "lookup", "find", "check", "compute"
+        "search",
+        "query",
+        "translate",
+        "calculate",
+        "fetch",
+        "get",
+        "retrieve",
+        "call",
+        "lookup",
+        "find",
+        "check",
+        "compute",
     }
 
     def __init__(self):
@@ -99,15 +158,10 @@ class QueryFeatureExtractor:
     def _compile_patterns(self):
         """Pre-compile regex patterns for efficiency."""
         self.compiled_clarification_patterns = [
-            re.compile(p, re.IGNORECASE)
-            for p in self.CLARIFICATION_PATTERNS
+            re.compile(p, re.IGNORECASE) for p in self.CLARIFICATION_PATTERNS
         ]
 
-    def extract_query_features(
-        self,
-        query: str,
-        _context: dict | None = None
-    ) -> QueryFeatures:
+    def extract_query_features(self, query: str, _context: dict | None = None) -> QueryFeatures:
         """
         Extract features from a query.
 
@@ -144,7 +198,7 @@ class QueryFeatureExtractor:
             detected.append("multi_step")
 
         # Feature 4: Math indicators (from router.py line 141)
-        if re.search(r'\d+[\+\-\*/^]\d+', query):
+        if re.search(r"\d+[\+\-\*/^]\d+", query):
             features.math_detected = True
             detected.append("math_detected")
 
@@ -168,11 +222,7 @@ class QueryFeatureExtractor:
 
         return features
 
-    def extract_response_features(
-        self,
-        query: str,
-        response: str
-    ) -> ResponseFeatures:
+    def extract_response_features(self, query: str, response: str) -> ResponseFeatures:
         """
         Extract features from a response.
 
@@ -235,24 +285,19 @@ class QueryFeatureExtractor:
         if word_count < 8:
             return -0.3  # Favors S1
         elif word_count > 25:
-            return 0.4   # Favors S2
+            return 0.4  # Favors S2
         else:
             return 0.0
 
     @staticmethod
     def _detect_code(query: str) -> bool:
         """Detect code/technical indicators."""
-        return "```" in query or any(
-            x in query for x in ["def ", "class ", "import ", "{", "}"]
-        )
+        return "```" in query or any(x in query for x in ["def ", "class ", "import ", "{", "}"])
 
     @staticmethod
     def _detect_multi_step(query: str) -> bool:
         """Detect multi-step task indicators."""
-        return any(
-            x in query.lower()
-            for x in [" and ", " then ", " after ", " step "]
-        )
+        return any(x in query.lower() for x in [" and ", " then ", " after ", " step "])
 
     def _detect_tool_intent(self, query: str) -> bool:
         """

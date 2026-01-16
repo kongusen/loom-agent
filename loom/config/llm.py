@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 class ConnectionConfig(BaseModel):
     """连接配置"""
+
     api_key: str | None = Field(None, description="API Key")
     base_url: str | None = Field(None, description="API Base URL")
     timeout: float = Field(60.0, description="请求超时时间（秒）")
@@ -25,6 +26,7 @@ class ConnectionConfig(BaseModel):
 
 class GenerationConfig(BaseModel):
     """生成参数配置"""
+
     model: str = Field("gpt-4", description="模型名称")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="温度参数")
     top_p: float = Field(1.0, ge=0.0, le=1.0, description="Top P 采样")
@@ -39,6 +41,7 @@ class GenerationConfig(BaseModel):
 
 class StreamConfig(BaseModel):
     """流式输出配置"""
+
     enabled: bool = Field(True, description="是否启用流式输出")
     chunk_size: int = Field(1, description="流式块大小")
     buffer_size: int = Field(0, description="缓冲区大小（0=无缓冲）")
@@ -72,19 +75,15 @@ class StructuredOutputConfig(BaseModel):
             schema_name="UserInfo"
         )
     """
+
     enabled: bool = Field(False, description="是否启用结构化输出")
     format: Literal["json", "json_object", "json_schema", "text"] = Field(
-        "text",
-        description="输出格式：json_object（声明式）或 json_schema（Schema方式）"
+        "text", description="输出格式：json_object（声明式）或 json_schema（Schema方式）"
     )
     json_schema: dict[str, Any] | None = Field(
-        None,
-        description="JSON Schema 定义（用于 json_schema 格式）"
+        None, description="JSON Schema 定义（用于 json_schema 格式）"
     )
-    schema_name: str | None = Field(
-        None,
-        description="Schema 名称（用于 json_schema 格式）"
-    )
+    schema_name: str | None = Field(None, description="Schema 名称（用于 json_schema 格式）")
     strict: bool = Field(True, description="严格模式（OpenAI Structured Outputs）")
 
     def to_openai_format(self) -> dict[str, Any] | None:
@@ -111,8 +110,8 @@ class StructuredOutputConfig(BaseModel):
                 "json_schema": {
                     "name": self.schema_name or "response",
                     "schema": self.json_schema,
-                    "strict": self.strict
-                }
+                    "strict": self.strict,
+                },
             }
 
         elif self.format == "json":
@@ -124,22 +123,18 @@ class StructuredOutputConfig(BaseModel):
 
 class ToolConfig(BaseModel):
     """工具调用配置"""
-    tool_choice: Literal["auto", "none", "required"] = Field(
-        "auto",
-        description="工具选择策略"
-    )
+
+    tool_choice: Literal["auto", "none", "required"] = Field("auto", description="工具选择策略")
     parallel_tool_calls: bool = Field(True, description="是否允许并行工具调用")
     tool_timeout: float = Field(30.0, description="工具调用超时（秒）")
 
 
 class AdvancedConfig(BaseModel):
     """高级配置"""
+
     logprobs: bool = Field(False, description="是否返回 log probabilities")
     top_logprobs: int | None = Field(None, description="返回 top N logprobs")
-    logit_bias: dict[str, float] | None = Field(
-        None,
-        description="Token 偏置"
-    )
+    logit_bias: dict[str, float] | None = Field(None, description="Token 偏置")
 
 
 class LLMConfig(BaseModel):
@@ -167,30 +162,17 @@ class LLMConfig(BaseModel):
             )
         )
     """
-    connection: ConnectionConfig = Field(
-        default_factory=ConnectionConfig,
-        description="连接配置"
-    )
+
+    connection: ConnectionConfig = Field(default_factory=ConnectionConfig, description="连接配置")
     generation: GenerationConfig = Field(
-        default_factory=GenerationConfig,
-        description="生成参数配置"
+        default_factory=GenerationConfig, description="生成参数配置"
     )
-    stream: StreamConfig = Field(
-        default_factory=StreamConfig,
-        description="流式输出配置"
-    )
+    stream: StreamConfig = Field(default_factory=StreamConfig, description="流式输出配置")
     structured_output: StructuredOutputConfig = Field(
-        default_factory=StructuredOutputConfig,
-        description="结构化输出配置"
+        default_factory=StructuredOutputConfig, description="结构化输出配置"
     )
-    tool: ToolConfig = Field(
-        default_factory=ToolConfig,
-        description="工具调用配置"
-    )
-    advanced: AdvancedConfig = Field(
-        default_factory=AdvancedConfig,
-        description="高级配置"
-    )
+    tool: ToolConfig = Field(default_factory=ToolConfig, description="工具调用配置")
+    advanced: AdvancedConfig = Field(default_factory=AdvancedConfig, description="高级配置")
 
     def to_openai_kwargs(self) -> dict[str, Any]:
         """转换为 OpenAI API 参数"""
@@ -228,7 +210,7 @@ class LLMConfig(BaseModel):
             elif self.structured_output.json_schema:
                 kwargs["response_format"] = {
                     "type": "json_schema",
-                    "json_schema": self.structured_output.json_schema
+                    "json_schema": self.structured_output.json_schema,
                 }
 
         # 高级配置

@@ -1,6 +1,7 @@
 """
 Visualization and Reporting for LoomMemory Metrics
 """
+
 from .metrics import MetricsCollector
 
 
@@ -54,12 +55,8 @@ class MetricsVisualizer:
         """Render System 1/2 routing performance."""
         r = self.collector.routing_metrics
 
-        s1_success_rate = (
-            (r.s1_successes / r.s1_calls * 100) if r.s1_calls > 0 else 0
-        )
-        s1_usage_rate = (
-            (r.system1_routed / r.total_decisions * 100) if r.total_decisions > 0 else 0
-        )
+        s1_success_rate = (r.s1_successes / r.s1_calls * 100) if r.s1_calls > 0 else 0
+        s1_usage_rate = (r.system1_routed / r.total_decisions * 100) if r.total_decisions > 0 else 0
 
         viz = f"""
 ╔═══════════════════════════════════════════════════════════╗

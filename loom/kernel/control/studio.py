@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import logging
@@ -10,13 +9,14 @@ try:
     import websockets
     from websockets.client import ClientProtocol as WebSocketClientProtocol
 except ImportError:
-    websockets = None # type: ignore
+    websockets = None  # type: ignore
     WebSocketClientProtocol = Any  # type: ignore
 
 from loom.kernel.control.base import Interceptor
 from loom.protocol.cloudevents import CloudEvent
 
 logger = logging.getLogger(__name__)
+
 
 class StudioInterceptor(Interceptor):
     """
@@ -38,11 +38,13 @@ class StudioInterceptor(Interceptor):
         self._loop = None
 
         if self.enabled and not websockets:
-            logger.warning("LOOM_STUDIO_ENABLED is true but websockets is not installed. Disabling Studio.")
+            logger.warning(
+                "LOOM_STUDIO_ENABLED is true but websockets is not installed. Disabling Studio."
+            )
             self.enabled = False
 
         if self.enabled:
-             asyncio.create_task(self._ensure_connection())
+            asyncio.create_task(self._ensure_connection())
 
     async def _ensure_connection(self):
         """Ensure WebSocket connection is established"""
@@ -52,8 +54,8 @@ class StudioInterceptor(Interceptor):
         if self.ws:
             try:
                 # Basic check if open
-                if self.ws.state == 1: # Open
-                     return
+                if self.ws.state == 1:  # Open
+                    return
             except Exception:
                 pass
             self.ws = None
@@ -84,7 +86,7 @@ class StudioInterceptor(Interceptor):
     async def post_invoke(self, event: CloudEvent) -> None:
         """Capture event (post-phase) - 只在此阶段发送事件，避免重复"""
         if self.enabled:
-            enriched_event_data = event.model_dump(mode='json')
+            enriched_event_data = event.model_dump(mode="json")
             if "extensions" not in enriched_event_data:
                 enriched_event_data["extensions"] = {}
 
@@ -117,10 +119,7 @@ class StudioInterceptor(Interceptor):
 
         if self.ws:
             try:
-                batch = {
-                    "type": "event_batch",
-                    "events": current_batch
-                }
+                batch = {"type": "event_batch", "events": current_batch}
                 # Cast to Any to avoid protocol attribute issues
                 conn = cast(Any, self.ws)
                 await conn.send(json.dumps(batch))
@@ -129,4 +128,4 @@ class StudioInterceptor(Interceptor):
                 print(f"DEBUG: Failed to send batch: {e}")
                 # Re-queue? For now drop to avoid complexity
         else:
-             print(f"DEBUG: No connection, dropping batch of {len(current_batch)}")
+            print(f"DEBUG: No connection, dropping batch of {len(current_batch)}")

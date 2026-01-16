@@ -1,6 +1,7 @@
 """
 LoomMemory Storage Engine
 """
+
 import math
 from collections import defaultdict
 from datetime import datetime
@@ -28,22 +29,17 @@ class LoomMemory:
     L4 (Global): Persistent global knowledge.
     """
 
-    def __init__(
-        self,
-        node_id: str,
-        max_l1_size: int = 50,
-        config: MemoryConfig | None = None
-    ):
+    def __init__(self, node_id: str, max_l1_size: int = 50, config: MemoryConfig | None = None):
         self.node_id = node_id
         self.config = config or MemoryConfig()
         # Use passed max_l1_size parameter, not config default
         self.max_l1_size = max_l1_size
 
         # Tiered Storage
-        self._l1_buffer: list[MemoryUnit] = []           # Circular buffer
-        self._l2_working: list[MemoryUnit] = []          # Working memory list
-        self._l3_session: dict[str, list[MemoryUnit]] = defaultdict(list) # By session_id
-        self._l4_global: list[MemoryUnit] = []           # Mock for VectorDB
+        self._l1_buffer: list[MemoryUnit] = []  # Circular buffer
+        self._l2_working: list[MemoryUnit] = []  # Working memory list
+        self._l3_session: dict[str, list[MemoryUnit]] = defaultdict(list)  # By session_id
+        self._l4_global: list[MemoryUnit] = []  # Mock for VectorDB
 
         # Indexes
         self._id_index: dict[str, MemoryUnit] = {}
@@ -53,12 +49,12 @@ class LoomMemory:
         self.vector_store: VectorStoreProvider | None = create_vector_store(
             self.config.vector_store
         )
-        self.embedding_provider: EmbeddingProvider | None = create_embedding_provider(
-            self.config.embedding
-        ) if self.vector_store else None
+        self.embedding_provider: EmbeddingProvider | None = (
+            create_embedding_provider(self.config.embedding) if self.vector_store else None
+        )
 
         # L4 Compressor (Optional)
-        self.l4_compressor: 'L4Compressor' | None = None
+        self.l4_compressor: "L4Compressor" | None = None
 
     async def add(self, unit: MemoryUnit) -> str:
         """Add a memory unit to the appropriate tier."""
@@ -138,7 +134,7 @@ class LoomMemory:
             MemoryTier.L1_RAW_IO,
             MemoryTier.L2_WORKING,
             MemoryTier.L3_SESSION,
-            MemoryTier.L4_GLOBAL
+            MemoryTier.L4_GLOBAL,
         ]
 
         for tier in target_tiers:
@@ -181,10 +177,7 @@ class LoomMemory:
         # 6. Sort
         reverse = q.descending
         # Dynamic getattr for sort key
-        results.sort(
-            key=lambda u: getattr(u, q.sort_by, u.created_at),
-            reverse=reverse
-        )
+        results.sort(key=lambda u: getattr(u, q.sort_by, u.created_at), reverse=reverse)
 
         return results
 
@@ -206,7 +199,7 @@ class LoomMemory:
     def clear_working(self):
         """Clear L2 Working Memory."""
         for unit in self._l2_working:
-             self._remove_from_index(unit)
+            self._remove_from_index(unit)
         self._l2_working.clear()
 
     def _evict_from_l1(self):
@@ -248,7 +241,7 @@ class LoomMemory:
         _total_budget: int = 2000,
         mode: ProjectionMode | None = None,
         include_plan: bool = True,
-        include_facts: bool = True
+        include_facts: bool = True,
     ) -> ContextProjection:
         """创建上下文投影（增强版）
 
@@ -270,10 +263,7 @@ class LoomMemory:
         config = ProjectionConfig.from_mode(mode)
 
         # 3. 创建投影对象
-        projection = ContextProjection(
-            instruction=instruction,
-            lineage=[self.node_id]
-        )
+        projection = ContextProjection(instruction=instruction, lineage=[self.node_id])
 
         # 4. 提取 VIP 内容（plan）
         if include_plan:
@@ -287,7 +277,7 @@ class LoomMemory:
                 instruction=instruction,
                 facts=self._l4_global,
                 max_count=config.max_l4_facts,
-                config=config
+                config=config,
             )
             projection.relevant_facts = scored_facts
 
@@ -301,10 +291,7 @@ class LoomMemory:
             "l3_sessions": len(self._l3_session),
             "l4_size": len(self._l4_global),
             "total_units": len(self._id_index),
-            "types": {
-                t.value: len(ids)
-                for t, ids in self._type_index.items()
-            }
+            "types": {t.value: len(ids) for t, ids in self._type_index.items()},
         }
 
     def _remove_from_index(self, unit: MemoryUnit):
@@ -315,10 +302,7 @@ class LoomMemory:
             self._type_index[unit.type].remove(unit.id)
 
     async def _semantic_search(
-        self,
-        query: str,
-        candidates: list[MemoryUnit],
-        top_k: int
+        self, query: str, candidates: list[MemoryUnit], top_k: int
     ) -> list[MemoryUnit]:
         """
         Semantic Search using vector store if available, otherwise fallback to keyword matching.
@@ -331,8 +315,7 @@ class LoomMemory:
 
                 # Search vector store
                 results = await self.vector_store.search(
-                    query_embedding=query_embedding,
-                    top_k=top_k
+                    query_embedding=query_embedding, top_k=top_k
                 )
 
                 # Map results back to MemoryUnits
@@ -385,8 +368,8 @@ class LoomMemory:
                     "tier": unit.tier.name,
                     "type": unit.type.value,
                     "importance": unit.importance,
-                    "source_node": unit.source_node
-                }
+                    "source_node": unit.source_node,
+                },
             )
 
             # Store embedding in unit for future use
@@ -409,11 +392,37 @@ class LoomMemory:
         # 检测 DEBUG 模式（英文 + 中文关键词，各15个）
         debug_keywords = [
             # 英文 (15个)
-            'error', 'fix', 'debug', 'retry', 'bug', 'exception', 'failed', 'failure',
-            'crash', 'broken', 'issue', 'troubleshoot', 'diagnose', 'resolve', 'repair',
+            "error",
+            "fix",
+            "debug",
+            "retry",
+            "bug",
+            "exception",
+            "failed",
+            "failure",
+            "crash",
+            "broken",
+            "issue",
+            "troubleshoot",
+            "diagnose",
+            "resolve",
+            "repair",
             # 中文 (15个)
-            '错误', '修复', '调试', '重试', '失败', '异常', '问题', 'bug',
-            '崩溃', '故障', '排查', '诊断', '解决', '修理', '出错'
+            "错误",
+            "修复",
+            "调试",
+            "重试",
+            "失败",
+            "异常",
+            "问题",
+            "bug",
+            "崩溃",
+            "故障",
+            "排查",
+            "诊断",
+            "解决",
+            "修理",
+            "出错",
         ]
         if any(kw in instruction_lower for kw in debug_keywords):
             return ProjectionMode.DEBUG
@@ -421,12 +430,37 @@ class LoomMemory:
         # 检测 ANALYTICAL 模式（英文 + 中文关键词，各15个）
         analytical_keywords = [
             # 英文 (15个)
-            'analyze', 'analyse', 'evaluate', 'research', 'investigate', 'study',
-            'examine', 'review', 'assess', 'compare', 'measure', 'benchmark',
-            'profile', 'inspect', 'survey',
+            "analyze",
+            "analyse",
+            "evaluate",
+            "research",
+            "investigate",
+            "study",
+            "examine",
+            "review",
+            "assess",
+            "compare",
+            "measure",
+            "benchmark",
+            "profile",
+            "inspect",
+            "survey",
             # 中文 (15个)
-            '分析', '评估', '研究', '调查', '探索',
-            '检验', '审查', '对比', '比较', '测量', '测试', '考察', '观察', '查看', '统计'
+            "分析",
+            "评估",
+            "研究",
+            "调查",
+            "探索",
+            "检验",
+            "审查",
+            "对比",
+            "比较",
+            "测量",
+            "测试",
+            "考察",
+            "观察",
+            "查看",
+            "统计",
         ]
         if any(kw in instruction_lower for kw in analytical_keywords):
             return ProjectionMode.ANALYTICAL
@@ -434,12 +468,37 @@ class LoomMemory:
         # 检测 CONTEXTUAL 模式（英文 + 中文关键词，各15个）
         contextual_keywords = [
             # 英文 (15个)
-            'continue', 'context', 'previous', 'earlier', 'before', 'last',
-            'resume', 'recall', 'remember', 'mentioned', 'discussed', 'talked',
-            'said', 'above', 'prior',
+            "continue",
+            "context",
+            "previous",
+            "earlier",
+            "before",
+            "last",
+            "resume",
+            "recall",
+            "remember",
+            "mentioned",
+            "discussed",
+            "talked",
+            "said",
+            "above",
+            "prior",
             # 中文 (15个)
-            '继续', '上下文', '之前', '刚才', '前面', '上次', '接着',
-            '恢复', '回忆', '记得', '提到', '讨论过', '说过', '上面', '最近'
+            "继续",
+            "上下文",
+            "之前",
+            "刚才",
+            "前面",
+            "上次",
+            "接着",
+            "恢复",
+            "回忆",
+            "记得",
+            "提到",
+            "讨论过",
+            "说过",
+            "上面",
+            "最近",
         ]
         if any(kw in instruction_lower for kw in contextual_keywords):
             return ProjectionMode.CONTEXTUAL
@@ -447,7 +506,7 @@ class LoomMemory:
         # 检测 MINIMAL 模式（非常短的指令）
         # 检测是否包含中文字符
         def has_chinese(text):
-            return any('\u4e00' <= char <= '\u9fff' for char in text)
+            return any("\u4e00" <= char <= "\u9fff" for char in text)
 
         instruction_stripped = instruction.strip()
 
@@ -487,11 +546,7 @@ class LoomMemory:
         return dot_product / (norm1 * norm2)
 
     async def _score_facts(
-        self,
-        instruction: str,
-        facts: list[MemoryUnit],
-        max_count: int,
-        config: ProjectionConfig
+        self, instruction: str, facts: list[MemoryUnit], max_count: int, config: ProjectionConfig
     ) -> list[MemoryUnit]:
         """评分并选择 facts
 
@@ -512,19 +567,11 @@ class LoomMemory:
             return await self._score_facts_semantic(instruction, facts, max_count, config)
         else:
             # 降级：只按 importance 排序
-            sorted_facts = sorted(
-                facts,
-                key=lambda f: f.importance,
-                reverse=True
-            )
+            sorted_facts = sorted(facts, key=lambda f: f.importance, reverse=True)
             return sorted_facts[:max_count]
 
     async def _score_facts_semantic(
-        self,
-        instruction: str,
-        facts: list[MemoryUnit],
-        max_count: int,
-        config: ProjectionConfig
+        self, instruction: str, facts: list[MemoryUnit], max_count: int, config: ProjectionConfig
     ) -> list[MemoryUnit]:
         """使用语义相似度评分 facts
 
@@ -559,8 +606,8 @@ class LoomMemory:
 
                 # 混合评分：importance + relevance
                 score = (
-                    config.importance_weight * fact.importance +
-                    config.relevance_weight * similarity
+                    config.importance_weight * fact.importance
+                    + config.relevance_weight * similarity
                 )
                 scored.append((score, fact))
 
@@ -570,11 +617,7 @@ class LoomMemory:
 
         except Exception:
             # 出错时降级到只按 importance 排序
-            sorted_facts = sorted(
-                facts,
-                key=lambda f: f.importance,
-                reverse=True
-            )
+            sorted_facts = sorted(facts, key=lambda f: f.importance, reverse=True)
             return sorted_facts[:max_count]
 
     def enable_l4_compression(
@@ -582,7 +625,7 @@ class LoomMemory:
         llm_provider,
         threshold: int = 150,
         similarity_threshold: float = 0.75,
-        min_cluster_size: int = 3
+        min_cluster_size: int = 3,
     ):
         """启用L4自动压缩
 
@@ -599,13 +642,13 @@ class LoomMemory:
             embedding_provider=self.embedding_provider,
             threshold=threshold,
             similarity_threshold=similarity_threshold,
-            min_cluster_size=min_cluster_size
+            min_cluster_size=min_cluster_size,
         )
 
     async def _compress_l4(self):
         """执行L4压缩"""
         if not self.l4_compressor:
-             return
+            return
 
         print(f"🗜️  L4压缩开始：当前{len(self._l4_global)}个facts")
 

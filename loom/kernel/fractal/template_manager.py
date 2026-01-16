@@ -24,9 +24,11 @@ logger = logging.getLogger(__name__)
 # Template Data Structures
 # ============================================================================
 
+
 @dataclass
 class StructureTemplate:
     """Reusable structure template"""
+
     template_id: str
     name: str
     description: str
@@ -83,48 +85,49 @@ class StructureTemplate:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
-            'template_id': self.template_id,
-            'name': self.name,
-            'description': self.description,
-            'task_categories': self.task_categories,
-            'topology_type': self.topology_type,
-            'node_specs': self.node_specs,
-            'performance': {
-                'avg_fitness': self.avg_fitness,
-                'min_fitness': self.min_fitness,
-                'success_rate': self.success_rate,
-                'usage_count': self.usage_count
+            "template_id": self.template_id,
+            "name": self.name,
+            "description": self.description,
+            "task_categories": self.task_categories,
+            "topology_type": self.topology_type,
+            "node_specs": self.node_specs,
+            "performance": {
+                "avg_fitness": self.avg_fitness,
+                "min_fitness": self.min_fitness,
+                "success_rate": self.success_rate,
+                "usage_count": self.usage_count,
             },
-            'metadata': {
-                'created_from': self.created_from,
-                'tags': self.tags,
-                'confidence': self.confidence
-            }
+            "metadata": {
+                "created_from": self.created_from,
+                "tags": self.tags,
+                "confidence": self.confidence,
+            },
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'StructureTemplate':
+    def from_dict(cls, data: dict[str, Any]) -> "StructureTemplate":
         """Create from dictionary"""
         return cls(
-            template_id=data['template_id'],
-            name=data['name'],
-            description=data['description'],
-            task_categories=data['task_categories'],
-            topology_type=data['topology_type'],
-            node_specs=data['node_specs'],
-            avg_fitness=data['performance']['avg_fitness'],
-            min_fitness=data['performance']['min_fitness'],
-            success_rate=data['performance']['success_rate'],
-            usage_count=data['performance']['usage_count'],
-            created_from=data['metadata'].get('created_from'),
-            tags=data['metadata'].get('tags', []),
-            confidence=data['metadata'].get('confidence', 0.0)
+            template_id=data["template_id"],
+            name=data["name"],
+            description=data["description"],
+            task_categories=data["task_categories"],
+            topology_type=data["topology_type"],
+            node_specs=data["node_specs"],
+            avg_fitness=data["performance"]["avg_fitness"],
+            min_fitness=data["performance"]["min_fitness"],
+            success_rate=data["performance"]["success_rate"],
+            usage_count=data["performance"]["usage_count"],
+            created_from=data["metadata"].get("created_from"),
+            tags=data["metadata"].get("tags", []),
+            confidence=data["metadata"].get("confidence", 0.0),
         )
 
 
 # ============================================================================
 # Template Manager
 # ============================================================================
+
 
 class TemplateManager:
     """
@@ -138,11 +141,7 @@ class TemplateManager:
     - Track template usage and performance
     """
 
-    def __init__(
-        self,
-        min_fitness_for_template: float = 0.75,
-        min_usage_for_template: int = 3
-    ):
+    def __init__(self, min_fitness_for_template: float = 0.75, min_usage_for_template: int = 3):
         """
         Initialize template manager
 
@@ -169,9 +168,7 @@ class TemplateManager:
     # ========================================================================
 
     def learn_from_snapshots(
-        self,
-        snapshots: list[StructureSnapshot],
-        task_type: str
+        self, snapshots: list[StructureSnapshot], task_type: str
     ) -> StructureTemplate | None:
         """
         Learn template from structure snapshots
@@ -184,14 +181,13 @@ class TemplateManager:
             Learned template or None
         """
         # Filter high-performing snapshots
-        good_snapshots = [
-            s for s in snapshots
-            if s.fitness_score >= self.min_fitness_for_template
-        ]
+        good_snapshots = [s for s in snapshots if s.fitness_score >= self.min_fitness_for_template]
 
         if len(good_snapshots) < self.min_usage_for_template:
-            logger.info(f"Not enough good snapshots for {task_type}: "
-                       f"{len(good_snapshots)} < {self.min_usage_for_template}")
+            logger.info(
+                f"Not enough good snapshots for {task_type}: "
+                f"{len(good_snapshots)} < {self.min_usage_for_template}"
+            )
             return None
 
         # Extract common pattern
@@ -200,14 +196,14 @@ class TemplateManager:
         # Add to library
         self.add_template(template)
 
-        logger.info(f"Learned template: {template.template_id} from {len(good_snapshots)} snapshots")
+        logger.info(
+            f"Learned template: {template.template_id} from {len(good_snapshots)} snapshots"
+        )
 
         return template
 
     def _extract_template_from_snapshots(
-        self,
-        snapshots: list[StructureSnapshot],
-        task_type: str
+        self, snapshots: list[StructureSnapshot], task_type: str
     ) -> StructureTemplate:
         """Extract template from snapshots"""
         import numpy as np
@@ -238,7 +234,7 @@ class TemplateManager:
             topology_type,
             int(np.median([s.total_nodes for s in snapshots])),
             int(avg_depth),
-            role_distribution
+            role_distribution,
         )
 
         # Extract tags from task type
@@ -257,15 +253,12 @@ class TemplateManager:
             usage_count=len(snapshots),
             created_from=snapshots[0].structure_id,
             tags=tags,
-            confidence=min(1.0, len(snapshots) / 20)
+            confidence=min(1.0, len(snapshots) / 20),
         )
 
         return template
 
-    def _aggregate_role_distribution(
-        self,
-        snapshots: list[StructureSnapshot]
-    ) -> dict[str, float]:
+    def _aggregate_role_distribution(self, snapshots: list[StructureSnapshot]) -> dict[str, float]:
         """Aggregate role distribution across snapshots"""
         role_counts = defaultdict(list)
 
@@ -275,61 +268,60 @@ class TemplateManager:
                 role_counts[role].append(count / total if total > 0 else 0)
 
         # Return median proportions
-        return {
-            role: float(np.median(proportions))
-            for role, proportions in role_counts.items()
-        }
+        return {role: float(np.median(proportions)) for role, proportions in role_counts.items()}
 
     def _create_node_specs(
         self,
         topology_type: str,
         total_nodes: int,
         max_depth: int,
-        role_distribution: dict[str, float]
+        role_distribution: dict[str, float],
     ) -> list[dict[str, Any]]:
         """Create node specifications"""
         specs = []
 
         # Root node
-        specs.append({
-            'role': NodeRole.COORDINATOR.value,
-            'depth': 0,
-            'description': 'Root coordinator'
-        })
+        specs.append(
+            {"role": NodeRole.COORDINATOR.value, "depth": 0, "description": "Root coordinator"}
+        )
 
         # Add children based on topology
         if topology_type == "sequential":
             # Chain of executors
             for i in range(1, total_nodes - 1):
-                specs.append({
-                    'role': NodeRole.EXECUTOR.value,
-                    'depth': min(i, max_depth),
-                    'description': f'Sequential step {i}'
-                })
+                specs.append(
+                    {
+                        "role": NodeRole.EXECUTOR.value,
+                        "depth": min(i, max_depth),
+                        "description": f"Sequential step {i}",
+                    }
+                )
 
             # Final aggregator
-            specs.append({
-                'role': NodeRole.AGGREGATOR.value,
-                'depth': max_depth,
-                'description': 'Final aggregator'
-            })
+            specs.append(
+                {
+                    "role": NodeRole.AGGREGATOR.value,
+                    "depth": max_depth,
+                    "description": "Final aggregator",
+                }
+            )
 
         elif topology_type == "parallel":
             # Multiple specialists in parallel
             num_specialists = total_nodes - 2  # Minus root and aggregator
             for i in range(num_specialists):
-                specs.append({
-                    'role': NodeRole.SPECIALIST.value,
-                    'depth': 1,
-                    'description': f'Parallel specialist {i+1}'
-                })
+                specs.append(
+                    {
+                        "role": NodeRole.SPECIALIST.value,
+                        "depth": 1,
+                        "description": f"Parallel specialist {i+1}",
+                    }
+                )
 
             # Aggregator
-            specs.append({
-                'role': NodeRole.AGGREGATOR.value,
-                'depth': 1,
-                'description': 'Result aggregator'
-            })
+            specs.append(
+                {"role": NodeRole.AGGREGATOR.value, "depth": 1, "description": "Result aggregator"}
+            )
 
         else:
             # Generic based on role distribution
@@ -337,20 +329,22 @@ class TemplateManager:
             for role, proportion in role_distribution.items():
                 count = max(1, int(remaining * proportion))
                 for i in range(count):
-                    specs.append({
-                        'role': role,
-                        'depth': min(i // 2 + 1, max_depth),
-                        'description': f'{role} node'
-                    })
+                    specs.append(
+                        {
+                            "role": role,
+                            "depth": min(i // 2 + 1, max_depth),
+                            "description": f"{role} node",
+                        }
+                    )
 
         return specs[:total_nodes]  # Ensure we don't exceed total
 
     def _extract_tags(self, task_type: str) -> list[str]:
         """Extract tags from task type"""
         # Simple word extraction
-        words = re.findall(r'\w+', task_type.lower())
+        words = re.findall(r"\w+", task_type.lower())
         # Filter out common words
-        common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for'}
+        common_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
         tags = [w for w in words if w not in common_words and len(w) > 2]
         return tags[:5]  # Limit to 5 tags
 
@@ -393,7 +387,7 @@ class TemplateManager:
         task_type: str,
         task_description: str | None = None,
         min_match_score: float = 0.3,
-        limit: int = 5
+        limit: int = 5,
     ) -> list[tuple[StructureTemplate, float]]:
         """
         Find matching templates for a task
@@ -437,7 +431,7 @@ class TemplateManager:
         self,
         task_type: str,
         task_description: str | None = None,
-        current_fitness: float | None = None
+        current_fitness: float | None = None,
     ) -> StructureTemplate | None:
         """
         Recommend best template for a task
@@ -458,7 +452,8 @@ class TemplateManager:
         # If current fitness provided, filter for improvements
         if current_fitness is not None:
             matches = [
-                (t, s) for t, s in matches
+                (t, s)
+                for t, s in matches
                 if t.avg_fitness > current_fitness + 0.05  # 5% improvement
             ]
 
@@ -493,12 +488,12 @@ class TemplateManager:
         import numpy as np
 
         return {
-            'template_id': template_id,
-            'usage_count': template.usage_count,
-            'avg_fitness': template.avg_fitness,
-            'recent_avg_fitness': float(np.mean(usage_scores[-10:])) if usage_scores else 0.0,
-            'fitness_std': float(np.std(usage_scores)) if usage_scores else 0.0,
-            'confidence': template.confidence
+            "template_id": template_id,
+            "usage_count": template.usage_count,
+            "avg_fitness": template.avg_fitness,
+            "recent_avg_fitness": float(np.mean(usage_scores[-10:])) if usage_scores else 0.0,
+            "fitness_std": float(np.std(usage_scores)) if usage_scores else 0.0,
+            "confidence": template.confidence,
         }
 
     # ========================================================================
@@ -508,11 +503,11 @@ class TemplateManager:
     def save(self, filepath: str):
         """Save templates to file"""
         data = {
-            'templates': {k: v.to_dict() for k, v in self.templates.items()},
-            'usage': dict(self.template_usage.items())
+            "templates": {k: v.to_dict() for k, v in self.templates.items()},
+            "usage": dict(self.template_usage.items()),
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
         logger.info(f"Saved {len(self.templates)} templates to {filepath}")
@@ -522,12 +517,9 @@ class TemplateManager:
         with open(filepath) as f:
             data = json.load(f)
 
-        self.templates = {
-            k: StructureTemplate.from_dict(v)
-            for k, v in data['templates'].items()
-        }
+        self.templates = {k: StructureTemplate.from_dict(v) for k, v in data["templates"].items()}
 
-        self.template_usage = defaultdict(list, data['usage'])
+        self.template_usage = defaultdict(list, data["usage"])
 
         # Rebuild category index
         self.category_index.clear()
@@ -546,10 +538,7 @@ class TemplateManager:
         import numpy as np
 
         if not self.templates:
-            return {
-                'total_templates': 0,
-                'total_usage': 0
-            }
+            return {"total_templates": 0, "total_usage": 0}
 
         total_usage = sum(t.usage_count for t in self.templates.values())
         avg_fitness = np.mean([t.avg_fitness for t in self.templates.values()])
@@ -560,9 +549,9 @@ class TemplateManager:
             topology_counts[template.topology_type] += 1
 
         return {
-            'total_templates': len(self.templates),
-            'total_usage': total_usage,
-            'avg_template_fitness': float(avg_fitness),
-            'topology_types': dict(topology_counts),
-            'categories_covered': len(self.category_index)
+            "total_templates": len(self.templates),
+            "total_usage": total_usage,
+            "avg_template_fitness": float(avg_fitness),
+            "topology_types": dict(topology_counts),
+            "categories_covered": len(self.category_index),
         }

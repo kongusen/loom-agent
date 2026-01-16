@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 from typing import Any
@@ -9,8 +8,8 @@ try:
     from nats.js import JetStreamContext
 except ImportError:
     nats = None
-    NATSClient = None # type: ignore
-    JetStreamContext = None # type: ignore
+    NATSClient = None  # type: ignore
+    JetStreamContext = None  # type: ignore
 
 import contextlib
 
@@ -19,6 +18,7 @@ from loom.protocol.cloudevents import CloudEvent
 from .base import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
+
 
 class NATSTransport(Transport):
     """
@@ -36,7 +36,9 @@ class NATSTransport(Transport):
         if servers is None:
             servers = ["nats://localhost:4222"]
         if not nats:
-            raise ImportError("nats-py package is required for NATSTransport. Install with 'pip install nats-py'")
+            raise ImportError(
+                "nats-py package is required for NATSTransport. Install with 'pip install nats-py'"
+            )
 
         self.servers = servers
         self.use_jetstream = use_jetstream
@@ -71,9 +73,9 @@ class NATSTransport(Transport):
         self._connected = False
 
         for sub_tuple in self._subscriptions:
-             sub = sub_tuple[1]
-             with contextlib.suppress(Exception):
-                 await sub.unsubscribe()
+            sub = sub_tuple[1]
+            with contextlib.suppress(Exception):
+                await sub.unsubscribe()
 
         if self.nc:
             await self.nc.close()
@@ -82,7 +84,7 @@ class NATSTransport(Transport):
 
     async def publish(self, topic: str, event: CloudEvent) -> None:
         if not self._connected:
-             raise RuntimeError("NATSTransport not connected")
+            raise RuntimeError("NATSTransport not connected")
 
         # NATS Subject: loom.{topic} (replace / with .)
         subject = self._to_subject(topic)
@@ -95,7 +97,7 @@ class NATSTransport(Transport):
 
     async def subscribe(self, topic: str, handler: EventHandler) -> None:
         if not self._connected:
-             raise RuntimeError("NATSTransport not connected")
+            raise RuntimeError("NATSTransport not connected")
 
         # Normalize subject for wildcard
         subject = self._to_subject(topic)
@@ -117,7 +119,7 @@ class NATSTransport(Transport):
                     # We invoke all handlers for this subscription
                     handlers = self._handlers.get(topic, [])
                     for h in handlers:
-                         asyncio.create_task(self._safe_exec(h, event))
+                        asyncio.create_task(self._safe_exec(h, event))
                 except Exception as e:
                     logger.error(f"Error handling NATS message: {e}")
 
@@ -127,7 +129,7 @@ class NATSTransport(Transport):
             elif self.nc:
                 sub = await self.nc.subscribe(subject, cb=cb)
             else:
-                 raise RuntimeError("NATS client not connected")
+                raise RuntimeError("NATS client not connected")
 
             # Store subscription with topic for later unsubscribe
             self._subscriptions.append((topic, sub))
@@ -165,9 +167,9 @@ class NATSTransport(Transport):
 
     async def _safe_exec(self, handler: EventHandler, event: CloudEvent):
         try:
-             await handler(event)
+            await handler(event)
         except Exception as e:
-             logger.error(f"Handler failed: {e}")
+            logger.error(f"Handler failed: {e}")
 
     def _to_subject(self, topic: str) -> str:
         # Replace / with .

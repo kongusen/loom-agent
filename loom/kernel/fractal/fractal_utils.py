@@ -41,17 +41,11 @@ def estimate_task_complexity(task: str) -> float:
     step_score = min(1.0, step_count / 3)
 
     # Weighted average
-    return (
-        length_score * 0.3 +
-        conjunction_score * 0.4 +
-        step_score * 0.3
-    )
+    return length_score * 0.3 + conjunction_score * 0.4 + step_score * 0.3
 
 
 def should_use_fractal(
-    task: str,
-    config: FractalConfig,
-    _routing_decision: Any | None = None
+    task: str, config: FractalConfig, _routing_decision: Any | None = None
 ) -> bool:
     """
     Determine if fractal decomposition should be used

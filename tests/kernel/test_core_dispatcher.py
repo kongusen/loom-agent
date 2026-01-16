@@ -65,11 +65,7 @@ class TestDispatcher:
     @pytest.fixture
     def sample_event(self):
         """Create a sample event."""
-        return CloudEvent.create(
-            source="/test/source",
-            type="test.event",
-            data={"message": "test"}
-        )
+        return CloudEvent.create(source="/test/source", type="test.event", data={"message": "test"})
 
     def test_initialization(self, bus):
         """Test dispatcher initialization."""
@@ -124,8 +120,8 @@ class TestDispatcher:
         node = MagicMock()
         node.node_id = "no_handler_node"
         # Explicitly remove _handle_request attribute
-        if hasattr(node, '_handle_request'):
-            delattr(node, '_handle_request')
+        if hasattr(node, "_handle_request"):
+            delattr(node, "_handle_request")
 
         await dispatcher.register_ephemeral(node)
 
@@ -249,17 +245,15 @@ class TestDispatcher:
     @pytest.mark.asyncio
     async def test_dispatch_with_timeout_in_extensions(self, dispatcher):
         """Test dispatch with timeout in event extensions."""
-        event = CloudEvent.create(
-            source="/test",
-            type="test.event",
-            data={"test": "data"}
-        )
+        event = CloudEvent.create(source="/test", type="test.event", data={"test": "data"})
         event.extensions = {"timeout": "5.0"}
 
-        with patch('asyncio.wait_for') as mock_wait_for:
+        with patch("asyncio.wait_for") as mock_wait_for:
+
             async def side_effect(coro, timeout):
                 assert timeout == 5.0
                 await coro
+
             mock_wait_for.side_effect = side_effect
 
             dispatcher.bus.publish = AsyncMock()
@@ -272,10 +266,12 @@ class TestDispatcher:
         """Test dispatch with invalid timeout uses default."""
         sample_event.extensions = {"timeout": "invalid"}
 
-        with patch('asyncio.wait_for') as mock_wait_for:
+        with patch("asyncio.wait_for") as mock_wait_for:
+
             async def side_effect(coro, timeout):
                 assert timeout == 30.0  # Default timeout
                 await coro
+
             mock_wait_for.side_effect = side_effect
 
             dispatcher.bus.publish = AsyncMock()
@@ -286,6 +282,7 @@ class TestDispatcher:
     @pytest.mark.asyncio
     async def test_dispatch_timeout_error(self, dispatcher, sample_event, capsys):
         """Test handling of timeout error during dispatch."""
+
         async def timeout_publish(*args, **kwargs):
             await asyncio.sleep(0.1)
             raise TimeoutError()
@@ -298,10 +295,12 @@ class TestDispatcher:
     @pytest.mark.asyncio
     async def test_dispatch_with_no_extensions(self, dispatcher, sample_event):
         """Test dispatch with no extensions uses default timeout."""
-        with patch('asyncio.wait_for') as mock_wait_for:
+        with patch("asyncio.wait_for") as mock_wait_for:
+
             async def side_effect(coro, timeout):
                 assert timeout == 30.0  # Default timeout
                 await coro
+
             mock_wait_for.side_effect = side_effect
 
             dispatcher.bus.publish = AsyncMock()
@@ -373,19 +372,23 @@ class TestDispatcher:
         # Use actual MockInterceptor with post_side_effect
         interceptor = MockInterceptor()
         original_post = interceptor.post_invoke
+
         async def wrapped_post(event):
             await original_post(event)
             nonlocal post_invoke_called
             post_invoke_called = True
+
         interceptor.post_invoke = wrapped_post
 
         dispatcher.add_interceptor(interceptor)
 
         # Wrap the real publish to track when it's called
         original_publish = dispatcher.bus.publish
+
         async def wrapped_publish(event):
             await track_publish(event)
             await original_publish(event)
+
         dispatcher.bus.publish = wrapped_publish
 
         await dispatcher.dispatch(sample_event)

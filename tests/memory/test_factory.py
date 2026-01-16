@@ -28,9 +28,7 @@ class TestCreateVectorStore:
     def test_raises_error_for_invalid_provider(self):
         """Test that ValueError is raised for invalid provider."""
         config = VectorStoreConfig(
-            enabled=True,
-            provider="nonexistent_provider",
-            provider_config={}
+            enabled=True, provider="nonexistent_provider", provider_config={}
         )
 
         with pytest.raises(ValueError, match="Failed to load custom vector store"):
@@ -39,9 +37,7 @@ class TestCreateVectorStore:
     def test_raises_error_for_invalid_custom_provider_format(self):
         """Test that ValueError is raised for malformed custom provider."""
         config = VectorStoreConfig(
-            enabled=True,
-            provider="invalid_format_no_dot",
-            provider_config={}
+            enabled=True, provider="invalid_format_no_dot", provider_config={}
         )
 
         with pytest.raises(ValueError):
@@ -51,9 +47,7 @@ class TestCreateVectorStore:
         """Test that Qdrant provider is handled (skips if not available)."""
         # This tests the Qdrant path - will fail gracefully if dependencies missing
         config = VectorStoreConfig(
-            enabled=True,
-            provider="qdrant",
-            provider_config={"url": "http://localhost:6333"}
+            enabled=True, provider="qdrant", provider_config={"url": "http://localhost:6333"}
         )
 
         # This will fail if qdrant-client not installed, which is expected
@@ -72,9 +66,7 @@ class TestCreateEmbeddingProvider:
     def test_creates_openai_provider(self):
         """Test creating OpenAI embedding provider."""
         config = EmbeddingConfig(
-            provider="openai",
-            provider_config={"api_key": "test_key"},
-            enable_cache=False
+            provider="openai", provider_config={"api_key": "test_key"}, enable_cache=False
         )
 
         result = create_embedding_provider(config)
@@ -84,11 +76,7 @@ class TestCreateEmbeddingProvider:
 
     def test_creates_mock_provider(self):
         """Test creating Mock embedding provider."""
-        config = EmbeddingConfig(
-            provider="mock",
-            provider_config={},
-            enable_cache=False
-        )
+        config = EmbeddingConfig(provider="mock", provider_config={}, enable_cache=False)
 
         result = create_embedding_provider(config)
 
@@ -98,10 +86,7 @@ class TestCreateEmbeddingProvider:
     def test_wraps_with_cache_when_enabled(self):
         """Test that provider is wrapped with cache when enabled."""
         config = EmbeddingConfig(
-            provider="mock",
-            provider_config={},
-            enable_cache=True,
-            cache_size=100
+            provider="mock", provider_config={}, enable_cache=True, cache_size=100
         )
 
         result = create_embedding_provider(config)
@@ -111,30 +96,21 @@ class TestCreateEmbeddingProvider:
 
     def test_raises_error_for_invalid_provider(self):
         """Test that ValueError is raised for invalid provider."""
-        config = EmbeddingConfig(
-            provider="nonexistent_provider",
-            provider_config={}
-        )
+        config = EmbeddingConfig(provider="nonexistent_provider", provider_config={})
 
         with pytest.raises(ValueError, match="Failed to load custom embedding provider"):
             create_embedding_provider(config)
 
     def test_raises_error_for_invalid_custom_provider_format(self):
         """Test that ValueError is raised for malformed custom provider."""
-        config = EmbeddingConfig(
-            provider="invalid_format_no_dot",
-            provider_config={}
-        )
+        config = EmbeddingConfig(provider="invalid_format_no_dot", provider_config={})
 
         with pytest.raises(ValueError):
             create_embedding_provider(config)
 
     def test_custom_provider_error_handling(self):
         """Test error handling for custom provider."""
-        config = EmbeddingConfig(
-            provider="nonexistent.module.Provider",
-            provider_config={}
-        )
+        config = EmbeddingConfig(provider="nonexistent.module.Provider", provider_config={})
 
         with pytest.raises(ValueError, match="Failed to load custom embedding provider"):
             create_embedding_provider(config)
@@ -142,10 +118,7 @@ class TestCreateEmbeddingProvider:
     def test_cache_size_respected(self):
         """Test that cache size is properly passed."""
         config = EmbeddingConfig(
-            provider="mock",
-            provider_config={},
-            enable_cache=True,
-            cache_size=200
+            provider="mock", provider_config={}, enable_cache=True, cache_size=200
         )
 
         result = create_embedding_provider(config)

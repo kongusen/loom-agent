@@ -21,7 +21,7 @@ class Node(ABC):
     def __init__(self, node_id: str, dispatcher: Dispatcher, auto_subscribe: bool = True):
         self.node_id = node_id
         self.dispatcher = dispatcher
-        self.source_uri = f"/node/{node_id}" # Standard URI
+        self.source_uri = f"/node/{node_id}"  # Standard URI
         self._subscribed = False
 
         # Auto-subscribe to my requests (if event loop is running)
@@ -51,11 +51,8 @@ class Node(ABC):
             response_event = CloudEvent.create(
                 source=self.source_uri,
                 type="node.response",
-                data={
-                    "request_id": event.id,
-                    "result": result
-                },
-                traceparent=event.traceparent
+                data={"request_id": event.id, "result": result},
+                traceparent=event.traceparent,
             )
             # Response topic usually goes to whoever asked, or open bus
             # In request-reply pattern, typically we might just publish it
@@ -68,11 +65,8 @@ class Node(ABC):
             error_event = CloudEvent.create(
                 source=self.source_uri,
                 type="node.error",
-                data={
-                    "request_id": event.id,
-                    "error": str(e)
-                },
-                traceparent=event.traceparent
+                data={"request_id": event.id, "error": str(e)},
+                traceparent=event.traceparent,
             )
             await self.dispatcher.dispatch(error_event)
 
@@ -97,11 +91,17 @@ class Node(ABC):
         response_future: asyncio.Future[Any] = asyncio.Future()
 
         async def handle_response(event: CloudEvent):
-            if event.data and event.data.get("request_id") == request_id and not response_future.done():
+            if (
+                event.data
+                and event.data.get("request_id") == request_id
+                and not response_future.done()
+            ):
                 if event.type == "node.error":
-                     response_future.set_exception(Exception(event.data.get("error", "Unknown Error")))
+                    response_future.set_exception(
+                        Exception(event.data.get("error", "Unknown Error"))
+                    )
                 else:
-                     response_future.set_result(event.data.get("result"))
+                    response_future.set_result(event.data.get("result"))
 
         # Topic: node.response/{target_node}
         # Note: clean URI
@@ -120,7 +120,6 @@ class Node(ABC):
         finally:
             # FIXED: Cleanup subscription to prevent memory leaks
             await self.dispatcher.bus.unsubscribe(target_topic, handle_response)
-
 
     @abstractmethod
     async def process(self, event: CloudEvent) -> Any:

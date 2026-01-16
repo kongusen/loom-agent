@@ -36,14 +36,10 @@ async def test_depth_limit():
             max_depth=2,
             trigger_words=["analyze"],
         ),
-        current_depth=0
+        current_depth=0,
     )
 
-    event = CloudEvent.create(
-        source="user",
-        type="node.request",
-        data={"task": "analyze this"}
-    )
+    event = CloudEvent.create(source="user", type="node.request", data={"task": "analyze this"})
 
     result = await agent.process(event)
     print(f"✓ Root agent (depth=0) completed: {result['response'][:30]}...")
@@ -58,7 +54,7 @@ async def test_depth_limit():
             max_depth=2,
             trigger_words=["analyze"],
         ),
-        current_depth=2  # Already at max depth
+        current_depth=2,  # Already at max depth
     )
 
     # This should NOT spawn any thoughts
@@ -82,7 +78,7 @@ async def test_active_thought_limit():
             enabled=True,
             max_thoughts=2,  # Only allow 2 concurrent thoughts
             trigger_words=["analyze"],
-        )
+        ),
     )
 
     # Spawn 2 thoughts
@@ -121,7 +117,7 @@ async def test_timeout_enforcement():
         thinking_policy=ThinkingPolicy(
             enabled=True,
             thought_timeout=0.5,  # Very short timeout
-        )
+        ),
     )
 
     print(f"✓ Agent configured with timeout={agent.thinking_policy.thought_timeout}s")
@@ -129,18 +125,18 @@ async def test_timeout_enforcement():
 
 
 async def main():
-    print("="*60)
+    print("=" * 60)
     print("ENTROPY CONTROL VERIFICATION")
-    print("="*60)
+    print("=" * 60)
 
     try:
         await test_depth_limit()
         await test_active_thought_limit()
         await test_timeout_enforcement()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✅ ALL ENTROPY CONTROL TESTS PASSED")
-        print("="*60)
+        print("=" * 60)
 
     except AssertionError as e:
         print(f"\n❌ TEST FAILED: {e}")
@@ -148,6 +144,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

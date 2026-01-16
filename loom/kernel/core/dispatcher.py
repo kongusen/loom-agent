@@ -44,7 +44,7 @@ class Dispatcher:
         self._ephemeral_nodes[node_id] = node
 
         # Auto-subscribe to event bus (eliminates race condition)
-        if hasattr(node, '_handle_request'):
+        if hasattr(node, "_handle_request"):
             topic = f"node.request/node/{node_id}"
             await self.bus.subscribe(topic, node._handle_request)
             print(f"[Dispatcher] Auto-subscribed ephemeral node: {node_id}")
@@ -82,18 +82,19 @@ class Dispatcher:
 
         # 2. Publish to Bus (Routing & Persistence)
         import asyncio
-        timeout = 30.0 # Default fallback
+
+        timeout = 30.0  # Default fallback
         if current_event.extensions and "timeout" in current_event.extensions:
             with contextlib.suppress(Exception):
                 timeout = float(current_event.extensions["timeout"])
 
         try:
-             await asyncio.wait_for(self.bus.publish(current_event), timeout=timeout)
+            await asyncio.wait_for(self.bus.publish(current_event), timeout=timeout)
         except TimeoutError:
-             print(f"timeout dispatching event {current_event.id}")
-             # We might want to raise or handle graceful failure
-             # Raising allows the caller (e.g. app.run) to catch it
-             raise
+            print(f"timeout dispatching event {current_event.id}")
+            # We might want to raise or handle graceful failure
+            # Raising allows the caller (e.g. app.run) to catch it
+            raise
 
         # 3. Post-invoke Interceptors (in reverse order)
         for interceptor in reversed(self.interceptors):

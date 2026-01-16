@@ -30,10 +30,12 @@ class Interceptor(ABC):
         """
         pass
 
+
 class TracingInterceptor(Interceptor):
     """
     Injects Distributed Tracing Context (W3C Trace Parent).
     """
+
     async def pre_invoke(self, event: CloudEvent) -> CloudEvent | None:
         if not event.traceparent:
             # Generate new trace
@@ -45,16 +47,18 @@ class TracingInterceptor(Interceptor):
     async def post_invoke(self, event: CloudEvent) -> None:
         pass
 
+
 class AuthInterceptor(Interceptor):
     """
     Basic Source Verification.
     """
+
     def __init__(self, allowed_prefixes: set[str]):
         self.allowed_prefixes = allowed_prefixes
 
     async def pre_invoke(self, event: CloudEvent) -> CloudEvent | None:
         if not event.source:
-             return None
+            return None
 
         # Check simplified prefix
         # e.g. source="/agent/foo", prefix="agent"

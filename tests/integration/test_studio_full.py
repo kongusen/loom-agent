@@ -1,4 +1,3 @@
-
 import asyncio
 import os
 
@@ -20,9 +19,7 @@ async def test_studio_interceptor_connectivity():
     await asyncio.sleep(1)
 
     event = CloudEvent.create(
-        source="/test/source",
-        type="test.event",
-        data={"message": "Hello Studio"}
+        source="/test/source", type="test.event", data={"message": "Hello Studio"}
     )
 
     # Pre invoke
@@ -54,11 +51,12 @@ async def test_studio_interceptor_connectivity():
             assert response.status == 200
             data = json.loads(response.read().decode())
             print(f"Events found: {len(data['events'])}")
-            assert len(data['events']) > 0
+            assert len(data["events"]) > 0
     except urllib.error.URLError as e:
         pytest.skip(f"Skipping Studio integration test: Studio Server not available ({e})")
 
     print("Test Passed: Events successfully sent to and retrieved from Studio Server")
+
 
 if __name__ == "__main__":
     asyncio.run(test_studio_interceptor_connectivity())

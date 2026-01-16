@@ -17,18 +17,16 @@ class TestLoomMemory:
         memory = LoomMemory("test_node")
 
         # Add L1
-        l1_id = await memory.add(MemoryUnit(
-            content="Hello",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
-        ))
+        l1_id = await memory.add(
+            MemoryUnit(content="Hello", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
+        )
 
         # Add L2
-        l2_id = await memory.add(MemoryUnit(
-            content="Plan: analyze data",
-            tier=MemoryTier.L2_WORKING,
-            type=MemoryType.PLAN
-        ))
+        l2_id = await memory.add(
+            MemoryUnit(
+                content="Plan: analyze data", tier=MemoryTier.L2_WORKING, type=MemoryType.PLAN
+            )
+        )
 
         # Verify
         assert memory.get(l1_id) is not None
@@ -45,10 +43,7 @@ class TestLoomMemory:
 
         # Add 10 items
         for i in range(10):
-            await memory.add(MemoryUnit(
-                content=f"Message {i}",
-                tier=MemoryTier.L1_RAW_IO
-            ))
+            await memory.add(MemoryUnit(content=f"Message {i}", tier=MemoryTier.L1_RAW_IO))
 
         # Verify only 5 remain
         stats = memory.get_statistics()
@@ -80,16 +75,12 @@ class TestLoomMemory:
         """Test querying by type."""
         memory = LoomMemory("test_node")
 
-        await memory.add(MemoryUnit(
-            content="User message",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE
-        ))
-        await memory.add(MemoryUnit(
-            content="Agent thought",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.THOUGHT
-        ))
+        await memory.add(
+            MemoryUnit(content="User message", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE)
+        )
+        await memory.add(
+            MemoryUnit(content="Agent thought", tier=MemoryTier.L1_RAW_IO, type=MemoryType.THOUGHT)
+        )
 
         query = MemoryQuery(types=[MemoryType.MESSAGE])
         results = await memory.query(query)
@@ -102,11 +93,9 @@ class TestLoomMemory:
         memory = LoomMemory("test_node")
 
         # Add L2
-        unit_id = await memory.add(MemoryUnit(
-            content="Important fact",
-            tier=MemoryTier.L2_WORKING,
-            type=MemoryType.FACT
-        ))
+        unit_id = await memory.add(
+            MemoryUnit(content="Important fact", tier=MemoryTier.L2_WORKING, type=MemoryType.FACT)
+        )
 
         # Promote
         memory.promote_to_l4(unit_id)
@@ -125,19 +114,16 @@ class TestLoomMemory:
         memory = LoomMemory("parent")
 
         # Add Plan
-        await memory.add(MemoryUnit(
-            content="Global Plan",
-            tier=MemoryTier.L2_WORKING,
-            type=MemoryType.PLAN
-        ))
+        await memory.add(
+            MemoryUnit(content="Global Plan", tier=MemoryTier.L2_WORKING, type=MemoryType.PLAN)
+        )
 
         # Add Fact
-        await memory.add(MemoryUnit(
-            content="Fact A",
-            tier=MemoryTier.L4_GLOBAL,
-            type=MemoryType.FACT,
-            importance=0.9
-        ))
+        await memory.add(
+            MemoryUnit(
+                content="Fact A", tier=MemoryTier.L4_GLOBAL, type=MemoryType.FACT, importance=0.9
+            )
+        )
 
         projection = await memory.create_projection("Child Task")
 
@@ -189,7 +175,10 @@ class TestLoomMemory:
         assert memory._detect_mode("检查") == ProjectionMode.MINIMAL
 
         # Test STANDARD mode (default) - English
-        assert memory._detect_mode("Process the user data and generate report") == ProjectionMode.STANDARD
+        assert (
+            memory._detect_mode("Process the user data and generate report")
+            == ProjectionMode.STANDARD
+        )
 
         # Test STANDARD mode (default) - Chinese
         assert memory._detect_mode("处理用户数据并生成报告") == ProjectionMode.STANDARD
@@ -203,30 +192,29 @@ class TestLoomMemory:
 
         # Add some facts with different importance
         for i in range(10):
-            await memory.add(MemoryUnit(
-                content=f"Fact {i}",
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                importance=0.5 + (i * 0.05)
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content=f"Fact {i}",
+                    tier=MemoryTier.L4_GLOBAL,
+                    type=MemoryType.FACT,
+                    importance=0.5 + (i * 0.05),
+                )
+            )
 
         # Test with MINIMAL mode (should select fewer facts)
         projection_minimal = await memory.create_projection(
-            instruction="Quick check",
-            mode=ProjectionMode.MINIMAL
+            instruction="Quick check", mode=ProjectionMode.MINIMAL
         )
         assert len(projection_minimal.relevant_facts) <= 2
 
         # Test with ANALYTICAL mode (should select more facts)
         projection_analytical = await memory.create_projection(
-            instruction="Analyze the system",
-            mode=ProjectionMode.ANALYTICAL
+            instruction="Analyze the system", mode=ProjectionMode.ANALYTICAL
         )
         assert len(projection_analytical.relevant_facts) <= 15
 
         # Test with STANDARD mode
         projection_standard = await memory.create_projection(
-            instruction="Process data",
-            mode=ProjectionMode.STANDARD
+            instruction="Process data", mode=ProjectionMode.STANDARD
         )
         assert len(projection_standard.relevant_facts) <= 8

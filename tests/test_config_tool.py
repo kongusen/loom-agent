@@ -20,7 +20,7 @@ class TestToolConfig:
             description="A test tool",
             python_path="mypackage.tools.tool_func",
             parameters={"arg1": {"type": "string"}},
-            env_vars={"API_KEY": "test_key"}
+            env_vars={"API_KEY": "test_key"},
         )
 
         assert config.name == "test_tool"
@@ -31,10 +31,7 @@ class TestToolConfig:
 
     def test_config_with_defaults(self):
         """Test config with default values."""
-        config = ToolConfig(
-            name="test_tool",
-            python_path="mypackage.tools.tool_func"
-        )
+        config = ToolConfig(name="test_tool", python_path="mypackage.tools.tool_func")
 
         assert config.description == ""
         assert config.parameters == {}
@@ -45,7 +42,7 @@ class TestToolConfig:
         config = ToolConfig(
             name="test_tool",
             python_path="mypackage.tools.tool_func",
-            parameters={"arg1": {"type": "string"}}
+            parameters={"arg1": {"type": "string"}},
         )
 
         config.parameters["arg2"] = {"type": "integer"}
@@ -54,10 +51,7 @@ class TestToolConfig:
 
     def test_config_env_vars_are_mutable(self):
         """Test that env_vars dict is mutable."""
-        config = ToolConfig(
-            name="test_tool",
-            python_path="mypackage.tools.tool_func"
-        )
+        config = ToolConfig(name="test_tool", python_path="mypackage.tools.tool_func")
 
         config.env_vars["NEW_VAR"] = "value"
 
@@ -78,20 +72,14 @@ class TestToolFactory:
 
     def test_create_node_with_invalid_path(self, dispatcher):
         """Test that invalid python_path raises ValueError."""
-        config = ToolConfig(
-            name="test_tool",
-            python_path="nonexistent.module.function"
-        )
+        config = ToolConfig(name="test_tool", python_path="nonexistent.module.function")
 
         with pytest.raises(ValueError, match="Could not load tool function"):
             ToolFactory.create_node(config, "node_id", dispatcher)
 
     def test_create_node_with_invalid_function(self, dispatcher):
         """Test that invalid function in module raises ValueError."""
-        config = ToolConfig(
-            name="test_tool",
-            python_path="os.nonexistent_function"
-        )
+        config = ToolConfig(name="test_tool", python_path="os.nonexistent_function")
 
         with pytest.raises(ValueError, match="Could not load tool function"):
             ToolFactory.create_node(config, "node_id", dispatcher)
@@ -102,7 +90,7 @@ class TestToolFactory:
         config = ToolConfig(
             name="test_tool",
             python_path="os.getenv",  # Use existing function
-            env_vars={"TEST_VAR": "test_value"}
+            env_vars={"TEST_VAR": "test_value"},
         )
 
         # Should not raise error
@@ -111,16 +99,13 @@ class TestToolFactory:
 
         # Check that env var was set
         import os
+
         assert os.environ.get("TEST_VAR") == "test_value"
 
     @patch.dict("os.environ", {}, clear=True)
     def test_create_node_with_empty_env_vars(self, dispatcher):
         """Test that empty env_vars dict is handled."""
-        config = ToolConfig(
-            name="test_tool",
-            python_path="os.path.exists",
-            env_vars={}
-        )
+        config = ToolConfig(name="test_tool", python_path="os.path.exists", env_vars={})
 
         # Should not raise error related to env_vars
         with suppress(Exception):
@@ -128,10 +113,7 @@ class TestToolFactory:
 
     def test_create_node_uses_config_name(self, dispatcher):
         """Test that config name is used in tool definition."""
-        config = ToolConfig(
-            name="my_custom_name",
-            python_path="os.path.exists"
-        )
+        config = ToolConfig(name="my_custom_name", python_path="os.path.exists")
 
         try:
             node = ToolFactory.create_node(config, "node_id", dispatcher)
@@ -144,9 +126,7 @@ class TestToolFactory:
     def test_create_node_uses_config_description(self, dispatcher):
         """Test that config description is used in tool definition."""
         config = ToolConfig(
-            name="test_tool",
-            description="My custom description",
-            python_path="os.path.exists"
+            name="test_tool", description="My custom description", python_path="os.path.exists"
         )
 
         try:
@@ -162,10 +142,7 @@ class TestToolFactory:
         config = ToolConfig(
             name="test_tool",
             python_path="os.path.exists",
-            parameters={
-                "path": {"type": "string"},
-                "mode": {"type": "integer"}
-            }
+            parameters={"path": {"type": "string"}, "mode": {"type": "integer"}},
         )
 
         try:
@@ -181,10 +158,7 @@ class TestToolFactory:
         """Test that create_node returns a ToolNode instance."""
         from loom.node.tool import ToolNode
 
-        config = ToolConfig(
-            name="test_tool",
-            python_path="os.getcwd"
-        )
+        config = ToolConfig(name="test_tool", python_path="os.getcwd")
 
         node = ToolFactory.create_node(config, "node_id", dispatcher)
 
@@ -195,10 +169,7 @@ class TestToolFactory:
         """Test that the original function is preserved."""
         import os
 
-        config = ToolConfig(
-            name="test_tool",
-            python_path="os.getcwd"
-        )
+        config = ToolConfig(name="test_tool", python_path="os.getcwd")
 
         node = ToolFactory.create_node(config, "node_id", dispatcher)
 

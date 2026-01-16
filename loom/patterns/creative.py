@@ -25,8 +25,7 @@ class CreativePattern(Pattern):
 
     def __init__(self):
         super().__init__(
-            name="creative",
-            description="Creative thinking with divergent exploration"
+            name="creative", description="Creative thinking with divergent exploration"
         )
 
     def get_config(self):
@@ -42,6 +41,6 @@ class CreativePattern(Pattern):
                     "You are a creative thinker. "
                     "Explore multiple possibilities, think outside the box, "
                     "and generate innovative solutions."
-                )
+                ),
             )
         )

@@ -1,13 +1,14 @@
 """
 Test Priority 3 optimizations (Quality Improvements)
 """
+
 import asyncio
 import os
 import sys
 import time
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from loom.config.execution import ExecutionConfig
 from loom.kernel.core import ToolExecutor
@@ -17,9 +18,9 @@ from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
 
 async def test_error_recovery_retry():
     """Test 1: Error recovery with retry"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 1: Error Recovery with Retry")
-    print("="*60)
+    print("=" * 60)
 
     try:
         config = ExecutionConfig()
@@ -27,6 +28,7 @@ async def test_error_recovery_retry():
 
         # Mock executor that fails first time, succeeds second time
         attempt_count = 0
+
         async def mock_executor(name, args):
             nonlocal attempt_count
             attempt_count += 1
@@ -48,15 +50,16 @@ async def test_error_recovery_retry():
     except Exception as e:
         print(f"❌ Error recovery with retry: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_tool_call_deduplication():
     """Test 2: Tool call deduplication"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 2: Tool Call Deduplication")
-    print("="*60)
+    print("=" * 60)
 
     try:
         config = ExecutionConfig()
@@ -85,49 +88,58 @@ async def test_tool_call_deduplication():
     except Exception as e:
         print(f"❌ Tool call deduplication: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_lru_memory_eviction():
     """Test 3: LRU/LFU memory eviction"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 3: LRU/LFU Memory Eviction")
-    print("="*60)
+    print("=" * 60)
 
     try:
         memory = LoomMemory(node_id="test_eviction", max_l1_size=3)
 
         # Add units with different importance scores
-        await memory.add(MemoryUnit(
-            content="Low importance, old",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=0.3
-        ))
+        await memory.add(
+            MemoryUnit(
+                content="Low importance, old",
+                tier=MemoryTier.L1_RAW_IO,
+                type=MemoryType.MESSAGE,
+                importance=0.3,
+            )
+        )
         time.sleep(0.1)  # Small delay to ensure different timestamps
 
-        await memory.add(MemoryUnit(
-            content="High importance, recent",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=0.9
-        ))
+        await memory.add(
+            MemoryUnit(
+                content="High importance, recent",
+                tier=MemoryTier.L1_RAW_IO,
+                type=MemoryType.MESSAGE,
+                importance=0.9,
+            )
+        )
 
-        await memory.add(MemoryUnit(
-            content="Medium importance",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=0.5
-        ))
+        await memory.add(
+            MemoryUnit(
+                content="Medium importance",
+                tier=MemoryTier.L1_RAW_IO,
+                type=MemoryType.MESSAGE,
+                importance=0.5,
+            )
+        )
 
         # Add one more to trigger eviction
-        await memory.add(MemoryUnit(
-            content="New unit",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=0.7
-        ))
+        await memory.add(
+            MemoryUnit(
+                content="New unit",
+                tier=MemoryTier.L1_RAW_IO,
+                type=MemoryType.MESSAGE,
+                importance=0.7,
+            )
+        )
 
         # Check that L1 buffer size is maintained
         assert len(memory._l1_buffer) == 3, f"Expected L1 size 3, got {len(memory._l1_buffer)}"
@@ -143,6 +155,7 @@ async def test_lru_memory_eviction():
     except Exception as e:
         print(f"❌ LRU/LFU memory eviction: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -154,11 +167,7 @@ async def main():
     print("║     PRIORITY 3 OPTIMIZATIONS - TEST SUITE               ║")
     print("╚═══════════════════════════════════════════════════════════╝")
 
-    tests = [
-        test_error_recovery_retry,
-        test_tool_call_deduplication,
-        test_lru_memory_eviction
-    ]
+    tests = [test_error_recovery_retry, test_tool_call_deduplication, test_lru_memory_eviction]
 
     results = []
     for test in tests:
@@ -166,9 +175,9 @@ async def main():
         results.append(result)
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
     passed = sum(results)
     total = len(results)
     print(f"Passed: {passed}/{total}")

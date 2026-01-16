@@ -26,7 +26,7 @@ class DoubaoProvider(OpenAICompatibleProvider):
     PROVIDER_NAME = "Doubao (豆包)"
 
     def __init__(self, **kwargs):
-        if 'api_key' not in kwargs:
-            kwargs['api_key'] = os.getenv(self.API_KEY_ENV_VAR)
+        if "api_key" not in kwargs:
+            kwargs["api_key"] = os.getenv(self.API_KEY_ENV_VAR)
 
         super().__init__(**kwargs)

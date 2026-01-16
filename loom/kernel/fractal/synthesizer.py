@@ -70,10 +70,7 @@ class ResultSynthesizer:
         self.config.validate()
 
     async def synthesize(
-        self,
-        task: str,
-        subtask_results: list[dict[str, Any]],
-        strategy: str = "auto"
+        self, task: str, subtask_results: list[dict[str, Any]], strategy: str = "auto"
     ) -> str:
         """
         合成子任务结果
@@ -150,7 +147,9 @@ class ResultSynthesizer:
 
         # 添加摘要
         total = len(subtask_results)
-        lines.insert(1, f"**总计**: {total} 个子任务 | ✅ {success_count} 成功 | ❌ {failure_count} 失败\n")
+        lines.insert(
+            1, f"**总计**: {total} 个子任务 | ✅ {success_count} 成功 | ❌ {failure_count} 失败\n"
+        )
 
         return "\n".join(lines)
 
@@ -173,10 +172,7 @@ class ResultSynthesizer:
 
         # 调用 LLM
         try:
-            response = await provider.generate(
-                prompt,
-                max_tokens=self.config.max_synthesis_tokens
-            )
+            response = await provider.generate(prompt, max_tokens=self.config.max_synthesis_tokens)
             return str(response).strip()
         except Exception as e:
             logger.error(f"LLM 合成失败: {e}")
@@ -197,7 +193,7 @@ class ResultSynthesizer:
         elif self.config.synthesis_model == "custom":
             # 用户指定的模型
             if not self.config.synthesis_model_override:
-                 raise ValueError("Custom model selected but no override provided")
+                raise ValueError("Custom model selected but no override provided")
             return self._create_custom_provider(self.config.synthesis_model_override)
         else:
             return self.base_provider
@@ -213,7 +209,7 @@ class ResultSynthesizer:
             使用轻量级模型的 Provider
         """
         # 获取当前模型
-        base_model = getattr(provider, 'model', None)
+        base_model = getattr(provider, "model", None)
         if not base_model:
             logger.warning("无法获取 Provider 的模型信息，使用原始 Provider")
             return provider

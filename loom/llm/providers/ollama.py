@@ -4,7 +4,6 @@ Ollama LLM Provider
 支持本地运行的 Ollama 模型。
 """
 
-
 from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
 from loom.llm.providers.openai_compatible import OpenAICompatibleProvider
 
@@ -36,7 +35,7 @@ class OllamaProvider(OpenAICompatibleProvider):
         base_url: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-        **kwargs
+        **kwargs,
     ):
         """初始化 Ollama Provider"""
         if config is None:
@@ -44,13 +43,13 @@ class OllamaProvider(OpenAICompatibleProvider):
 
             config.connection = ConnectionConfig(
                 api_key="ollama",  # Ollama 需要一个占位符
-                base_url=base_url or self.DEFAULT_BASE_URL
+                base_url=base_url or self.DEFAULT_BASE_URL,
             )
 
             config.generation = GenerationConfig(
                 model=model or self.DEFAULT_MODEL,
                 temperature=temperature if temperature is not None else 0.7,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
         super().__init__(config=config, **kwargs)

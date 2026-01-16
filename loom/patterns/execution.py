@@ -25,8 +25,7 @@ class ExecutionPattern(Pattern):
 
     def __init__(self):
         super().__init__(
-            name="execution",
-            description="Fast execution with action-oriented approach"
+            name="execution", description="Fast execution with action-oriented approach"
         )
 
     def get_config(self):
@@ -42,6 +41,6 @@ class ExecutionPattern(Pattern):
                     "You are an executor. "
                     "Act quickly and decisively, focus on results, "
                     "and complete tasks efficiently."
-                )
+                ),
             )
         )

@@ -21,19 +21,15 @@ from loom.node.fractal import FractalAgentNode
 # Example 1: Structure Controller
 # ============================================================================
 
+
 async def example1_structure_controller():
     """Demonstrates StructureController for growth/pruning decisions"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 1: Structure Controller")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Setup
-    config = FractalConfig(
-        enabled=True,
-        max_depth=3,
-        max_children=4,
-        complexity_threshold=0.6
-    )
+    config = FractalConfig(enabled=True, max_depth=3, max_children=4, complexity_threshold=0.6)
 
     controller = StructureController(config)
 
@@ -47,28 +43,20 @@ async def example1_structure_controller():
         provider=mock_llm,
         role=NodeRole.COORDINATOR,
         fractal_config=config,
-        standalone=True
+        standalone=True,
     )
 
     print("✅ Created structure controller and test node\n")
 
     # Test 1: Growth decision for high complexity
     print("📊 Test 1: Should grow with high complexity?")
-    should_grow = controller.should_grow(
-        node,
-        task_complexity=0.8,
-        current_confidence=0.5
-    )
+    should_grow = controller.should_grow(node, task_complexity=0.8, current_confidence=0.5)
     print("   Task complexity: 0.8, Confidence: 0.5")
     print(f"   Decision: {'GROW ✅' if should_grow else 'DO NOT GROW ❌'}\n")
 
     # Test 2: Growth decision for low complexity
     print("📊 Test 2: Should grow with low complexity?")
-    should_grow2 = controller.should_grow(
-        node,
-        task_complexity=0.3,
-        current_confidence=0.9
-    )
+    should_grow2 = controller.should_grow(node, task_complexity=0.3, current_confidence=0.9)
     print("   Task complexity: 0.3, Confidence: 0.9")
     print(f"   Decision: {'GROW ✅' if should_grow2 else 'DO NOT GROW ❌'}\n")
 
@@ -78,22 +66,17 @@ async def example1_structure_controller():
         "First do step 1, then step 2, finally step 3",
         "Run these tasks in parallel",
         "We need domain experts for this",
-        "Iterate and refine the solution"
+        "Iterate and refine the solution",
     ]
 
     for task in tasks:
         strategy = controller.choose_growth_strategy(node, task)
-        print(f"   Task: \"{task[:40]}...\"")
+        print(f'   Task: "{task[:40]}..."')
         print(f"   Strategy: {strategy.value}\n")
 
     # Test 4: Record events
     print("📝 Test 4: Record growth event")
-    controller.record_growth(
-        node,
-        GrowthStrategy.DECOMPOSE,
-        children_count=3,
-        fitness_before=0.7
-    )
+    controller.record_growth(node, GrowthStrategy.DECOMPOSE, children_count=3, fitness_before=0.7)
     print(f"   Growth events recorded: {controller.stats.total_growth_events}")
     print(f"   History entries: {len(controller.history)}\n")
 
@@ -102,18 +85,15 @@ async def example1_structure_controller():
 # Example 2: Smart Pruning
 # ============================================================================
 
+
 async def example2_smart_pruning():
     """Demonstrates intelligent pruning with SmartPruner"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 2: Smart Pruning")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Setup
-    config = FractalConfig(
-        enabled=True,
-        pruning_threshold=0.4,
-        min_tasks_before_pruning=2
-    )
+    config = FractalConfig(enabled=True, pruning_threshold=0.4, min_tasks_before_pruning=2)
 
     mock_llm = Mock()
     mock_llm.generate = AsyncMock(return_value="Test response")
@@ -126,15 +106,15 @@ async def example2_smart_pruning():
         provider=mock_llm,
         role=NodeRole.COORDINATOR,
         fractal_config=config,
-        standalone=True
+        standalone=True,
     )
 
     # Add children with different performance profiles
     performances = [
-        ("high_performer", 5, 5, 1000),   # 100% success, low tokens
-        ("low_performer", 5, 1, 8000),    # 20% success, high tokens
-        ("avg_performer", 5, 3, 3000),    # 60% success, medium tokens
-        ("new_node", 1, 1, 500)           # Too few tasks to judge
+        ("high_performer", 5, 5, 1000),  # 100% success, low tokens
+        ("low_performer", 5, 1, 8000),  # 20% success, high tokens
+        ("avg_performer", 5, 3, 3000),  # 60% success, medium tokens
+        ("new_node", 1, 1, 500),  # Too few tasks to judge
     ]
 
     for name, tasks, successes, tokens in performances:
@@ -145,26 +125,24 @@ async def example2_smart_pruning():
             parent=root,
             depth=1,
             fractal_config=config,
-            standalone=True
+            standalone=True,
         )
 
         # Simulate task history
         for i in range(tasks):
-            child.metrics.record_execution(
-                success=(i < successes),
-                tokens=tokens,
-                time=1.0
-            )
+            child.metrics.record_execution(success=(i < successes), tokens=tokens, time=1.0)
 
         root.children.append(child)
 
     print("Nodes created:")
     for child in root.children:
         fitness = child.metrics.fitness_score() if child.metrics.task_count > 0 else 0
-        print(f"  • {child.node_id}: "
-              f"tasks={child.metrics.task_count}, "
-              f"success={child.metrics.success_rate:.1%}, "
-              f"fitness={fitness:.2f}")
+        print(
+            f"  • {child.node_id}: "
+            f"tasks={child.metrics.task_count}, "
+            f"success={child.metrics.success_rate:.1%}, "
+            f"fitness={fitness:.2f}"
+        )
     print()
 
     # Prune with different strategies
@@ -174,7 +152,7 @@ async def example2_smart_pruning():
     report1 = pruner1.prune_structure(root)
 
     print(f"   Nodes to prune: {report1['pruned_count']}")
-    if report1['pruned_nodes']:
+    if report1["pruned_nodes"]:
         print(f"   Candidates: {', '.join(report1['pruned_nodes'])}")
     print()
 
@@ -184,7 +162,7 @@ async def example2_smart_pruning():
     report2 = pruner2.prune_structure(root)
 
     print(f"   Nodes to prune: {report2['pruned_count']}")
-    if report2['pruned_nodes']:
+    if report2["pruned_nodes"]:
         print(f"   Candidates: {', '.join(report2['pruned_nodes'])}")
     print()
 
@@ -202,11 +180,12 @@ async def example2_smart_pruning():
 # Example 3: Health Assessment
 # ============================================================================
 
+
 async def example3_health_assessment():
     """Demonstrates structure health assessment"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 3: Health Assessment")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Setup
     config = FractalConfig(enabled=True, max_depth=3)
@@ -222,7 +201,7 @@ async def example3_health_assessment():
         provider=mock_llm,
         role=NodeRole.COORDINATOR,
         fractal_config=config,
-        standalone=True
+        standalone=True,
     )
 
     for i in range(3):
@@ -233,16 +212,12 @@ async def example3_health_assessment():
             parent=healthy_root,
             depth=1,
             fractal_config=config,
-            standalone=True
+            standalone=True,
         )
 
         # Good performance
         for _j in range(5):
-            child.metrics.record_execution(
-                success=True,
-                tokens=2000,
-                time=1.0
-            )
+            child.metrics.record_execution(success=True, tokens=2000, time=1.0)
 
         healthy_root.children.append(child)
 
@@ -253,7 +228,7 @@ async def example3_health_assessment():
         provider=mock_llm,
         role=NodeRole.COORDINATOR,
         fractal_config=config,
-        standalone=True
+        standalone=True,
     )
 
     # Add performing children
@@ -265,7 +240,7 @@ async def example3_health_assessment():
             parent=unhealthy_root,
             depth=1,
             fractal_config=config,
-            standalone=True
+            standalone=True,
         )
 
         for _j in range(5):
@@ -282,7 +257,7 @@ async def example3_health_assessment():
             parent=unhealthy_root,
             depth=1,
             fractal_config=config,
-            standalone=True
+            standalone=True,
         )
         unhealthy_root.children.append(idle_child)
 
@@ -293,7 +268,7 @@ async def example3_health_assessment():
         parent=unhealthy_root,
         depth=1,
         fractal_config=config,
-        standalone=True
+        standalone=True,
     )
     for _j in range(5):
         deep_child.metrics.record_execution(success=False, tokens=10000, time=20.0)
@@ -315,18 +290,16 @@ async def example3_health_assessment():
 # Example 4: Complete Workflow
 # ============================================================================
 
+
 async def example4_complete_workflow():
     """Demonstrates complete optimization workflow"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLE 4: Complete Optimization Workflow")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Setup
     config = FractalConfig(
-        enabled=True,
-        max_depth=3,
-        complexity_threshold=0.6,
-        pruning_threshold=0.4
+        enabled=True, max_depth=3, complexity_threshold=0.6, pruning_threshold=0.4
     )
 
     controller = StructureController(config)
@@ -343,7 +316,7 @@ async def example4_complete_workflow():
         provider=mock_llm,
         role=NodeRole.COORDINATOR,
         fractal_config=config,
-        standalone=True
+        standalone=True,
     )
 
     # Add mixed-performance children
@@ -354,7 +327,7 @@ async def example4_complete_workflow():
             parent=root,
             depth=1,
             fractal_config=config,
-            standalone=True
+            standalone=True,
         )
 
         # Varying performance
@@ -391,22 +364,26 @@ async def example4_complete_workflow():
     print(f"   Nodes before: {prune_report['nodes_before']}")
     print(f"   Nodes pruned: {prune_report['pruned_count']}")
     print(f"   Nodes after: {prune_report['nodes_after']}")
-    if prune_report['pruned_nodes']:
+    if prune_report["pruned_nodes"]:
         print(f"   Removed: {', '.join(prune_report['pruned_nodes'])}")
     print()
 
     # Step 5: Re-assess
     print("5️⃣ Re-assessing after pruning...\n")
     final_health = assessor.assess(root, config)
-    print(f"   Overall Score: {final_health.overall_score:.2f} "
-          f"({'↑' if final_health.overall_score > initial_health.overall_score else '↓'} "
-          f"{abs(final_health.overall_score - initial_health.overall_score):.2f})")
+    print(
+        f"   Overall Score: {final_health.overall_score:.2f} "
+        f"({'↑' if final_health.overall_score > initial_health.overall_score else '↓'} "
+        f"{abs(final_health.overall_score - initial_health.overall_score):.2f})"
+    )
     print(f"   Status: {final_health.status.value}")
     print(f"   Issues Found: {len(final_health.diagnostics)}\n")
 
     # Summary
     print("📊 Summary:")
-    print(f"   Health improvement: {final_health.overall_score - initial_health.overall_score:+.2f}")
+    print(
+        f"   Health improvement: {final_health.overall_score - initial_health.overall_score:+.2f}"
+    )
     print(f"   Nodes reduced: {prune_report['nodes_before']} → {prune_report['nodes_after']}")
     print(f"   Issues reduced: {len(initial_health.diagnostics)} → {len(final_health.diagnostics)}")
     print()
@@ -416,20 +393,21 @@ async def example4_complete_workflow():
 # Main
 # ============================================================================
 
+
 async def main():
     """Run all examples"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(" " * 15 + "STRUCTURE OPTIMIZATION - DEMO")
-    print("="*70)
+    print("=" * 70)
 
     await example1_structure_controller()
     await example2_smart_pruning()
     await example3_health_assessment()
     await example4_complete_workflow()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(" " * 20 + "ALL EXAMPLES COMPLETED")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

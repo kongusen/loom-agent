@@ -1,12 +1,13 @@
 """
 Basic tests for memory optimization features
 """
+
 import asyncio
 import os
 import sys
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from loom.cognition.confidence import ConfidenceEstimator
 from loom.config import EmbeddingConfig, MemoryConfig, VectorStoreConfig
@@ -19,20 +20,15 @@ from loom.memory.visualizer import MetricsVisualizer
 
 async def test_vector_store_config():
     """Test 1: Vector store configuration"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 1: Vector Store Configuration")
-    print("="*60)
+    print("=" * 60)
 
     try:
         # Test InMemory configuration
         config = MemoryConfig(
-            vector_store=VectorStoreConfig(
-                provider="inmemory",
-                enabled=True
-            ),
-            embedding=EmbeddingConfig(
-                provider="mock"
-            )
+            vector_store=VectorStoreConfig(provider="inmemory", enabled=True),
+            embedding=EmbeddingConfig(provider="mock"),
         )
 
         memory = LoomMemory(node_id="test_node", config=config)
@@ -49,15 +45,15 @@ async def test_vector_store_config():
 
 async def test_auto_vectorization():
     """Test 2: Auto-vectorization of L4 content"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 2: Auto-Vectorization")
-    print("="*60)
+    print("=" * 60)
 
     try:
         config = MemoryConfig(
             vector_store=VectorStoreConfig(provider="inmemory", enabled=True),
             embedding=EmbeddingConfig(provider="mock"),
-            auto_vectorize_l4=True
+            auto_vectorize_l4=True,
         )
 
         memory = LoomMemory(node_id="test_vectorize", config=config)
@@ -67,7 +63,7 @@ async def test_auto_vectorization():
             content="The company was founded in 2020",
             tier=MemoryTier.L4_GLOBAL,
             type=MemoryType.FACT,
-            importance=0.9
+            importance=0.9,
         )
 
         unit_id = await memory.add(fact)
@@ -82,21 +78,22 @@ async def test_auto_vectorization():
     except Exception as e:
         print(f"❌ Auto-vectorization: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_semantic_search():
     """Test 3: Semantic search"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 3: Semantic Search")
-    print("="*60)
+    print("=" * 60)
 
     try:
         config = MemoryConfig(
             vector_store=VectorStoreConfig(provider="inmemory", enabled=True),
             embedding=EmbeddingConfig(provider="mock"),
-            auto_vectorize_l4=True
+            auto_vectorize_l4=True,
         )
 
         memory = LoomMemory(node_id="test_search", config=config)
@@ -105,23 +102,23 @@ async def test_semantic_search():
         facts = [
             "The company was founded in 2020",
             "Our main product is an AI agent framework",
-            "We have 50 employees"
+            "We have 50 employees",
         ]
 
         for fact_text in facts:
-            await memory.add(MemoryUnit(
-                content=fact_text,
-                tier=MemoryTier.L4_GLOBAL,
-                type=MemoryType.FACT,
-                importance=0.9
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content=fact_text,
+                    tier=MemoryTier.L4_GLOBAL,
+                    type=MemoryType.FACT,
+                    importance=0.9,
+                )
+            )
 
         # Search
-        results = await memory.query(MemoryQuery(
-            tiers=[MemoryTier.L4_GLOBAL],
-            query_text="company information",
-            top_k=3
-        ))
+        results = await memory.query(
+            MemoryQuery(tiers=[MemoryTier.L4_GLOBAL], query_text="company information", top_k=3)
+        )
 
         assert len(results) > 0, "Should find results"
         print(f"✅ Semantic search: PASSED (found {len(results)} results)")
@@ -129,33 +126,35 @@ async def test_semantic_search():
     except Exception as e:
         print(f"❌ Semantic search: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_confidence_estimation():
     """Test 4: Confidence estimation"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 4: Confidence Estimation")
-    print("="*60)
+    print("=" * 60)
 
     try:
         estimator = ConfidenceEstimator()
 
         # Test confident response
-        confident_result = estimator.estimate(
-            query="What is 2+2?",
-            response="4"
-        )
+        confident_result = estimator.estimate(query="What is 2+2?", response="4")
 
         # Test uncertain response
         uncertain_result = estimator.estimate(
             query="Explain quantum computing",
-            response="Well, quantum computing is complex and I'm not entirely sure, but maybe it involves quantum mechanics and perhaps some advanced physics concepts that are unclear to me."
+            response="Well, quantum computing is complex and I'm not entirely sure, but maybe it involves quantum mechanics and perhaps some advanced physics concepts that are unclear to me.",
         )
 
-        assert confident_result.score >= 0.7, f"Confident response should have high score, got {confident_result.score}"
-        assert uncertain_result.score < 0.7, f"Uncertain response should have low score, got {uncertain_result.score}"
+        assert (
+            confident_result.score >= 0.7
+        ), f"Confident response should have high score, got {confident_result.score}"
+        assert (
+            uncertain_result.score < 0.7
+        ), f"Uncertain response should have low score, got {uncertain_result.score}"
 
         print("✅ Confidence estimation: PASSED")
         print(f"   Confident: {confident_result.score:.2f} - {confident_result.reasoning}")
@@ -164,15 +163,16 @@ async def test_confidence_estimation():
     except Exception as e:
         print(f"❌ Confidence estimation: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_memory_compression():
     """Test 5: Memory compression"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 5: Memory Compression")
-    print("="*60)
+    print("=" * 60)
 
     try:
         memory = LoomMemory(node_id="test_compress")
@@ -180,11 +180,11 @@ async def test_memory_compression():
 
         # Add L1 messages
         for i in range(10):
-            await memory.add(MemoryUnit(
-                content=f"User message {i}",
-                tier=MemoryTier.L1_RAW_IO,
-                type=MemoryType.MESSAGE
-            ))
+            await memory.add(
+                MemoryUnit(
+                    content=f"User message {i}", tier=MemoryTier.L1_RAW_IO, type=MemoryType.MESSAGE
+                )
+            )
 
         initial_l1_size = len(memory._l1_buffer)
 
@@ -202,15 +202,16 @@ async def test_memory_compression():
     except Exception as e:
         print(f"❌ Memory compression: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 async def test_metrics_collection():
     """Test 6: Metrics collection"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 6: Metrics Collection")
-    print("="*60)
+    print("=" * 60)
 
     try:
         collector = MetricsCollector()
@@ -222,12 +223,7 @@ async def test_metrics_collection():
         collector.update_memory_sizes(l1=10, l2=5, l3=3, l4=2)
 
         collector.record_routing_decision("system_1")
-        collector.record_s1_execution(
-            duration_ms=150,
-            tokens=50,
-            confidence=0.85,
-            success=True
-        )
+        collector.record_s1_execution(duration_ms=150, tokens=50, confidence=0.85, success=True)
 
         # Get summary
         summary = collector.get_summary()
@@ -241,6 +237,7 @@ async def test_metrics_collection():
     except Exception as e:
         print(f"❌ Metrics collection: FAILED - {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -258,7 +255,7 @@ async def main():
         test_semantic_search,
         test_confidence_estimation,
         test_memory_compression,
-        test_metrics_collection
+        test_metrics_collection,
     ]
 
     results = []
@@ -267,9 +264,9 @@ async def main():
         results.append(result)
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
     passed = sum(results)
     total = len(results)
     print(f"Passed: {passed}/{total}")

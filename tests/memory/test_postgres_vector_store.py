@@ -1,6 +1,7 @@
 """
 Tests for PostgreSQL Vector Store using mocks.
 """
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,16 +19,18 @@ def mock_asyncpg(mocker):
     mock = mocker.patch("asyncpg.create_pool", new_callable=AsyncMock)
     return mock
 
+
 @pytest.fixture
 def mock_pgvector(mocker):
     """Mock pgvector module."""
     mock = mocker.patch("pgvector.asyncpg.register_vector", new_callable=AsyncMock)
     return mock
 
+
 @pytest.fixture
 def mock_pool_connection():
     """Create a mock pool and connection."""
-    pool = MagicMock() # Pool object itself isn't awaited, it's the result of create_pool
+    pool = MagicMock()  # Pool object itself isn't awaited, it's the result of create_pool
     connection = AsyncMock()
 
     # Configure pool.acquire() to act as an async context manager
@@ -39,17 +42,16 @@ def mock_pool_connection():
     pool.acquire.return_value = acquire_ctx
     return pool, connection
 
+
 @pytest.mark.asyncio
 class TestPostgreSQLVectorStore:
-
     async def test_initialization(self, mock_asyncpg, mock_pgvector, mock_pool_connection):
         """Test store initialization creates table and index."""
         pool, conn = mock_pool_connection
         mock_asyncpg.return_value = pool
 
         store = PostgreSQLVectorStore(
-            connection_string="postgres://user:pass@localhost/db",
-            table_name="test_memory"
+            connection_string="postgres://user:pass@localhost/db", table_name="test_memory"
         )
 
         # Trigger pool creation
@@ -67,14 +69,16 @@ class TestPostgreSQLVectorStore:
         # Verify table creation (partial match on SQL)
         # We check if execute was called with CREATE TABLE
         create_table_calls = [
-            call for call in conn.execute.call_args_list
+            call
+            for call in conn.execute.call_args_list
             if "CREATE TABLE IF NOT EXISTS test_memory" in call[0][0]
         ]
         assert len(create_table_calls) > 0
 
         # Verify index creation
         create_index_calls = [
-            call for call in conn.execute.call_args_list
+            call
+            for call in conn.execute.call_args_list
             if "CREATE INDEX IF NOT EXISTS test_memory_embedding_idx" in call[0][0]
         ]
         assert len(create_index_calls) > 0
@@ -87,16 +91,12 @@ class TestPostgreSQLVectorStore:
         store = PostgreSQLVectorStore("postgres://...")
 
         await store.add(
-            id="doc1",
-            text="hello",
-            embedding=[0.1, 0.2, 0.3],
-            metadata={"source": "test"}
+            id="doc1", text="hello", embedding=[0.1, 0.2, 0.3], metadata={"source": "test"}
         )
 
         # Check INSERT query
         insert_calls = [
-            call for call in conn.execute.call_args_list
-            if "INSERT INTO loom_memory" in call[0][0]
+            call for call in conn.execute.call_args_list if "INSERT INTO loom_memory" in call[0][0]
         ]
         assert len(insert_calls) > 0
 
@@ -105,7 +105,7 @@ class TestPostgreSQLVectorStore:
         assert args[1] == "doc1"
         assert args[2] == "hello"
         assert args[3] == [0.1, 0.2, 0.3]
-        assert '"source": "test"' in args[4] # JSON dumped string
+        assert '"source": "test"' in args[4]  # JSON dumped string
 
     async def test_search_vector(self, mock_asyncpg, mock_pgvector, mock_pool_connection):
         """Test searching vectors."""
@@ -116,10 +116,10 @@ class TestPostgreSQLVectorStore:
         # row needs to act like a dict/record
         mock_row = MagicMock()
         mock_row.__getitem__.side_effect = lambda k: {
-            'id': 'doc1',
-            'text': 'hello',
-            'metadata': '{"source": "test"}',
-            'distance': 0.1 # similarity = 0.9
+            "id": "doc1",
+            "text": "hello",
+            "metadata": '{"source": "test"}',
+            "distance": 0.1,  # similarity = 0.9
         }[k]
 
         conn.fetch.return_value = [mock_row]
@@ -127,20 +127,17 @@ class TestPostgreSQLVectorStore:
         store = PostgreSQLVectorStore("postgres://...")
 
         results = await store.search(
-            query_embedding=[0.1, 0.2, 0.3],
-            top_k=5,
-            filter_metadata={"type": "chat"}
+            query_embedding=[0.1, 0.2, 0.3], top_k=5, filter_metadata={"type": "chat"}
         )
 
         assert len(results) == 1
         assert results[0].id == "doc1"
-        assert results[0].score == 0.9 # 1.0 - 0.1
+        assert results[0].score == 0.9  # 1.0 - 0.1
         assert results[0].metadata == {"source": "test"}
 
         # Check SELECT query
         select_calls = [
-            call for call in conn.fetch.call_args_list
-            if "SELECT id, text, metadata" in call[0][0]
+            call for call in conn.fetch.call_args_list if "SELECT id, text, metadata" in call[0][0]
         ]
         assert len(select_calls) > 0
 
@@ -161,8 +158,7 @@ class TestPostgreSQLVectorStore:
         assert result is True
 
         delete_calls = [
-            call for call in conn.execute.call_args_list
-            if "DELETE FROM loom_memory" in call[0][0]
+            call for call in conn.execute.call_args_list if "DELETE FROM loom_memory" in call[0][0]
         ]
         assert len(delete_calls) > 0
         assert delete_calls[0][0][1] == "doc1"
@@ -175,15 +171,10 @@ class TestPostgreSQLVectorStore:
 
         store = PostgreSQLVectorStore("postgres://...")
 
-        await store.update(
-            id="doc1",
-            embedding=[0.9, 0.9, 0.9],
-            metadata={"new": "val"}
-        )
+        await store.update(id="doc1", embedding=[0.9, 0.9, 0.9], metadata={"new": "val"})
 
         update_calls = [
-            call for call in conn.execute.call_args_list
-            if "UPDATE loom_memory" in call[0][0]
+            call for call in conn.execute.call_args_list if "UPDATE loom_memory" in call[0][0]
         ]
         assert len(update_calls) > 0
 
@@ -198,8 +189,8 @@ class TestPostgreSQLVectorStore:
 
         mock_row = MagicMock()
         mock_row.__getitem__.side_effect = lambda k: {
-            'id': 'doc1',
-            'metadata': '{"source": "test"}'
+            "id": "doc1",
+            "metadata": '{"source": "test"}',
         }[k]
 
         conn.fetchrow.return_value = mock_row
@@ -210,4 +201,3 @@ class TestPostgreSQLVectorStore:
         assert result is not None
         assert result.id == "doc1"
         assert result.metadata == {"source": "test"}
-

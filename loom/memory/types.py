@@ -1,6 +1,7 @@
 """
 LoomMemory Type Definitions
 """
+
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,35 +13,38 @@ class MemoryTier(Enum):
     """
     Memory Tiers (L1-L4) representing the lifecycle and persistence of information.
     """
-    L1_RAW_IO = 1      # Raw Input/Output (Ephemeral, buffer)
-    L2_WORKING = 2     # Working Memory (Task-specific, scratchpad)
-    L3_SESSION = 3     # Session History (Conversation, context)
-    L4_GLOBAL = 4      # Global Knowledge (Persistent, semantic facts)
+
+    L1_RAW_IO = 1  # Raw Input/Output (Ephemeral, buffer)
+    L2_WORKING = 2  # Working Memory (Task-specific, scratchpad)
+    L3_SESSION = 3  # Session History (Conversation, context)
+    L4_GLOBAL = 4  # Global Knowledge (Persistent, semantic facts)
 
 
 class MemoryType(Enum):
     """
     Types of memory content for categorization and filtering.
     """
-    MESSAGE = "message"           # Chat messages (user/assistant)
-    THOUGHT = "thought"           # Internal thoughts/monologue
-    TOOL_CALL = "tool_call"       # Tool execution requests
-    TOOL_RESULT = "tool_result"   # Tool execution results
-    PLAN = "plan"                 # Plans or instructions
-    FACT = "fact"                 # Extracted facts or knowledge
-    SKILL = "skill"               # Skill/Tool definitions
-    CONTEXT = "context"           # Context snippets/summaries
-    SUMMARY = "summary"           # Context compression summary
+
+    MESSAGE = "message"  # Chat messages (user/assistant)
+    THOUGHT = "thought"  # Internal thoughts/monologue
+    TOOL_CALL = "tool_call"  # Tool execution requests
+    TOOL_RESULT = "tool_result"  # Tool execution results
+    PLAN = "plan"  # Plans or instructions
+    FACT = "fact"  # Extracted facts or knowledge
+    SKILL = "skill"  # Skill/Tool definitions
+    CONTEXT = "context"  # Context snippets/summaries
+    SUMMARY = "summary"  # Context compression summary
 
 
 class MemoryStatus(Enum):
     """
     Status of memory units for lifecycle management.
     """
-    ACTIVE = "active"           # Currently active and accessible
-    ARCHIVED = "archived"       # Archived but retrievable
-    SUMMARIZED = "summarized"   # Compressed into summary
-    EVICTED = "evicted"         # Removed from active memory
+
+    ACTIVE = "active"  # Currently active and accessible
+    ARCHIVED = "archived"  # Archived but retrievable
+    SUMMARIZED = "summarized"  # Compressed into summary
+    EVICTED = "evicted"  # Removed from active memory
 
 
 @dataclass
@@ -56,7 +60,7 @@ class MemoryUnit:
 
     # Source Tracking
     source_node: str | None = None  # ID of the node that generated this
-    parent_id: str | None = None    # ID of parent memory (for causality chains)
+    parent_id: str | None = None  # ID of parent memory (for causality chains)
 
     # Timestamps
     created_at: datetime = field(default_factory=datetime.now)
@@ -77,16 +81,19 @@ class MemoryUnit:
     def to_message(self) -> dict[str, str]:
         """Convert to LLM API message format."""
         if isinstance(self.content, dict) and "role" in self.content:
-             return self.content
+            return self.content
 
         if self.type == MemoryType.MESSAGE:
             # Assuming content is the text if it's not a dict, or we adhere to dict content for messages
             if isinstance(self.content, str):
-                return {"role": "user", "content": self.content} # Default to user? Or should handle context contextually
+                return {
+                    "role": "user",
+                    "content": self.content,
+                }  # Default to user? Or should handle context contextually
 
             # Ensure content is dict[str, str]
             if isinstance(self.content, dict):
-                 return {str(k): str(v) for k, v in self.content.items()}
+                return {str(k): str(v) for k, v in self.content.items()}
             return {"role": "system", "content": str(self.content)}
         elif self.type == MemoryType.THOUGHT:
             return {"role": "assistant", "content": f"💭 {self.content}"}
@@ -94,11 +101,17 @@ class MemoryUnit:
             # Handle both single tool call (dict) and multiple tool calls (list)
             if isinstance(self.content, list):
                 # Multiple tool calls
-                tool_names = [tc.get('name', 'unknown') if isinstance(tc, dict) else 'unknown' for tc in self.content]
+                tool_names = [
+                    tc.get("name", "unknown") if isinstance(tc, dict) else "unknown"
+                    for tc in self.content
+                ]
                 return {"role": "assistant", "content": f"🔧 Calling {', '.join(tool_names)}"}
             elif isinstance(self.content, dict):
                 # Single tool call
-                return {"role": "assistant", "content": f"🔧 Calling {self.content.get('name', 'unknown')}"}
+                return {
+                    "role": "assistant",
+                    "content": f"🔧 Calling {self.content.get('name', 'unknown')}",
+                }
             else:
                 return {"role": "assistant", "content": f"🔧 Tool call: {str(self.content)}"}
         else:
@@ -107,8 +120,8 @@ class MemoryUnit:
     def to_snippet(self) -> str:
         """Convert to improved snippet/summary for progressive disclosure."""
         if self.type == MemoryType.SKILL:
-            name = self.metadata.get('name', 'Unnamed')
-            desc = self.metadata.get('description', '')[:50]
+            name = self.metadata.get("name", "Unnamed")
+            desc = self.metadata.get("description", "")[:50]
             return f"📚 {name}: {desc}..."
         elif self.type == MemoryType.PLAN:
             return f"🎯 Plan: {str(self.content)[:80]}..."
@@ -140,34 +153,40 @@ class ContextProjection:
         units = []
 
         # 1. Instruction as L2 Working Memory
-        units.append(MemoryUnit(
-            content={"role": "system", "content": self.instruction},
-            tier=MemoryTier.L2_WORKING,
-            type=MemoryType.PLAN,
-            importance=1.0,
-            metadata={"projection_source": "instruction"}
-        ))
+        units.append(
+            MemoryUnit(
+                content={"role": "system", "content": self.instruction},
+                tier=MemoryTier.L2_WORKING,
+                type=MemoryType.PLAN,
+                importance=1.0,
+                metadata={"projection_source": "instruction"},
+            )
+        )
 
         # 2. Parent Plan as L3 Context
         if self.parent_plan:
-            units.append(MemoryUnit(
-                content=self.parent_plan,
-                tier=MemoryTier.L3_SESSION,
-                type=MemoryType.CONTEXT,
-                importance=0.7,
-                metadata={"projection_source": "parent_plan"}
-            ))
+            units.append(
+                MemoryUnit(
+                    content=self.parent_plan,
+                    tier=MemoryTier.L3_SESSION,
+                    type=MemoryType.CONTEXT,
+                    importance=0.7,
+                    metadata={"projection_source": "parent_plan"},
+                )
+            )
 
         # 3. Relevant Facts
         for fact in self.relevant_facts:
-             # Clone fact but ensure it's treated as context/fact in new node
-             units.append(MemoryUnit(
-                 content=fact.content,
-                 tier=fact.tier, # Keep original tier (likely L4)? Or move to L3/L4?
-                 type=fact.type,
-                 importance=fact.importance,
-                 metadata={**fact.metadata, "projection_source": "fact"}
-             ))
+            # Clone fact but ensure it's treated as context/fact in new node
+            units.append(
+                MemoryUnit(
+                    content=fact.content,
+                    tier=fact.tier,  # Keep original tier (likely L4)? Or move to L3/L4?
+                    type=fact.type,
+                    importance=fact.importance,
+                    metadata={**fact.metadata, "projection_source": "fact"},
+                )
+            )
 
         return units
 

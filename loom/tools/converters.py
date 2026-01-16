@@ -47,17 +47,9 @@ class FunctionToMCP:
             if param.default == inspect.Parameter.empty:
                 required.append(param_name)
 
-        input_schema = {
-            "type": "object",
-            "properties": properties,
-            "required": required
-        }
+        input_schema = {"type": "object", "properties": properties, "required": required}
 
-        return MCPToolDefinition(
-            name=func_name,
-            description=doc,
-            input_schema=input_schema
-        )
+        return MCPToolDefinition(name=func_name, description=doc, input_schema=input_schema)
 
     @staticmethod
     def _map_type(py_type: type) -> str:
@@ -75,4 +67,4 @@ class FunctionToMCP:
         elif py_type == dict or getattr(py_type, "__origin__", None) == dict:
             return "object"
         else:
-            return "string" # Default fallback
+            return "string"  # Default fallback

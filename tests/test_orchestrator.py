@@ -17,18 +17,18 @@ def mock_parent():
     agent.provider = MagicMock()
     return agent
 
+
 @pytest.fixture
 def orchestrator(mock_parent):
-    config = OrchestratorConfig(
-        max_recursive_depth=2,
-        allow_recursive_delegation=True
-    )
+    config = OrchestratorConfig(max_recursive_depth=2, allow_recursive_delegation=True)
     return FractalOrchestrator(parent_node=mock_parent, config=config)
+
 
 def test_validate_request_success(orchestrator):
     """验证合法的请求"""
     req = DelegationRequest(subtasks=[SubtaskSpecification(description="t1")])
     orchestrator._validate_request(req)
+
 
 def test_validate_request_failures(orchestrator):
     """验证非法请求"""
@@ -39,10 +39,15 @@ def test_validate_request_failures(orchestrator):
     # Too many concurrent
     orchestrator.config.max_concurrent_children = 1
     with pytest.raises(ValueError):
-        orchestrator._validate_request(DelegationRequest(subtasks=[
-            SubtaskSpecification(description="t1"),
-            SubtaskSpecification(description="t2")
-        ]))
+        orchestrator._validate_request(
+            DelegationRequest(
+                subtasks=[
+                    SubtaskSpecification(description="t1"),
+                    SubtaskSpecification(description="t2"),
+                ]
+            )
+        )
+
 
 def test_tool_filter_inheritance(orchestrator):
     """测试工具继承逻辑"""
@@ -51,6 +56,7 @@ def test_tool_filter_inheritance(orchestrator):
     tools = orchestrator._filter_tools_for_child(subtask, current_depth=0)
     assert "tool1" in tools
     assert "tool3" in tools
+
 
 def test_tool_filter_recursive_limit(orchestrator):
     """测试递归深度限制下的工具过滤"""
@@ -66,12 +72,14 @@ def test_tool_filter_recursive_limit(orchestrator):
     tools_limit = orchestrator._filter_tools_for_child(subtask, current_depth=1)
     assert "delegate_subtasks" not in tools_limit
 
+
 def test_tool_filter_whitelist(orchestrator):
     """测试白名单过滤"""
     subtask = SubtaskSpecification(description="t", tools=["tool1"])
     tools = orchestrator._filter_tools_for_child(subtask, current_depth=0)
     assert "tool1" in tools
     assert "tool2" not in tools
+
 
 @pytest.mark.asyncio
 async def test_spawn_children(orchestrator):
