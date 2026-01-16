@@ -455,3 +455,222 @@ class ChromaVectorStore(VectorStoreProvider):
     async def clear(self) -> bool:
         self.client.delete_collection(self.collection.name)
         return True
+
+
+class PostgreSQLVectorStore(VectorStoreProvider):
+    """
+    PostgreSQL vector store implementation using pgvector.
+
+    Usage:
+        store = PostgreSQLVectorStore(
+            connection_string="postgresql://user:pass@localhost:5432/db",
+            table_name="loom_memory"
+        )
+    """
+
+    def __init__(
+        self,
+        connection_string: str,
+        table_name: str = "loom_memory",
+        vector_size: int = 1536  # OpenAI embedding size
+    ):
+        try:
+            import asyncpg
+            from pgvector.asyncpg import register_vector
+        except ImportError:
+            raise ImportError(
+                "asyncpg or pgvector not installed. "
+                "Install with: pip install asyncpg pgvector"
+            )
+
+        self.connection_string = connection_string
+        self.table_name = table_name
+        self.vector_size = vector_size
+        self._pool = None
+        self._register_vector = register_vector
+
+    async def _get_pool(self):
+        import asyncpg
+        if self._pool is None:
+            self._pool = await asyncpg.create_pool(self.connection_string)
+            # Initialize table and extension
+            async with self._pool.acquire() as conn:
+                await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                await self._register_vector(conn)
+                
+                await conn.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {self.table_name} (
+                        id TEXT PRIMARY KEY,
+                        text TEXT,
+                        embedding vector({self.vector_size}),
+                        metadata JSONB
+                    )
+                """)
+                # Create HNSW index for faster search
+                # Note: This might take time on large tables
+                # We use specific name to avoid duplicate attempts errors gracefully if needed,
+                # but 'IF NOT EXISTS' covers most cases.
+                await conn.execute(f"""
+                    CREATE INDEX IF NOT EXISTS {self.table_name}_embedding_idx 
+                    ON {self.table_name} 
+                    USING hnsw (embedding vector_cosine_ops)
+                """)
+        return self._pool
+
+    async def add(
+        self,
+        id: str,
+        text: str,
+        embedding: List[float],
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        import json
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            await self._register_vector(conn)
+            await conn.execute(
+                f"""
+                INSERT INTO {self.table_name} (id, text, embedding, metadata)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (id) DO UPDATE SET
+                    text = EXCLUDED.text,
+                    embedding = EXCLUDED.embedding,
+                    metadata = EXCLUDED.metadata
+                """,
+                id,
+                text,
+                embedding,
+                json.dumps(metadata or {})
+            )
+        return True
+
+    async def search(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+        filter_metadata: Optional[Dict[str, Any]] = None
+    ) -> List[VectorSearchResult]:
+        import json
+        pool = await self._get_pool()
+        
+        # Build filter clause
+        where_clause = "1=1"
+        params = [query_embedding]
+        param_idx = 2
+        
+        if filter_metadata:
+            for key, value in filter_metadata.items():
+                where_clause += f" AND metadata->>'{key}' = ${param_idx}"
+                params.append(str(value)) # JSONB values are often strings in simplified queries, care needed for types
+                param_idx += 1
+
+        # Use <=> operator for cosine distance (supported by pgvector)
+        # We order by distance ASC (closest first)
+        query = f"""
+            SELECT id, text, metadata, embedding <=> $1 as distance
+            FROM {self.table_name}
+            WHERE {where_clause}
+            ORDER BY distance ASC
+            LIMIT {top_k}
+        """
+        
+        async with pool.acquire() as conn:
+            await self._register_vector(conn)
+            rows = await conn.fetch(query, *params)
+            
+        results = []
+        for row in rows:
+            # Distance is 1 - CosineSimilarity usually.
+            # But pgvector cosine distance is: 1 - cosine_similarity. 
+            # So similarity = 1 - distance.
+            similarity = 1.0 - row['distance']
+            
+            metadata = json.loads(row['metadata']) if isinstance(row['metadata'], str) else row['metadata']
+            
+            results.append(VectorSearchResult(
+                id=row['id'],
+                score=similarity,
+                metadata=metadata
+            ))
+            
+        return results
+
+    async def delete(self, id: str) -> bool:
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute(
+                f"DELETE FROM {self.table_name} WHERE id = $1",
+                id
+            )
+            # execute returns string like "DELETE 1"
+            return " 0" not in result
+
+    async def update(
+        self,
+        id: str,
+        embedding: Optional[List[float]] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        import json
+        pool = await self._get_pool()
+        
+        if not embedding and not metadata:
+            return False
+            
+        set_parts = []
+        params = [id]
+        param_idx = 2
+        
+        if embedding:
+            set_parts.append(f"embedding = ${param_idx}")
+            params.append(embedding)
+            param_idx += 1
+            
+        if metadata:
+            # We need to merge metadata, not just replace it? 
+            # The interface doc says "Update vector or metadata".
+            # Qdrant implementation replaces metadata if provided.
+            # InMemory updates/merges.
+            # Let's simple Replace for now or use jsonb_concat `||` if we want merge.
+            # InMemory implementation does: self._metadata[id].update(metadata), which is a merge.
+            # So we should use jsonb concatenation.
+            
+            set_parts.append(f"metadata = metadata || ${param_idx}")
+            params.append(json.dumps(metadata))
+            param_idx += 1
+            
+        query = f"""
+            UPDATE {self.table_name}
+            SET {', '.join(set_parts)}
+            WHERE id = $1
+        """
+        
+        async with pool.acquire() as conn:
+            await self._register_vector(conn)
+            result = await conn.execute(query, *params)
+            return " 0" not in result
+
+    async def get(self, id: str) -> Optional[VectorSearchResult]:
+        import json
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                f"SELECT id, metadata FROM {self.table_name} WHERE id = $1",
+                id
+            )
+            
+        if not row:
+            return None
+            
+        metadata = json.loads(row['metadata']) if isinstance(row['metadata'], str) else row['metadata']
+        return VectorSearchResult(
+            id=row['id'],
+            score=1.0, 
+            metadata=metadata
+        )
+
+    async def clear(self) -> bool:
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(f"TRUNCATE TABLE {self.table_name}")
+        return True

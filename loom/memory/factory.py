@@ -34,6 +34,10 @@ def create_vector_store(config: VectorStoreConfig) -> Optional[VectorStoreProvid
         from .vector_store import ChromaVectorStore
         return ChromaVectorStore(**config.provider_config)
 
+    elif provider == "postgres":
+        from .vector_store import PostgreSQLVectorStore
+        return PostgreSQLVectorStore(**config.provider_config)
+
     else:
         # Custom provider: assume it's a class path
         # e.g., "mypackage.MyVectorStore"
