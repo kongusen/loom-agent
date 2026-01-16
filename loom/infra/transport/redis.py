@@ -5,13 +5,13 @@ import logging
 try:
     import redis.asyncio as aioredis
 except ImportError:
-    aioredis = None
+    aioredis = None # type: ignore
 
 import contextlib
 
 from loom.protocol.cloudevents import CloudEvent
 
-from . import EventHandler, Transport
+from .base import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,8 @@ class RedisTransport(Transport):
         # Redis channel convention: loom.{topic}
         channel = self._to_channel(topic)
         payload = event.model_dump_json()
-        await self.redis.publish(channel, payload)
+        if self.redis:
+            await self.redis.publish(channel, payload)
 
     async def subscribe(self, topic: str, handler: EventHandler) -> None:
         if not self._connected:
@@ -80,7 +81,8 @@ class RedisTransport(Transport):
         if topic not in self._handlers:
             self._handlers[topic] = []
             # Subscribe in Redis
-            await self.pubsub.psubscribe(channel)
+            if self.pubsub:
+                await self.pubsub.psubscribe(channel)
 
         self._handlers[topic].append(handler)
         logger.debug(f"Subscribed to {channel}")
@@ -108,6 +110,8 @@ class RedisTransport(Transport):
 
     async def _listener(self):
         try:
+            if not self.pubsub:
+                 return
             async for message in self.pubsub.listen():
                 if message["type"] == "pmessage":
                     channel = message["channel"]

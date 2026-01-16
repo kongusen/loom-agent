@@ -270,7 +270,7 @@ class StructureController:
             event_type=StructureEventType.GROWTH,
             node_id=node.node_id,
             details={
-                'role': node.role.value,
+                'role': node.role,
                 'depth': node.depth,
                 'children_count': children_count
             },
@@ -376,7 +376,7 @@ class StructureController:
                         # Record event
                         self.record_pruning(
                             node,
-                            reason=reason,
+                            reason=reason or "No reason provided",
                             fitness_before=node.metrics.fitness_score()
                         )
 
@@ -400,7 +400,7 @@ class StructureController:
             event_type=StructureEventType.PRUNING,
             node_id=node.node_id,
             details={
-                'role': node.role.value,
+                'role': node.role,
                 'depth': node.depth,
                 'task_count': node.metrics.task_count
             },
@@ -496,7 +496,7 @@ class StructureController:
                 should_prune, reason = self.should_prune(node, parent)
                 if should_prune:
                     fitness = node.metrics.fitness_score()
-                    inefficient.append((node, fitness, reason))
+                    inefficient.append((node, fitness, reason or "Unknown reason"))
 
         _check_node(root)
 

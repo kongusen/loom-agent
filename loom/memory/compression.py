@@ -4,8 +4,7 @@ Context Compression Engine
 import datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
-import tiktoken
-
+from loom.memory.tokenizer import get_token_counter
 from loom.memory.types import MemoryQuery, MemoryStatus, MemoryTier, MemoryType, MemoryUnit
 
 if TYPE_CHECKING:
@@ -90,7 +89,7 @@ class ContextCompressor:
             return []
 
         summary_text = ""
-        tool_counts = {}
+        tool_counts: dict[str, int] = {}
 
         # Iterate and build efficient representation
         for u in segment:
@@ -175,22 +174,11 @@ class MemoryCompressor:
         self.enable_llm_summarization = enable_llm_summarization
 
         # Initialize tokenizer for token counting
-        try:
-            self.encoder = tiktoken.get_encoding("cl100k_base")
-        except:
-            self.encoder = None
+        self.token_counter = get_token_counter("cl100k_base")
 
     def _count_tokens(self, units: list[MemoryUnit]) -> int:
         """Count total tokens in memory units."""
-        if not self.encoder:
-            # Fallback: rough estimation
-            return sum(len(str(u.content)) // 4 for u in units)
-
-        total = 0
-        for unit in units:
-            content_str = str(unit.content)
-            total += len(self.encoder.encode(content_str))
-        return total
+        return self.token_counter.count_memory_units(units)
 
     async def compress_l1_to_l3(
         self,
@@ -296,6 +284,9 @@ class MemoryCompressor:
 
     async def _summarize_with_llm(self, units: list[MemoryUnit]) -> str:
         """Use LLM to create intelligent summary."""
+        if not self.llm_provider:
+            return self._simple_summary(units)
+
         # Build context from units
         context_parts = []
         for unit in units[:20]:  # Limit to avoid token overflow
@@ -339,6 +330,9 @@ class MemoryCompressor:
 
     async def _extract_facts_with_llm(self, units: list[MemoryUnit]) -> list[str]:
         """Use LLM to extract facts from memory units."""
+        if not self.llm_provider:
+             return self._extract_facts_simple(units)
+
         # Build context from units
         context_parts = []
         for unit in units[:30]:  # Limit to avoid token overflow
@@ -560,7 +554,7 @@ class L4Compressor:
                     union(i, j)
 
         # 组织成clusters
-        clusters_dict = {}
+        clusters_dict: dict[int, list[MemoryUnit]] = {}
         for i in range(n):
             root = find(i)
             if root not in clusters_dict:

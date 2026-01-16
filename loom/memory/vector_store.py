@@ -3,8 +3,9 @@ Vector Store Abstraction Layer
 Provides pluggable interface for different vector database backends.
 """
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -129,9 +130,8 @@ class InMemoryVectorStore(VectorStoreProvider):
         scores = []
         for id, vec in self._vectors.items():
             # Apply metadata filter if provided
-            if filter_metadata:
-                if not self._matches_filter(self._metadata[id], filter_metadata):
-                    continue
+            if filter_metadata and not self._matches_filter(self._metadata[id], filter_metadata):
+                continue
 
             # Cosine similarity
             similarity = np.dot(query_vec, vec) / (
@@ -227,13 +227,13 @@ class QdrantVectorStore(VectorStoreProvider):
             raise ImportError(
                 "qdrant-client not installed. "
                 "Install with: pip install qdrant-client"
-            )
+            ) from None
 
         self.client = QdrantClient(url=url)
         self.collection_name = collection_name
 
         # Create collection if not exists
-        try:
+        with suppress(Exception):
             self.client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(
@@ -241,8 +241,6 @@ class QdrantVectorStore(VectorStoreProvider):
                     distance=Distance.COSINE
                 )
             )
-        except:
-            pass  # Collection already exists
 
     async def add(
         self,
@@ -280,7 +278,7 @@ class QdrantVectorStore(VectorStoreProvider):
                 FieldCondition(key=k, match=MatchValue(value=v))
                 for k, v in filter_metadata.items()
             ]
-            query_filter = Filter(must=conditions)
+            query_filter = Filter(must=cast(Any, conditions))
 
         results = self.client.search(
             collection_name=self.collection_name,
@@ -293,7 +291,7 @@ class QdrantVectorStore(VectorStoreProvider):
             VectorSearchResult(
                 id=str(r.id),
                 score=r.score,
-                metadata=r.payload
+                metadata=r.payload or {}
             )
             for r in results
         ]
@@ -339,7 +337,7 @@ class QdrantVectorStore(VectorStoreProvider):
         return VectorSearchResult(
             id=str(r.id),
             score=1.0,
-            metadata=r.payload
+            metadata=r.payload or {}
         )
 
     async def clear(self) -> bool:
@@ -369,7 +367,7 @@ class ChromaVectorStore(VectorStoreProvider):
             raise ImportError(
                 "chromadb not installed. "
                 "Install with: pip install chromadb"
-            )
+            ) from None
 
         if persist_directory:
             self.client = chromadb.PersistentClient(path=persist_directory)
@@ -390,7 +388,7 @@ class ChromaVectorStore(VectorStoreProvider):
     ) -> bool:
         self.collection.add(
             ids=[id],
-            embeddings=[embedding],
+            embeddings=cast(Any, [embedding]),
             documents=[text],
             metadatas=[metadata or {}]
         )
@@ -403,18 +401,19 @@ class ChromaVectorStore(VectorStoreProvider):
         filter_metadata: dict[str, Any] | None = None
     ) -> list[VectorSearchResult]:
         results = self.collection.query(
-            query_embeddings=[query_embedding],
+            query_embeddings=cast(Any, [query_embedding]),
             n_results=top_k,
             where=filter_metadata
         )
 
         search_results = []
-        for i in range(len(results['ids'][0])):
-            search_results.append(VectorSearchResult(
-                id=results['ids'][0][i],
-                score=1.0 - results['distances'][0][i],  # Convert distance to similarity
-                metadata=results['metadatas'][0][i]
-            ))
+        if results['ids'] and results['distances'] and results['metadatas']:
+            for i in range(len(results['ids'][0])):
+                search_results.append(VectorSearchResult(
+                    id=results['ids'][0][i],
+                    score=1.0 - results['distances'][0][i],  # Convert distance to similarity
+                    metadata=cast(dict[str, Any], results['metadatas'][0][i])
+                ))
 
         return search_results
 
@@ -431,7 +430,7 @@ class ChromaVectorStore(VectorStoreProvider):
         if embedding:
             self.collection.update(
                 ids=[id],
-                embeddings=[embedding],
+                embeddings=cast(Any, [embedding]),
                 metadatas=[metadata or {}]
             )
         elif metadata:
@@ -446,11 +445,12 @@ class ChromaVectorStore(VectorStoreProvider):
 
         if not results['ids']:
             return None
-
+        
+        metadata = results['metadatas'][0] if results['metadatas'] else {}
         return VectorSearchResult(
             id=results['ids'][0],
             score=1.0,
-            metadata=results['metadatas'][0]
+            metadata=cast(dict[str, Any], metadata)
         )
 
     async def clear(self) -> bool:
@@ -475,14 +475,16 @@ class PostgreSQLVectorStore(VectorStoreProvider):
         table_name: str = "loom_memory",
         vector_size: int = 1536  # OpenAI embedding size
     ):
-        try:
-            import asyncpg
-            from pgvector.asyncpg import register_vector
-        except ImportError:
+        import importlib.util
+
+        # Check for required dependencies
+        if importlib.util.find_spec("asyncpg") is None or importlib.util.find_spec("pgvector") is None:
             raise ImportError(
                 "asyncpg or pgvector not installed. "
                 "Install with: pip install asyncpg pgvector"
             )
+
+        from pgvector.asyncpg import register_vector
 
         self.connection_string = connection_string
         self.table_name = table_name
@@ -494,6 +496,8 @@ class PostgreSQLVectorStore(VectorStoreProvider):
         import asyncpg
         if self._pool is None:
             self._pool = await asyncpg.create_pool(self.connection_string)
+            if not self._pool:
+                 raise RuntimeError("Failed to create connection pool")
             # Initialize table and extension
             async with self._pool.acquire() as conn:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -553,10 +557,12 @@ class PostgreSQLVectorStore(VectorStoreProvider):
     ) -> list[VectorSearchResult]:
         import json
         pool = await self._get_pool()
+        if not pool:
+            raise RuntimeError("Failed to acquire connection pool")
 
         # Build filter clause
         where_clause = "1=1"
-        params = [query_embedding]
+        params: list[Any] = [query_embedding]
         param_idx = 2
 
         if filter_metadata:
@@ -598,6 +604,8 @@ class PostgreSQLVectorStore(VectorStoreProvider):
 
     async def delete(self, id: str) -> bool:
         pool = await self._get_pool()
+        if not pool:
+            raise RuntimeError("Failed to acquire connection pool")
         async with pool.acquire() as conn:
             result = await conn.execute(
                 f"DELETE FROM {self.table_name} WHERE id = $1",
@@ -614,12 +622,14 @@ class PostgreSQLVectorStore(VectorStoreProvider):
     ) -> bool:
         import json
         pool = await self._get_pool()
+        if not pool:
+            raise RuntimeError("Failed to acquire connection pool")
 
         if not embedding and not metadata:
             return False
 
         set_parts = []
-        params = [id]
+        params: list[Any] = [id]
         param_idx = 2
 
         if embedding:
@@ -654,6 +664,8 @@ class PostgreSQLVectorStore(VectorStoreProvider):
     async def get(self, id: str) -> VectorSearchResult | None:
         import json
         pool = await self._get_pool()
+        if not pool:
+            raise RuntimeError("Failed to acquire connection pool")
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 f"SELECT id, metadata FROM {self.table_name} WHERE id = $1",
@@ -672,6 +684,8 @@ class PostgreSQLVectorStore(VectorStoreProvider):
 
     async def clear(self) -> bool:
         pool = await self._get_pool()
+        if not pool:
+            raise RuntimeError("Failed to acquire connection pool")
         async with pool.acquire() as conn:
             await conn.execute(f"TRUNCATE TABLE {self.table_name}")
         return True

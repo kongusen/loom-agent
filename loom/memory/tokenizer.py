@@ -6,10 +6,12 @@ to eliminate duplication and provide consistent token counting across
 the memory and context systems.
 """
 
-from functools import lru_cache
-from typing import Optional
+from typing import Any, Optional
 
-import tiktoken
+try:
+    import tiktoken
+except ImportError:
+    tiktoken = None  # type: ignore
 
 from loom.memory.types import MemoryUnit
 
@@ -34,7 +36,7 @@ class TokenCounter:
     _instance: Optional['TokenCounter'] = None
     _initialized = False
 
-    def __new__(cls, encoding: str = "cl100k_base") -> 'TokenCounter':
+    def __new__(cls, _encoding: str = "cl100k_base") -> 'TokenCounter':
         """Implement singleton pattern."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -46,12 +48,23 @@ class TokenCounter:
             return
 
         self.encoding_name = encoding
-        try:
-            self.encoder = tiktoken.get_encoding(encoding)
-        except Exception as e:
-            print(f"Failed to load tiktoken encoding '{encoding}': {e}")
-            print("Falling back to simple token estimation")
+        self.encoder: Any | None = None
+        if tiktoken is None:
+            print("tiktoken not available, falling back to simple token estimation")
             self.encoder = None
+        else:
+            try:
+                self.encoder = tiktoken.get_encoding(encoding)
+            except Exception as e:
+                print(f"Failed to load tiktoken encoding '{encoding}': {e}")
+                print("Falling back to simple token estimation")
+                self.encoder = None
+
+        # Instance-level cache to avoid memory leaks from lru_cache on methods
+        self._cache: dict[str, int] = {}
+        self._cache_maxsize = 2048
+        self._cache_hits = 0
+        self._cache_misses = 0
 
         self._initialized = True
 
@@ -178,12 +191,11 @@ class TokenCounter:
     # Internal Methods with Caching
     # ============================================================================
 
-    @lru_cache(maxsize=2048)
     def _encode_cached(self, text: str) -> int:
         """
         Encode text with caching.
 
-        Uses LRU cache to avoid re-encoding identical strings.
+        Uses instance-level cache to avoid re-encoding identical strings.
         This is important for repeated content like system prompts.
 
         Args:
@@ -195,15 +207,32 @@ class TokenCounter:
         if not text:
             return 0
 
+        # Check cache first
+        if text in self._cache:
+            self._cache_hits += 1
+            return self._cache[text]
+
+        # Cache miss
+        self._cache_misses += 1
+
+        # Encode and cache result
         if self.encoder:
             try:
                 tokens = self.encoder.encode(text)
-                return len(tokens)
+                result = len(tokens)
             except Exception as e:
                 print(f"Error encoding text with tiktoken: {e}")
-                return self.estimate_tokens(text)
+                result = self.estimate_tokens(text)
         else:
-            return self.estimate_tokens(text)
+            result = self.estimate_tokens(text)
+
+        # Add to cache with LRU eviction
+        if len(self._cache) >= self._cache_maxsize:
+            # Remove oldest entry (first key)
+            self._cache.pop(next(iter(self._cache)))
+        self._cache[text] = result
+
+        return result
 
     # ============================================================================
     # Statistics and Cache Management
@@ -216,17 +245,18 @@ class TokenCounter:
         Returns:
             Dictionary with hits, misses, currsize, maxsize
         """
-        info = self._encode_cached.cache_info()
         return {
-            "hits": info.hits,
-            "misses": info.misses,
-            "currsize": info.currsize,
-            "maxsize": info.maxsize
+            "hits": self._cache_hits,
+            "misses": self._cache_misses,
+            "currsize": len(self._cache),
+            "maxsize": self._cache_maxsize
         }
 
     def clear_cache(self):
         """Clear the encoding cache."""
-        self._encode_cached.cache_clear()
+        self._cache.clear()
+        self._cache_hits = 0
+        self._cache_misses = 0
 
 
 # Module-level convenience access

@@ -30,8 +30,8 @@ class SmartMockProvider(MockLLMProvider):
     async def chat(
         self,
         messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        config: dict[str, Any] | None = None
+        _tools: list[dict[str, Any]] | None = None,
+        _config: dict[str, Any] | None = None
     ) -> LLMResponse:
         last_msg = messages[-1]["content"].lower()
 

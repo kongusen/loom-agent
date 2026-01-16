@@ -5,7 +5,7 @@ OpenAI LLM Provider
 """
 
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from loom.config.llm import (
@@ -21,7 +21,7 @@ try:
 except ImportError:
     raise ImportError(
         "OpenAI SDK not installed. Install with: pip install loom-agent[llm]"
-    )
+    ) from None
 
 
 class OpenAIProvider(LLMProvider):
@@ -197,7 +197,7 @@ class OpenAIProvider(LLMProvider):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None
-    ) -> AsyncIterator[StreamChunk]:
+    ) -> AsyncGenerator[StreamChunk, None]:
         """流式调用 OpenAI Chat API（增强版：实时工具调用通知）"""
         # 获取基础参数
         kwargs = self.config.to_openai_kwargs()

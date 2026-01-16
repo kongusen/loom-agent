@@ -15,7 +15,7 @@ def configure_logging(log_level: str = "INFO", json_format: bool = False) -> Non
     level = getattr(logging, log_level.upper(), logging.INFO)
 
     # Configure processors
-    processors = [
+    processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),

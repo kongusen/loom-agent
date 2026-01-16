@@ -4,6 +4,7 @@ Base Node Abstraction (Fractal System)
 
 import asyncio
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from typing import Any
 from uuid import uuid4
 
@@ -25,11 +26,8 @@ class Node(ABC):
 
         # Auto-subscribe to my requests (if event loop is running)
         if auto_subscribe:
-            try:
+            with suppress(RuntimeError):
                 asyncio.create_task(self._subscribe_to_events())
-            except RuntimeError:
-                # No event loop running, will subscribe later
-                pass
 
     async def _subscribe_to_events(self):
         """Subscribe to 'node.request' targeting this node."""
@@ -96,15 +94,14 @@ class Node(ABC):
 
         # Subscribe to response
         # Using Broadcast Reply pattern: listen to target's responses
-        response_future = asyncio.Future()
+        response_future: asyncio.Future[Any] = asyncio.Future()
 
         async def handle_response(event: CloudEvent):
-            if event.data and event.data.get("request_id") == request_id:
-                if not response_future.done():
-                    if event.type == "node.error":
-                         response_future.set_exception(Exception(event.data.get("error", "Unknown Error")))
-                    else:
-                         response_future.set_result(event.data.get("result"))
+            if event.data and event.data.get("request_id") == request_id and not response_future.done():
+                if event.type == "node.error":
+                     response_future.set_exception(Exception(event.data.get("error", "Unknown Error")))
+                else:
+                     response_future.set_result(event.data.get("result"))
 
         # Topic: node.response/{target_node}
         # Note: clean URI

@@ -245,7 +245,7 @@ class LoomMemory:
     async def create_projection(
         self,
         instruction: str,
-        total_budget: int = 2000,
+        _total_budget: int = 2000,
         mode: ProjectionMode | None = None,
         include_plan: bool = True,
         include_facts: bool = True
@@ -604,6 +604,9 @@ class LoomMemory:
 
     async def _compress_l4(self):
         """执行L4压缩"""
+        if not self.l4_compressor:
+             return
+
         print(f"🗜️  L4压缩开始：当前{len(self._l4_global)}个facts")
 
         # 执行压缩

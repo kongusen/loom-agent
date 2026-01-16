@@ -36,15 +36,15 @@ class AttentionRouter(Node):
         self.agents = {agent.node_id: agent for agent in agents}
         self.provider = provider
         # Agent descriptions map
-        self.registry = {agent.node_id: agent.role for agent in agents}
-
+        self.registry = {agent.node_id: getattr(agent, 'role', 'agent') for agent in agents}
     async def process(self, event: CloudEvent) -> Any:
-        task = event.data.get("task", "")
+        data = event.data or {}
+        task = str(data.get("task", ""))
         if not task:
             return {"error": "No task provided"}
 
         # 1. Construct Prompt
-        options = "\n".join([f"- {aid}: {role}" for aid, role in self.registry.items()])
+        options = "\n".join([f"- {aid}: {getattr(self.agents[aid], 'role', 'agent')}" for aid in self.agents])
         prompt = f"""
         You are a routing system. Given the task, select the best agent ID to handle it.
         Return ONLY the agent ID.

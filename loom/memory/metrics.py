@@ -146,7 +146,7 @@ class MetricsCollector:
         else:
             self.memory_metrics.vector_cache_misses += 1
 
-    def record_memory_add(self, tier: str):
+    def record_memory_add(self, _tier: str):
         """Record a memory unit addition."""
         self.memory_metrics.total_adds += 1
 
@@ -210,7 +210,7 @@ class MetricsCollector:
         self,
         duration_ms: float,
         tokens: int,
-        iterations: int
+        _iterations: int
     ):
         """Record a System 2 execution."""
         self.routing_metrics.s2_calls += 1

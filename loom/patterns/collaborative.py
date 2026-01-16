@@ -9,7 +9,7 @@ Collaborative Pattern - 协作模式
 - 轻量级模型合成结果
 """
 
-from loom.patterns import Pattern
+from loom.patterns.base import Pattern
 
 
 class CollaborativePattern(Pattern):
@@ -37,6 +37,7 @@ class CollaborativePattern(Pattern):
 
         return LoomConfig(
             agent=AgentConfig(
+                name="collaborative-coordinator",
                 role="Coordinator",
                 system_prompt=(
                     "You are a coordinator. "
@@ -53,6 +54,6 @@ class CollaborativePattern(Pattern):
             ),
             execution=ExecutionConfig(
                 parallel_execution=True,
-                max_concurrent=5
+                concurrency_limit=5
             )
         )

@@ -106,7 +106,7 @@ class QueryFeatureExtractor:
     def extract_query_features(
         self,
         query: str,
-        context: dict | None = None
+        _context: dict | None = None
     ) -> QueryFeatures:
         """
         Extract features from a query.

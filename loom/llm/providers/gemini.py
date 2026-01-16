@@ -7,7 +7,7 @@ Google Gemini LLM Provider
 import json
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
@@ -46,7 +46,7 @@ class GeminiProvider(LLMProvider):
         api_key: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-        **kwargs
+        **kwargs  # noqa: ARG002 - Reserved for future configuration options
     ):
         """初始化 Gemini Provider"""
         if config is None:
@@ -58,8 +58,8 @@ class GeminiProvider(LLMProvider):
             if model or temperature is not None or max_tokens:
                 config.generation = GenerationConfig(
                     model=model or "gemini-2.0-flash-exp",
-                    temperature=temperature if temperature is not None else 0.7,
-                    max_tokens=max_tokens or 8192
+                    temperature=float(temperature) if temperature is not None else 0.7,
+                    max_tokens=int(max_tokens) if max_tokens else 8192
                 )
 
         self.config = config
@@ -121,19 +121,18 @@ class GeminiProvider(LLMProvider):
 
     def _build_generation_config(self) -> GeminiGenConfig:
         """构建生成配置，包含结构化输出"""
-        config_kwargs = {
+        config_kwargs: dict[str, Any] = {
             "temperature": self.config.generation.temperature,
             "max_output_tokens": self.config.generation.max_tokens
         }
 
         # 添加结构化输出配置
-        if self.config.structured_output.enabled:
-            if self.config.structured_output.format in ["json_object", "json", "json_schema"]:
-                config_kwargs["response_mime_type"] = "application/json"
+        if self.config.structured_output.enabled and self.config.structured_output.format in ["json_object", "json", "json_schema"]:
+            config_kwargs["response_mime_type"] = "application/json"
 
-                # 如果提供了 schema，添加 response_schema
-                if self.config.structured_output.schema:
-                    config_kwargs["response_schema"] = self.config.structured_output.schema
+            # 如果提供了 schema，添加 response_schema
+            if self.config.structured_output.schema is not None:
+                config_kwargs["response_schema"] = self.config.structured_output.schema
 
         return GeminiGenConfig(**config_kwargs)
 
@@ -141,7 +140,7 @@ class GeminiProvider(LLMProvider):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
-        config: dict[str, Any] | None = None
+        _config: dict[str, Any] | None = None
     ) -> LLMResponse:
         """调用 Gemini Chat API"""
         # 转换消息
@@ -205,7 +204,7 @@ class GeminiProvider(LLMProvider):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None
-    ) -> AsyncIterator[StreamChunk]:
+    ) -> AsyncGenerator[StreamChunk, None]:
         """流式调用 Gemini Chat API（支持工具调用）"""
         # 转换消息
         gemini_messages = self._convert_messages(messages)

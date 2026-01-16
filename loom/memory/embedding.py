@@ -68,7 +68,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             raise ImportError(
                 "openai not installed. "
                 "Install with: pip install openai"
-            )
+            ) from None
 
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
@@ -82,18 +82,29 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         }
 
     async def embed_text(self, text: str) -> list[float]:
+        import openai
+        
+        # Determine dimensions (use NOT_GIVEN if None)
+        dims = self._dimensions or openai.NOT_GIVEN
+        
         response = await self.client.embeddings.create(
             input=text,
             model=self.model,
-            dimensions=self._dimensions
+            dimensions=dims # type: ignore
         )
         return response.data[0].embedding
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Generate embeddings for multiple texts (batch processing)."""
+        import openai
+
+        # Determine dimensions (use NOT_GIVEN if None)
+        dims = self._dimensions or openai.NOT_GIVEN
+
         response = await self.client.embeddings.create(
             input=texts,
             model=self.model,
-            dimensions=self._dimensions
+            dimensions=dims # type: ignore
         )
         return [item.embedding for item in response.data]
 
@@ -146,7 +157,7 @@ class CachedEmbeddingProvider(EmbeddingProvider):
             if cache_key in self._cache:
                 results.append(self._cache[cache_key])
             else:
-                results.append(None)  # Placeholder
+                results.append([])  # Placeholder using empty list instead of None
                 uncached_texts.append(text)
                 uncached_indices.append(i)
 
@@ -213,7 +224,6 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             return
 
         try:
-            import torch
             from transformers import AutoModel, AutoTokenizer
 
             # Load tokenizer
@@ -236,13 +246,14 @@ class BGEEmbeddingProvider(EmbeddingProvider):
                 self.model_name,
                 cache_dir=self.cache_dir
             )
-            self._model.eval()
+            if self._model:
+                self._model.eval()
 
         except ImportError:
             raise ImportError(
                 "transformers not installed. "
                 "Install with: pip install transformers torch"
-            )
+            ) from None
 
     def _initialize_onnx(self):
         """Initialize ONNX Runtime session with optional quantization."""
@@ -251,8 +262,6 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             from pathlib import Path
 
             import onnxruntime as ort
-            import torch
-            from transformers import AutoModel
 
             # Determine ONNX model path
             cache_dir = self.cache_dir or os.path.expanduser("~/.cache/loom/onnx")
@@ -283,7 +292,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             raise ImportError(
                 "onnxruntime not installed. "
                 "Install with: pip install onnxruntime"
-            )
+            ) from None
 
     def _convert_to_onnx(self, onnx_path: str):
         """Convert PyTorch model to ONNX format with optional quantization."""
@@ -357,7 +366,14 @@ class BGEEmbeddingProvider(EmbeddingProvider):
         """Generate embedding for a single text."""
         self._initialize()
 
-        # Tokenize
+        # Prepare model/tokenizer
+        if self._model is None and self._onnx_session is None:
+             raise RuntimeError("Model not initialized")
+        
+        # Tokenize (assuming self._tokenizer is not None if _initialize passed)
+        if self._tokenizer is None:
+             raise RuntimeError("Tokenizer not initialized")
+
         encoded = self._tokenizer(
             text,
             padding=True,
@@ -414,6 +430,14 @@ class BGEEmbeddingProvider(EmbeddingProvider):
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts (batch processing)."""
         self._initialize()
+
+        # Prepare model/tokenizer
+        if self._model is None and self._onnx_session is None:
+             raise RuntimeError("Model not initialized")
+        
+        # Tokenize (assuming self._tokenizer is not None if _initialize passed)
+        if self._tokenizer is None:
+             raise RuntimeError("Tokenizer not initialized")
 
         # Tokenize batch
         encoded = self._tokenizer(

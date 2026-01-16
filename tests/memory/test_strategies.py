@@ -336,9 +336,10 @@ class TestFocusedStrategy:
     @pytest.fixture
     def mock_memory(self):
         """Create a mock memory object."""
+        from unittest.mock import AsyncMock
         memory = MagicMock()
-        # Note: FocusedStrategy uses memory.query() without await
-        memory.query = MagicMock(return_value=[])
+        # FocusedStrategy uses memory.query() with await
+        memory.query = AsyncMock(return_value=[])
         return memory
 
     @pytest.fixture
@@ -362,7 +363,7 @@ class TestFocusedStrategy:
         # The implementation should be: return await AutoStrategy().curate(...)
         pytest.skip("FocusedStrategy.curate() doesn't await AutoStrategy result (implementation bug)")
 
-    def test_curate_with_task_context(self, mock_memory, config):
+    async def test_curate_with_task_context(self, mock_memory, config):
         """Test semantic search across all tiers with task context."""
         relevant_units = [
             MemoryUnit(
@@ -384,13 +385,13 @@ class TestFocusedStrategy:
         mock_memory.query.return_value = relevant_units
 
         strategy = FocusedStrategy()
-        result = strategy.curate(mock_memory, config, task_context="search query")
+        result = await strategy.curate(mock_memory, config, task_context="search query")
 
         # Plans should be prioritized
         assert len(result) == 3
         assert result[0].type == MemoryType.PLAN  # Plan first
 
-    def test_curate_prioritizes_plans(self, mock_memory, config):
+    async def test_curate_prioritizes_plans(self, mock_memory, config):
         """Test that PLANs are prioritized over other types."""
         units = [
             MemoryUnit(content="Fact 1", tier=MemoryTier.L2_WORKING, type=MemoryType.FACT),
@@ -402,7 +403,7 @@ class TestFocusedStrategy:
         mock_memory.query.return_value = units
 
         strategy = FocusedStrategy()
-        result = strategy.curate(mock_memory, config, task_context="query")
+        result = await strategy.curate(mock_memory, config, task_context="query")
 
         # Plans should come first
         assert result[0].type == MemoryType.PLAN

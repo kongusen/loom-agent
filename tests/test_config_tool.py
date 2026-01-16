@@ -2,6 +2,7 @@
 Tests for Tool Configuration
 """
 
+from contextlib import suppress
 from unittest.mock import patch
 
 import pytest
@@ -105,11 +106,8 @@ class TestToolFactory:
         )
 
         # Should not raise error
-        try:
+        with suppress(Exception):
             ToolFactory.create_node(config, "node_id", dispatcher)
-        except Exception:
-            # We expect it to fail at ToolNode creation, but env_vars should be set
-            pass
 
         # Check that env var was set
         import os
@@ -125,10 +123,8 @@ class TestToolFactory:
         )
 
         # Should not raise error related to env_vars
-        try:
+        with suppress(Exception):
             ToolFactory.create_node(config, "node_id", dispatcher)
-        except Exception:
-            pass  # May fail at ToolNode creation
 
     def test_create_node_uses_config_name(self, dispatcher):
         """Test that config name is used in tool definition."""

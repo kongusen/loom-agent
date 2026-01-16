@@ -27,9 +27,9 @@ from loom.kernel.optimization import (
 # ============================================================================
 
 def create_mock_structure(
-    structure_id: str,
-    task_type: str,
-    total_nodes: int = 5,
+    _structure_id: str,
+    _task_type: str,
+    _total_nodes: int = 5,
     max_depth: int = 2,
     fitness: float = 0.7
 ) -> Mock:

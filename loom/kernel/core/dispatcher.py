@@ -3,7 +3,7 @@ Event Dispatcher (Kernel)
 """
 
 import contextlib
-from typing import Any
+from typing import Any, cast
 
 from loom.kernel.control.base import Interceptor
 from loom.kernel.core.bus import UniversalEventBus
@@ -72,10 +72,13 @@ class Dispatcher:
         # 1. Pre-invoke Interceptors
         current_event = event
         for interceptor in self.interceptors:
-            current_event = await interceptor.pre_invoke(current_event)
-            if current_event is None:
+            # We know current_event is not None here because we return if it becomes None
+            maybe_event = await interceptor.pre_invoke(current_event)
+            if maybe_event is None:
                 # Blocked by interceptor
                 return
+            # Explicit cast for mypy
+            current_event = maybe_event
 
         # 2. Publish to Bus (Routing & Persistence)
         import asyncio

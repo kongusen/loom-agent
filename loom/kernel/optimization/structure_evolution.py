@@ -59,7 +59,7 @@ class EvolutionConfig:
     max_structure_nodes: int = 20
     """Maximum nodes in structure"""
 
-    fitness_weights: dict[str, float] = None
+    fitness_weights: dict[str, float] | None = None
     """Weights for fitness calculation"""
 
     def __post_init__(self):
@@ -100,7 +100,7 @@ class StructureGenome:
         """Get maximum depth"""
         if not self.genes:
             return 0
-        return max(gene['depth'] for gene in self.genes)
+        return int(max(gene['depth'] for gene in self.genes))
 
     def get_node_count(self) -> int:
         """Get total node count"""
@@ -194,7 +194,7 @@ class GeneticOperators:
         return mutated
 
     @staticmethod
-    def _remove_node_mutation(genome: StructureGenome, config: EvolutionConfig) -> StructureGenome:
+    def _remove_node_mutation(genome: StructureGenome, _config: EvolutionConfig) -> StructureGenome:
         """Remove a random node"""
         if len(genome.genes) <= 1:
             return genome  # Must keep at least one node
@@ -246,7 +246,7 @@ class GeneticOperators:
         return mutated
 
     @staticmethod
-    def _change_depth_mutation(genome: StructureGenome, config: EvolutionConfig) -> StructureGenome:
+    def _change_depth_mutation(genome: StructureGenome, _config: EvolutionConfig) -> StructureGenome:
         """Move a subtree to a different depth"""
         # This is complex - skip for now
         return genome
@@ -384,6 +384,13 @@ class StructureEvolver:
 
         logger.info(f"Evolution complete: best fitness={best_fitness:.3f}")
 
+        # Ensure we always return a genome (fallback to best from final population)
+        if best_genome is None and population:
+            best_genome = max(population, key=lambda g: g.fitness)
+
+        if best_genome is None:
+            raise RuntimeError("Evolution failed: no valid genome found")
+
         return best_genome
 
     def _create_initial_population(self) -> list[StructureGenome]:
@@ -466,6 +473,14 @@ class StructureEvolver:
         - Depth (moderate depth is better)
         """
         weights = self.config.fitness_weights
+        if weights is None:
+             # Should not happen due to post_init, but for mypy:
+             weights = {
+                'performance': 0.4,
+                'efficiency': 0.3,
+                'simplicity': 0.2,
+                'balance': 0.1
+            }
 
         # Simplicity score
         max_nodes = self.config.max_structure_nodes
@@ -484,7 +499,7 @@ class StructureEvolver:
 
         # Balance score (check if branching is consistent)
         # Count children per parent
-        children_counts = {}
+        children_counts: dict[Any, int] = {}
         for gene in genome.genes:
             parent_id = gene.get('parent_id')
             if parent_id:
@@ -492,7 +507,7 @@ class StructureEvolver:
 
         if children_counts:
             np.mean(list(children_counts.values()))
-            std_children = np.std(list(children_counts.values()))
+            std_children = float(np.std(list(children_counts.values())))
             balance = 1.0 / (1.0 + std_children)  # Lower std = better balance
         else:
             balance = 1.0
@@ -504,7 +519,7 @@ class StructureEvolver:
             balance * weights['efficiency']
         )
 
-        return min(1.0, max(0.0, fitness))
+        return float(min(1.0, max(0.0, fitness)))
 
     def get_evolution_summary(self) -> dict[str, Any]:
         """Get summary of evolution process"""
@@ -565,13 +580,14 @@ class GenomeConverter:
         from loom.node.fractal import FractalAgentNode
 
         # Create nodes map
-        nodes_map = {}
+        nodes_map: dict[str, FractalAgentNode] = {}
 
         # Sort by depth to create parents first
         sorted_genes = sorted(genome.genes, key=lambda g: g['depth'])
 
         for gene in sorted_genes:
-            parent = nodes_map.get(gene.get('parent_id')) if gene.get('parent_id') else None
+            parent_id = gene.get('parent_id')
+            parent = nodes_map.get(str(parent_id)) if parent_id else None
 
             node = FractalAgentNode(
                 node_id=gene['id'],

@@ -48,7 +48,7 @@ class ConfidenceEstimator:
         self,
         query: str,
         response: str,
-        context: dict[str, Any] | None = None
+        _context: dict[str, Any] | None = None
     ) -> ConfidenceScore:
         """
         Estimate confidence in a System 1 response.

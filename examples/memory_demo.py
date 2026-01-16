@@ -14,7 +14,7 @@ from loom.protocol.cloudevents import CloudEvent
 
 class MockProvider:
     """Mock LLM Provider for demo."""
-    async def chat(self, messages: list[dict[str, str]], **kwargs) -> Any:
+    async def chat(self, messages: list[dict[str, str]], **_kwargs) -> Any:
         print(f"\n🤖 [LLM Input Context]: {len(messages)} messages")
         for msg in messages:
             content = str(msg.get('content', ''))[:50] + "..."

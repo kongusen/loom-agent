@@ -20,7 +20,7 @@ class ToolRegistry:
         self._tools: dict[str, Callable] = {}
         self._definitions: dict[str, MCPToolDefinition] = {}
 
-    def register_function(self, func: Callable, name: str = None) -> MCPToolDefinition:
+    def register_function(self, func: Callable, name: str | None = None) -> MCPToolDefinition:
         """Register a python function as a tool."""
         # Clean name
         tool_name = name or func.__name__

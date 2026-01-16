@@ -32,7 +32,7 @@ class CrewNode(Node):
         dispatcher: Dispatcher,
         agents: list[NodeProtocol],
         pattern: Literal["sequential", "parallel"] = "sequential",
-        sanitizer: ContextSanitizer = None
+        sanitizer: ContextSanitizer | None = None
     ):
         super().__init__(node_id, dispatcher)
         self.agents = agents
@@ -43,14 +43,16 @@ class CrewNode(Node):
         """
         Execute the crew pattern.
         """
-        task = event.data.get("task", "")
+        if event.data is None:
+            return {"error": "Event data missing"}
+        task = str(event.data.get("task", ""))
 
         if self.pattern == "sequential":
             return await self._execute_sequential(task, event.traceparent)
 
         return {"error": "Unsupported pattern"}
 
-    async def _execute_sequential(self, task: str, traceparent: str = None) -> Any:
+    async def _execute_sequential(self, task: str, traceparent: str | None = None) -> Any:  # noqa: ARG002 - Reserved for distributed tracing
         """
         Chain agents sequentially. A -> B -> C
 
@@ -62,7 +64,7 @@ class CrewNode(Node):
         - Fractal uniformity is maintained
         """
         current_input = task
-        chain_results = []
+        chain_results: list[dict[str, Any]] = []
 
         for agent in self.agents:
             # Use self.call() to invoke through event bus

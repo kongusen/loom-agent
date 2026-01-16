@@ -57,15 +57,15 @@ def apply_patch(state: dict | list, patch: StatePatch) -> None:
                 if token == "-":
                     key = len(target) # Append
                 else:
-                    raise ValueError(f"Invalid list index: {token}")
+                    raise ValueError(f"Invalid list index: {token}") from None
         else:
-            key = token
+            key = token # type: ignore
 
         if not is_last:
             if isinstance(target, dict):
                 target = target.setdefault(key, {})
             elif isinstance(target, list):
-                if key < len(target):
+                if key is not None and key < len(target):
                     target = target[key]
                 else:
                     raise IndexError(f"List index out of range: {key}")
@@ -79,13 +79,13 @@ def apply_patch(state: dict | list, patch: StatePatch) -> None:
             target[key] = patch.value
 
     elif patch.op == PatchOperation.REPLACE:
-        if isinstance(target, list | dict):
+        if isinstance(target, list | dict) and key is not None:
              target[key] = patch.value
 
     elif patch.op == PatchOperation.REMOVE:
-        if isinstance(target, list):
+        if isinstance(target, list) and key is not None:
              target.pop(key)
-        elif isinstance(target, dict):
+        elif isinstance(target, dict) and key is not None:
              target.pop(key, None)
 
     # TODO: Implement MOVE, COPY, TEST

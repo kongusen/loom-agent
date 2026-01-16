@@ -28,6 +28,9 @@ class StateStore:
         if event.type != "state.patch":
             return
 
+        if event.data is None:
+            return
+
         patches_data = event.data.get("patches", [])
         if not patches_data:
             return
@@ -49,15 +52,18 @@ class StateStore:
             return copy.deepcopy(self._root)
 
         tokens = [t for t in path.split('/') if t]
-        current = self._root
-
+        current: Any = self._root
+        
         for token in tokens:
+            if current is None:
+                return None
+            
             if isinstance(current, dict):
                 current = current.get(token)
             elif isinstance(current, list):
                 try:
                     idx = int(token)
-                    current = current[idx] if 0 <= idx < len(current) else None
+                    current = current[idx] if 0 <= idx < len(current) else None # type: ignore
                 except ValueError:
                     current = None
 

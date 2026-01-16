@@ -10,7 +10,7 @@ Retry Handler for LLM API Calls
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +68,11 @@ def calculate_delay(attempt: int, config: RetryConfig) -> float:
 
 
 async def retry_async(
-    func: Callable[..., T],
+    func: Callable[..., Any],
     config: RetryConfig | None = None,
-    *args,
-    **kwargs
-) -> T:
+    *args: Any,
+    **kwargs: Any
+) -> Any:
     """
     异步函数重试包装器
 
@@ -98,8 +98,7 @@ async def retry_async(
 
         except Exception as e:
             last_exception = e
-
-            # 最后一次尝试，直接抛出异常
+            
             if attempt == config.max_retries:
                 logger.error(
                     f"Function {func.__name__} failed after {config.max_retries} retries: {str(e)}"
@@ -122,4 +121,6 @@ async def retry_async(
             await asyncio.sleep(delay)
 
     # 理论上不会到达这里
-    raise last_exception
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("Unexpected retry loop exit")

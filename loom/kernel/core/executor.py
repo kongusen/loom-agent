@@ -74,9 +74,9 @@ class ToolExecutor:
             Tuple of (unique_calls, index_map) where index_map maps
             original_idx -> unique_idx
         """
-        seen = {}
-        unique_calls = []
-        index_map = {}  # original_idx -> unique_idx
+        seen: dict[Any, int] = {}
+        unique_calls: list[dict[str, Any]] = []
+        index_map: dict[int, int] = {}  # original_idx -> unique_idx
 
         for idx, call in enumerate(tool_calls):
             name = call.get("name", "")
@@ -85,7 +85,7 @@ class ToolExecutor:
             # Create hashable key from name and args
             try:
                 args_items = tuple(sorted(args.items())) if args else ()
-                key = (name, args_items)
+                key: tuple[Any, Any] = (name, args_items)
             except (TypeError, AttributeError):
                 # If args not hashable, treat as unique
                 key = (name, id(args))
@@ -291,12 +291,11 @@ class ToolExecutor:
                     return result
 
             except FileNotFoundError:
-                if attempt < max_retries:
+                if attempt < max_retries and "arguments" in call and "path" in call["arguments"]:
                     # Try with absolute path
-                    if "arguments" in call and "path" in call["arguments"]:
-                        original_path = call["arguments"]["path"]
-                        call["arguments"]["path"] = os.path.abspath(original_path)
-                        continue
+                    original_path = call["arguments"]["path"]
+                    call["arguments"]["path"] = os.path.abspath(original_path)
+                    continue
                 raise
 
             except PermissionError:
@@ -320,7 +319,7 @@ class ToolExecutor:
         call: dict,
         executor_func: Callable
     ) -> ToolExecutionResult:
-        name = call.get("name")
+        name = str(call.get("name", ""))
         args = call.get("arguments") or {}
 
         # Check cache for read-only tools

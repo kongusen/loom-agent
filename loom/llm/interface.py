@@ -3,10 +3,12 @@ LLM Provider Interface
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any, Literal
 
 from pydantic import BaseModel
+
+from loom.protocol.interfaces import LLMProviderProtocol
 
 
 class LLMResponse(BaseModel):
@@ -46,9 +48,6 @@ class StreamChunk(BaseModel):
     metadata: dict[str, Any] = {}
 
 
-from loom.protocol.interfaces import LLMProviderProtocol
-
-
 class LLMProvider(LLMProviderProtocol, ABC):
     """
     Abstract Interface for LLM Backends (OpenAI, Anthropic, Local).
@@ -71,11 +70,14 @@ class LLMProvider(LLMProviderProtocol, ABC):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None
-    ) -> AsyncIterator[StreamChunk]:
+    ) -> AsyncGenerator[StreamChunk, None]:
         """
         Stream the response as structured chunks.
 
         UPGRADED: Now returns StreamChunk instead of raw strings,
         enabling real-time thought injection and tool call support.
         """
-        pass
+        # Stub to indicate this is an async generator
+        if False:
+            yield  # type: ignore[unreachable]
+        raise NotImplementedError

@@ -277,9 +277,6 @@ class TestOpenAIEmbeddingProvider:
         # This test verifies the error handling - it's hard to actually test
         # without uninstalling openai, so we just verify the code path exists
         # Skip if openai is actually available
-        try:
-            import openai
+        import importlib.util
+        if importlib.util.find_spec("openai") is not None:
             pytest.skip("openai is installed, cannot test ImportError")
-        except ImportError:
-            # Expected - openai not installed
-            pass

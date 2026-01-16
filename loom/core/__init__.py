@@ -9,7 +9,7 @@ Loom Core - 核心抽象层
 # from loom.core.dispatcher import Dispatcher
 # from loom.core.protocol import CloudEvent
 
-__all__ = [
+__all__: list[str] = [
     # "Node",
     # "Dispatcher",
     # "CloudEvent",

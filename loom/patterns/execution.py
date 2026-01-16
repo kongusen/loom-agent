@@ -9,7 +9,7 @@ Execution Pattern - 执行模式
 - 直接行动导向
 """
 
-from loom.patterns import Pattern
+from loom.patterns.base import Pattern
 
 
 class ExecutionPattern(Pattern):
@@ -36,6 +36,7 @@ class ExecutionPattern(Pattern):
 
         return LoomConfig(
             agent=AgentConfig(
+                name="execution-executor",
                 role="Executor",
                 system_prompt=(
                     "You are an executor. "

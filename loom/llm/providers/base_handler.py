@@ -11,7 +11,7 @@ Base Response Handler for LLM Providers
 import json
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 
 from loom.llm.interface import StreamChunk
@@ -75,7 +75,7 @@ class ToolCallAggregator:
 
         return None
 
-    def get_complete_calls(self) -> AsyncIterator[StreamChunk]:
+    def get_complete_calls(self) -> Iterator[StreamChunk]:
         """
         获取所有完成的工具调用
 
@@ -125,10 +125,10 @@ class BaseResponseHandler(ABC):
         self.aggregator = ToolCallAggregator()
 
     @abstractmethod
-    async def handle_stream_chunk(
+    async def stream_response(
         self,
-        chunk: Any
-    ) -> AsyncIterator[StreamChunk]:
+        response: Any
+    ) -> AsyncGenerator[StreamChunk, None]:  # Ideally this should be AsyncGenerator but matching abstract definition
         """
         处理单个流式响应块
 
@@ -183,7 +183,7 @@ class BaseResponseHandler(ABC):
         Returns:
             done 类型的 StreamChunk
         """
-        metadata = {"finish_reason": finish_reason}
+        metadata: dict[str, Any] = {"finish_reason": finish_reason}
         if token_usage:
             metadata["token_usage"] = token_usage
 

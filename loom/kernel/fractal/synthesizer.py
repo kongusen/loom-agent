@@ -177,7 +177,7 @@ class ResultSynthesizer:
                 prompt,
                 max_tokens=self.config.max_synthesis_tokens
             )
-            return response.strip()
+            return str(response).strip()
         except Exception as e:
             logger.error(f"LLM 合成失败: {e}")
             # 降级到结构化输出
@@ -196,6 +196,8 @@ class ResultSynthesizer:
             return self.base_provider
         elif self.config.synthesis_model == "custom":
             # 用户指定的模型
+            if not self.config.synthesis_model_override:
+                 raise ValueError("Custom model selected but no override provided")
             return self._create_custom_provider(self.config.synthesis_model_override)
         else:
             return self.base_provider

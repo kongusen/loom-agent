@@ -183,7 +183,7 @@ class FocusedStrategy(CurationStrategy):
     Focused Mode - Task-oriented curation across all tiers.
     """
 
-    def curate(
+    async def curate(
         self,
         memory: "LoomMemory",
         config: CurationConfig,
@@ -192,7 +192,7 @@ class FocusedStrategy(CurationStrategy):
 
         if not task_context:
             # Fallback to Auto
-            return AutoStrategy().curate(memory, config, task_context)
+            return await AutoStrategy().curate(memory, config, task_context)
 
         # Semantic Search across L2, L3, L4
         query = MemoryQuery(
@@ -204,7 +204,7 @@ class FocusedStrategy(CurationStrategy):
             query_text=task_context,
             top_k=15
         )
-        relevant = memory.query(query)
+        relevant = await memory.query(query)
 
         # Ensure PLANs are prioritized
         plans = [u for u in relevant if u.type == MemoryType.PLAN]
@@ -216,7 +216,7 @@ class FocusedStrategy(CurationStrategy):
 class StrategyFactory:
     """Factory for creating Curation Strategies."""
 
-    _strategies = {
+    _strategies: dict[str, type[CurationStrategy]] = {
         "auto": AutoStrategy,
         "snippets": SnippetsStrategy,
         "focused": FocusedStrategy

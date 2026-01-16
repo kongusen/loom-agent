@@ -12,6 +12,7 @@ from loom.config.execution import ExecutionConfig
 from loom.config.fractal import FractalConfig
 from loom.config.interceptor import InterceptorConfig
 from loom.config.memory import ContextConfig, CurationConfig
+from loom.config.cognitive import CognitiveConfig
 from loom.config.optimization import OptimizationConfig
 
 # Interceptors
@@ -207,7 +208,7 @@ class LoomBuilder:
         """
         self._execution_config = ExecutionConfig(
             parallel_execution=parallel_execution,
-            max_concurrent=max_concurrent,
+            concurrency_limit=max_concurrent,
             **kwargs
         )
         return self
@@ -369,7 +370,7 @@ class LoomBuilder:
             # Timeout Control
             if config.enable_timeout and config.timeout_seconds:
                 self._dispatcher.add_interceptor(
-                    TimeoutInterceptor(timeout_seconds=config.timeout_seconds)
+                    TimeoutInterceptor(default_timeout_sec=config.timeout_seconds)
                 )
 
             # Human-in-the-Loop
@@ -388,14 +389,22 @@ class LoomBuilder:
                     AuthInterceptor(allowed_prefixes=set(config.allowed_sources))
                 )
 
+        # Prepare Cognitive Configuration
+        cognitive_config = CognitiveConfig.default()
+        if self._memory_config:
+            cognitive_config.context_max_tokens = self._memory_config.max_context_tokens
+            cognitive_config.context_strategy = self._memory_config.strategy
+            # Map other fields if possible, or assume defaults for now
+
         # 准备参数
-        params = {
+        params: dict[str, Any] = {
             "node_id": self._node_id,
             "dispatcher": self._dispatcher,
             "provider": self._llm,
             "tools": self._tools,
             "role": self._role,
             "system_prompt": self._system_prompt,
+            "cognitive_config": cognitive_config,
         }
 
         # 应用配置
@@ -404,10 +413,6 @@ class LoomBuilder:
 
         if self._execution_config:
             params["execution_config"] = self._execution_config
-
-        # TODO: 需要重新设计memory配置的传递方式
-        # AgentNode期望cognitive_config而不是context_config
-        # 暂时让AgentNode使用默认的CognitiveConfig
 
         # 应用额外参数
         params.update(self._extra_params)

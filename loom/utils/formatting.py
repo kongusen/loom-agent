@@ -10,7 +10,7 @@ class ErrorFormatter:
     """
 
     @staticmethod
-    def format_tool_error(error: Exception, tool_name: str, context: dict | None = None) -> str:
+    def format_tool_error(error: Exception, tool_name: str, context: dict | None = None) -> str:  # noqa: ARG004 - Reserved for future context-aware formatting
         """
         Format an exception from a tool execution into a rich string.
         """
@@ -38,7 +38,7 @@ class ErrorFormatter:
         return "\n".join(output)
 
     @staticmethod
-    def _get_hints(error: Exception, tool_name: str, message: str) -> list[str]:
+    def _get_hints(error: Exception, _tool_name: str, message: str) -> list[str]:
         hints = []
         msg_lower = message.lower()
 

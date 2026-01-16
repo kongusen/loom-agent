@@ -16,7 +16,7 @@ import contextlib
 
 from loom.protocol.cloudevents import CloudEvent
 
-from . import EventHandler, Transport
+from .base import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class NATSTransport(Transport):
 
     def __init__(
         self,
-        servers: list[str] = None,
+        servers: list[str] | None = None,
         use_jetstream: bool = False,
         stream_name: str = "LOOM_EVENTS",
     ):
@@ -69,8 +69,9 @@ class NATSTransport(Transport):
 
     async def disconnect(self) -> None:
         self._connected = False
-
-        for sub in self._subscriptions:
+        
+        for sub_tuple in self._subscriptions:
+             sub = sub_tuple[1]
              with contextlib.suppress(Exception):
                  await sub.unsubscribe()
 
@@ -89,7 +90,7 @@ class NATSTransport(Transport):
 
         if self.use_jetstream and self.js:
             await self.js.publish(subject, payload)
-        else:
+        elif self.nc:
             await self.nc.publish(subject, payload)
 
     async def subscribe(self, topic: str, handler: EventHandler) -> None:
@@ -123,8 +124,10 @@ class NATSTransport(Transport):
             if self.use_jetstream and self.js:
                 # Durable consumer? For now, ephemeral to match interface
                 sub = await self.js.subscribe(subject, cb=cb)
-            else:
+            elif self.nc:
                 sub = await self.nc.subscribe(subject, cb=cb)
+            else:
+                 raise RuntimeError("NATS client not connected")
 
             # Store subscription with topic for later unsubscribe
             self._subscriptions.append((topic, sub))

@@ -15,7 +15,7 @@ class FunctionToMCP:
     """
 
     @staticmethod
-    def convert(func: Callable[..., Any], name: str = None) -> MCPToolDefinition:
+    def convert(func: Callable[..., Any], name: str | None = None) -> MCPToolDefinition:
         """
         Introspects a python function and returns an MCP Tool Definition.
         """

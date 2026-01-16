@@ -3,13 +3,12 @@ LoomContext - Context Assembly Engine
 """
 from typing import Any
 
-import tiktoken
-
 from loom.config.memory import ContextConfig
 
 from .compression import ContextCompressor, MemoryCompressor
 from .core import LoomMemory
 from .strategies import StrategyFactory
+from .tokenizer import get_token_counter
 from .types import MemoryTier, MemoryUnit
 
 
@@ -30,10 +29,7 @@ class ContextAssembler:
         self.dispatcher = dispatcher
 
         # Initialize Tokenizer (Default to cl100k_base for GPT-4)
-        try:
-            self.encoder = tiktoken.get_encoding(self.config.tokenizer_encoding)
-        except:
-             self.encoder = tiktoken.get_encoding("cl100k_base")
+        self.token_counter = get_token_counter(self.config.tokenizer_encoding)
 
         # Initialize Memory Compressor
         self.compressor = MemoryCompressor(
@@ -46,7 +42,7 @@ class ContextAssembler:
         memory: LoomMemory,
         task: str | None = None,
         system_prompt: str | None = None
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """
         Main entry point to build the context.
         """
@@ -138,7 +134,7 @@ class ContextAssembler:
 
             if current_tokens + msg_tokens > max_tokens:
                 continue # Skip if over budget (greedy approach)
-            
+
             selected_units.append(unit)
             current_tokens += msg_tokens
 
@@ -217,13 +213,13 @@ class ContextAssembler:
     def _count_tokens_msg(self, message: dict[str, str]) -> int:
         """Count tokens in a message dict."""
         text = str(message.get("content", ""))
-        return len(self.encoder.encode(text))
+        return self.token_counter.count_string(text)
 
     def _count_tokens_str(self, text: str) -> int:
         """Count tokens in a string."""
-        return len(self.encoder.encode(text))
+        return self.token_counter.count_string(text)
 
-    def _calculate_dynamic_budget(self, task: str, memory: LoomMemory) -> int:
+    def _calculate_dynamic_budget(self, task: str | None, memory: LoomMemory) -> int:
         """
         Calculate dynamic token budget based on task complexity and context.
 
@@ -287,9 +283,9 @@ class ContextAssembler:
 
     def _insert_cache_boundaries(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         selected_units: list[MemoryUnit]
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """Insert cache_control markers at strategic points for prompt caching."""
         if not self.config.enable_prompt_caching:
             return messages
@@ -329,13 +325,13 @@ class ContextManager:
         self.memory = memory
         self.assembler = assembler
 
-        self.last_snapshot: list[dict] = []
+        self.last_snapshot: list[dict[str, Any]] = []
 
     async def build_prompt(
         self,
         task: str,
         system_prompt: str | None = None
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """Build the complete prompt for the current context."""
         messages = await self.assembler.assemble(
             self.memory,

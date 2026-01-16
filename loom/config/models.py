@@ -23,6 +23,7 @@ class AgentConfig(BaseModel):
     name: str = Field(..., description="Agent 名称")
     type: str | None = Field(None, description="预构建 Agent 类型")
     role: str | None = Field(None, description="自定义角色")
+    system_prompt: str | None = Field(None, description="系统提示词")
     skills: list[str] | None = Field(None, description="技能列表")
     config: dict[str, Any] | None = Field(None, description="额外配置")
     fractal: FractalConfig | None = Field(None, description="分型配置")

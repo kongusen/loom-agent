@@ -3,10 +3,13 @@ Core Protocols for Loom Framework.
 Adhering to the "Protocol-First" design principle using typing.Protocol.
 """
 
-from collections.abc import AsyncIterator
-from typing import Any, Protocol, runtime_checkable
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from loom.protocol.cloudevents import CloudEvent
+
+if TYPE_CHECKING:
+    from loom.llm.interface import StreamChunk
 
 # ----------------------------------------------------------------------
 # Node Protocol
@@ -135,8 +138,11 @@ class LLMProviderProtocol(Protocol):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None
-    ) -> AsyncIterator[str]:
-        ...
+    ) -> AsyncGenerator["StreamChunk", None]:
+        # Stub to indicate this is an async generator
+        if False:
+            yield  # type: ignore[unreachable]
+        raise NotImplementedError
 
 # ----------------------------------------------------------------------
 # Infra Protocols

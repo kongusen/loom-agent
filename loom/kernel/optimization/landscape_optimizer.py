@@ -241,7 +241,7 @@ class FitnessLandscapeOptimizer:
         nodes = []
         depths = []
         branching_factors = []
-        role_counts = defaultdict(int)
+        role_counts: defaultdict[str, int] = defaultdict(int)
 
         def _collect(node: Any, depth: int = 0):
             nodes.append(node)
@@ -298,7 +298,7 @@ class FitnessLandscapeOptimizer:
             'avg_cost': sum(avg_costs) / len(avg_costs)
         }
 
-    def _analyze_strategies(self, root: Any) -> dict[str, int]:
+    def _analyze_strategies(self, _root: Any) -> dict[str, int]:
         """Analyze growth strategies used"""
         # This would require tracking strategy history in nodes
         # For now, return empty
@@ -408,7 +408,7 @@ class FitnessLandscapeOptimizer:
     def recommend_structure(
         self,
         task_type: str,
-        task_complexity: float,
+        task_complexity: float,  # noqa: ARG002 - Reserved for future complexity-based filtering
         current_fitness: float | None = None
     ) -> StructurePattern | None:
         """
@@ -464,7 +464,7 @@ class FitnessLandscapeOptimizer:
 
     def visualize_landscape(
         self,
-        complexity_range: tuple[float, float] = (0.0, 1.0),
+        _complexity_range: tuple[float, float] = (0.0, 1.0),
         depth_range: tuple[int, int] = (0, 5)
     ) -> str:
         """

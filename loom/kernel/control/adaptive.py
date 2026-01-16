@@ -230,7 +230,8 @@ class AnomalyDetector:
         import time
 
         if event.type == "agent.thought":
-            thought = event.data.get("thought", "")
+            data = event.data or {}
+            thought = data.get("thought", "")
             if self._is_repetitive(agent_id, thought):
                 return AnomalyType.REPETITIVE_REASONING
 
@@ -529,9 +530,8 @@ class AdaptiveLLMInterceptor(Interceptor):
         strategy = self.config.get_strategy(anomaly)
 
         # Check for escalation
-        if strategy and occurrence_count > strategy.max_retries and self.config.escalation_enabled:
-            if occurrence_count > self.config.escalation_after_failures:
-                strategy = self.config.escalation_strategy
+        if strategy and occurrence_count > strategy.max_retries and self.config.escalation_enabled and occurrence_count > self.config.escalation_after_failures:
+            strategy = self.config.escalation_strategy
 
         if strategy is None:
             # No strategy configured for this anomaly - pass through

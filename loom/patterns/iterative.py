@@ -9,7 +9,7 @@ Iterative Pattern - 迭代模式
 - 质量评估和改进
 """
 
-from loom.patterns import Pattern
+from loom.patterns.base import Pattern
 
 
 class IterativePattern(Pattern):
@@ -36,6 +36,7 @@ class IterativePattern(Pattern):
 
         return LoomConfig(
             agent=AgentConfig(
+                name="iterative-refiner",
                 role="Refiner",
                 system_prompt=(
                     "You are a refiner. "

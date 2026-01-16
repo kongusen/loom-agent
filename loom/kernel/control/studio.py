@@ -4,14 +4,14 @@ import json
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, cast
 
 try:
     import websockets
-    from websockets.client import WebSocketClientProtocol
+    from websockets.client import ClientProtocol as WebSocketClientProtocol
 except ImportError:
-    websockets = None
-    WebSocketClientProtocol = Any
+    websockets = None # type: ignore
+    WebSocketClientProtocol = Any  # type: ignore
 
 from loom.kernel.control.base import Interceptor
 from loom.protocol.cloudevents import CloudEvent
@@ -66,7 +66,8 @@ class StudioInterceptor(Interceptor):
 
             # Simple debounce/lock could go here but for now just log
             print(f"DEBUG: Connecting to {url}")
-            self.ws = await websockets.connect(url)
+            conn = await websockets.connect(url)
+            self.ws = cast(WebSocketClientProtocol, conn)
             logger.info(f"Connected to Loom Studio at {url}")
             print("DEBUG: Connected successfully")
         except Exception as e:
@@ -96,7 +97,7 @@ class StudioInterceptor(Interceptor):
     async def _send_event_data(self, event_data: dict[str, Any]):
         """Buffer and send event data"""
         try:
-            self.event_buffer.append(event_data)
+            self.event_buffer.append(cast(CloudEvent, event_data))
 
             if len(self.event_buffer) >= self.buffer_size:
                 await self._flush_buffer()
@@ -120,7 +121,9 @@ class StudioInterceptor(Interceptor):
                     "type": "event_batch",
                     "events": current_batch
                 }
-                await self.ws.send(json.dumps(batch))
+                # Cast to Any to avoid protocol attribute issues
+                conn = cast(Any, self.ws)
+                await conn.send(json.dumps(batch))
             except Exception as e:
                 logger.debug(f"Failed to send batch to Studio: {e}")
                 print(f"DEBUG: Failed to send batch: {e}")

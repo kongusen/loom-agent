@@ -51,7 +51,7 @@ def estimate_task_complexity(task: str) -> float:
 def should_use_fractal(
     task: str,
     config: FractalConfig,
-    routing_decision: Any | None = None
+    _routing_decision: Any | None = None
 ) -> bool:
     """
     Determine if fractal decomposition should be used
@@ -81,7 +81,7 @@ def should_use_fractal(
     if trigger == GrowthTrigger.MANUAL:
         return False
 
-    # COMPLEXITY trigger    
+    # COMPLEXITY trigger
     if config.growth_trigger == GrowthTrigger.COMPLEXITY:
         # Check complexity threshold
         complexity = estimate_task_complexity(task)

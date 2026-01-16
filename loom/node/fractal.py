@@ -8,7 +8,7 @@ complex tasks through recursive decomposition.
 import asyncio
 import time
 import uuid
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from loom.config.fractal import (
     FractalConfig,
@@ -17,7 +17,7 @@ from loom.config.fractal import (
     NodeRole,
 )
 from loom.kernel.fractal import FractalOrchestrator, OrchestratorConfig, fractal_utils
-from loom.llm import LLMProvider
+from loom.llm import LLMProvider, MockLLMProvider
 from loom.memory.core import LoomMemory
 from loom.node.agent import AgentNode
 from loom.protocol.delegation import TaskDecomposition
@@ -75,13 +75,16 @@ class FractalAgentNode(AgentNode):
         if standalone:
             # Minimal initialization without AgentNode
             self.node_id = node_id
-            self.provider = provider or kwargs.get('llm')  # Support both names
+            self.provider = provider or kwargs.get('llm') or MockLLMProvider()  # Support both names
             self.llm = self.provider  # Alias
             self.tools = tools or []
-            self.memory = memory
-            self.tools = tools or []
-            self.memory = memory
-            self.dispatcher = dispatcher
+            self.memory = memory or LoomMemory(self.node_id)
+            # dispatcher can be None in standalone, but AgentNode expects Dispatcher.
+            # We must either create one or allow None (if typed Optional).
+            # AgentNode types dispatcher as Dispatcher.
+            # So we create a dummy or rely on standard bus.
+            from loom.kernel.core import Dispatcher, UniversalEventBus
+            self.dispatcher = dispatcher or Dispatcher(UniversalEventBus())
 
             # Initialize tool helper structures
             self.known_tools = {t.name: t for t in self.tools} if hasattr(self.tools, '__iter__') else {}
@@ -90,8 +93,10 @@ class FractalAgentNode(AgentNode):
         else:
             # Full AgentNode initialization
             from loom.kernel.core import Dispatcher
+            from loom.kernel.core.bus import UniversalEventBus
             if dispatcher is None:
-                dispatcher = Dispatcher()
+                bus = UniversalEventBus()
+                dispatcher = Dispatcher(bus)
             super().__init__(
                 node_id=node_id,
                 dispatcher=dispatcher,
@@ -103,7 +108,7 @@ class FractalAgentNode(AgentNode):
 
         # Fractal attributes
         self.node_id = node_id or f"node_{uuid.uuid4().hex[:8]}"
-        self.role = role
+        self.role = role.value
         self.parent = parent
         self.children: list[FractalAgentNode] = [] # Kept for backward compat/inspection, but managed by Orchestrator technically?
         # Actually, Orchestrator doesn't persist children list in state, it returns them.
@@ -192,7 +197,7 @@ class FractalAgentNode(AgentNode):
             return {
                 "result": result,
                 "node_id": self.node_id,
-                "role": self.role.value,
+
                 "execution_time": execution_time,
                 "tokens_used": tokens_used,
                 "structure": self.get_structure_tree() if use_fractal else None,
@@ -218,15 +223,19 @@ class FractalAgentNode(AgentNode):
         return fractal_utils.should_use_fractal(task, self.fractal_config)
 
     async def _direct_execute(self, task: str, **kwargs) -> Any:
-        """Execute task directly using parent AgentNode.run()"""
-        # Use parent class's run method
-        result = await self.run(task, **kwargs)
+        """Execute task directly using parent AgentNode._execute_task()"""
+        # Use parent class's execution method
+        # Note: _execute_task takes (task, event), ignoring kwargs for now or mapping them
+        result = await self._execute_task(task)
         return result
 
-    async def _fractal_execute(self, task: str, **kwargs) -> dict[str, Any]:
+    async def _fractal_execute(self, task: str, **_kwargs) -> dict[str, Any]:
         """Execute task using fractal decomposition via Orchestrator"""
         # 1. Decompose task
         decomposition = await self._decompose_task(task)
+
+        if not self.orchestrator:
+             raise RuntimeError("Orchestrator not initialized")
 
         # 2. Delegate via Orchestrator
         delegation_result = await self.orchestrator.process_decomposition(decomposition)
@@ -285,11 +294,12 @@ class FractalAgentNode(AgentNode):
         prompt = self._create_decomposition_prompt(task, strategy)
 
         # Call LLM
-        response = await self.llm.generate(
-            prompt=prompt,
-            max_tokens=1000,
-            temperature=0.3  # Lower temperature for consistent decomposition
+        # Use chat method as LLMProvider does not have generate
+        response_obj = await self.llm.chat(
+            messages=[{"role": "user", "content": prompt}],
+            config={"max_tokens": 1000, "temperature": 0.3}
         )
+        response = response_obj.content
 
         # Parse response
         subtasks, reasoning = self._parse_decomposition_response(response)
@@ -387,7 +397,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         """Get complete structure tree"""
         return {
             "node_id": self.node_id,
-            "role": self.role.value,
+            "role": self.role,
             "depth": self.depth,
             "metrics": self.metrics.to_dict(),
             "children": [child.get_structure_tree() for child in self.children]
@@ -421,7 +431,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         tasks = self.metrics.task_count
 
         result = f"{prefix}{connector}{self.node_id} "
-        result += f"[{self.role.value}] "
+        result += f"[{self.role}] "
         result += f"fitness={fitness:.2f} tasks={tasks}\n"
 
         if self.children:
@@ -436,7 +446,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
 
     def _visualize_compact(self) -> str:
         """Compact visualization"""
-        nodes = []
+        nodes: list[str] = []
         self._collect_nodes_compact(nodes)
 
         result = f"📊 Structure: {len(nodes)} nodes, max depth {self.depth}\n"
@@ -449,7 +459,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         """Collect nodes for compact visualization"""
         indent = "  " * depth
         fitness = self.metrics.fitness_score()
-        nodes.append(f"{indent}{self.node_id} [{self.role.value}] f={fitness:.2f}")
+        nodes.append(f"{indent}{self.node_id} [{self.role}] f={fitness:.2f}")
 
         for child in self.children:
             child._collect_nodes_compact(nodes, depth + 1)
@@ -458,7 +468,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
     # Utilities
     # ============================================================================
 
-    def _select_tools_for_child(self, subtask: str) -> list[Any]:
+    def _select_tools_for_child(self, _subtask: str) -> list[Any]:
         """
         Select tools for child node based on subtask
         For backward compatibility with add_child.
@@ -486,16 +496,19 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Helper to process results
-        processed = []
+        processed: list[dict[str, Any]] = []
         for i, res in enumerate(results):
              if isinstance(res, Exception):
-                 processed.append({
+                 child_node = self.children[i]
+                 error_data: dict[str, Any] = {
                      "success": False,
                      "error": str(res),
-                     "node_id": self.children[i].node_id
-                 })
+                     "node_id": child_node.node_id if child_node else "unknown"
+                 }
+                 processed.append(error_data)
              else:
-                 processed.append(res)
+                # We assume execute returns a dict, but explicit cast helps mypy
+                processed.append(cast(dict[str, Any], res))
         return processed
 
     def _count_tokens(self) -> int:

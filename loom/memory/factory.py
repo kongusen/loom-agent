@@ -2,6 +2,7 @@
 Factory functions for creating vector stores and embedding providers.
 """
 
+from typing import Any, cast
 from loom.config.memory import EmbeddingConfig, VectorStoreConfig
 
 from .embedding import EmbeddingProvider
@@ -47,9 +48,9 @@ def create_vector_store(config: VectorStoreConfig) -> VectorStoreProvider | None
             import importlib
             module = importlib.import_module(module_path)
             provider_class = getattr(module, class_name)
-            return provider_class(**config.provider_config)
+            return cast(VectorStoreProvider, provider_class(**config.provider_config))
         except Exception as e:
-            raise ValueError(f"Failed to load custom vector store '{provider}': {e}")
+            raise ValueError(f"Failed to load custom vector store '{provider}': {e}") from e
 
 
 def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
@@ -63,6 +64,7 @@ def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
         EmbeddingProvider instance
     """
     provider = config.provider.lower()
+    base_provider: EmbeddingProvider
 
     if provider == "openai":
         from .embedding import OpenAIEmbeddingProvider
@@ -83,9 +85,9 @@ def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
             import importlib
             module = importlib.import_module(module_path)
             provider_class = getattr(module, class_name)
-            base_provider = provider_class(**config.provider_config)
+            base_provider = cast(EmbeddingProvider, provider_class(**config.provider_config))
         except Exception as e:
-            raise ValueError(f"Failed to load custom embedding provider '{provider}': {e}")
+            raise ValueError(f"Failed to load custom embedding provider '{provider}': {e}") from e
 
     # Wrap with cache if enabled
     if config.enable_cache:

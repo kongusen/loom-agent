@@ -2,7 +2,7 @@
 Mock LLM Provider for Testing
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from loom.llm.interface import LLMProvider, LLMResponse, StreamChunk
@@ -19,8 +19,8 @@ class MockLLMProvider(LLMProvider):
     async def chat(
         self,
         messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        config: dict[str, Any] | None = None
+        _tools: list[dict[str, Any]] | None = None,
+        _config: dict[str, Any] | None = None
     ) -> LLMResponse:
         last_msg = messages[-1]["content"].lower()
 
@@ -42,8 +42,8 @@ class MockLLMProvider(LLMProvider):
     async def stream_chat(
         self,
         messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None
-    ) -> AsyncIterator[StreamChunk]:
+        _tools: list[dict[str, Any]] | None = None
+    ) -> AsyncGenerator[StreamChunk, None]:
         """
         UPGRADED: Now yields structured StreamChunk objects.
         Supports text, tool_call, thought_injection, and done events.
@@ -54,7 +54,7 @@ class MockLLMProvider(LLMProvider):
              # Simulate Tool Call in stream
              query = last_msg.replace("search", "").replace("calculate", "").strip() or "fractal"
              yield StreamChunk(
-                 type="tool_call",
+                 type="tool_call_start",
                  content={
                      "name": "mock-calculator" if "calculate" in last_msg else "search",
                      "arguments": {"query": query},

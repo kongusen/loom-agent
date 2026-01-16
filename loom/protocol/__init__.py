@@ -11,6 +11,8 @@ Key Components:
 - Memory Operations: Memory system interface contracts
 """
 
+from contextlib import suppress
+
 # CloudEvents Protocol
 from .cloudevents import CloudEvent, EventType
 
@@ -34,11 +36,15 @@ from .memory_operations import (
 )
 
 # Interface Definitions
-try:
-    from .interfaces import *
-except ImportError:
-    # interfaces.py may not have exports
-    pass
+with suppress(ImportError):
+    from .interfaces import (
+        EventBusProtocol,
+        LLMProviderProtocol,
+        MemoryStrategy,
+        NodeProtocol,
+        ReflectiveMemoryStrategy,
+        TransportProtocol,
+    )
 
 __all__ = [
     # CloudEvents
@@ -56,4 +62,11 @@ __all__ = [
     "MemoryValidator",
     "ContextSanitizer",
     "ProjectStateObject",
+    # Protocols
+    "NodeProtocol",
+    "MemoryStrategy",
+    "ReflectiveMemoryStrategy",
+    "LLMProviderProtocol",
+    "TransportProtocol",
+    "EventBusProtocol",
 ]

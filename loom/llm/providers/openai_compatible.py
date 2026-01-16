@@ -18,9 +18,9 @@ class OpenAICompatibleProvider(OpenAIProvider):
     """
 
     # 子类需要覆盖这些类属性
-    DEFAULT_BASE_URL: str = None
-    DEFAULT_MODEL: str = None
-    API_KEY_ENV_VAR: str = None
+    DEFAULT_BASE_URL: str | None = None
+    DEFAULT_MODEL: str | None = None
+    API_KEY_ENV_VAR: str | None = None
     PROVIDER_NAME: str = "OpenAI Compatible"
 
     def __init__(
@@ -45,7 +45,7 @@ class OpenAICompatibleProvider(OpenAIProvider):
             )
 
             config.generation = GenerationConfig(
-                model=model or self.DEFAULT_MODEL,
+                model=model or self.DEFAULT_MODEL or "gpt-3.5-turbo",
                 temperature=temperature if temperature is not None else 0.7,
                 max_tokens=max_tokens
             )

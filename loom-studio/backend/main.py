@@ -38,8 +38,9 @@ class SimpleEventStore:
         if len(self.events) > 10000:
             removed = self.events.pop(0)
             # 清理已移除事件的 ID
-            if removed.get("id"):
-                self._seen_ids.discard(removed.get("id"))
+            rid = removed.get("id")
+            if rid:
+                self._seen_ids.discard(rid)
 
     async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> list[dict[str, Any]]:
         # Apply filters (basic implementation)
@@ -196,8 +197,8 @@ def _compute_topology():
     events = event_store.events # Get all for topology
 
     nodes = {}
-    edges = {}
-
+    edges: dict[str, int] = {}
+     
     for event in events:
         source = event.get("source")
         subject = event.get("subject")

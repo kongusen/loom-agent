@@ -24,9 +24,9 @@ class CustomProvider(OpenAICompatibleProvider):
         )
     """
 
-    DEFAULT_BASE_URL = None  # 必须由用户指定
-    DEFAULT_MODEL = "gpt-3.5-turbo"  # 默认模型名
-    API_KEY_ENV_VAR = "CUSTOM_LLM_API_KEY"
+    DEFAULT_BASE_URL = "http://localhost:1234/v1"
+    DEFAULT_MODEL = "local-model"
+    API_KEY_ENV_VAR: str | None = None
     PROVIDER_NAME = "Custom"
 
     def __init__(
@@ -59,7 +59,10 @@ class CustomProvider(OpenAICompatibleProvider):
             config = LLMConfig()
 
             # API key 可选
-            api_key = api_key or os.getenv(self.API_KEY_ENV_VAR) or "custom"
+            if self.API_KEY_ENV_VAR:
+                api_key = api_key or os.getenv(self.API_KEY_ENV_VAR) or "custom"
+            else:
+                api_key = api_key or "custom"
 
             config.connection = ConnectionConfig(
                 api_key=api_key,

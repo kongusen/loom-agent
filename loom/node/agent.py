@@ -12,6 +12,7 @@ from loom.cognition.confidence import ConfidenceEstimator
 
 if TYPE_CHECKING:
     from loom.llm.interface import LLMResponse
+    from loom.kernel.fractal import FractalOrchestrator, ResultSynthesizer
 
 # Cognitive Components
 from loom.config.cognitive import CognitiveConfig
@@ -106,6 +107,8 @@ class AgentNode(Node):
 
         # Initialize Orchestrator and Synthesizer for explicit delegation
         # Use get_fractal_config() from mixin
+        self.orchestrator: Optional["FractalOrchestrator"] = None
+        self.synthesizer: Optional["ResultSynthesizer"] = None
         f_config = self.get_fractal_config()
         if f_config and f_config.enable_explicit_delegation:
             from loom.kernel.fractal import (
@@ -219,7 +222,7 @@ class AgentNode(Node):
                 subtasks: list[dict[str, Any]],
                 execution_mode: str = "parallel",
                 synthesis_strategy: str = "auto",
-                reasoning: str = None
+                reasoning: str | None = None
             ) -> str:
                 """
                 将复杂任务分解为子任务并委托给专门的子代理执行。
@@ -250,7 +253,11 @@ class AgentNode(Node):
                     )
 
                     # 执行委托
-                    result = await self.orchestrator.delegate(request)
+                    orchestrator = self.orchestrator
+                    if orchestrator is None:
+                        return "委托失败: Orchestrator未初始化"
+                        
+                    result = await orchestrator.delegate(request)
 
                     if result.success:
                         return result.synthesized_result
@@ -296,7 +303,7 @@ class AgentNode(Node):
         # Project current context to child
         projection = await self.memory.create_projection(
             instruction=task,
-            total_budget=2000  # 投影预算
+            _total_budget=2000  # 投影预算
         )
 
         units = projection.to_memory_units()
@@ -321,7 +328,7 @@ class AgentNode(Node):
             role="Deep Thinker",
             system_prompt="You are a deep thinking sub-process. Analyze the following.",
             provider=self.provider,
-            context_config=self.context_config, # Inherit configs
+            cognitive_config=self.cognitive_config, # Inherit configs
             context_projection=projection,      # Inherit context
             thinking_policy=ThinkingPolicy(enabled=False),
             current_depth=self.current_depth + 1

@@ -5,41 +5,8 @@ Loom Patterns - 解决问题的模式
 作为通用框架，Loom 不预设具体 agent，而是提供方法论。
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Optional
-
-
-@dataclass
-class Pattern(ABC):
-    """
-    模式基类
-
-    模式定义了解决特定类型问题的配置组合。
-    """
-
-    name: str
-    """模式名称"""
-
-    description: str
-    """模式描述"""
-
-    @abstractmethod
-    def get_config(self):
-        """
-        获取模式配置
-
-        Returns:
-            LoomConfig 实例
-        """
-        pass
-
-    def __str__(self):
-        return f"{self.name}: {self.description}"
-
-
-# 导入所有核心模式
 from loom.patterns.analytical import AnalyticalPattern
+from loom.patterns.base import Pattern
 from loom.patterns.collaborative import CollaborativePattern
 from loom.patterns.creative import CreativePattern
 from loom.patterns.execution import ExecutionPattern

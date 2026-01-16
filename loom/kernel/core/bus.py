@@ -16,7 +16,7 @@ class UniversalEventBus:
     Delegates routing to a Transport layer.
     """
 
-    def __init__(self, store: EventStore = None, transport: Transport = None):
+    def __init__(self, store: EventStore | None = None, transport: Transport | None = None):
         self.store = store or InMemoryEventStore()
         self.transport = transport or InMemoryTransport()
 

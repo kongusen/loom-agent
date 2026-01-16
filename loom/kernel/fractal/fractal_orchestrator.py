@@ -317,7 +317,7 @@ class FractalOrchestrator:
                 "researcher": NodeRole.SPECIALIST,
                 "aggregator": NodeRole.AGGREGATOR
             }
-            role = role_map.get(subtask.role, NodeRole.EXECUTOR)
+            role = role_map.get(subtask.role or "executor", NodeRole.EXECUTOR)
 
             # 创建子节点
             child_id = f"{self.parent.node_id}.child{i+1}"
@@ -400,7 +400,7 @@ class FractalOrchestrator:
             })
 
         # 2. Define adapter
-        async def _child_execution_adapter(name: str, args: dict) -> Any:
+        async def _child_execution_adapter(_name: str, args: dict) -> Any:
             child = args["child"]
             subtask = args["subtask"]
             return await child.execute(subtask.description)
@@ -427,7 +427,7 @@ class FractalOrchestrator:
 
         return processed_results
 
-    def _child_read_only_check(self, tool_name: str) -> bool:
+    def _child_read_only_check(self, _tool_name: str) -> bool:
         """
         Check if child node is safe to run in parallel.
         In Phase 3, we assume all child nodes are safe to run in parallel
@@ -515,11 +515,11 @@ class FractalOrchestrator:
         # 使用父节点的 synthesizer（如果有）
         if hasattr(self.parent, 'synthesizer') and self.parent.synthesizer:
             logger.info("使用父节点的 synthesizer 进行合成")
-            return await self.parent.synthesizer.synthesize(
+            return str(await self.parent.synthesizer.synthesize(
                 task,
                 results,
                 strategy=request.synthesis_strategy
-            )
+            ))
         else:
             # 降级到简单拼接
             logger.warning("父节点没有 synthesizer，使用简单拼接")

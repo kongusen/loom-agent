@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from loom.protocol.cloudevents import CloudEvent
 
-from . import EventHandler, Transport
+from .base import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
 

@@ -83,7 +83,11 @@ class MemoryUnit:
             # Assuming content is the text if it's not a dict, or we adhere to dict content for messages
             if isinstance(self.content, str):
                 return {"role": "user", "content": self.content} # Default to user? Or should handle context contextually
-            return self.content # Should be dict
+            
+            # Ensure content is dict[str, str]
+            if isinstance(self.content, dict):
+                 return {str(k): str(v) for k, v in self.content.items()}
+            return {"role": "system", "content": str(self.content)}
         elif self.type == MemoryType.THOUGHT:
             return {"role": "assistant", "content": f"💭 {self.content}"}
         elif self.type == MemoryType.TOOL_CALL:

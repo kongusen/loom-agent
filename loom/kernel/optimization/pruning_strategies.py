@@ -77,9 +77,9 @@ class FitnessPruningStrategy(PruningStrategy):
     def evaluate(
         self,
         node: Any,
-        parent: Any | None,
-        siblings: list[Any],
-        context: dict[str, Any]
+        _parent: Any | None,
+        _siblings: list[Any],
+        _context: dict[str, Any]
     ) -> PruningDecision:
 
         # Need minimum task count
@@ -132,7 +132,7 @@ class RedundancyPruningStrategy(PruningStrategy):
         node: Any,
         parent: Any | None,
         siblings: list[Any],
-        context: dict[str, Any]
+        _context: dict[str, Any]
     ) -> PruningDecision:
 
         if node.metrics.task_count < self.min_tasks:
@@ -210,9 +210,9 @@ class ResourcePruningStrategy(PruningStrategy):
     def evaluate(
         self,
         node: Any,
-        parent: Any | None,
-        siblings: list[Any],
-        context: dict[str, Any]
+        _parent: Any | None,
+        _siblings: list[Any],
+        _context: dict[str, Any]
     ) -> PruningDecision:
 
         if node.metrics.task_count < self.min_tasks:

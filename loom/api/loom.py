@@ -5,14 +5,17 @@ Loom Agent Framework - 统一 API 入口
 """
 
 from dataclasses import dataclass
+from typing import Any, cast
 
 from loom.config.execution import ExecutionConfig
 from loom.config.fractal import FractalConfig
 from loom.config.memory import ContextConfig
+from loom.config.cognitive import CognitiveConfig
 
 # 配置类导入
 from loom.config.models import AgentConfig as AgentMetaConfig
 from loom.kernel.core import Dispatcher
+from loom.kernel.core.bus import UniversalEventBus
 from loom.llm import LLMProvider
 from loom.node.agent import AgentNode
 from loom.node.tool import ToolNode
@@ -52,7 +55,7 @@ class LoomConfig:
         from loom.patterns import get_pattern
 
         pattern = get_pattern(name)
-        return pattern.get_config()
+        return cast(LoomConfig, pattern.get_config())
 
     @staticmethod
     def from_preset(name: str) -> 'LoomConfig':
@@ -142,10 +145,11 @@ class Loom:
 
         # 3. 创建 Dispatcher
         if dispatcher is None:
-            dispatcher = Dispatcher()
+            bus = UniversalEventBus()
+            dispatcher = Dispatcher(bus)
 
         # 4. 准备参数
-        agent_params = {
+        agent_params: dict[str, Any] = {
             "node_id": node_id,
             "dispatcher": dispatcher,
             "provider": llm,
@@ -163,8 +167,14 @@ class Loom:
         if config.execution:
             agent_params["execution_config"] = config.execution
 
+        # Prepare Cognitive Configuration
+        cognitive_config = CognitiveConfig.default()
         if config.memory:
-            agent_params["context_config"] = config.memory
+            cognitive_config.context_max_tokens = config.memory.max_context_tokens
+            cognitive_config.context_strategy = config.memory.strategy
+            # Map other fields if possible
+        
+        agent_params["cognitive_config"] = cognitive_config
 
         # 6. 应用 kwargs 覆盖
         agent_params.update(kwargs)

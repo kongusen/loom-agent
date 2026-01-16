@@ -5,6 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+# Skip all tests if asyncpg or pgvector are not installed
+pytest.importorskip("asyncpg")
+pytest.importorskip("pgvector")
+
 from loom.memory.vector_store import PostgreSQLVectorStore
 
 

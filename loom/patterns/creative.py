@@ -9,7 +9,7 @@ Creative Pattern - 创造模式
 - 多样性优先
 """
 
-from loom.patterns import Pattern
+from loom.patterns.base import Pattern
 
 
 class CreativePattern(Pattern):
@@ -36,6 +36,7 @@ class CreativePattern(Pattern):
 
         return LoomConfig(
             agent=AgentConfig(
+                name="creative-thinker",
                 role="Creative Thinker",
                 system_prompt=(
                     "You are a creative thinker. "

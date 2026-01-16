@@ -555,7 +555,7 @@ class TemplateManager:
         avg_fitness = np.mean([t.avg_fitness for t in self.templates.values()])
 
         # Group by topology type
-        topology_counts = defaultdict(int)
+        topology_counts: defaultdict[str, int] = defaultdict(int)
         for template in self.templates.values():
             topology_counts[template.topology_type] += 1
 

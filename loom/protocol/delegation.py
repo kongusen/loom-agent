@@ -103,7 +103,7 @@ class DelegationResult:
 DELEGATE_SUBTASKS_TOOL = MCPToolDefinition(
     name="delegate_subtasks",
     description="将复杂任务分解为子任务并委托给专门的子代理并行执行。适用于需要多个专家协作或并行处理的复杂任务。",
-    inputSchema={
+    input_schema={
         "type": "object",
         "properties": {
             "subtasks": {

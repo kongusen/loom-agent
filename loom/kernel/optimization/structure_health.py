@@ -312,7 +312,7 @@ class StructureHealthAssessor:
             return 0.5  # Neutral
 
         # Average fitness is the primary indicator
-        return data['avg_fitness']
+        return float(data['avg_fitness'])
 
     def _assess_utilization(self, data: dict[str, Any]) -> float:
         """Assess node utilization (0-1, higher is better)"""
@@ -334,7 +334,7 @@ class StructureHealthAssessor:
         low_activity_ratio = low_activity / data['total_nodes']
         score -= low_activity_ratio * 0.3
 
-        return max(0.0, min(1.0, score))
+        return float(max(0.0, min(1.0, score)))
 
     # ========================================================================
     # Diagnostics
@@ -420,7 +420,7 @@ class StructureHealthAssessor:
 
         return diagnostics
 
-    def _get_node_depth(self, node: Any, all_nodes: list[Any]) -> int:
+    def _get_node_depth(self, node: Any, _all_nodes: list[Any]) -> int:
         """Get depth of a node"""
         depth = 0
         current = node
@@ -437,7 +437,7 @@ class StructureHealthAssessor:
         self,
         diagnostics: list[HealthDiagnostic],
         data: dict[str, Any],
-        config: Any | None
+        _config: Any | None
     ) -> list[str]:
         """Generate actionable recommendations"""
         recommendations = []

@@ -9,7 +9,7 @@ Analytical Pattern - 分析模式
 - 启用反思机制
 """
 
-from loom.patterns import Pattern
+from loom.patterns.base import Pattern
 
 
 class AnalyticalPattern(Pattern):
@@ -36,6 +36,7 @@ class AnalyticalPattern(Pattern):
 
         return LoomConfig(
             agent=AgentConfig(
+                name="analytical-analyst",
                 role="Analyst",
                 system_prompt=(
                     "You are an analytical thinker. "

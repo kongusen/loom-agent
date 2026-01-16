@@ -4,6 +4,7 @@
 """
 
 import asyncio
+from unittest.mock import AsyncMock
 
 from loom.config.fractal import FractalConfig
 from loom.infra.llm import MockLLMProvider
@@ -13,7 +14,7 @@ from loom.weave import create_agent
 # 定义一个能"理解"委托指令的 Mock Provider
 # 在真实场景中，这会是 GPT-4 或 Claude
 class SmartMockProvider(MockLLMProvider):
-    async def generate(self, prompt: str, **kwargs) -> str:
+    async def generate(self, prompt: str, **_kwargs) -> str:
         if "合成" in prompt or "Synthesize" in prompt:
             return "【综合报告】\n基于子任务结果，我们发现量子计算和核聚变都在快速发展..."
         return "I will execute this task."
@@ -97,8 +98,6 @@ async def main():
     print(f"深度 2 子节点可用工具: {'delegate_subtasks' in tools_depth_2} (预期: False - 达到递归限制)")
 
     print("\n✅ 演示完成")
-
-from unittest.mock import AsyncMock
 
 if __name__ == "__main__":
     asyncio.run(main())

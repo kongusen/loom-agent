@@ -40,7 +40,7 @@ class ToolFactory:
             mod = importlib.import_module(module_name)
             func = getattr(mod, func_name)
         except (ImportError, AttributeError) as e:
-            raise ValueError(f"Could not load tool function {config.python_path}: {e}")
+            raise ValueError(f"Could not load tool function {config.python_path}: {e}") from e
 
         # 2. Apply Env Vars
         for k, v in config.env_vars.items():
@@ -50,7 +50,7 @@ class ToolFactory:
         tool_def = MCPToolDefinition(
             name=config.name,
             description=config.description,
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": config.parameters
             }

@@ -279,7 +279,7 @@ class PipelineBuilder:
         role: NodeRole,
         tools: list[Any] | None = None,
         prompt: str | None = None,
-        config: dict[str, Any] | None = None,
+        _config: dict[str, Any] | None = None,
         **kwargs
     ) -> 'PipelineBuilder':
         """Internal method to add a node"""
@@ -298,10 +298,15 @@ class PipelineBuilder:
             self._current = node
         else:
             # Add as child of current
+            # Add as child of current
             parent = self._current
-            node = self._create_node(step, parent=parent, **kwargs)
-            parent.children.append(node)
-            self._current = node
+            if parent:
+                node = self._create_node(step, parent=parent, **kwargs)
+                parent.children.append(node)
+                self._current = node
+            else:
+                # Should normally not happen if logic matches
+                raise RuntimeError("Parent node missing")
 
         step.node = node
         self._steps.append(step)

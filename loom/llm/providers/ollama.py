@@ -26,7 +26,7 @@ class OllamaProvider(OpenAICompatibleProvider):
 
     DEFAULT_BASE_URL = "http://localhost:11434/v1"
     DEFAULT_MODEL = "llama3.2"
-    API_KEY_ENV_VAR = None  # Ollama 不需要 API key
+    API_KEY_ENV_VAR: str | None = None  # Ollama 不需要 API key
     PROVIDER_NAME = "Ollama"
 
     def __init__(

@@ -35,6 +35,7 @@ rich = "^13.7.0"
 websockets = "^12.0"
 numpy = "^1.26.0"
 tiktoken = "^0.7.0"
+structlog = "^24.1.0"
 redis = { version = "^5.0.1", optional = true }
 nats-py = { version = "^2.6.0", optional = true }
 asyncpg = { version = "^0.29.0", optional = true }
@@ -101,6 +102,9 @@ ignore = [
   "C901", # too complex
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["ARG"] # Allow unused arguments in test files
+
 [tool.ruff.lint.isort]
 known-first-party = ["loom"]
 
@@ -113,3 +117,9 @@ disallow_incomplete_defs = false
 check_untyped_defs = true
 ignore_missing_imports = true
 exclude = ["tests/", "examples/", "build/", "dist/"]
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true

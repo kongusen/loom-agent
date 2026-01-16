@@ -7,7 +7,7 @@ Anthropic (Claude) LLM Provider
 import json
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
@@ -132,7 +132,7 @@ class AnthropicProvider(LLMProvider):
             prompt_parts.append("You must respond with valid JSON only. Do not include any text outside the JSON structure.")
 
             # 如果提供了 schema，添加到 prompt 中
-            if self.config.structured_output.schema:
+            if self.config.structured_output.schema is not None:
                 import json
                 schema_str = json.dumps(self.config.structured_output.schema, indent=2)
                 prompt_parts.append(f"\nYour response must conform to this JSON schema:\n{schema_str}")
@@ -174,7 +174,9 @@ class AnthropicProvider(LLMProvider):
             kwargs.update(config)
 
         # 调用 API
-        response = await self.client.messages.create(**kwargs)
+        from typing import cast
+        
+        response = await self.client.messages.create(**cast(Any, kwargs))
 
         # 提取响应
         content = ""
@@ -204,7 +206,7 @@ class AnthropicProvider(LLMProvider):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None
-    ) -> AsyncIterator[StreamChunk]:
+    ) -> AsyncGenerator[StreamChunk, None]:
         """流式调用 Anthropic Chat API（支持工具调用）"""
         # 提取 system 消息
         system, converted_messages = self._convert_messages(messages)
@@ -232,7 +234,11 @@ class AnthropicProvider(LLMProvider):
 
         try:
             # 调用流式 API
-            stream = await self.client.messages.create(**kwargs)
+            # Cast kwargs to Any to bypass overload resolution issues with dynamic unpacking
+            # Anthropic client expects specific typed arguments but we build them dynamically
+            from typing import cast
+            
+            stream = await self.client.messages.create(**cast(Any, kwargs))
 
             # 工具调用缓冲区
             current_tool_use = None
@@ -270,10 +276,9 @@ class AnthropicProvider(LLMProvider):
                             metadata={}
                         )
 
-                    elif event.delta.type == "input_json_delta":
+                    elif event.delta.type == "input_json_delta" and current_tool_use:
                         # 工具调用参数增量
-                        if current_tool_use:
-                            input_json_buffer += event.delta.partial_json
+                        input_json_buffer += event.delta.partial_json
 
                 # content_block_stop - 内容块结束
                 elif event.type == "content_block_stop":

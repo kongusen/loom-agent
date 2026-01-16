@@ -33,6 +33,8 @@ class ToolNode(Node):
         Execute the tool.
         Expects event.data to contain 'arguments'.
         """
+        if event.data is None:
+             raise ValueError("Event data missing arguments")
         args = event.data.get("arguments", {})
 
         # In a real system, validate against self.tool_def.input_schema
@@ -42,11 +44,11 @@ class ToolNode(Node):
             # Check if func is async
             import inspect
             if inspect.iscoroutinefunction(self.func):
-                result = await self.func(**args)  # Unpack dict as keyword arguments
+                result = await self.func(args)  # Pass dict as single argument
             else:
-                result = self.func(**args)  # Unpack dict as keyword arguments
+                result = self.func(args)  # Pass dict as single argument
 
             return {"result": result}
         except Exception as e:
             # Re-raise to trigger node.error in Base Node
-            raise RuntimeError(f"Tool execution failed: {e}")
+            raise RuntimeError(f"Tool execution failed: {e}") from e
