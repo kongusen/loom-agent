@@ -49,7 +49,7 @@ class CollaborativePattern(Pattern):
                 max_depth=3,
                 enable_explicit_delegation=True,
                 synthesis_model="lightweight",  # 使用轻量级模型合成
-                growth_trigger=GrowthTrigger.SYSTEM2
+                growth_trigger=GrowthTrigger.COMPLEXITY
             ),
             execution=ExecutionConfig(
                 parallel_execution=True,

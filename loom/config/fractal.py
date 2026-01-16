@@ -20,7 +20,7 @@ class NodeRole(Enum):
 
 class GrowthTrigger(Enum):
     """When to trigger fractal growth"""
-    SYSTEM2 = "system2"      # Only when System 2 is activated (default)
+    COMPLEXITY = "complexity" # When task complexity is high (formerly SYSTEM2)
     ALWAYS = "always"        # Always evaluate for growth
     MANUAL = "manual"        # Only when explicitly requested
     NEVER = "never"          # Disable fractal mode entirely
@@ -42,7 +42,7 @@ class FractalConfig:
     enabled: bool = False
     """Enable fractal mode (self-organizing structure)"""
 
-    growth_trigger: GrowthTrigger = GrowthTrigger.SYSTEM2
+    growth_trigger: GrowthTrigger = GrowthTrigger.COMPLEXITY
     """When to trigger automatic growth"""
 
     # === Structure Limits ===

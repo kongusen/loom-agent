@@ -432,17 +432,10 @@ class TestStrategyFactory:
         strategy = StrategyFactory.create("AuTo")
         assert isinstance(strategy, AutoStrategy)
 
-    def test_create_system1_strategy(self):
-        """Test creating system1 strategy (dynamically registered)."""
-        from loom.memory.system_strategies import System1Strategy
-        strategy = StrategyFactory.create("system1")
-        assert isinstance(strategy, System1Strategy)
-
-    def test_create_system2_strategy(self):
-        """Test creating system2 strategy (dynamically registered)."""
-        from loom.memory.system_strategies import System2Strategy
-        strategy = StrategyFactory.create("system2")
-        assert isinstance(strategy, System2Strategy)
+    def test_create_unknown_strategy(self):
+        """Test creating an unknown strategy."""
+        with pytest.raises(ValueError, match="Unknown strategy"):
+            StrategyFactory.create("unknown_strategy")
 
     def test_create_unknown_strategy_raises_error(self):
         """Test that unknown strategy raises ValueError."""

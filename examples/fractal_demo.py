@@ -42,7 +42,7 @@ async def example1_auto_fractal():
         llm=llm,
         memory=memory,
         enable_fractal=True,
-        fractal_trigger=GrowthTrigger.SYSTEM2,  # Trigger on System 2
+        fractal_trigger=GrowthTrigger.COMPLEXITY,  # Trigger on complexity
         max_depth=3,
         max_children=4,
         complexity_threshold=0.6
@@ -271,7 +271,7 @@ async def example5_runtime_enhancement():
     add_fractal_to_agent(
         agent,
         enable=True,
-        growth_trigger=GrowthTrigger.SYSTEM2,
+        growth_trigger=GrowthTrigger.COMPLEXITY,
         max_depth=3
     )
 

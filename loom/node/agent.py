@@ -154,14 +154,6 @@ class AgentNode(Node):
         self.context_assembler = ContextAssembler(config=context_config, dispatcher=self.dispatcher)
         self.context = ContextManager(node_id, self.memory, self.context_assembler)
 
-        # Remove dual context references
-        self.s1_config = None
-        self.s1_assembler = None
-        self.s1_context = None
-        self.s2_config = None
-        self.s2_assembler = None
-        self.s2_context = None
-
         # --- Confidence Estimation ---
         self.confidence_estimator = ConfidenceEstimator()
 

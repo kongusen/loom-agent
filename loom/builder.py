@@ -139,14 +139,14 @@ class LoomBuilder:
     def with_memory(
         self,
         max_tokens: int = 8000,
-        strategy: str = "system2"
+        strategy: str = "auto"
     ) -> 'LoomBuilder':
         """
         配置 Memory 系统
 
         Args:
             max_tokens: 最大 token 数
-            strategy: 策略 (system1|system2)
+            strategy: 策略 (auto|focused|snippets)
 
         Returns:
             self（支持链式调用）

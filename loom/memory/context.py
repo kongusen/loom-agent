@@ -57,7 +57,6 @@ class ContextAssembler:
             self.config.curation_config,
             task_context=task
         )
-
         # Publish curation event
         if self.dispatcher:
             from loom.protocol.cloudevents import CloudEvent
@@ -139,7 +138,7 @@ class ContextAssembler:
 
             if current_tokens + msg_tokens > max_tokens:
                 continue # Skip if over budget (greedy approach)
-
+            
             selected_units.append(unit)
             current_tokens += msg_tokens
 

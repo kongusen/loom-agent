@@ -325,7 +325,7 @@ async def main():
     print()
 
     await demo_vector_store_configuration()
-    await demo_system1_system2_routing()
+    # await demo_system1_system2_routing() # Deprecated with single context refactor
     await demo_memory_compression()
     await demo_performance_metrics()
     await demo_complete_workflow()

@@ -81,9 +81,9 @@ def should_use_fractal(
     if trigger == GrowthTrigger.MANUAL:
         return False
 
-    # SYSTEM2 trigger
-    if trigger == GrowthTrigger.SYSTEM2:
-        # Estimate complexity to determine if fractal growth should trigger
+    # COMPLEXITY trigger    
+    if config.growth_trigger == GrowthTrigger.COMPLEXITY:
+        # Check complexity threshold
         complexity = estimate_task_complexity(task)
         return complexity > config.complexity_threshold
 
