@@ -4,11 +4,9 @@ Loom 标准库使用示例
 展示如何使用预构建的 Skills、Agents 和 Crews。
 """
 
+from loom.stdlib.agents import AnalystAgent
+from loom.stdlib.skills import CalculatorSkill
 from loom.weave import create_agent, run
-from loom.stdlib.skills import CalculatorSkill, FileSystemSkill
-from loom.stdlib.agents import CoderAgent, AnalystAgent
-from loom.stdlib.crews import DebateCrew
-
 
 # ============================================================================
 # 示例 1：使用 Skills 增强 Agent

@@ -1,8 +1,11 @@
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+
 from loom.kernel.fractal import FractalOrchestrator, OrchestratorConfig
-from loom.protocol.delegation import DelegationRequest, SubtaskSpecification
 from loom.node.agent import AgentNode
+from loom.protocol.delegation import DelegationRequest, SubtaskSpecification
+
 
 @pytest.fixture
 def mock_parent():
@@ -32,7 +35,7 @@ def test_validate_request_failures(orchestrator):
     # Empty subtasks
     with pytest.raises(ValueError):
         orchestrator._validate_request(DelegationRequest(subtasks=[]))
-        
+
     # Too many concurrent
     orchestrator.config.max_concurrent_children = 1
     with pytest.raises(ValueError):
@@ -52,12 +55,12 @@ def test_tool_filter_inheritance(orchestrator):
 def test_tool_filter_recursive_limit(orchestrator):
     """测试递归深度限制下的工具过滤"""
     subtask = SubtaskSpecification(description="t")
-    
+
     # Depth 0 -> Next is 1 (allowed < 2)
-    tools = orchestrator._filter_tools_for_child(subtask, current_depth=0)
+    orchestrator._filter_tools_for_child(subtask, current_depth=0)
     # Assuming delegate_subtasks is logically present (controlled by config logic)
     # The logic in orchestrator removes it if depth limit reached.
-    
+
     # Depth 1 -> Next is 2 (limit reached)
     # Should perform removal logic
     tools_limit = orchestrator._filter_tools_for_child(subtask, current_depth=1)

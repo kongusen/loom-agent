@@ -12,17 +12,17 @@ from .fractal_orchestrator import (
     FractalOrchestrator,
     OrchestratorConfig,
 )
+from .fractal_utils import (
+    estimate_task_complexity,
+    should_use_fractal,
+)
 from .synthesizer import (
     ResultSynthesizer,
     SynthesisConfig,
 )
 from .template_manager import (
-    TemplateManager,
     StructureTemplate,
-)
-from .fractal_utils import (
-    estimate_task_complexity,
-    should_use_fractal,
+    TemplateManager,
 )
 
 __all__ = [

@@ -32,7 +32,7 @@ class CollaborativePattern(Pattern):
     def get_config(self):
         """获取协作模式配置"""
         from loom.api.loom import LoomConfig
-        from loom.config import AgentConfig, FractalConfig, ExecutionConfig
+        from loom.config import AgentConfig, ExecutionConfig, FractalConfig
         from loom.config.fractal import GrowthTrigger
 
         return LoomConfig(

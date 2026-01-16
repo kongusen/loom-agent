@@ -9,10 +9,10 @@ Core execution engine components:
 """
 
 from .bus import UniversalEventBus
+from .cognitive_state import CognitiveState, ProjectionOperator, Thought, ThoughtState
 from .dispatcher import Dispatcher
 from .executor import ToolExecutor
 from .state import StateStore as State
-from .cognitive_state import CognitiveState, ProjectionOperator, Thought, ThoughtState
 
 __all__ = [
     "UniversalEventBus",

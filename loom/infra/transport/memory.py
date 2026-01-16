@@ -1,11 +1,11 @@
 
 import asyncio
-from typing import Dict, List, Set
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
-from . import Transport, EventHandler
 from loom.protocol.cloudevents import CloudEvent
+
+from . import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +17,9 @@ class InMemoryTransport(Transport):
 
     def __init__(self):
         self._connected = False
-        self._handlers: Dict[str, List[EventHandler]] = defaultdict(list)
+        self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
         # For wildcard support: "node.request/*" -> [handler1, handler2]
-        self._wildcard_handlers: Dict[str, List[EventHandler]] = defaultdict(list)
+        self._wildcard_handlers: dict[str, list[EventHandler]] = defaultdict(list)
 
     async def connect(self) -> None:
         self._connected = True
@@ -73,7 +73,7 @@ class InMemoryTransport(Transport):
                     pass
 
     async def _dispatch(self, topic: str, event: CloudEvent) -> None:
-        targets: Set[EventHandler] = set()
+        targets: set[EventHandler] = set()
 
         # 1. Exact match
         if topic in self._handlers:

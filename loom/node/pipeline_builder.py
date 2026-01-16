@@ -5,10 +5,11 @@ Provides a fluent, user-friendly API for manually constructing
 complex agent pipelines without auto-decomposition.
 """
 
-from typing import List, Optional, Any, Callable, Dict
 from dataclasses import dataclass
+from typing import Any
+
+from loom.config.fractal import FractalConfig, GrowthTrigger, NodeRole
 from loom.node.fractal import FractalAgentNode
-from loom.config.fractal import NodeRole, FractalConfig, GrowthTrigger
 
 
 @dataclass
@@ -16,9 +17,9 @@ class PipelineStep:
     """Represents a single step in the pipeline"""
     name: str
     role: NodeRole
-    tools: Optional[List[Any]] = None
-    prompt_template: Optional[str] = None
-    node: Optional[FractalAgentNode] = None
+    tools: list[Any] | None = None
+    prompt_template: str | None = None
+    node: FractalAgentNode | None = None
 
 
 class PipelineBuilder:
@@ -47,8 +48,8 @@ class PipelineBuilder:
         self,
         pipeline_name: str,
         provider: Any,
-        memory: Optional[Any] = None,
-        fractal_config: Optional[FractalConfig] = None
+        memory: Any | None = None,
+        fractal_config: FractalConfig | None = None
     ):
         """
         Initialize pipeline builder
@@ -69,15 +70,15 @@ class PipelineBuilder:
             growth_trigger=GrowthTrigger.MANUAL
         )
 
-        self._root: Optional[FractalAgentNode] = None
-        self._current: Optional[FractalAgentNode] = None
-        self._steps: List[PipelineStep] = []
+        self._root: FractalAgentNode | None = None
+        self._current: FractalAgentNode | None = None
+        self._steps: list[PipelineStep] = []
 
     def coordinator(
         self,
         name: str,
-        tools: Optional[List[Any]] = None,
-        prompt: Optional[str] = None
+        tools: list[Any] | None = None,
+        prompt: str | None = None
     ) -> 'PipelineBuilder':
         """
         Add a coordinator node (task decomposer)
@@ -95,9 +96,9 @@ class PipelineBuilder:
     def specialist(
         self,
         name: str,
-        tools: Optional[List[Any]] = None,
-        prompt: Optional[str] = None,
-        domain: Optional[str] = None
+        tools: list[Any] | None = None,
+        prompt: str | None = None,
+        domain: str | None = None
     ) -> 'PipelineBuilder':
         """
         Add a specialist node (domain expert)
@@ -119,8 +120,8 @@ class PipelineBuilder:
     def executor(
         self,
         name: str,
-        tools: Optional[List[Any]] = None,
-        prompt: Optional[str] = None
+        tools: list[Any] | None = None,
+        prompt: str | None = None
     ) -> 'PipelineBuilder':
         """
         Add an executor node (task executor)
@@ -138,8 +139,8 @@ class PipelineBuilder:
     def aggregator(
         self,
         name: str,
-        tools: Optional[List[Any]] = None,
-        prompt: Optional[str] = None
+        tools: list[Any] | None = None,
+        prompt: str | None = None
     ) -> 'PipelineBuilder':
         """
         Add an aggregator node (result synthesizer)
@@ -159,7 +160,7 @@ class PipelineBuilder:
 
     def parallel(
         self,
-        nodes: List[tuple],
+        nodes: list[tuple],
         join_with_aggregator: bool = True
     ) -> 'PipelineBuilder':
         """
@@ -217,7 +218,7 @@ class PipelineBuilder:
 
     def chain(
         self,
-        nodes: List[tuple]
+        nodes: list[tuple]
     ) -> 'PipelineBuilder':
         """
         Add a chain of sequential nodes
@@ -255,7 +256,7 @@ class PipelineBuilder:
         self,
         name: str,
         role: NodeRole,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
         **kwargs
     ) -> 'PipelineBuilder':
         """
@@ -276,9 +277,9 @@ class PipelineBuilder:
         self,
         name: str,
         role: NodeRole,
-        tools: Optional[List[Any]] = None,
-        prompt: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
+        tools: list[Any] | None = None,
+        prompt: str | None = None,
+        config: dict[str, Any] | None = None,
         **kwargs
     ) -> 'PipelineBuilder':
         """Internal method to add a node"""
@@ -310,7 +311,7 @@ class PipelineBuilder:
     def _create_node(
         self,
         step: PipelineStep,
-        parent: Optional[FractalAgentNode] = None,
+        parent: FractalAgentNode | None = None,
         **kwargs
     ) -> FractalAgentNode:
         """Create a FractalAgentNode from a step"""
@@ -357,7 +358,7 @@ class PipelineBuilder:
 
         return self._root.visualize_structure(format="tree")
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         Get pipeline summary
 
@@ -390,8 +391,8 @@ class PipelineTemplate:
     def sequential_pipeline(
         name: str,
         provider: Any,
-        steps: List[str],
-        memory: Optional[Any] = None
+        steps: list[str],
+        memory: Any | None = None
     ) -> FractalAgentNode:
         """
         Create a simple sequential pipeline
@@ -420,8 +421,8 @@ class PipelineTemplate:
     def research_pipeline(
         name: str,
         provider: Any,
-        domains: List[str],
-        memory: Optional[Any] = None
+        domains: list[str],
+        memory: Any | None = None
     ) -> FractalAgentNode:
         """
         Create a parallel research pipeline
@@ -454,7 +455,7 @@ class PipelineTemplate:
         name: str,
         provider: Any,
         iterations: int = 3,
-        memory: Optional[Any] = None
+        memory: Any | None = None
     ) -> FractalAgentNode:
         """
         Create an iterative refinement pipeline
@@ -485,7 +486,7 @@ class PipelineTemplate:
 def build_pipeline(
     name: str,
     provider: Any,
-    memory: Optional[Any] = None
+    memory: Any | None = None
 ) -> PipelineBuilder:
     """
     Create a new pipeline builder

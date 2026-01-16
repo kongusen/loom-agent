@@ -2,14 +2,14 @@
 Tests for Memory Embedding Providers
 """
 
+
 import pytest
-from unittest.mock import AsyncMock
 
 from loom.memory.embedding import (
-    EmbeddingProvider,
-    OpenAIEmbeddingProvider,
     CachedEmbeddingProvider,
-    MockEmbeddingProvider
+    EmbeddingProvider,
+    MockEmbeddingProvider,
+    OpenAIEmbeddingProvider,
 )
 
 
@@ -19,7 +19,7 @@ class TestEmbeddingProvider:
     def test_cannot_instantiate_abstract_class(self):
         """Test that EmbeddingProvider cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            provider = EmbeddingProvider()
+            EmbeddingProvider()
 
 
 class TestMockEmbeddingProvider:

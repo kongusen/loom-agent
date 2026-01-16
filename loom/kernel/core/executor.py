@@ -4,15 +4,16 @@ Handles parallel execution of read-only tools and sequential execution of side-e
 """
 
 import asyncio
-import re
-import time
 import hashlib
 import json
-from typing import List, Dict, Any, Callable, Coroutine, Tuple, Union, Optional
+import re
+import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
+from typing import Any
+
 from loom.config.execution import ExecutionConfig
-from loom.utils.normalization import DataNormalizer
-from loom.utils.formatting import ErrorFormatter
+
 
 @dataclass
 class ToolExecutionResult:
@@ -26,15 +27,15 @@ class ToolExecutor:
     Orchestrates the execution of multiple tool calls.
     Updates AgentNode logic to support barrier-based parallelism.
     """
-    
+
     def __init__(
         self,
         config: ExecutionConfig,
-        read_only_check: Optional[Callable[[str], bool]] = None
+        read_only_check: Callable[[str], bool] | None = None
     ):
         self.config = config
         self.custom_read_only_check = read_only_check
-        
+
         # Heuristic patterns for read-only tools
         self.read_only_patterns = [
             r"^read_", r"^get_", r"^list_", r"^ls", r"^grep", r"^find",
@@ -42,8 +43,8 @@ class ToolExecutor:
         ]
 
         # Tool result caching
-        self.result_cache: Dict[str, Any] = {}
-        self.cache_timestamps: Dict[str, float] = {}
+        self.result_cache: dict[str, Any] = {}
+        self.cache_timestamps: dict[str, float] = {}
         self.cache_ttl: float = 300.0  # 5 minutes default
         self.enable_cache: bool = True
 
@@ -52,7 +53,7 @@ class ToolExecutor:
         # Use custom check if provided
         if self.custom_read_only_check:
             return self.custom_read_only_check(tool_name)
-            
+
         # Fallback to patterns
         for pattern in self.read_only_patterns:
             if re.match(pattern, tool_name, re.IGNORECASE):
@@ -61,8 +62,8 @@ class ToolExecutor:
 
     def _deduplicate_calls(
         self,
-        tool_calls: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], Dict[int, int]]:
+        tool_calls: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], dict[int, int]]:
         """
         Remove duplicate tool calls, return unique calls and index mapping.
 
@@ -103,16 +104,16 @@ class ToolExecutor:
 
     async def execute_batch(
         self,
-        tool_calls: List[Dict[str, Any]],
-        executor_func: Callable[[str, Dict], Coroutine[Any, Any, Any]]
-    ) -> List[ToolExecutionResult]:
+        tool_calls: list[dict[str, Any]],
+        executor_func: Callable[[str, dict], Coroutine[Any, Any, Any]]
+    ) -> list[ToolExecutionResult]:
         """
         Execute a batch of tool calls respecting read/write barriers.
-        
+
         Args:
             tool_calls: List of dicts with 'name' and 'arguments'.
             executor_func: Async function (name, args) -> result.
-            
+
         Returns:
             List of results mapped back to original order.
         """
@@ -128,18 +129,18 @@ class ToolExecutor:
 
         # 1. Group tasks into Barriers
         # e.g. [R1, R2, W1, R3, R4] -> [[R1, R2], [W1], [R3, R4]]
-        groups: List[List[Tuple[int, Dict]]] = []
-        current_group: List[Tuple[int, Dict]] = []
+        groups: list[list[tuple[int, dict]]] = []
+        current_group: list[tuple[int, dict]] = []
         is_current_read = None
 
         for idx, call in enumerate(calls_to_execute):
             name = call.get("name", "")
             is_read = self.is_read_only(name)
-            
+
             # If parallel execution is disabled, everything is sequential (effectively separate groups or one big sequential loop)
             # But the logic here specifically groups "parallelizable" vs "must-be-isolated"
             # Actually, to be safe: Reads can be grouped. Writes must be isolated (sequential).
-            
+
             if not self.config.parallel_execution:
                 # Treat everything as isolated
                 groups.append([(idx, call)])
@@ -151,7 +152,7 @@ class ToolExecutor:
                     # Current group was Write, close it.
                     groups.append(current_group)
                     current_group = []
-                
+
                 # Add to (or start) Read group
                 current_group.append((idx, call))
                 is_current_read = True
@@ -161,34 +162,34 @@ class ToolExecutor:
                     # Close previous group (whether Read or Write)
                     groups.append(current_group)
                     current_group = []
-                
+
                 # Write tools must be isolated (sequential barrier)
                 # But actually, if we have [W1, W2], can they run together? No. Side effects order matters.
                 # So W1 is its own group.
                 groups.append([(idx, call)])
                 is_current_read = False # Reset
-        
+
         if current_group:
             groups.append(current_group)
 
         # 2. Execute Groups
-        results_map: Dict[int, Any] = {}
+        results_map: dict[int, Any] = {}
 
         for group in groups:
             # Check if group is parallelizable (Read group with >1 items)
             # Actually if it's a Read group, even size 1, we can use gather (no harm).
             # Write groups are size 1.
-            
+
             first_idx, first_call = group[0]
             first_name = first_call.get("name", "")
             is_read_group = self.is_read_only(first_name) if self.config.parallel_execution else False
-            
+
             if is_read_group and len(group) > 0:
                 # Parallel Execution
                 tasks = []
                 for idx, call in group:
                     tasks.append(self._safe_execute(idx, call, executor_func))
-                
+
                 group_results = await asyncio.gather(*tasks)
                 for res in group_results:
                      results_map[res.index] = res
@@ -226,7 +227,7 @@ class ToolExecutor:
 
         return final_results
 
-    def _generate_cache_key(self, tool_name: str, args: Dict[str, Any]) -> str:
+    def _generate_cache_key(self, tool_name: str, args: dict[str, Any]) -> str:
         """Generate a cache key from tool name and arguments."""
         try:
             # Sort args for consistent hashing
@@ -258,7 +259,7 @@ class ToolExecutor:
     async def _safe_execute_with_retry(
         self,
         index: int,
-        call: Dict,
+        call: dict,
         executor_func: Callable,
         max_retries: int = 2
     ) -> ToolExecutionResult:
@@ -289,7 +290,7 @@ class ToolExecutor:
                 if attempt >= max_retries:
                     return result
 
-            except FileNotFoundError as e:
+            except FileNotFoundError:
                 if attempt < max_retries:
                     # Try with absolute path
                     if "arguments" in call and "path" in call["arguments"]:
@@ -302,7 +303,7 @@ class ToolExecutor:
                 # Don't retry permission errors
                 raise
 
-            except Exception as e:
+            except Exception:
                 if attempt < max_retries:
                     # Exponential backoff
                     await asyncio.sleep(0.5 * (attempt + 1))
@@ -316,7 +317,7 @@ class ToolExecutor:
     async def _safe_execute(
         self,
         index: int,
-        call: Dict,
+        call: dict,
         executor_func: Callable
     ) -> ToolExecutionResult:
         name = call.get("name")

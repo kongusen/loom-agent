@@ -4,19 +4,18 @@ Loom Agent Framework - 统一 API 入口
 提供简洁、体系化的能力暴露接口。
 """
 
-from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
-from loom.node.agent import AgentNode
-from loom.node.tool import ToolNode
-from loom.llm import LLMProvider
-from loom.kernel.core import Dispatcher
+from loom.config.execution import ExecutionConfig
+from loom.config.fractal import FractalConfig
+from loom.config.memory import ContextConfig
 
 # 配置类导入
 from loom.config.models import AgentConfig as AgentMetaConfig
-from loom.config.fractal import FractalConfig
-from loom.config.execution import ExecutionConfig
-from loom.config.memory import ContextConfig
+from loom.kernel.core import Dispatcher
+from loom.llm import LLMProvider
+from loom.node.agent import AgentNode
+from loom.node.tool import ToolNode
 
 
 @dataclass
@@ -27,16 +26,16 @@ class LoomConfig:
     整合所有配置项，提供一站式配置能力。
     """
 
-    agent: Optional[AgentMetaConfig] = None
+    agent: AgentMetaConfig | None = None
     """Agent 元配置（角色、提示词等）"""
 
-    fractal: Optional[FractalConfig] = None
+    fractal: FractalConfig | None = None
     """分型配置（自动分解、委托等）"""
 
-    execution: Optional[ExecutionConfig] = None
+    execution: ExecutionConfig | None = None
     """执行配置（并行、超时等）"""
 
-    memory: Optional[ContextConfig] = None
+    memory: ContextConfig | None = None
     """Memory 和 Context 配置"""
 
     @staticmethod
@@ -91,12 +90,12 @@ class Loom:
     def create_agent(
         node_id: str,
         *,
-        pattern: Optional[str] = None,
-        preset: Optional[str] = None,  # 已弃用，使用 pattern 代替
-        llm: Optional[LLMProvider] = None,
-        tools: Optional[List[ToolNode]] = None,
-        config: Optional[LoomConfig] = None,
-        dispatcher: Optional[Dispatcher] = None,
+        pattern: str | None = None,
+        preset: str | None = None,  # 已弃用，使用 pattern 代替
+        llm: LLMProvider | None = None,
+        tools: list[ToolNode] | None = None,
+        config: LoomConfig | None = None,
+        dispatcher: Dispatcher | None = None,
         **kwargs
     ) -> AgentNode:
         """
@@ -185,7 +184,7 @@ class Loom:
         return LoomConfig.from_preset(name)
 
     @staticmethod
-    def list_presets() -> List[str]:
+    def list_presets() -> list[str]:
         """列出所有可用的预设"""
         from loom.presets import PRESETS
         return list(PRESETS.keys())

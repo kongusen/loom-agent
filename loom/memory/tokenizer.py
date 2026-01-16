@@ -6,8 +6,9 @@ to eliminate duplication and provide consistent token counting across
 the memory and context systems.
 """
 
-from typing import List, Dict, Optional, Union
 from functools import lru_cache
+from typing import Optional
+
 import tiktoken
 
 from loom.memory.types import MemoryUnit
@@ -73,7 +74,7 @@ class TokenCounter:
         # Try to use cached encoding
         return self._encode_cached(text)
 
-    def count_message(self, message: Dict[str, str]) -> int:
+    def count_message(self, message: dict[str, str]) -> int:
         """
         Count tokens in a message dictionary.
 
@@ -98,7 +99,7 @@ class TokenCounter:
 
         return self._encode_cached(content) + role_tokens
 
-    def count_memory_units(self, units: List[MemoryUnit]) -> int:
+    def count_memory_units(self, units: list[MemoryUnit]) -> int:
         """
         Count total tokens in a list of memory units.
 
@@ -136,7 +137,7 @@ class TokenCounter:
         content_str = str(unit.content)
         return self._encode_cached(content_str)
 
-    def count_messages(self, messages: List[Dict[str, str]]) -> int:
+    def count_messages(self, messages: list[dict[str, str]]) -> int:
         """
         Count total tokens in a list of messages.
 
@@ -208,7 +209,7 @@ class TokenCounter:
     # Statistics and Cache Management
     # ============================================================================
 
-    def get_cache_info(self) -> Dict[str, int]:
+    def get_cache_info(self) -> dict[str, int]:
         """
         Get cache statistics for the internal encoding cache.
 
@@ -229,7 +230,7 @@ class TokenCounter:
 
 
 # Module-level convenience access
-_counter: Optional[TokenCounter] = None
+_counter: TokenCounter | None = None
 
 
 def get_token_counter(encoding: str = "cl100k_base") -> TokenCounter:

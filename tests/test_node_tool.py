@@ -4,11 +4,12 @@ Tests for Tool Node
 Tests the ToolNode class which wraps MCP tools as nodes.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 
-from loom.node.tool import ToolNode
+import pytest
+
 from loom.kernel.core.dispatcher import Dispatcher
+from loom.node.tool import ToolNode
 from loom.protocol.cloudevents import CloudEvent
 from loom.protocol.mcp import MCPToolDefinition
 

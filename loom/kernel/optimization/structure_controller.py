@@ -5,19 +5,14 @@ This module provides intelligent control over node structure evolution,
 including growth decisions, pruning strategies, and structure optimization.
 """
 
-import time
 import logging
-from typing import List, Dict, Any, Optional, Callable
-from dataclasses import dataclass, field
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
-from loom.config.fractal import (
-    FractalConfig,
-    GrowthStrategy,
-    GrowthTrigger,
-    NodeRole,
-    NodeMetrics
-)
+from loom.config.fractal import FractalConfig, GrowthStrategy, NodeRole
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +35,15 @@ class StructureEvent:
     timestamp: float
     event_type: StructureEventType
     node_id: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
 
     # Growth-specific
-    strategy: Optional[GrowthStrategy] = None
+    strategy: GrowthStrategy | None = None
     children_added: int = 0
 
     # Pruning-specific
     nodes_removed: int = 0
-    pruning_reason: Optional[str] = None
+    pruning_reason: str | None = None
 
     # Performance impact
     before_fitness: float = 0.0
@@ -111,14 +106,14 @@ class StructureController:
         self.max_history_size = max_history_size
 
         # Event history
-        self.history: List[StructureEvent] = []
+        self.history: list[StructureEvent] = []
 
         # Statistics
         self.stats = StructureStats()
 
         # Callbacks
-        self._growth_callbacks: List[Callable] = []
-        self._pruning_callbacks: List[Callable] = []
+        self._growth_callbacks: list[Callable] = []
+        self._pruning_callbacks: list[Callable] = []
 
     # ========================================================================
     # Growth Control
@@ -190,7 +185,7 @@ class StructureController:
         self,
         node: Any,
         task: str,
-        task_features: Optional[Dict[str, Any]] = None
+        task_features: dict[str, Any] | None = None
     ) -> GrowthStrategy:
         """
         Choose optimal growth strategy based on task characteristics
@@ -233,7 +228,7 @@ class StructureController:
         # Default: Use config default
         return self.config.default_strategy
 
-    def _analyze_task(self, task: str) -> Dict[str, Any]:
+    def _analyze_task(self, task: str) -> dict[str, Any]:
         """Analyze task to extract features for strategy selection"""
         task_lower = task.lower()
 
@@ -301,8 +296,8 @@ class StructureController:
     def should_prune(
         self,
         node: Any,
-        parent: Optional[Any] = None
-    ) -> tuple[bool, Optional[str]]:
+        parent: Any | None = None
+    ) -> tuple[bool, str | None]:
         """
         Determine if node should be pruned
 
@@ -349,7 +344,7 @@ class StructureController:
         self,
         root: Any,
         dry_run: bool = False
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Recursively prune inefficient nodes from structure
 
@@ -362,7 +357,7 @@ class StructureController:
         """
         pruned = []
 
-        def _prune_recursive(node: Any, parent: Optional[Any] = None):
+        def _prune_recursive(node: Any, parent: Any | None = None):
             # Check children first (bottom-up pruning)
             for child in node.children[:]:  # Copy to avoid modification issues
                 _prune_recursive(child, node)
@@ -429,7 +424,7 @@ class StructureController:
     # Structure Analysis
     # ========================================================================
 
-    def analyze_structure(self, root: Any) -> Dict[str, Any]:
+    def analyze_structure(self, root: Any) -> dict[str, Any]:
         """
         Analyze structure and compute statistics
 
@@ -484,7 +479,7 @@ class StructureController:
             'nodes_pruned': self.stats.total_nodes_pruned
         }
 
-    def get_inefficient_nodes(self, root: Any) -> List[tuple[Any, float, str]]:
+    def get_inefficient_nodes(self, root: Any) -> list[tuple[Any, float, str]]:
         """
         Identify inefficient nodes without pruning
 
@@ -493,7 +488,7 @@ class StructureController:
         """
         inefficient = []
 
-        def _check_node(node: Any, parent: Optional[Any] = None):
+        def _check_node(node: Any, parent: Any | None = None):
             for child in node.children:
                 _check_node(child, node)
 
@@ -543,9 +538,9 @@ class StructureController:
 
     def get_history(
         self,
-        event_type: Optional[StructureEventType] = None,
+        event_type: StructureEventType | None = None,
         limit: int = 100
-    ) -> List[StructureEvent]:
+    ) -> list[StructureEvent]:
         """Get structure event history"""
         events = self.history
 

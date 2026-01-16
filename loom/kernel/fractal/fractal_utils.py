@@ -5,7 +5,8 @@ Provides common utilities used by both AgentNode and FractalAgentNode
 for fractal task decomposition and complexity estimation.
 """
 
-from typing import Optional, Any
+from typing import Any
+
 from loom.config.fractal import FractalConfig, GrowthTrigger
 
 
@@ -50,7 +51,7 @@ def estimate_task_complexity(task: str) -> float:
 def should_use_fractal(
     task: str,
     config: FractalConfig,
-    routing_decision: Optional[Any] = None
+    routing_decision: Any | None = None
 ) -> bool:
     """
     Determine if fractal decomposition should be used
@@ -82,17 +83,7 @@ def should_use_fractal(
 
     # SYSTEM2 trigger
     if trigger == GrowthTrigger.SYSTEM2:
-        # If routing decision provided, check if System 2 was selected
-        if routing_decision:
-            if hasattr(routing_decision, 'system'):
-                if routing_decision.system == SystemType.SYSTEM_2:
-                    return True
-                if (routing_decision.system == SystemType.ADAPTIVE and
-                    hasattr(routing_decision, 'confidence') and
-                    routing_decision.confidence < config.confidence_threshold):
-                    return True
-
-        # No routing decision, estimate complexity
+        # Estimate complexity to determine if fractal growth should trigger
         complexity = estimate_task_complexity(task)
         return complexity > config.complexity_threshold
 

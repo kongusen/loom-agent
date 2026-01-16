@@ -3,7 +3,7 @@ Event Store - Interface and Implementation
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+
 from loom.protocol.cloudevents import CloudEvent
 
 
@@ -21,7 +21,7 @@ class EventStore(ABC):
         pass
 
     @abstractmethod
-    async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> List[CloudEvent]:
+    async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> list[CloudEvent]:
         """
         Retrieve events with optional filtering.
         Filters can match on standard CloudEvent attributes (source, type, etc.)
@@ -36,12 +36,12 @@ class InMemoryEventStore(EventStore):
     """
 
     def __init__(self):
-        self._storage: List[CloudEvent] = []
+        self._storage: list[CloudEvent] = []
 
     async def append(self, event: CloudEvent) -> None:
         self._storage.append(event)
 
-    async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> List[CloudEvent]:
+    async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> list[CloudEvent]:
         """
         Naive implementation of filtering.
         """

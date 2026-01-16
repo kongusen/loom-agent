@@ -2,7 +2,6 @@
 Tests for Formatting Utilities
 """
 
-import pytest
 from loom.utils.formatting import ErrorFormatter
 
 

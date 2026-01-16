@@ -2,9 +2,8 @@
 Embedding Provider Abstraction
 Allows users to plug in their preferred embedding service.
 """
-from abc import ABC, abstractmethod
-from typing import List, Optional
 import hashlib
+from abc import ABC, abstractmethod
 
 
 class EmbeddingProvider(ABC):
@@ -14,7 +13,7 @@ class EmbeddingProvider(ABC):
     """
 
     @abstractmethod
-    async def embed_text(self, text: str) -> List[float]:
+    async def embed_text(self, text: str) -> list[float]:
         """
         Generate embedding for a single text.
 
@@ -27,7 +26,7 @@ class EmbeddingProvider(ABC):
         pass
 
     @abstractmethod
-    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple texts (batch processing).
 
@@ -59,9 +58,9 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "text-embedding-3-small",
-        dimensions: Optional[int] = None
+        dimensions: int | None = None
     ):
         try:
             from openai import AsyncOpenAI
@@ -82,7 +81,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             "text-embedding-ada-002": 1536
         }
 
-    async def embed_text(self, text: str) -> List[float]:
+    async def embed_text(self, text: str) -> list[float]:
         response = await self.client.embeddings.create(
             input=text,
             model=self.model,
@@ -90,7 +89,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         )
         return response.data[0].embedding
 
-    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         response = await self.client.embeddings.create(
             input=texts,
             model=self.model,
@@ -118,9 +117,9 @@ class CachedEmbeddingProvider(EmbeddingProvider):
     def __init__(self, base_provider: EmbeddingProvider, max_cache_size: int = 10000):
         self.base_provider = base_provider
         self.max_cache_size = max_cache_size
-        self._cache: dict[str, List[float]] = {}
+        self._cache: dict[str, list[float]] = {}
 
-    async def embed_text(self, text: str) -> List[float]:
+    async def embed_text(self, text: str) -> list[float]:
         cache_key = self._get_cache_key(text)
 
         if cache_key in self._cache:
@@ -136,7 +135,7 @@ class CachedEmbeddingProvider(EmbeddingProvider):
         self._cache[cache_key] = embedding
         return embedding
 
-    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         results = []
         uncached_texts = []
         uncached_indices = []
@@ -155,7 +154,7 @@ class CachedEmbeddingProvider(EmbeddingProvider):
         if uncached_texts:
             embeddings = await self.base_provider.embed_batch(uncached_texts)
 
-            for idx, embedding in zip(uncached_indices, embeddings):
+            for idx, embedding in zip(uncached_indices, embeddings, strict=False):
                 cache_key = self._get_cache_key(texts[idx])
                 self._cache[cache_key] = embedding
                 results[idx] = embedding
@@ -195,7 +194,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
         model_name: str = "BAAI/bge-small-zh-v1.5",
         use_onnx: bool = True,
         use_quantization: bool = True,
-        cache_dir: Optional[str] = None
+        cache_dir: str | None = None
     ):
         self.model_name = model_name
         self.use_onnx = use_onnx
@@ -214,8 +213,8 @@ class BGEEmbeddingProvider(EmbeddingProvider):
             return
 
         try:
-            from transformers import AutoTokenizer, AutoModel
             import torch
+            from transformers import AutoModel, AutoTokenizer
 
             # Load tokenizer
             self._tokenizer = AutoTokenizer.from_pretrained(
@@ -228,7 +227,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
                 try:
                     self._initialize_onnx()
                     return
-                except Exception as e:
+                except Exception:
                     # Fallback to PyTorch if ONNX fails
                     pass
 
@@ -248,11 +247,12 @@ class BGEEmbeddingProvider(EmbeddingProvider):
     def _initialize_onnx(self):
         """Initialize ONNX Runtime session with optional quantization."""
         try:
+            import os
+            from pathlib import Path
+
             import onnxruntime as ort
             import torch
             from transformers import AutoModel
-            import os
-            from pathlib import Path
 
             # Determine ONNX model path
             cache_dir = self.cache_dir or os.path.expanduser("~/.cache/loom/onnx")
@@ -287,9 +287,10 @@ class BGEEmbeddingProvider(EmbeddingProvider):
 
     def _convert_to_onnx(self, onnx_path: str):
         """Convert PyTorch model to ONNX format with optional quantization."""
+        import os
+
         import torch
         from transformers import AutoModel
-        import os
 
         # Load PyTorch model temporarily
         model = AutoModel.from_pretrained(
@@ -325,7 +326,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
         # Apply Int8 quantization if requested
         if self.use_quantization:
             try:
-                from onnxruntime.quantization import quantize_dynamic, QuantType
+                from onnxruntime.quantization import QuantType, quantize_dynamic
 
                 quantize_dynamic(
                     temp_onnx_path,
@@ -333,7 +334,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
                     weight_type=QuantType.QInt8
                 )
                 os.remove(temp_onnx_path)
-            except Exception as e:
+            except Exception:
                 # If quantization fails, use unquantized version
                 os.rename(temp_onnx_path, onnx_path)
         else:
@@ -352,7 +353,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
 
         return sum_embeddings / sum_mask
 
-    async def embed_text(self, text: str) -> List[float]:
+    async def embed_text(self, text: str) -> list[float]:
         """Generate embedding for a single text."""
         self._initialize()
 
@@ -410,7 +411,7 @@ class BGEEmbeddingProvider(EmbeddingProvider):
 
         return embedding
 
-    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts (batch processing)."""
         self._initialize()
 
@@ -486,14 +487,14 @@ class MockEmbeddingProvider(EmbeddingProvider):
     def __init__(self, dimension: int = 1536):
         self._dimension = dimension
 
-    async def embed_text(self, text: str) -> List[float]:
+    async def embed_text(self, text: str) -> list[float]:
         import random
         # Use text hash as seed for deterministic results
         seed = hash(text) % (2**32)
         random.seed(seed)
         return [random.random() for _ in range(self._dimension)]
 
-    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [await self.embed_text(text) for text in texts]
 
     @property

@@ -2,15 +2,16 @@
 Tests for Crew Node
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from loom.node.crew import CrewNode
-from loom.node.base import Node
+import pytest
+
 from loom.kernel.core import Dispatcher
+from loom.memory.sanitizers import BubbleUpSanitizer
+from loom.node.base import Node
+from loom.node.crew import CrewNode
 from loom.protocol.cloudevents import CloudEvent
 from loom.protocol.interfaces import NodeProtocol
-from loom.memory.sanitizers import BubbleUpSanitizer
 
 
 class MockAgentNode(Node):
@@ -224,7 +225,7 @@ class TestCrewNode:
         crew.call = mock_call
         crew.sanitizer.sanitize = AsyncMock(return_value="Sanitized")
 
-        result = await crew._execute_sequential("Initial")
+        await crew._execute_sequential("Initial")
 
         # Each agent should receive the previous agent's output
         assert call_count == 3

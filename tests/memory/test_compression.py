@@ -2,15 +2,13 @@
 Tests for Memory Compression
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from loom.memory.compression import (
-    ContextCompressor,
-    MemoryCompressor
-)
-from loom.memory.types import MemoryUnit, MemoryType, MemoryTier, MemoryStatus
+import pytest
+
+from loom.memory.compression import ContextCompressor, MemoryCompressor
+from loom.memory.types import MemoryStatus, MemoryTier, MemoryType, MemoryUnit
 
 
 @pytest.mark.asyncio

@@ -1,10 +1,10 @@
 
 import asyncio
 import json
+import logging
 import os
 import time
-from typing import Optional, List, Dict, Any
-import logging
+from typing import Any
 
 try:
     import websockets
@@ -30,13 +30,13 @@ class StudioInterceptor(Interceptor):
 
     def __init__(self, studio_url: str = "ws://localhost:8765", enabled: bool = False):
         self.studio_url = studio_url
-        self.ws: Optional[WebSocketClientProtocol] = None
-        self.event_buffer: List[CloudEvent] = []
+        self.ws: WebSocketClientProtocol | None = None
+        self.event_buffer: list[CloudEvent] = []
         self.buffer_size = 10
         # Priority: Argument > Env Var
         self.enabled = enabled or os.getenv("LOOM_STUDIO_ENABLED", "false").lower() == "true"
         self._loop = None
-        
+
         if self.enabled and not websockets:
             logger.warning("LOOM_STUDIO_ENABLED is true but websockets is not installed. Disabling Studio.")
             self.enabled = False
@@ -63,19 +63,19 @@ class StudioInterceptor(Interceptor):
             url = self.studio_url
             if not url.endswith("/ws/ingest"):
                 url = f"{url.rstrip('/')}/ws/ingest"
-            
+
             # Simple debounce/lock could go here but for now just log
-            print(f"DEBUG: Connecting to {url}") 
+            print(f"DEBUG: Connecting to {url}")
             self.ws = await websockets.connect(url)
             logger.info(f"Connected to Loom Studio at {url}")
-            print(f"DEBUG: Connected successfully")
+            print("DEBUG: Connected successfully")
         except Exception as e:
             # Silent fail to not disrupt agent operation, but log it
-            logger.debug(f"Failed to connect to Studio: {e}") 
+            logger.debug(f"Failed to connect to Studio: {e}")
             print(f"DEBUG: Failed to connect: {e}")
             self.ws = None
 
-    async def pre_invoke(self, event: CloudEvent) -> Optional[CloudEvent]:
+    async def pre_invoke(self, event: CloudEvent) -> CloudEvent | None:
         """Capture event (pre-phase) - 不发送事件，只在 post_invoke 发送以避免重复"""
         # 不在 pre 阶段发送事件，只在 post 阶段发送完整的事件
         return event
@@ -86,14 +86,14 @@ class StudioInterceptor(Interceptor):
             enriched_event_data = event.model_dump(mode='json')
             if "extensions" not in enriched_event_data:
                 enriched_event_data["extensions"] = {}
-                
+
             # 标记为 post 阶段（虽然现在只在 post 发送，但保留标记以便将来扩展）
             enriched_event_data["extensions"]["studio_phase"] = "post"
             enriched_event_data["extensions"]["studio_timestamp"] = time.time()
 
             asyncio.create_task(self._send_event_data(enriched_event_data))
 
-    async def _send_event_data(self, event_data: Dict[str, Any]):
+    async def _send_event_data(self, event_data: dict[str, Any]):
         """Buffer and send event data"""
         try:
             self.event_buffer.append(event_data)
@@ -107,7 +107,7 @@ class StudioInterceptor(Interceptor):
         """Flush buffered events to server"""
         if not self.event_buffer:
             return
-            
+
         # Snapshot and clear immediately to avoid duplicates/race
         current_batch = list(self.event_buffer)
         self.event_buffer = []

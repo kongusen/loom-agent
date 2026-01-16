@@ -3,10 +3,10 @@ Data Normalization Utilities
 Inspired by Claude Code's normalizeToSize algorithm.
 """
 
-from typing import Any, Dict, List, Set, Optional, Union
-
 import json
 import sys
+from typing import Any
+
 
 class DataNormalizer:
     """
@@ -16,8 +16,8 @@ class DataNormalizer:
 
     @staticmethod
     def normalize_to_size(
-        obj: Any, 
-        max_depth: int = 3, 
+        obj: Any,
+        max_depth: int = 3,
         max_bytes: int = 100_000,
         string_limit: int = 20_000
     ) -> Any:
@@ -26,20 +26,20 @@ class DataNormalizer:
         """
         current_depth = max_depth
         normalized = DataNormalizer._normalize(obj, current_depth, string_limit=string_limit)
-        
+
         # Iteratively reduce depth if size is too large
         while DataNormalizer._estimate_size(normalized) > max_bytes and current_depth > 0:
             current_depth -= 1
             normalized = DataNormalizer._normalize(obj, current_depth)
-            
+
         return normalized
 
     @staticmethod
     def _normalize(
-        obj: Any, 
-        max_depth: int, 
-        current_depth: int = 0, 
-        visited: Optional[Set[int]] = None,
+        obj: Any,
+        max_depth: int,
+        current_depth: int = 0,
+        visited: set[int] | None = None,
         string_limit: int = 20_000
     ) -> Any:
         if visited is None:
@@ -47,9 +47,9 @@ class DataNormalizer:
 
         if obj is None:
             return None
-        
+
         # Primitives
-        if isinstance(obj, (bool, int, float, str)):
+        if isinstance(obj, bool | int | float | str):
             # Truncate extremely long strings immediately
             if isinstance(obj, str) and len(obj) > string_limit:
                 return obj[:string_limit] + "... [TRUNCATED]"
@@ -59,12 +59,12 @@ class DataNormalizer:
         obj_id = id(obj)
         if obj_id in visited:
             return "[Circular]"
-        
+
         visited.add(obj_id)
 
         # Depth Check
         if current_depth >= max_depth:
-            if isinstance(obj, (list, tuple)):
+            if isinstance(obj, list | tuple):
                 return f"[Array({len(obj)})]"
             if hasattr(obj, '__class__'):
                  return f"[{obj.__class__.__name__}]"
@@ -86,13 +86,13 @@ class DataNormalizer:
                  return DataNormalizer._normalize(data, max_depth, current_depth, visited.copy())
              except Exception:
                  pass
-                 
+
         # Dictionaries
         if isinstance(obj, dict):
              dict_result = {}
              keys = list(obj.keys())
              # Limit keys just in case
-             for key in keys[:50]: 
+             for key in keys[:50]:
                  dict_result[str(key)] = DataNormalizer._normalize(
                      obj[key], max_depth, current_depth + 1, visited.copy()
                  )
@@ -101,7 +101,7 @@ class DataNormalizer:
              return dict_result
 
         # Lists/Tuples
-        if isinstance(obj, (list, tuple)):
+        if isinstance(obj, list | tuple):
              list_result = []
              # Limit array items
              for item in obj[:50]:

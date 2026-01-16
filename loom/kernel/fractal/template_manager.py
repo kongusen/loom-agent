@@ -8,14 +8,14 @@ and provides intelligent template matching and recommendations.
 import json
 import logging
 import re
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, field
 from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
-from loom.config.fractal import NodeRole, GrowthStrategy
-from loom.kernel.optimization import StructureSnapshot, StructurePattern
+from loom.config.fractal import NodeRole
+from loom.kernel.optimization import StructureSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,12 @@ class StructureTemplate:
     template_id: str
     name: str
     description: str
-    task_categories: List[str]
+    task_categories: list[str]
     """Categories of tasks this template is good for"""
 
     # Topology specification
     topology_type: str  # "sequential", "parallel", "hierarchical", "mixed"
-    node_specs: List[Dict[str, Any]]
+    node_specs: list[dict[str, Any]]
     """List of node specifications"""
 
     # Performance guarantees
@@ -45,11 +45,11 @@ class StructureTemplate:
     usage_count: int = 0
 
     # Metadata
-    created_from: Optional[str] = None  # Source structure ID
-    tags: List[str] = field(default_factory=list)
+    created_from: str | None = None  # Source structure ID
+    tags: list[str] = field(default_factory=list)
     confidence: float = 0.0
 
-    def matches_task(self, task_type: str, task_description: Optional[str] = None) -> float:
+    def matches_task(self, task_type: str, task_description: str | None = None) -> float:
         """
         Check if template matches a task
 
@@ -67,7 +67,7 @@ class StructureTemplate:
         # Tag matching
         if task_description:
             task_words = set(task_description.lower().split())
-            tag_words = set(word for tag in self.tags for word in tag.lower().split())
+            tag_words = {word for tag in self.tags for word in tag.lower().split()}
             overlap = len(task_words & tag_words)
             if overlap > 0:
                 score += min(0.3, overlap * 0.1)
@@ -80,7 +80,7 @@ class StructureTemplate:
 
         return min(1.0, score)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             'template_id': self.template_id,
@@ -103,7 +103,7 @@ class StructureTemplate:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'StructureTemplate':
+    def from_dict(cls, data: dict[str, Any]) -> 'StructureTemplate':
         """Create from dictionary"""
         return cls(
             template_id=data['template_id'],
@@ -154,14 +154,14 @@ class TemplateManager:
         self.min_usage_for_template = min_usage_for_template
 
         # Template storage
-        self.templates: Dict[str, StructureTemplate] = {}
+        self.templates: dict[str, StructureTemplate] = {}
 
         # Category index for fast lookup
-        self.category_index: Dict[str, List[str]] = defaultdict(list)
+        self.category_index: dict[str, list[str]] = defaultdict(list)
         # Maps category -> list of template IDs
 
         # Performance tracking
-        self.template_usage: Dict[str, List[float]] = defaultdict(list)
+        self.template_usage: dict[str, list[float]] = defaultdict(list)
         # Maps template_id -> list of fitness scores
 
     # ========================================================================
@@ -170,9 +170,9 @@ class TemplateManager:
 
     def learn_from_snapshots(
         self,
-        snapshots: List[StructureSnapshot],
+        snapshots: list[StructureSnapshot],
         task_type: str
-    ) -> Optional[StructureTemplate]:
+    ) -> StructureTemplate | None:
         """
         Learn template from structure snapshots
 
@@ -206,7 +206,7 @@ class TemplateManager:
 
     def _extract_template_from_snapshots(
         self,
-        snapshots: List[StructureSnapshot],
+        snapshots: list[StructureSnapshot],
         task_type: str
     ) -> StructureTemplate:
         """Extract template from snapshots"""
@@ -264,8 +264,8 @@ class TemplateManager:
 
     def _aggregate_role_distribution(
         self,
-        snapshots: List[StructureSnapshot]
-    ) -> Dict[str, float]:
+        snapshots: list[StructureSnapshot]
+    ) -> dict[str, float]:
         """Aggregate role distribution across snapshots"""
         role_counts = defaultdict(list)
 
@@ -285,8 +285,8 @@ class TemplateManager:
         topology_type: str,
         total_nodes: int,
         max_depth: int,
-        role_distribution: Dict[str, float]
-    ) -> List[Dict[str, Any]]:
+        role_distribution: dict[str, float]
+    ) -> list[dict[str, Any]]:
         """Create node specifications"""
         specs = []
 
@@ -345,7 +345,7 @@ class TemplateManager:
 
         return specs[:total_nodes]  # Ensure we don't exceed total
 
-    def _extract_tags(self, task_type: str) -> List[str]:
+    def _extract_tags(self, task_type: str) -> list[str]:
         """Extract tags from task type"""
         # Simple word extraction
         words = re.findall(r'\w+', task_type.lower())
@@ -368,7 +368,7 @@ class TemplateManager:
 
         logger.info(f"Added template: {template.template_id}")
 
-    def get_template(self, template_id: str) -> Optional[StructureTemplate]:
+    def get_template(self, template_id: str) -> StructureTemplate | None:
         """Get template by ID"""
         return self.templates.get(template_id)
 
@@ -391,10 +391,10 @@ class TemplateManager:
     def find_templates(
         self,
         task_type: str,
-        task_description: Optional[str] = None,
+        task_description: str | None = None,
         min_match_score: float = 0.3,
         limit: int = 5
-    ) -> List[Tuple[StructureTemplate, float]]:
+    ) -> list[tuple[StructureTemplate, float]]:
         """
         Find matching templates for a task
 
@@ -436,9 +436,9 @@ class TemplateManager:
     def recommend_template(
         self,
         task_type: str,
-        task_description: Optional[str] = None,
-        current_fitness: Optional[float] = None
-    ) -> Optional[StructureTemplate]:
+        task_description: str | None = None,
+        current_fitness: float | None = None
+    ) -> StructureTemplate | None:
         """
         Recommend best template for a task
 
@@ -482,7 +482,7 @@ class TemplateManager:
 
             logger.debug(f"Recorded usage for {template_id}: fitness={fitness:.2f}")
 
-    def get_template_stats(self, template_id: str) -> Dict[str, Any]:
+    def get_template_stats(self, template_id: str) -> dict[str, Any]:
         """Get usage statistics for template"""
         template = self.templates.get(template_id)
         usage_scores = self.template_usage.get(template_id, [])
@@ -509,7 +509,7 @@ class TemplateManager:
         """Save templates to file"""
         data = {
             'templates': {k: v.to_dict() for k, v in self.templates.items()},
-            'usage': {k: v for k, v in self.template_usage.items()}
+            'usage': dict(self.template_usage.items())
         }
 
         with open(filepath, 'w') as f:
@@ -519,7 +519,7 @@ class TemplateManager:
 
     def load(self, filepath: str):
         """Load templates from file"""
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         self.templates = {
@@ -541,7 +541,7 @@ class TemplateManager:
     # Reporting
     # ========================================================================
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get summary of template library"""
         import numpy as np
 

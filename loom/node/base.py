@@ -4,18 +4,19 @@ Base Node Abstraction (Fractal System)
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
 
-from loom.protocol.cloudevents import CloudEvent
 from loom.kernel.core import Dispatcher
+from loom.protocol.cloudevents import CloudEvent
+
 
 class Node(ABC):
     """
     Abstract Base Class for all Fractal Nodes (Agent, Tool, Crew).
     Implements standard event subscription and request handling.
     """
-    
+
     def __init__(self, node_id: str, dispatcher: Dispatcher, auto_subscribe: bool = True):
         self.node_id = node_id
         self.dispatcher = dispatcher
@@ -47,7 +48,7 @@ class Node(ABC):
         try:
             # 1. Process
             result = await self.process(event)
-            
+
             # 2. Respond
             response_event = CloudEvent.create(
                 source=self.source_uri,
@@ -61,10 +62,10 @@ class Node(ABC):
             # Response topic usually goes to whoever asked, or open bus
             # In request-reply pattern, typically we might just publish it
             # and the caller subscribes to node.response/originator
-            
+
             # For now, just generic publish
             await self.dispatcher.dispatch(response_event)
-            
+
         except Exception as e:
             error_event = CloudEvent.create(
                 source=self.source_uri,
@@ -77,7 +78,7 @@ class Node(ABC):
             )
             await self.dispatcher.dispatch(error_event)
 
-    async def call(self, target_node: str, data: Dict[str, Any]) -> Any:
+    async def call(self, target_node: str, data: dict[str, Any]) -> Any:
         """
         Call another node and wait for response.
 

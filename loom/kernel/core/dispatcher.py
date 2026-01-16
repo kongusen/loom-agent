@@ -2,11 +2,13 @@
 Event Dispatcher (Kernel)
 """
 
-from typing import List, Any, Dict
+import contextlib
+from typing import Any
 
-from loom.protocol.cloudevents import CloudEvent
-from loom.kernel.core.bus import UniversalEventBus
 from loom.kernel.control.base import Interceptor
+from loom.kernel.core.bus import UniversalEventBus
+from loom.protocol.cloudevents import CloudEvent
+
 
 class Dispatcher:
     """
@@ -14,20 +16,20 @@ class Dispatcher:
     1. Runs Interceptor Chain (Pre-invoke).
     2. Publishes to Bus.
     3. Runs Interceptor Chain (Post-invoke).
-    
+
     Enhanced for Dynamic Topology:
     - Manages ephemeral nodes (System 2 thoughts).
     """
-    
+
     def __init__(self, bus: UniversalEventBus):
         self.bus = bus
-        self.interceptors: List[Interceptor] = []
-        self._ephemeral_nodes: Dict[str, Any] = {}
-        
+        self.interceptors: list[Interceptor] = []
+        self._ephemeral_nodes: dict[str, Any] = {}
+
     def add_interceptor(self, interceptor: Interceptor) -> None:
         """Add an interceptor to the chain."""
         self.interceptors.append(interceptor)
-        
+
     async def register_ephemeral(self, node: Any) -> None:
         """
         Register a short-lived node (e.g., a Thought Spark).
@@ -48,7 +50,7 @@ class Dispatcher:
             print(f"[Dispatcher] Auto-subscribed ephemeral node: {node_id}")
         else:
             print(f"[Dispatcher] Warning: Node {node_id} has no _handle_request method")
-        
+
     def cleanup_ephemeral(self, node_id: str) -> None:
         """
         Cleanup resources for a node.
@@ -79,19 +81,17 @@ class Dispatcher:
         import asyncio
         timeout = 30.0 # Default fallback
         if current_event.extensions and "timeout" in current_event.extensions:
-            try:
+            with contextlib.suppress(Exception):
                 timeout = float(current_event.extensions["timeout"])
-            except:
-                pass
-                
+
         try:
              await asyncio.wait_for(self.bus.publish(current_event), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
              print(f"timeout dispatching event {current_event.id}")
              # We might want to raise or handle graceful failure
              # Raising allows the caller (e.g. app.run) to catch it
              raise
-        
+
         # 3. Post-invoke Interceptors (in reverse order)
         for interceptor in reversed(self.interceptors):
             await interceptor.post_invoke(current_event)

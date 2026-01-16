@@ -2,14 +2,10 @@
 Tests for Memory Vector Store
 """
 
-import pytest
 import numpy as np
+import pytest
 
-from loom.memory.vector_store import (
-    VectorSearchResult,
-    VectorStoreProvider,
-    InMemoryVectorStore
-)
+from loom.memory.vector_store import InMemoryVectorStore, VectorSearchResult, VectorStoreProvider
 
 
 class TestVectorSearchResult:
@@ -44,7 +40,7 @@ class TestVectorStoreProvider:
     def test_cannot_instantiate_abstract_class(self):
         """Test that VectorStoreProvider cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            provider = VectorStoreProvider()
+            VectorStoreProvider()
 
 
 @pytest.mark.asyncio

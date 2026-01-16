@@ -1,12 +1,9 @@
 
-import asyncio
-import uuid
-import json
-from typing import Set, Dict, List, Optional, Any
-from fastapi import FastAPI, WebSocket, Query
-from fastapi.websockets import WebSocketDisconnect
+from typing import Any
+
+from fastapi import FastAPI, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-import time
+from fastapi.websockets import WebSocketDisconnect
 
 app = FastAPI(title="Loom Studio Server")
 
@@ -23,19 +20,19 @@ app.add_middleware(
 # In a real impl, this would wrap database access
 class SimpleEventStore:
     def __init__(self):
-        self.events: List[Dict[str, Any]] = []
-        self._seen_ids: Set[str] = set()  # 用于去重
+        self.events: list[dict[str, Any]] = []
+        self._seen_ids: set[str] = set()  # 用于去重
 
-    async def append(self, event: Dict[str, Any]):
+    async def append(self, event: dict[str, Any]):
         # 基于 event.id 去重（同一个事件不应该被存储两次）
         event_id = event.get("id")
         if event_id and event_id in self._seen_ids:
             # 如果事件已存在，跳过（避免重复）
             return
-        
+
         if event_id:
             self._seen_ids.add(event_id)
-        
+
         self.events.append(event)
         # Keep basic size limit
         if len(self.events) > 10000:
@@ -44,15 +41,15 @@ class SimpleEventStore:
             if removed.get("id"):
                 self._seen_ids.discard(removed.get("id"))
 
-    async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> List[Dict[str, Any]]:
+    async def get_events(self, limit: int = 100, offset: int = 0, **filters) -> list[dict[str, Any]]:
         # Apply filters (basic implementation)
         filtered = self.events
-        
+
         # Filter by source (node_id)
         if "source__contains" in filters:
             node_id = filters["source__contains"]
             filtered = [e for e in filtered if node_id in e.get("source", "")]
-            
+
         # Filter by type
         if "type" in filters:
             etype = filters["type"]
@@ -62,13 +59,13 @@ class SimpleEventStore:
         if "type__in" in filters:
             types = filters["type__in"]
             filtered = [e for e in filtered if e.get("type") in types]
-            
+
         # Reverse to get newest first, then apply limit/offset
         # Actually usually frontend wants chronological or reverse chronological?
         # Let's return reverse chronological (newest first) for initial load
         # But for streaming it's chronological.
-        # Let's do slicing on the original list (chronological) 
-        # but apply offset from end if needed? 
+        # Let's do slicing on the original list (chronological)
+        # but apply offset from end if needed?
         # Standard: return slice
         res = filtered[offset : offset + limit]
         return res
@@ -80,7 +77,7 @@ event_store = SimpleEventStore()
 class ConnectionManager:
     """Manages WebSocket connections"""
     def __init__(self):
-        self.active_connections: Set[WebSocket] = set()
+        self.active_connections: set[WebSocket] = set()
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -89,7 +86,7 @@ class ConnectionManager:
     async def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def broadcast(self, message: Dict[str, Any]):
+    async def broadcast(self, message: dict[str, Any]):
         """Broadcast event to all connected frontends"""
         disconnected = set()
         for connection in self.active_connections:
@@ -135,7 +132,7 @@ async def ingest_endpoint(websocket: WebSocket):
                         "type": "event",
                         "data": event
                     })
-                
+
                 # After processing events, broadcast topology update via WebSocket
                 topology = _compute_topology()
                 await manager.broadcast({
@@ -154,8 +151,8 @@ async def ingest_endpoint(websocket: WebSocket):
 async def get_events(
     limit: int = Query(100, le=1000),
     offset: int = Query(0),
-    node_id: Optional[str] = None,
-    event_type: Optional[str] = None
+    node_id: str | None = None,
+    event_type: str | None = None
 ):
     """Query history events"""
     filters = {}
@@ -167,15 +164,15 @@ async def get_events(
     events = await event_store.get_events(limit=limit, offset=offset, **filters)
     return {"events": events, "total": len(events)} # Total is rough approx
 
-def _infer_node_type(event: Dict[str, Any]) -> str:
+def _infer_node_type(event: dict[str, Any]) -> str:
     """Simple heuristic to infer node type from event"""
     source = event.get("source", "")
     if not source:
         return "Node"
-    
+
     # 规范化 source（移除开头的 /）
     normalized = source.lstrip('/')
-    
+
     # 检查路径中是否包含类型标识
     if "/agent/" in normalized or normalized.startswith("agent/"):
         return "AgentNode"
@@ -183,7 +180,7 @@ def _infer_node_type(event: Dict[str, Any]) -> str:
         return "ToolNode"
     if "/crew/" in normalized or normalized.startswith("crew/"):
         return "CrewNode"
-    
+
     # 也检查 node/agent, node/tool, node/crew 格式
     if "node/agent" in normalized:
         return "AgentNode"
@@ -197,7 +194,7 @@ def _infer_node_type(event: Dict[str, Any]) -> str:
 def _compute_topology():
     """Compute topology from events (extracted as function for reuse)"""
     events = event_store.events # Get all for topology
-    
+
     nodes = {}
     edges = {}
 
@@ -212,7 +209,7 @@ def _compute_topology():
                 "type": _infer_node_type(event),
                 "metadata": {}
             }
-        
+
         # Also maybe the subject is a node (e.g. invalid target?)
         # But usually subject is just a string target ID.
         if subject and subject not in nodes:
@@ -246,15 +243,15 @@ async def get_memory(node_id: str):
     """Get memory state for a node"""
     # Find events related to memory
     # Note: node_id might contain slashes, so use path param
-    
+
     events = await event_store.get_events(
-        limit=1000, 
-        source__contains=node_id, 
+        limit=1000,
+        source__contains=node_id,
         type__in=["memory.add", "memory.consolidate", "agent.thought"]
     )
-    
+
     # In a real system, we would query the Agent's actual memory state via a control plane command
     # Or rely on the agent strictly emitting all memory changes as events.
     # For now, just return the events as a log of memory.
-    
+
     return {"node_id": node_id, "memory": events}

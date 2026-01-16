@@ -4,13 +4,14 @@ Tests for Router Node
 Tests the AttentionRouter class which routes tasks to appropriate nodes.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
-from loom.node.router import AttentionRouter
+import pytest
+
 from loom.kernel.core.dispatcher import Dispatcher
+from loom.llm import LLMProvider
+from loom.node.router import AttentionRouter
 from loom.protocol.cloudevents import CloudEvent
-from loom.llm import LLMProvider, StreamChunk
 from loom.protocol.interfaces import NodeProtocol
 
 

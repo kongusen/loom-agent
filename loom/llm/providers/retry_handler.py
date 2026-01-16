@@ -9,8 +9,8 @@ Retry Handler for LLM API Calls
 
 import asyncio
 import logging
-from typing import Callable, TypeVar, Optional, Any
-from functools import wraps
+from collections.abc import Callable
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +46,12 @@ def should_retry(exception: Exception, config: RetryConfig) -> bool:
 
     # OpenAI 特定错误
     try:
-        from openai import RateLimitError, APITimeoutError, APIConnectionError
+        from openai import APIConnectionError, APITimeoutError, RateLimitError
 
         if isinstance(exception, RateLimitError):
             return config.retry_on_rate_limit
 
-        if isinstance(exception, (APITimeoutError, APIConnectionError)):
+        if isinstance(exception, APITimeoutError | APIConnectionError):
             return True
 
     except ImportError:
@@ -69,7 +69,7 @@ def calculate_delay(attempt: int, config: RetryConfig) -> float:
 
 async def retry_async(
     func: Callable[..., T],
-    config: Optional[RetryConfig] = None,
+    config: RetryConfig | None = None,
     *args,
     **kwargs
 ) -> T:

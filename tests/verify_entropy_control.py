@@ -8,16 +8,15 @@ Tests:
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from loom.kernel.core import UniversalEventBus
-from loom.kernel.core import Dispatcher
+from loom.infra.llm import MockLLMProvider
+from loom.kernel.core import Dispatcher, UniversalEventBus
 from loom.node.agent import AgentNode, ThinkingPolicy
 from loom.protocol.cloudevents import CloudEvent
-from loom.infra.llm import MockLLMProvider
 
 
 async def test_depth_limit():

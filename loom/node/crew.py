@@ -2,14 +2,15 @@
 Crew Node (Orchestrator)
 """
 
-from typing import Any, List, Literal
+from typing import Any, Literal
 
+from loom.kernel.core import Dispatcher
+from loom.memory.sanitizers import BubbleUpSanitizer
+from loom.node.base import Node
 from loom.protocol.cloudevents import CloudEvent
 from loom.protocol.interfaces import NodeProtocol
-from loom.node.base import Node
-from loom.kernel.core import Dispatcher
 from loom.protocol.memory_operations import ContextSanitizer
-from loom.memory.sanitizers import BubbleUpSanitizer
+
 
 class CrewNode(Node):
     """
@@ -29,7 +30,7 @@ class CrewNode(Node):
         self,
         node_id: str,
         dispatcher: Dispatcher,
-        agents: List[NodeProtocol],
+        agents: list[NodeProtocol],
         pattern: Literal["sequential", "parallel"] = "sequential",
         sanitizer: ContextSanitizer = None
     ):
@@ -37,18 +38,18 @@ class CrewNode(Node):
         self.agents = agents
         self.pattern = pattern
         self.sanitizer = sanitizer or BubbleUpSanitizer()
-        
+
     async def process(self, event: CloudEvent) -> Any:
         """
         Execute the crew pattern.
         """
         task = event.data.get("task", "")
-        
+
         if self.pattern == "sequential":
             return await self._execute_sequential(task, event.traceparent)
-        
+
         return {"error": "Unsupported pattern"}
-        
+
     async def _execute_sequential(self, task: str, traceparent: str = None) -> Any:
         """
         Chain agents sequentially. A -> B -> C

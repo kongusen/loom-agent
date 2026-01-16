@@ -3,6 +3,7 @@ Tests for Normalization Utilities
 """
 
 import pytest
+
 from loom.utils.normalization import DataNormalizer
 
 

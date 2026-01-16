@@ -4,12 +4,14 @@ Tool Configuration & Factory
 
 import importlib
 import os
-from typing import Dict, Any, Optional, Callable
+from typing import Any
+
 from pydantic import BaseModel, Field
 
+from loom.kernel.core import Dispatcher
 from loom.node.tool import ToolNode
 from loom.protocol.mcp import MCPToolDefinition
-from loom.kernel.core import Dispatcher
+
 
 class ToolConfig(BaseModel):
     """
@@ -18,18 +20,18 @@ class ToolConfig(BaseModel):
     name: str
     description: str = ""
     python_path: str = Field(..., description="Dot-path to the python function e.g. 'my_pkg.tools.search'")
-    parameters: Dict[str, Any] = Field(default_factory=dict, description="Input schema properties")
-    env_vars: Dict[str, str] = Field(default_factory=dict)
+    parameters: dict[str, Any] = Field(default_factory=dict, description="Input schema properties")
+    env_vars: dict[str, str] = Field(default_factory=dict)
 
 class ToolFactory:
     """
     Factory to load valid ToolConfigs into ToolNodes.
     """
-    
+
     @staticmethod
     def create_node(
-        config: ToolConfig, 
-        node_id: str, 
+        config: ToolConfig,
+        node_id: str,
         dispatcher: Dispatcher
     ) -> ToolNode:
         # 1. Load function
@@ -43,17 +45,17 @@ class ToolFactory:
         # 2. Apply Env Vars
         for k, v in config.env_vars.items():
             os.environ[k] = v
-            
+
         # 3. Create Definition
         tool_def = MCPToolDefinition(
             name=config.name,
             description=config.description,
             inputSchema={
-                "type": "object", 
+                "type": "object",
                 "properties": config.parameters
             }
         )
-        
+
         # 4. Create Node
         return ToolNode(
             node_id=node_id,

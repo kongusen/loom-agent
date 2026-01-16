@@ -2,11 +2,11 @@
 Tests for LLM Base Handler
 """
 
-import pytest
-import asyncio
 
-from loom.llm.providers.base_handler import ToolCallAggregator, BaseResponseHandler
+import pytest
+
 from loom.llm.interface import StreamChunk
+from loom.llm.providers.base_handler import BaseResponseHandler, ToolCallAggregator
 
 
 class TestToolCallAggregator:
@@ -22,7 +22,7 @@ class TestToolCallAggregator:
         """Test adding chunk creates new buffer entry."""
         aggregator = ToolCallAggregator()
 
-        result = aggregator.add_chunk(index=0, tool_id="call_123", name="test_tool")
+        aggregator.add_chunk(index=0, tool_id="call_123", name="test_tool")
 
         # Should have created buffer entry
         assert 0 in aggregator.buffer
@@ -234,4 +234,4 @@ class TestBaseResponseHandler:
         """Test that handle_stream_chunk must be implemented."""
         # Can't instantiate abstract class directly
         with pytest.raises(TypeError):
-            handler = BaseResponseHandler()
+            BaseResponseHandler()

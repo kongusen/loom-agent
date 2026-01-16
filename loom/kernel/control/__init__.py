@@ -11,22 +11,22 @@ Interceptors provide AOP-style cross-cutting concerns:
 - Adaptive control (anomaly detection & recovery)
 """
 
-from .base import Interceptor, TracingInterceptor, AuthInterceptor
-from .timeout import TimeoutInterceptor
-from .depth import DepthInterceptor, RecursionLimitExceededError
-from .budget import BudgetInterceptor, BudgetExceededError
-from .hitl import HITLInterceptor
 from .adaptive import (
-    AdaptiveLLMInterceptor,
     AdaptiveConfig,
+    AdaptiveLLMInterceptor,
+    AnomalyContext,
     AnomalyDetector,
     AnomalyType,
-    AnomalyContext,
     RecoveryAction,
     RecoveryStrategy,
     StrategyExecutor,
     create_default_config,
 )
+from .base import AuthInterceptor, Interceptor, TracingInterceptor
+from .budget import BudgetExceededError, BudgetInterceptor
+from .depth import DepthInterceptor, RecursionLimitExceededError
+from .hitl import HITLInterceptor
+from .timeout import TimeoutInterceptor
 
 __all__ = [
     # Base

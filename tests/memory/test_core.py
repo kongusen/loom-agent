@@ -1,14 +1,12 @@
 """
 Unit Tests for LoomMemory Core
 """
+
 import pytest
-from datetime import datetime, timedelta
 
 from loom.memory.core import LoomMemory
-from loom.memory.types import (
-    MemoryUnit, MemoryTier, MemoryType,
-    MemoryQuery
-)
+from loom.memory.types import MemoryQuery, MemoryTier, MemoryType, MemoryUnit
+
 
 class TestLoomMemory:
     """LoomMemory Basic Tests"""

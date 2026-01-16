@@ -9,27 +9,26 @@ Organized by 4-layer capability system:
 """
 
 # Layer 1: Core
-from loom.kernel.core import (
-    UniversalEventBus,
-    Dispatcher,
-    ToolExecutor,
-    State,
-    CognitiveState,
-    ProjectionOperator,
-    Thought,
-    ThoughtState,
-)
-
 # Layer 2: Control Capabilities
 from loom.kernel.control import (
-    Interceptor,
-    TracingInterceptor,
+    AdaptiveLLMInterceptor,
     AuthInterceptor,
     BudgetInterceptor,
     DepthInterceptor,
-    TimeoutInterceptor,
     HITLInterceptor,
-    AdaptiveLLMInterceptor,
+    Interceptor,
+    TimeoutInterceptor,
+    TracingInterceptor,
+)
+from loom.kernel.core import (
+    CognitiveState,
+    Dispatcher,
+    ProjectionOperator,
+    State,
+    Thought,
+    ThoughtState,
+    ToolExecutor,
+    UniversalEventBus,
 )
 
 # Layer 3: Fractal Decomposition
@@ -37,38 +36,38 @@ from loom.kernel.fractal import (
     FractalOrchestrator,
     OrchestratorConfig,
     ResultSynthesizer,
+    StructureTemplate,
     SynthesisConfig,
     TemplateManager,
-    StructureTemplate,
 )
 
 # Layer 4: Structure Optimization
 from loom.kernel.optimization import (
+    CompositePruningStrategy,
+    EvolutionConfig,
+    FitnessLandscapeOptimizer,
+    FitnessPruningStrategy,
+    GeneticOperators,
+    GenomeConverter,
+    HealthDiagnostic,
+    HealthIssue,
+    HealthReport,
+    HealthStatus,
+    PruningCriterion,
+    PruningDecision,
+    PruningStrategy,
+    RedundancyPruningStrategy,
+    ResourcePruningStrategy,
+    SmartPruner,
     StructureController,
     StructureEvent,
     StructureEventType,
-    StructureStats,
-    PruningStrategy,
-    PruningDecision,
-    PruningCriterion,
-    FitnessPruningStrategy,
-    RedundancyPruningStrategy,
-    ResourcePruningStrategy,
-    CompositePruningStrategy,
-    SmartPruner,
-    StructureHealthAssessor,
-    HealthReport,
-    HealthStatus,
-    HealthIssue,
-    HealthDiagnostic,
-    FitnessLandscapeOptimizer,
-    StructureSnapshot,
-    StructurePattern,
     StructureEvolver,
     StructureGenome,
-    GenomeConverter,
-    EvolutionConfig,
-    GeneticOperators,
+    StructureHealthAssessor,
+    StructurePattern,
+    StructureSnapshot,
+    StructureStats,
 )
 
 __all__ = [

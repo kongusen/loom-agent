@@ -4,9 +4,8 @@
 定义了不同场景下的投影策略配置。
 """
 
-from enum import Enum
 from dataclasses import dataclass
-from typing import Optional
+from enum import Enum
 
 
 class ProjectionMode(Enum):

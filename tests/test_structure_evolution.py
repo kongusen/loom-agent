@@ -6,19 +6,16 @@ mutation, crossover, and selection operations.
 """
 
 import unittest
-import numpy as np
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
+from loom.config.fractal import NodeRole
 from loom.kernel.optimization import (
-    StructureEvolver,
-    StructureGenome,
     EvolutionConfig,
     GeneticOperators,
     GenomeConverter,
-    MutationType
+    StructureEvolver,
+    StructureGenome,
 )
-from loom.config.fractal import NodeRole, FractalConfig
-
 
 # ============================================================================
 # Test Helper Functions
@@ -194,12 +191,12 @@ class TestGeneticOperators(unittest.TestCase):
     def test_change_role_mutation(self):
         """Test changing node role mutation"""
         genome = create_simple_genome(num_nodes=3)
-        original_roles = [g['role'] for g in genome.genes]
+        [g['role'] for g in genome.genes]
 
         mutated = GeneticOperators._change_role_mutation(genome)
 
         # At least one role should be different (usually)
-        mutated_roles = [g['role'] for g in mutated.genes]
+        [g['role'] for g in mutated.genes]
         # Note: could theoretically be same if random chose same role
 
     def test_crossover_without_trigger(self):
@@ -360,7 +357,7 @@ class TestStructureEvolver(unittest.TestCase):
             crossover_rate=0.7
         ))
 
-        best = evolver.evolve(target_fitness=1.0)
+        evolver.evolve(target_fitness=1.0)
 
         if len(evolver.history) > 1:
             first_gen = evolver.history[0]['best_fitness']

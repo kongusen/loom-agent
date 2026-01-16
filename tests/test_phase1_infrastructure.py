@@ -8,13 +8,14 @@ Tests for:
 """
 
 import pytest
+
 from loom.cognition.features import (
     QueryFeatureExtractor,
     QueryFeatures,
     ResponseFeatures,
 )
-from loom.memory.tokenizer import TokenCounter, get_token_counter
 from loom.config.cognitive import CognitiveSystemConfig
+from loom.memory.tokenizer import TokenCounter, get_token_counter
 
 
 class TestQueryFeatureExtractor:

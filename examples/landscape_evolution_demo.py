@@ -8,25 +8,19 @@ Comprehensive examples demonstrating:
 4. Complete integration workflow
 """
 
-import asyncio
-import time
 import random
-from typing import List, Optional
-import numpy as np
 from unittest.mock import Mock
 
-from loom.kernel.optimization import (
-    FitnessLandscapeOptimizer,
-    StructureSnapshot
-)
-from loom.kernel.optimization import (
-    StructureEvolver,
-    EvolutionConfig,
-    StructureGenome
-)
-from loom.kernel.fractal import TemplateManager
-from loom.config.fractal import NodeRole, GrowthStrategy
+import numpy as np
 
+from loom.config.fractal import NodeRole
+from loom.kernel.fractal import TemplateManager
+from loom.kernel.optimization import (
+    EvolutionConfig,
+    FitnessLandscapeOptimizer,
+    StructureEvolver,
+    StructureGenome,
+)
 
 # ============================================================================
 # Helper Functions
@@ -236,7 +230,7 @@ def example_2_template_learning_and_recommendation(optimizer: FitnessLandscapeOp
         ("extract_new", "Extract structured data from documents", 0.6)
     ]
 
-    for task_id, task_desc, task_complexity in new_tasks:
+    for task_id, task_desc, _task_complexity in new_tasks:
         # Extract base task type
         base_task = task_id.replace("_new", "")
 
@@ -320,7 +314,7 @@ def example_3_structure_evolution():
                 children_counts[parent_id] = children_counts.get(parent_id, 0) + 1
 
         if children_counts:
-            avg_children = np.mean(list(children_counts.values()))
+            np.mean(list(children_counts.values()))
             std_children = np.std(list(children_counts.values())) if len(children_counts) > 1 else 0
             balance = 1.0 / (1.0 + std_children)
         else:
@@ -345,7 +339,7 @@ def example_3_structure_evolution():
     # Display results
     print_subsection("Evolution Results")
     print(f"Best Fitness Achieved: {best_genome.fitness:.4f}")
-    print(f"Best Structure:")
+    print("Best Structure:")
     print(f"  - Total Nodes:  {best_genome.get_node_count()}")
     print(f"  - Max Depth:    {best_genome.get_depth()}")
     print(f"  - Generation:   {best_genome.generation}")
@@ -405,7 +399,7 @@ def example_4_end_to_end_workflow():
                     fitness=0.65 + complexity * 0.2 + random.random() * 0.05
                 )
 
-                snapshot = optimizer.record_structure_performance(
+                optimizer.record_structure_performance(
                     root=structure,
                     task_type=task_type,
                     task_complexity=complexity
@@ -444,7 +438,7 @@ def example_4_end_to_end_workflow():
     evolver = StructureEvolver(config)
     best = evolver.evolve(target_fitness=0.8)
 
-    print(f"✓ Evolution complete")
+    print("✓ Evolution complete")
     print(f"  Best fitness achieved: {best.fitness:.2f}")
     print(f"  Structure: {best.get_node_count()} nodes, depth={best.get_depth()}")
 
@@ -466,13 +460,13 @@ def example_4_end_to_end_workflow():
         print(f"\nTask: {task_type} (complexity={complexity:.2f})")
 
         if landscape_rec:
-            print(f"  Landscape Recommendation:")
+            print("  Landscape Recommendation:")
             print(f"    - Optimal Depth:  {landscape_rec.recommended_depth}")
             print(f"    - Optimal Branching: {landscape_rec.recommended_branching:.1f}")
             print(f"    - Confidence: {landscape_rec.confidence:.2f}")
 
         if template_rec:
-            print(f"  Template Recommendation:")
+            print("  Template Recommendation:")
             print(f"    - Name: {template_rec.name}")
             print(f"    - Type: {template_rec.topology_type}")
             print(f"    - Expected Fitness: {template_rec.avg_fitness:.2f}")

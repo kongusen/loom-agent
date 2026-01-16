@@ -5,18 +5,13 @@ Tests the template learning system's ability to learn, store, match,
 and recommend optimal structure templates.
 """
 
-import unittest
-import tempfile
 import os
-from unittest.mock import Mock
+import tempfile
+import unittest
 
-from loom.kernel.fractal import (
-    TemplateManager,
-    StructureTemplate
-)
-from loom.kernel.optimization import StructureSnapshot
 from loom.config.fractal import NodeRole
-
+from loom.kernel.fractal import StructureTemplate, TemplateManager
+from loom.kernel.optimization import StructureSnapshot
 
 # ============================================================================
 # Test Helper Functions
@@ -427,7 +422,7 @@ class TestTemplateManager(unittest.TestCase):
         self.manager.add_template(template)
 
         # Ask for improvement from current fitness of 0.80 (higher than template)
-        recommendation = self.manager.recommend_template(
+        self.manager.recommend_template(
             task_type="research",
             current_fitness=0.80  # No template can improve this
         )

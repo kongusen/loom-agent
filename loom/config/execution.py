@@ -1,8 +1,8 @@
 """
 Execution Configuration
 """
-from typing import Optional, Dict
 from pydantic import BaseModel, Field
+
 
 class NormalizationConfig(BaseModel):
     """Configuration for data normalization."""
@@ -26,7 +26,7 @@ class ExecutionConfig(BaseModel):
     max_retries: int = Field(0, description="Automatic retries for system errors")
     parallel_execution: bool = Field(False, description="Enable parallel execution for read-only tools")
     concurrency_limit: int = Field(5, description="Maximum concurrent tool executions")
-    
+
     # Sub-configs
     normalization: NormalizationConfig = Field(default_factory=NormalizationConfig)
     error_handling: ErrorHandlingConfig = Field(default_factory=ErrorHandlingConfig)

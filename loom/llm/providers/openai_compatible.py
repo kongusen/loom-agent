@@ -5,9 +5,9 @@ OpenAI Compatible Provider Base Class
 适用于：DeepSeek、智谱AI、Kimi、通义千问、豆包等。
 """
 
-from typing import Optional
+
+from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
 from loom.llm.providers.openai import OpenAIProvider
-from loom.config.llm import LLMConfig, ConnectionConfig, GenerationConfig
 
 
 class OpenAICompatibleProvider(OpenAIProvider):
@@ -25,12 +25,12 @@ class OpenAICompatibleProvider(OpenAIProvider):
 
     def __init__(
         self,
-        config: Optional[LLMConfig] = None,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        config: LLMConfig | None = None,
+        model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs
     ):
         """初始化兼容 Provider"""

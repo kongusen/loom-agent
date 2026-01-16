@@ -1,10 +1,9 @@
 """
 Performance Metrics and Monitoring for LoomMemory System
 """
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Any, List, Optional
+from dataclasses import asdict, dataclass
 from datetime import datetime
-import time
+from typing import Any
 
 
 @dataclass
@@ -104,19 +103,19 @@ class MetricsCollector:
         self.context_metrics = ContextMetrics()
 
         # Timing helpers
-        self._query_times: List[float] = []
-        self._vector_search_times: List[float] = []
-        self._assembly_times: List[float] = []
-        self._s1_times: List[float] = []
-        self._s2_times: List[float] = []
+        self._query_times: list[float] = []
+        self._vector_search_times: list[float] = []
+        self._assembly_times: list[float] = []
+        self._s1_times: list[float] = []
+        self._s2_times: list[float] = []
 
         # Confidence tracking
-        self._s1_confidences: List[float] = []
+        self._s1_confidences: list[float] = []
 
         # Token tracking
-        self._s1_tokens: List[int] = []
-        self._s2_tokens: List[int] = []
-        self._context_tokens: List[int] = []
+        self._s1_tokens: list[int] = []
+        self._s2_tokens: list[int] = []
+        self._context_tokens: list[int] = []
 
     def record_query(self, tier: str, duration_ms: float):
         """Record a memory query."""
@@ -288,7 +287,7 @@ class MetricsCollector:
                 self.context_metrics.snippets_loaded / self.context_metrics.snippets_created
             )
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get a summary of all metrics."""
         return {
             "memory": asdict(self.memory_metrics),

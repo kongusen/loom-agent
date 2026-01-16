@@ -5,17 +5,16 @@ OpenAI LLM Provider
 """
 
 import os
-from typing import List, Dict, Any, AsyncIterator, Optional, Union
-from loom.llm.interface import LLMProvider, LLMResponse, StreamChunk
+from collections.abc import AsyncIterator
+from typing import Any
+
 from loom.config.llm import (
-    LLMConfig,
     ConnectionConfig,
     GenerationConfig,
+    LLMConfig,
     StreamConfig,
-    StructuredOutputConfig,
-    ToolConfig,
-    AdvancedConfig
 )
+from loom.llm.interface import LLMProvider, LLMResponse, StreamChunk
 
 try:
     from openai import AsyncOpenAI
@@ -56,14 +55,14 @@ class OpenAIProvider(LLMProvider):
 
     def __init__(
         self,
-        config: Optional[LLMConfig] = None,
+        config: LLMConfig | None = None,
         # 快速配置参数（向后兼容）
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        stream: Optional[bool] = None,
+        model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        stream: bool | None = None,
         **kwargs
     ):
         """
@@ -112,7 +111,7 @@ class OpenAIProvider(LLMProvider):
             **kwargs
         )
 
-    def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _convert_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert MCP tool definitions to OpenAI format."""
         openai_tools = []
         for tool in tools:
@@ -120,7 +119,7 @@ class OpenAIProvider(LLMProvider):
             if "type" in tool and "function" in tool:
                 openai_tools.append(tool)
                 continue
-            
+
             # Convert from MCP format
             # MCP: name, description, inputSchema
             # OpenAI: type="function", function={name, description, parameters}
@@ -129,7 +128,7 @@ class OpenAIProvider(LLMProvider):
                 "description": tool.get("description"),
                 "parameters": tool.get("inputSchema", tool.get("parameters", {}))
             }
-            
+
             openai_tools.append({
                 "type": "function",
                 "function": function_def
@@ -138,9 +137,9 @@ class OpenAIProvider(LLMProvider):
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        config: dict[str, Any] | None = None
     ) -> LLMResponse:
         """调用 OpenAI Chat API（使用配置体系）"""
         # 获取基础参数
@@ -196,8 +195,8 @@ class OpenAIProvider(LLMProvider):
 
     async def stream_chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None
     ) -> AsyncIterator[StreamChunk]:
         """流式调用 OpenAI Chat API（增强版：实时工具调用通知）"""
         # 获取基础参数
@@ -222,9 +221,9 @@ class OpenAIProvider(LLMProvider):
             stream = await self.client.chat.completions.create(**kwargs)
 
             # 工具调用聚合缓冲区
-            tool_calls_buffer: Dict[int, Dict[str, Any]] = {}
+            tool_calls_buffer: dict[int, dict[str, Any]] = {}
             # 跟踪哪些工具调用已经发送了 start 事件
-            tool_calls_started: Dict[int, bool] = {}
+            tool_calls_started: dict[int, bool] = {}
 
             async for chunk in stream:
                 if not chunk.choices:

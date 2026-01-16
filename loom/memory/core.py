@@ -1,37 +1,38 @@
 """
 LoomMemory Storage Engine
 """
-from typing import List, Optional, Dict, Any, Tuple
+import math
 from collections import defaultdict
 from datetime import datetime
-import math
+from typing import TYPE_CHECKING, Any
 
-from .types import (
-    MemoryUnit, MemoryTier, MemoryType,
-    MemoryQuery, ContextProjection
-)
 from loom.config.memory import MemoryConfig
-from .factory import create_vector_store, create_embedding_provider
-from .vector_store import VectorStoreProvider
+from loom.projection.profiles import ProjectionConfig, ProjectionMode
+
 from .embedding import EmbeddingProvider
-from loom.projection.profiles import ProjectionMode, ProjectionConfig
+from .factory import create_embedding_provider, create_vector_store
+from .types import ContextProjection, MemoryQuery, MemoryTier, MemoryType, MemoryUnit
+from .vector_store import VectorStoreProvider
+
+if TYPE_CHECKING:
+    from .compression import L4Compressor
 
 
 class LoomMemory:
     """
     Tiered Memory Storage System.
-    
+
     L1 (Raw IO): Circular buffer for recent raw interactions.
     L2 (Working): Task-specific working memory.
     L3 (Session): Session-scoped history.
     L4 (Global): Persistent global knowledge.
     """
-    
+
     def __init__(
         self,
         node_id: str,
         max_l1_size: int = 50,
-        config: Optional[MemoryConfig] = None
+        config: MemoryConfig | None = None
     ):
         self.node_id = node_id
         self.config = config or MemoryConfig()
@@ -39,26 +40,26 @@ class LoomMemory:
         self.max_l1_size = max_l1_size
 
         # Tiered Storage
-        self._l1_buffer: List[MemoryUnit] = []           # Circular buffer
-        self._l2_working: List[MemoryUnit] = []          # Working memory list
-        self._l3_session: Dict[str, List[MemoryUnit]] = defaultdict(list) # By session_id
-        self._l4_global: List[MemoryUnit] = []           # Mock for VectorDB
+        self._l1_buffer: list[MemoryUnit] = []           # Circular buffer
+        self._l2_working: list[MemoryUnit] = []          # Working memory list
+        self._l3_session: dict[str, list[MemoryUnit]] = defaultdict(list) # By session_id
+        self._l4_global: list[MemoryUnit] = []           # Mock for VectorDB
 
         # Indexes
-        self._id_index: Dict[str, MemoryUnit] = {}
-        self._type_index: Dict[MemoryType, List[str]] = defaultdict(list)
+        self._id_index: dict[str, MemoryUnit] = {}
+        self._type_index: dict[MemoryType, list[str]] = defaultdict(list)
 
         # Vector Store & Embedding (Pluggable)
-        self.vector_store: Optional[VectorStoreProvider] = create_vector_store(
+        self.vector_store: VectorStoreProvider | None = create_vector_store(
             self.config.vector_store
         )
-        self.embedding_provider: Optional[EmbeddingProvider] = create_embedding_provider(
+        self.embedding_provider: EmbeddingProvider | None = create_embedding_provider(
             self.config.embedding
         ) if self.vector_store else None
 
         # L4 Compressor (Optional)
-        self.l4_compressor: Optional['L4Compressor'] = None
-    
+        self.l4_compressor: 'L4Compressor' | None = None
+
     async def add(self, unit: MemoryUnit) -> str:
         """Add a memory unit to the appropriate tier."""
         # Ensure source_node is set
@@ -121,12 +122,12 @@ class LoomMemory:
         self._type_index[unit.type].append(unit.id)
 
         return unit.id
-    
-    def get(self, unit_id: str) -> Optional[MemoryUnit]:
+
+    def get(self, unit_id: str) -> MemoryUnit | None:
         """Retrieve a memory unit by ID."""
         return self._id_index.get(unit_id)
-    
-    async def query(self, q: MemoryQuery) -> List[MemoryUnit]:
+
+    async def query(self, q: MemoryQuery) -> list[MemoryUnit]:
         """
         Query memory units based on criteria.
         """
@@ -139,7 +140,7 @@ class LoomMemory:
             MemoryTier.L3_SESSION,
             MemoryTier.L4_GLOBAL
         ]
-        
+
         for tier in target_tiers:
             if tier == MemoryTier.L1_RAW_IO:
                 results.extend(self._l1_buffer)
@@ -150,21 +151,21 @@ class LoomMemory:
                     results.extend(session_units)
             elif tier == MemoryTier.L4_GLOBAL:
                 results.extend(self._l4_global)
-        
+
         # 2. Filter by Type
         if q.types:
             results = [u for u in results if u.type in q.types]
-        
+
         # 3. Filter by Node ID
         if q.node_ids:
             results = [u for u in results if u.source_node in q.node_ids]
-        
+
         # 4. Filter by Time
         if q.since:
             results = [u for u in results if u.created_at >= q.since]
         if q.until:
             results = [u for u in results if u.created_at <= q.until]
-        
+
         # 5. Semantic Search (L4 Only for MVP)
         if q.query_text and MemoryTier.L4_GLOBAL in target_tiers:
             # Only perform semantic search on L4 items within the result set
@@ -176,7 +177,7 @@ class LoomMemory:
             # Ideally, we might want to filter L4 to ONLY top K.
             # Strategy: If semantic search is requested, we PRIORITIZE semantic matches.
             results = others + scored_l4
-        
+
         # 6. Sort
         reverse = q.descending
         # Dynamic getattr for sort key
@@ -184,25 +185,24 @@ class LoomMemory:
             key=lambda u: getattr(u, q.sort_by, u.created_at),
             reverse=reverse
         )
-        
+
         return results
-    
+
     def promote_to_l4(self, unit_id: str):
         """Promote a memory unit to L4 Global persistence."""
         unit = self.get(unit_id)
         if not unit:
             return
-        
+
         # Remove from current tier if necessary (e.g. L2)
-        if unit.tier == MemoryTier.L2_WORKING:
-            if unit in self._l2_working:
-                self._l2_working.remove(unit)
-        
+        if unit.tier == MemoryTier.L2_WORKING and unit in self._l2_working:
+            self._l2_working.remove(unit)
+
         # Update tier and add to L4
         unit.tier = MemoryTier.L4_GLOBAL
         if unit not in self._l4_global:
             self._l4_global.append(unit)
-            
+
     def clear_working(self):
         """Clear L2 Working Memory."""
         for unit in self._l2_working:
@@ -236,7 +236,7 @@ class LoomMemory:
             victim = scored[0][1]
             self._l1_buffer.remove(victim)
             self._remove_from_index(victim)
-        except Exception as e:
+        except Exception:
             # Fallback to simple FIFO if scoring fails
             if self._l1_buffer:
                 removed = self._l1_buffer.pop(0)
@@ -246,7 +246,7 @@ class LoomMemory:
         self,
         instruction: str,
         total_budget: int = 2000,
-        mode: Optional[ProjectionMode] = None,
+        mode: ProjectionMode | None = None,
         include_plan: bool = True,
         include_facts: bool = True
     ) -> ContextProjection:
@@ -293,7 +293,7 @@ class LoomMemory:
 
         return projection
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get current memory statistics."""
         return {
             "l1_size": len(self._l1_buffer),
@@ -302,7 +302,7 @@ class LoomMemory:
             "l4_size": len(self._l4_global),
             "total_units": len(self._id_index),
             "types": {
-                t.value: len(ids) 
+                t.value: len(ids)
                 for t, ids in self._type_index.items()
             }
         }
@@ -317,9 +317,9 @@ class LoomMemory:
     async def _semantic_search(
         self,
         query: str,
-        candidates: List[MemoryUnit],
+        candidates: list[MemoryUnit],
         top_k: int
-    ) -> List[MemoryUnit]:
+    ) -> list[MemoryUnit]:
         """
         Semantic Search using vector store if available, otherwise fallback to keyword matching.
         """
@@ -343,7 +343,7 @@ class LoomMemory:
                         matched_units.append(unit)
 
                 return matched_units
-            except Exception as e:
+            except Exception:
                 # Fallback to keyword matching on error
                 pass
 
@@ -391,7 +391,7 @@ class LoomMemory:
 
             # Store embedding in unit for future use
             unit.embedding = embedding
-        except Exception as e:
+        except Exception:
             # Log error but don't fail the add operation
             pass
 
@@ -464,7 +464,7 @@ class LoomMemory:
         # 默认：STANDARD 模式
         return ProjectionMode.STANDARD
 
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+    def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
         """计算余弦相似度
 
         Args:
@@ -477,7 +477,7 @@ class LoomMemory:
         if not vec1 or not vec2 or len(vec1) != len(vec2):
             return 0.0
 
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
         norm1 = math.sqrt(sum(a * a for a in vec1))
         norm2 = math.sqrt(sum(b * b for b in vec2))
 
@@ -489,10 +489,10 @@ class LoomMemory:
     async def _score_facts(
         self,
         instruction: str,
-        facts: List[MemoryUnit],
+        facts: list[MemoryUnit],
         max_count: int,
         config: ProjectionConfig
-    ) -> List[MemoryUnit]:
+    ) -> list[MemoryUnit]:
         """评分并选择 facts
 
         Args:
@@ -522,10 +522,10 @@ class LoomMemory:
     async def _score_facts_semantic(
         self,
         instruction: str,
-        facts: List[MemoryUnit],
+        facts: list[MemoryUnit],
         max_count: int,
         config: ProjectionConfig
-    ) -> List[MemoryUnit]:
+    ) -> list[MemoryUnit]:
         """使用语义相似度评分 facts
 
         Args:
@@ -568,7 +568,7 @@ class LoomMemory:
             scored.sort(key=lambda x: x[0], reverse=True)
             return [fact for _, fact in scored[:max_count]]
 
-        except Exception as e:
+        except Exception:
             # 出错时降级到只按 importance 排序
             sorted_facts = sorted(
                 facts,

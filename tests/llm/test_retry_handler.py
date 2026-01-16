@@ -2,16 +2,11 @@
 Tests for LLM Retry Handler
 """
 
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, patch
 
-from loom.llm.providers.retry_handler import (
-    RetryConfig,
-    should_retry,
-    calculate_delay,
-    retry_async
-)
+import pytest
+
+from loom.llm.providers.retry_handler import RetryConfig, calculate_delay, retry_async, should_retry
 
 
 class TestRetryConfig:
@@ -51,14 +46,14 @@ class TestShouldRetry:
     def test_timeout_error_with_default_config(self):
         """Test TimeoutError with default retry_on_timeout=True."""
         config = RetryConfig()
-        error = asyncio.TimeoutError("Request timed out")
+        error = TimeoutError("Request timed out")
 
         assert should_retry(error, config) is True
 
     def test_timeout_error_with_timeout_disabled(self):
         """Test TimeoutError with retry_on_timeout=False."""
         config = RetryConfig(retry_on_timeout=False)
-        error = asyncio.TimeoutError("Request timed out")
+        error = TimeoutError("Request timed out")
 
         assert should_retry(error, config) is False
 
@@ -163,7 +158,7 @@ class TestRetryAsync:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise asyncio.TimeoutError("Timeout")
+                raise TimeoutError("Timeout")
             return "success"
 
         result = await retry_async(fail_once_func)
@@ -175,7 +170,7 @@ class TestRetryAsync:
     async def test_max_retries_exceeded(self):
         """Test that max retries is respected."""
         async def always_fail_func():
-            raise asyncio.TimeoutError("Always timeout")
+            raise TimeoutError("Always timeout")
 
         config = RetryConfig(max_retries=2)
 
@@ -199,7 +194,7 @@ class TestRetryAsync:
         async def always_fail_func():
             nonlocal call_count
             call_count += 1
-            raise asyncio.TimeoutError("Timeout")
+            raise TimeoutError("Timeout")
 
         config = RetryConfig(max_retries=3)
 
@@ -234,7 +229,7 @@ class TestRetryAsync:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise asyncio.TimeoutError("Timeout")
+                raise TimeoutError("Timeout")
             return "success"
 
         result = await retry_async(fail_once)
@@ -255,7 +250,7 @@ class TestRetryAsync:
             call_count += 1
             call_times.append(time.time())
             if call_count < 3:
-                raise asyncio.TimeoutError("Timeout")
+                raise TimeoutError("Timeout")
             return "success"
 
         config = RetryConfig(max_retries=5, initial_delay=0.1)

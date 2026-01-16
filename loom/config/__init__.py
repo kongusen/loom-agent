@@ -3,39 +3,38 @@ Loom Configuration Module - 统一配置导出
 """
 
 # Agent 配置
-from loom.config.models import AgentConfig
+# 执行配置
+from loom.config.execution import ExecutionConfig
 
 # 分型配置
 from loom.config.fractal import (
     FractalConfig,
-    NodeRole,
-    NodeMetrics,
-    GrowthTrigger,
     GrowthStrategy,
+    GrowthTrigger,
+    NodeMetrics,
+    NodeRole,
 )
 
-# 执行配置
-from loom.config.execution import ExecutionConfig
+# LLM 配置
+from loom.config.llm import (
+    AdvancedConfig,
+    ConnectionConfig,
+    GenerationConfig,
+    LLMConfig,
+    StreamConfig,
+    StructuredOutputConfig,
+    ToolConfig,
+)
 
 # Memory 配置
 from loom.config.memory import (
     ContextConfig,
     CurationConfig,
+    EmbeddingConfig,
     MemoryConfig,
     VectorStoreConfig,
-    EmbeddingConfig,
 )
-
-# LLM 配置
-from loom.config.llm import (
-    LLMConfig,
-    ConnectionConfig,
-    GenerationConfig,
-    StreamConfig,
-    StructuredOutputConfig,
-    ToolConfig,
-    AdvancedConfig,
-)
+from loom.config.models import AgentConfig
 
 __all__ = [
     # Agent 配置

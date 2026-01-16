@@ -4,8 +4,7 @@ Loom Weave 快速开始示例
 展示如何使用 loom.weave 模块快速创建和运行 Agent。
 """
 
-from loom.weave import create_agent, create_tool, create_crew, run
-
+from loom.weave import create_agent, create_crew, create_tool, run
 
 # ============================================================================
 # 示例 1：最简单的 Agent

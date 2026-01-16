@@ -12,14 +12,13 @@ Replaces:
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Pattern
-import re
+from typing import Any
 
 from loom.config.memory import (
-    CurationConfig,
     ContextConfig,
-    VectorStoreConfig,
+    CurationConfig,
     EmbeddingConfig,
+    VectorStoreConfig,
 )
 
 
@@ -96,12 +95,12 @@ class CognitiveSystemConfig:
     # Vector Store & Embedding
     # ========================================================================
     memory_vector_store_provider: str = "inmemory"
-    memory_vector_store_config: Dict[str, Any] = field(default_factory=dict)
+    memory_vector_store_config: dict[str, Any] = field(default_factory=dict)
     memory_vector_store_enabled: bool = True
     memory_vector_store_batch_size: int = 100
 
     memory_embedding_provider: str = "mock"
-    memory_embedding_config: Dict[str, Any] = field(default_factory=dict)
+    memory_embedding_config: dict[str, Any] = field(default_factory=dict)
     memory_embedding_cache_enabled: bool = True
     memory_embedding_cache_size: int = 10000
     memory_embedding_batch_size: int = 50
@@ -145,14 +144,14 @@ class CognitiveSystemConfig:
         Returns:
             ContextConfig with all settings applied
         """
-        vector_store = VectorStoreConfig(
+        VectorStoreConfig(
             provider=self.memory_vector_store_provider,
             provider_config=self.memory_vector_store_config.copy(),
             enabled=self.memory_vector_store_enabled,
             batch_size=self.memory_vector_store_batch_size,
         )
 
-        embedding = EmbeddingConfig(
+        EmbeddingConfig(
             provider=self.memory_embedding_provider,
             provider_config=self.memory_embedding_config.copy(),
             enable_cache=self.memory_embedding_cache_enabled,
@@ -285,105 +284,26 @@ class CognitiveSystemConfig:
     @staticmethod
     def fast_mode() -> "CognitiveSystemConfig":
         """
-        Create a configuration optimized for System 1 (fast, reflexive responses).
-
-        - Favors System 1 routing
-        - Minimal context (500 tokens)
-        - Reduced S1 confidence threshold
-        - Optimized for quick responses
-
-        Returns:
-            CognitiveSystemConfig for fast mode
+        [DEPRECATED] Create a configuration optimized for fast mode.
         """
+        # Kept for backward compatibility but effectively standard
         config = CognitiveSystemConfig.default()
-
-        # Favor System 1
-
-        # Minimal context for speed
         config.curation_max_tokens = 500
         config.context_max_tokens = 2000
-
-        # Disable expensive features
-        config.context_enable_dynamic_budget = False
-        config.memory_auto_vectorize_l4 = False
-
         return config
-
-    @staticmethod
-    def balanced_mode() -> "CognitiveSystemConfig":
-        """
-        Create a balanced configuration (default behavior).
-
-        - Balanced System 1/2 routing
-        - Standard context (4000 tokens)
-        - Standard confidence thresholds
-        - Enables most optimizations
-
-        Returns:
-            CognitiveSystemConfig for balanced mode
-        """
-        return CognitiveSystemConfig.default()
 
     @staticmethod
     def deep_mode() -> "CognitiveSystemConfig":
         """
-        Create a configuration optimized for System 2 (deep, analytical responses).
-
-        - Favors System 2 routing
-        - Maximum context (8000+ tokens)
-        - High S1 confidence threshold
-        - Enables all optimizations
-
-        Returns:
-            CognitiveSystemConfig for deep mode
+        [DEPRECATED] Create a configuration optimized for deep mode.
         """
         config = CognitiveSystemConfig.default()
-
-        # Favor System 2
-
-        # Maximum context for depth
         config.curation_max_tokens = 8000
         config.context_max_tokens = 16000
-
-        # Enable all optimizations
         config.context_enable_dynamic_budget = True
-        config.context_enable_prompt_caching = True
-        config.memory_auto_vectorize_l4 = True
-        config.memory_enable_auto_compression = True
-
-        # Allocate more budget to global knowledge
-        config.context_tokens_budget_l4 = 0.3  # Increase global facts
-        config.context_tokens_budget_l3 = 0.3  # Session history
-        config.context_tokens_budget_l2 = 0.3  # Working memory
-        config.context_tokens_budget_l1 = 0.1  # Raw IO
-
         return config
 
-    def get_s1_context_config(self) -> ContextConfig:
-        """
-        Build ContextConfig specifically for System 1 (fast, minimal context).
-
-        Returns:
-            ContextConfig optimized for System 1
-        """
-        config = self.get_context_config()
-        # Override for System 1
-        config.strategy = "system1"
-        config.curation_config.max_tokens = 500
-        return config
-
-    def get_s2_context_config(self) -> ContextConfig:
-        """
-        Build ContextConfig specifically for System 2 (deep, full context).
-
-        Returns:
-            ContextConfig optimized for System 2
-        """
-        config = self.get_context_config()
-        # Override for System 2
-        config.strategy = "system2"
-        config.curation_config.max_tokens = self.curation_max_tokens
-        return config
+    # Removed specific S1/S2 context config getters to enforce unified context
 
     def validate(self) -> bool:
         """

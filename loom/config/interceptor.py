@@ -4,8 +4,7 @@ Interceptor Configuration
 Provides configuration for Layer 2 control capabilities.
 """
 
-from typing import Optional, List
-from dataclasses import dataclass, field
+
 from pydantic import BaseModel, Field
 
 
@@ -24,26 +23,26 @@ class InterceptorConfig(BaseModel):
 
     # Budget Control
     enable_budget: bool = Field(default=False, description="Enable token budget control")
-    max_tokens: Optional[int] = Field(default=None, description="Maximum tokens allowed")
+    max_tokens: int | None = Field(default=None, description="Maximum tokens allowed")
 
     # Depth Limiting
     enable_depth_limit: bool = Field(default=False, description="Enable recursion depth limiting")
-    max_depth: Optional[int] = Field(default=5, description="Maximum recursion depth")
+    max_depth: int | None = Field(default=5, description="Maximum recursion depth")
 
     # Timeout Control
     enable_timeout: bool = Field(default=False, description="Enable timeout control")
-    timeout_seconds: Optional[float] = Field(default=30.0, description="Timeout in seconds")
+    timeout_seconds: float | None = Field(default=30.0, description="Timeout in seconds")
 
     # Human-in-the-Loop
     enable_hitl: bool = Field(default=False, description="Enable human approval for sensitive operations")
-    hitl_patterns: List[str] = Field(default_factory=list, description="Patterns requiring approval")
+    hitl_patterns: list[str] = Field(default_factory=list, description="Patterns requiring approval")
 
     # Tracing
     enable_tracing: bool = Field(default=False, description="Enable distributed tracing")
 
     # Auth
     enable_auth: bool = Field(default=False, description="Enable authorization")
-    allowed_sources: List[str] = Field(default_factory=list, description="Allowed event sources")
+    allowed_sources: list[str] = Field(default_factory=list, description="Allowed event sources")
 
     class Config:
         """Pydantic config"""

@@ -4,11 +4,9 @@ Tests for Tool Converters
 Tests the FunctionToMCP class which converts Python functions to MCP definitions.
 """
 
-import pytest
-from typing import List, Dict
 
-from loom.tools.converters import FunctionToMCP
 from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.converters import FunctionToMCP
 
 
 class TestFunctionToMCP:

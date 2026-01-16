@@ -4,13 +4,14 @@ Anthropic (Claude) LLM Provider
 支持 Claude 系列模型的完整流式工具调用。
 """
 
-import os
 import json
 import logging
-from typing import List, Dict, Any, AsyncIterator, Optional
+import os
+from collections.abc import AsyncIterator
+from typing import Any
 
+from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
 from loom.llm.interface import LLMProvider, LLMResponse, StreamChunk
-from loom.config.llm import LLMConfig, ConnectionConfig, GenerationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +44,12 @@ class AnthropicProvider(LLMProvider):
 
     def __init__(
         self,
-        config: Optional[LLMConfig] = None,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        config: LLMConfig | None = None,
+        model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs
     ):
         """初始化 Anthropic Provider"""
@@ -81,8 +82,8 @@ class AnthropicProvider(LLMProvider):
 
     def _convert_messages(
         self,
-        messages: List[Dict[str, Any]]
-    ) -> tuple[Optional[str], List[Dict[str, Any]]]:
+        messages: list[dict[str, Any]]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
         """
         转换消息格式，提取 system 消息
 
@@ -99,7 +100,7 @@ class AnthropicProvider(LLMProvider):
 
         return system, converted_messages
 
-    def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _convert_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """转换工具定义为 Anthropic 格式"""
         anthropic_tools = []
 
@@ -120,7 +121,7 @@ class AnthropicProvider(LLMProvider):
 
         return anthropic_tools
 
-    def _build_structured_output_prompt(self) -> Optional[str]:
+    def _build_structured_output_prompt(self) -> str | None:
         """构建结构化输出的 system prompt"""
         if not self.config.structured_output.enabled:
             return None
@@ -140,9 +141,9 @@ class AnthropicProvider(LLMProvider):
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        config: dict[str, Any] | None = None
     ) -> LLMResponse:
         """调用 Anthropic Chat API"""
         # 提取 system 消息
@@ -151,10 +152,7 @@ class AnthropicProvider(LLMProvider):
         # 添加结构化输出指令到 system prompt
         structured_prompt = self._build_structured_output_prompt()
         if structured_prompt:
-            if system:
-                system = f"{system}\n\n{structured_prompt}"
-            else:
-                system = structured_prompt
+            system = f"{system}\n\n{structured_prompt}" if system else structured_prompt
 
         # 构建请求参数
         kwargs = {
@@ -204,8 +202,8 @@ class AnthropicProvider(LLMProvider):
 
     async def stream_chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None
     ) -> AsyncIterator[StreamChunk]:
         """流式调用 Anthropic Chat API（支持工具调用）"""
         # 提取 system 消息
@@ -214,10 +212,7 @@ class AnthropicProvider(LLMProvider):
         # 添加结构化输出指令到 system prompt
         structured_prompt = self._build_structured_output_prompt()
         if structured_prompt:
-            if system:
-                system = f"{system}\n\n{structured_prompt}"
-            else:
-                system = structured_prompt
+            system = f"{system}\n\n{structured_prompt}" if system else structured_prompt
 
         # 构建请求参数
         kwargs = {

@@ -2,8 +2,8 @@
 Tests for Infrastructure Logging
 """
 
+
 import pytest
-import logging
 
 from loom.infra.logging import configure_logging, get_logger
 

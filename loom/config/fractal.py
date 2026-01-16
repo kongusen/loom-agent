@@ -6,8 +6,8 @@ adaptive task decomposition and dynamic agent orchestration.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
 from enum import Enum
+from typing import Any
 
 
 class NodeRole(Enum):
@@ -79,7 +79,7 @@ class FractalConfig:
     default_strategy: GrowthStrategy = GrowthStrategy.DECOMPOSE
     """Default growth strategy when auto-detection fails"""
 
-    strategy_keywords: Dict[GrowthStrategy, List[str]] = field(default_factory=lambda: {
+    strategy_keywords: dict[GrowthStrategy, list[str]] = field(default_factory=lambda: {
         GrowthStrategy.DECOMPOSE: ["step", "phase", "sequential", "order"],
         GrowthStrategy.SPECIALIZE: ["expert", "specialist", "domain", "field"],
         GrowthStrategy.PARALLELIZE: ["parallel", "concurrent", "independent", "simultaneous"],
@@ -121,7 +121,7 @@ class FractalConfig:
     synthesis_model: str = "lightweight"
     """默认合成模型策略: lightweight|same_model|custom"""
 
-    synthesis_model_override: Optional[str] = None
+    synthesis_model_override: str | None = None
     """自定义合成模型名称"""
 
     synthesis_max_tokens: int = 2000
@@ -131,7 +131,7 @@ class FractalConfig:
     default_child_token_budget: int = 4000
     """子节点的默认 token 预算"""
 
-    child_tool_blacklist: List[str] = field(default_factory=list)
+    child_tool_blacklist: list[str] = field(default_factory=list)
     """子节点工具黑名单（额外的）"""
 
     max_concurrent_children: int = 5
@@ -277,7 +277,7 @@ class NodeMetrics:
         self.total_time += time
         self.total_cost += cost
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             "task_count": self.task_count,

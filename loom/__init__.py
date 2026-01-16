@@ -12,43 +12,39 @@ __version__ = "0.3.8"
 
 from loom.api.loom import Loom, LoomConfig
 from loom.builder import LoomBuilder
-from loom.patterns import PATTERNS, get_pattern, list_patterns
-
-# ============================================================================
-# 核心类
-# ============================================================================
-
-from loom.node.agent import AgentNode
-from loom.node.fractal import FractalAgentNode
-from loom.node.tool import ToolNode
 
 # ============================================================================
 # 配置类（统一导出）
 # ============================================================================
-
 from loom.config import (
     AgentConfig,
-    FractalConfig,
-    ExecutionConfig,
     ContextConfig,
     CurationConfig,
-    NodeRole,
+    ExecutionConfig,
+    FractalConfig,
     GrowthStrategy,
     GrowthTrigger,
+    NodeRole,
 )
 
 # ============================================================================
 # LLM
 # ============================================================================
-
 from loom.llm import LLMProvider, OpenAIProvider
 
 # ============================================================================
 # Memory
 # ============================================================================
-
 from loom.memory.core import LoomMemory
-from loom.memory.types import MemoryUnit, MemoryTier, MemoryType
+from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
+
+# ============================================================================
+# 核心类
+# ============================================================================
+from loom.node.agent import AgentNode
+from loom.node.fractal import FractalAgentNode
+from loom.node.tool import ToolNode
+from loom.patterns import PATTERNS, get_pattern, list_patterns
 
 # ============================================================================
 # 导出列表

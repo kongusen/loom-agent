@@ -5,18 +5,17 @@ Demonstrates intelligent structure control, pruning, and health assessment.
 """
 
 import asyncio
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
-from loom.config.fractal import FractalConfig, NodeRole, GrowthTrigger, GrowthStrategy
-from loom.node.fractal import FractalAgentNode
+from loom.config.fractal import FractalConfig, GrowthStrategy, NodeRole
 from loom.kernel import (
-    StructureController,
-    SmartPruner,
-    StructureHealthAssessor,
     CompositePruningStrategy,
-    FitnessPruningStrategy
+    FitnessPruningStrategy,
+    SmartPruner,
+    StructureController,
+    StructureHealthAssessor,
 )
-
+from loom.node.fractal import FractalAgentNode
 
 # ============================================================================
 # Example 1: Structure Controller
@@ -60,7 +59,7 @@ async def example1_structure_controller():
         task_complexity=0.8,
         current_confidence=0.5
     )
-    print(f"   Task complexity: 0.8, Confidence: 0.5")
+    print("   Task complexity: 0.8, Confidence: 0.5")
     print(f"   Decision: {'GROW ✅' if should_grow else 'DO NOT GROW ❌'}\n")
 
     # Test 2: Growth decision for low complexity
@@ -70,7 +69,7 @@ async def example1_structure_controller():
         task_complexity=0.3,
         current_confidence=0.9
     )
-    print(f"   Task complexity: 0.3, Confidence: 0.9")
+    print("   Task complexity: 0.3, Confidence: 0.9")
     print(f"   Decision: {'GROW ✅' if should_grow2 else 'DO NOT GROW ❌'}\n")
 
     # Test 3: Choose growth strategy
@@ -238,7 +237,7 @@ async def example3_health_assessment():
         )
 
         # Good performance
-        for j in range(5):
+        for _j in range(5):
             child.metrics.record_execution(
                 success=True,
                 tokens=2000,
@@ -269,7 +268,7 @@ async def example3_health_assessment():
             standalone=True
         )
 
-        for j in range(5):
+        for _j in range(5):
             child.metrics.record_execution(success=True, tokens=2000, time=1.0)
 
         unhealthy_root.children.append(child)
@@ -296,7 +295,7 @@ async def example3_health_assessment():
         fractal_config=config,
         standalone=True
     )
-    for j in range(5):
+    for _j in range(5):
         deep_child.metrics.record_execution(success=False, tokens=10000, time=20.0)
     unhealthy_root.children.append(deep_child)
 
@@ -360,10 +359,10 @@ async def example4_complete_workflow():
 
         # Varying performance
         if i < 2:  # Good performers
-            for j in range(5):
+            for _j in range(5):
                 child.metrics.record_execution(True, 2000, 1.0)
         elif i < 4:  # Poor performers
-            for j in range(5):
+            for _j in range(5):
                 child.metrics.record_execution(False, 8000, 10.0)
         # else: Idle (no tasks)
 

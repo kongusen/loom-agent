@@ -1,13 +1,14 @@
 """
 Factory functions for creating vector stores and embedding providers.
 """
-from typing import Optional
-from loom.config.memory import VectorStoreConfig, EmbeddingConfig
-from .vector_store import VectorStoreProvider
+
+from loom.config.memory import EmbeddingConfig, VectorStoreConfig
+
 from .embedding import EmbeddingProvider
+from .vector_store import VectorStoreProvider
 
 
-def create_vector_store(config: VectorStoreConfig) -> Optional[VectorStoreProvider]:
+def create_vector_store(config: VectorStoreConfig) -> VectorStoreProvider | None:
     """
     Create a vector store instance based on configuration.
 

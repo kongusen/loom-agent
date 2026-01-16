@@ -8,10 +8,11 @@ This module implements the mathematical abstractions from cognitive_dynamics.md:
 """
 
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
+
+import time
 from dataclasses import dataclass, field
 from enum import Enum
-import time
+from typing import Any
 
 
 class ThoughtState(str, Enum):
@@ -33,13 +34,13 @@ class Thought:
     id: str
     task: str
     state: ThoughtState = ThoughtState.PENDING
-    result: Optional[Any] = None
+    result: Any | None = None
     depth: int = 0
     created_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    completed_at: float | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def duration(self) -> Optional[float]:
+    def duration(self) -> float | None:
         """Calculate thought duration if completed."""
         if self.completed_at:
             return self.completed_at - self.created_at
@@ -61,25 +62,25 @@ class CognitiveState:
     """
 
     # Active thoughts (System 2 processes)
-    active_thoughts: List[Thought] = field(default_factory=list)
+    active_thoughts: list[Thought] = field(default_factory=list)
 
     # Pending insights awaiting projection
-    pending_insights: List[Dict[str, Any]] = field(default_factory=list)
+    pending_insights: list[dict[str, Any]] = field(default_factory=list)
 
     # Memory embeddings (if using vector representations)
-    memory_embeddings: Optional[List[float]] = None
+    memory_embeddings: list[float] | None = None
 
     # Current attention focus
-    attention_focus: Optional[str] = None
+    attention_focus: str | None = None
 
     # Metadata
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def add_thought(self, thought: Thought) -> None:
         """Add a new thought to the state space."""
         self.active_thoughts.append(thought)
 
-    def complete_thought(self, thought_id: str, result: Any) -> Optional[Thought]:
+    def complete_thought(self, thought_id: str, result: Any) -> Thought | None:
         """Mark a thought as completed and store its result."""
         for thought in self.active_thoughts:
             if thought.id == thought_id:
@@ -89,21 +90,21 @@ class CognitiveState:
                 return thought
         return None
 
-    def remove_thought(self, thought_id: str) -> Optional[Thought]:
+    def remove_thought(self, thought_id: str) -> Thought | None:
         """Remove a completed/failed thought from active list."""
         for i, thought in enumerate(self.active_thoughts):
             if thought.id == thought_id:
                 return self.active_thoughts.pop(i)
         return None
 
-    def get_thought(self, thought_id: str) -> Optional[Thought]:
+    def get_thought(self, thought_id: str) -> Thought | None:
         """Retrieve a thought by ID."""
         for thought in self.active_thoughts:
             if thought.id == thought_id:
                 return thought
         return None
 
-    def get_completed_thoughts(self) -> List[Thought]:
+    def get_completed_thoughts(self) -> list[Thought]:
         """Get all completed thoughts awaiting projection."""
         return [t for t in self.active_thoughts if t.state == ThoughtState.COMPLETED]
 
@@ -128,7 +129,7 @@ class Observable:
     """
     content: str  # The text/speech output
     type: str = "text"  # text, tool_call, etc.
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
 
@@ -155,7 +156,7 @@ class ProjectionOperator:
         """
         self.strategy = strategy
 
-    def project(self, state: CognitiveState) -> List[Observable]:
+    def project(self, state: CognitiveState) -> list[Observable]:
         """
         Project cognitive state S to observable manifold O.
 

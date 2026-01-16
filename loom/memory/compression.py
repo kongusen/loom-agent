@@ -1,15 +1,20 @@
 """
 Context Compression Engine
 """
-from typing import List, Dict, Any, Optional, Protocol
-from loom.memory.types import MemoryUnit, MemoryType, MemoryTier, MemoryStatus, MemoryQuery
 import datetime
+from typing import TYPE_CHECKING, Any, Protocol
+
 import tiktoken
+
+from loom.memory.types import MemoryQuery, MemoryStatus, MemoryTier, MemoryType, MemoryUnit
+
+if TYPE_CHECKING:
+    from loom.memory.core import LoomMemory
 
 
 class LLMProvider(Protocol):
     """Protocol for LLM providers used in compression."""
-    async def chat(self, messages: List[Dict[str, str]], **kwargs) -> Any:
+    async def chat(self, messages: list[dict[str, str]], **kwargs) -> Any:
         ...
 
 class ContextCompressor:
@@ -22,9 +27,9 @@ class ContextCompressor:
 
     @staticmethod
     def compress_history(
-        units: List[MemoryUnit],
+        units: list[MemoryUnit],
         keep_last_n: int = 4
-    ) -> List[MemoryUnit]:
+    ) -> list[MemoryUnit]:
         """
         Compress a list of memory units.
         Args:
@@ -42,9 +47,7 @@ class ContextCompressor:
         compressible = []
 
         for u in units:
-            if u.tier == MemoryTier.L4_GLOBAL:
-                immutable.append(u)
-            elif u.type == MemoryType.FACT:
+            if u.tier == MemoryTier.L4_GLOBAL or u.type == MemoryType.FACT:
                 immutable.append(u)
             else:
                 compressible.append(u)
@@ -79,7 +82,7 @@ class ContextCompressor:
         return result
 
     @staticmethod
-    def _compress_segment(segment: List[MemoryUnit]) -> List[MemoryUnit]:
+    def _compress_segment(segment: list[MemoryUnit]) -> list[MemoryUnit]:
         """
         Compress a segment of memory units into a summary or simplified form.
         """
@@ -149,7 +152,7 @@ class MemoryCompressor:
 
     def __init__(
         self,
-        llm_provider: Optional[LLMProvider] = None,
+        llm_provider: LLMProvider | None = None,
         l1_to_l3_threshold: int = 30,
         l3_to_l4_threshold: int = 50,
         token_threshold: int = 4000,
@@ -177,7 +180,7 @@ class MemoryCompressor:
         except:
             self.encoder = None
 
-    def _count_tokens(self, units: List[MemoryUnit]) -> int:
+    def _count_tokens(self, units: list[MemoryUnit]) -> int:
         """Count total tokens in memory units."""
         if not self.encoder:
             # Fallback: rough estimation
@@ -193,7 +196,7 @@ class MemoryCompressor:
         self,
         memory: "LoomMemory",
         session_id: str = "default"
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Compress L1 raw IO buffer to L3 session summary.
 
@@ -250,7 +253,7 @@ class MemoryCompressor:
     async def extract_facts_to_l4(
         self,
         memory: "LoomMemory"
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Extract facts from L2/L3 and promote to L4 global knowledge.
 
@@ -291,7 +294,7 @@ class MemoryCompressor:
 
         return fact_ids
 
-    async def _summarize_with_llm(self, units: List[MemoryUnit]) -> str:
+    async def _summarize_with_llm(self, units: list[MemoryUnit]) -> str:
         """Use LLM to create intelligent summary."""
         # Build context from units
         context_parts = []
@@ -320,11 +323,11 @@ class MemoryCompressor:
         try:
             response = await self.llm_provider.chat(messages, max_tokens=200)
             return getattr(response, "content", str(response))
-        except Exception as e:
+        except Exception:
             # Fallback to simple summary
             return self._simple_summary(units)
 
-    def _simple_summary(self, units: List[MemoryUnit]) -> str:
+    def _simple_summary(self, units: list[MemoryUnit]) -> str:
         """Create rule-based summary."""
         message_count = sum(1 for u in units if u.type == MemoryType.MESSAGE)
         tool_count = sum(1 for u in units if u.type == MemoryType.TOOL_CALL)
@@ -334,7 +337,7 @@ class MemoryCompressor:
 
         return summary
 
-    async def _extract_facts_with_llm(self, units: List[MemoryUnit]) -> List[str]:
+    async def _extract_facts_with_llm(self, units: list[MemoryUnit]) -> list[str]:
         """Use LLM to extract facts from memory units."""
         # Build context from units
         context_parts = []
@@ -361,11 +364,11 @@ class MemoryCompressor:
             # Split by newlines and filter empty lines
             facts = [f.strip() for f in content.split("\n") if f.strip()]
             return facts[:10]  # Limit to top 10 facts
-        except Exception as e:
+        except Exception:
             # Fallback to simple extraction
             return self._extract_facts_simple(units)
 
-    def _extract_facts_simple(self, units: List[MemoryUnit]) -> List[str]:
+    def _extract_facts_simple(self, units: list[MemoryUnit]) -> list[str]:
         """Extract facts using simple heuristics."""
         facts = []
 
@@ -406,7 +409,7 @@ class L4Compressor:
         self.similarity_threshold = similarity_threshold
         self.min_cluster_size = min_cluster_size
 
-    async def should_compress(self, l4_facts: List[MemoryUnit]) -> bool:
+    async def should_compress(self, l4_facts: list[MemoryUnit]) -> bool:
         """判断是否需要压缩
 
         Args:
@@ -419,8 +422,8 @@ class L4Compressor:
 
     async def compress(
         self,
-        l4_facts: List[MemoryUnit]
-    ) -> List[MemoryUnit]:
+        l4_facts: list[MemoryUnit]
+    ) -> list[MemoryUnit]:
         """压缩L4 facts
 
         Args:
@@ -447,8 +450,8 @@ class L4Compressor:
 
     async def _cluster_facts(
         self,
-        facts: List[MemoryUnit]
-    ) -> List[List[MemoryUnit]]:
+        facts: list[MemoryUnit]
+    ) -> list[list[MemoryUnit]]:
         """聚类相似的facts（自实现，不依赖sklearn）
 
         使用基于相似度阈值的简单聚类算法：
@@ -508,10 +511,10 @@ class L4Compressor:
 
     def _union_find_clustering(
         self,
-        facts: List[MemoryUnit],
+        facts: list[MemoryUnit],
         similarity_matrix,
         threshold: float
-    ) -> List[List[MemoryUnit]]:
+    ) -> list[list[MemoryUnit]]:
         """使用并查集进行聚类
 
         Args:
@@ -568,7 +571,7 @@ class L4Compressor:
 
     async def _summarize_cluster(
         self,
-        cluster: List[MemoryUnit]
+        cluster: list[MemoryUnit]
     ) -> MemoryUnit:
         """使用LLM总结一个cluster
 
@@ -600,7 +603,7 @@ Concise summary (1-2 sentences):"""
                 temperature=0.3  # 低温度，更确定性
             )
             summary = getattr(response, "content", str(response))
-        except Exception as e:
+        except Exception:
             # 降级：使用第一个fact作为代表
             summary = str(cluster[0].content)
 

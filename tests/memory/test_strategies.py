@@ -2,18 +2,19 @@
 Tests for Memory Curation Strategies
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from loom.memory.strategies import (
-    CurationStrategy,
-    AutoStrategy,
-    SnippetsStrategy,
-    FocusedStrategy,
-    StrategyFactory
-)
-from loom.memory.types import MemoryUnit, MemoryTier, MemoryType, MemoryQuery
+import pytest
+
 from loom.config.memory import CurationConfig
+from loom.memory.strategies import (
+    AutoStrategy,
+    CurationStrategy,
+    FocusedStrategy,
+    SnippetsStrategy,
+    StrategyFactory,
+)
+from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
 
 
 class TestCurationStrategy:
@@ -22,7 +23,7 @@ class TestCurationStrategy:
     def test_cannot_instantiate_abstract_class(self):
         """Test that CurationStrategy cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            strategy = CurationStrategy()
+            CurationStrategy()
 
 
 class TestAutoStrategy:
@@ -161,7 +162,7 @@ class TestAutoStrategy:
         ]
 
         strategy = AutoStrategy()
-        result = await strategy.curate(mock_memory, config)
+        await strategy.curate(mock_memory, config)
 
         # Should not call L4 query without task_context
         assert mock_memory.query.call_count == 3
@@ -240,7 +241,7 @@ class TestSnippetsStrategy:
         mock_memory.query.return_value = []
 
         strategy = SnippetsStrategy()
-        result = await strategy.curate(mock_memory, config)
+        await strategy.curate(mock_memory, config)
 
         # Should not query for tools
         assert mock_memory.query.call_count == 2  # Only plan and recent chat
@@ -354,7 +355,6 @@ class TestFocusedStrategy:
         result = strategy.curate(mock_memory, config)
 
         # Result will be a coroutine (implementation bug/quirk)
-        import asyncio
         import inspect
         assert inspect.iscoroutine(result)
 

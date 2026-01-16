@@ -1,7 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from loom.kernel.fractal import ResultSynthesizer, SynthesisConfig
 from loom.llm import LLMProvider
+
 
 @pytest.fixture
 def mock_provider():
@@ -31,7 +34,7 @@ async def test_auto_strategy(synthesizer, mock_provider):
     """测试自动(LLM)合成策略"""
     results = [{"result": "data"}]
     output = await synthesizer.synthesize("Task", results, strategy="auto")
-    
+
     assert output == "Synthesized result"
     mock_provider.generate.assert_called_once()
 
@@ -42,10 +45,10 @@ def test_lightweight_model_mapping():
     provider.model = "gpt-4"
     # Mock __class__ to allow instantiation
     provider.__class__ = MagicMock(return_value=MagicMock())
-    
+
     syn = ResultSynthesizer(provider=provider, config=config)
-    mapped_provider = syn._get_synthesis_provider()
-    
+    syn._get_synthesis_provider()
+
     # Check if a new instance was created (mock behavior dependent)
     # in real impl it maps gpt-4 -> gpt-3.5-turbo
     pass # Implementation detail check difficult with simple mocks, skipping
@@ -62,6 +65,6 @@ async def test_custom_model_strategy(mock_provider):
     syn = ResultSynthesizer(provider=mock_provider, config=config)
     # Mock internal create provider
     syn._create_custom_provider = MagicMock(return_value=mock_provider)
-    
+
     await syn.synthesize("Task", [{"result": "foo"}], strategy="auto")
     syn._create_custom_provider.assert_called_with("gpt-4o-mini")

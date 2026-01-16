@@ -2,8 +2,9 @@
 Tests for BGE Embedding Provider
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from loom.memory.embedding import BGEEmbeddingProvider
 

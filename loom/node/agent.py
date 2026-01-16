@@ -2,60 +2,62 @@
 Agent Node (Fractal System)
 """
 
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
-import uuid
+import contextlib
 import json
+import uuid
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional
 
-from loom.protocol.cloudevents import CloudEvent, EventType
-from loom.node.base import Node
-from loom.node.tool import ToolNode
-from loom.kernel.core import Dispatcher, CognitiveState, ProjectionOperator, Thought, ThoughtState
+from loom.cognition.confidence import ConfidenceEstimator
 
-from loom.llm import LLMProvider, MockLLMProvider
-
-# New Memory System
-from loom.memory.core import LoomMemory
-from loom.memory.context import ContextAssembler, ContextManager
-from loom.memory.types import (
-    MemoryUnit, MemoryTier, MemoryType,
-    ContextProjection
-)
-from loom.config.memory import ContextConfig, CurationConfig
-from loom.tools.registry import ToolRegistry
+if TYPE_CHECKING:
+    from loom.llm.interface import LLMResponse
 
 # Cognitive Components
 from loom.config.cognitive import CognitiveConfig
-from loom.cognition.confidence import ConfidenceEstimator
-from loom.memory.system_strategies import System1Strategy, System2Strategy
-
-# Utilities
-from loom.utils.normalization import DataNormalizer
-from loom.utils.formatting import ErrorFormatter
 
 # Configuration
 from loom.config.execution import ExecutionConfig
-from loom.config.models import AgentConfig as AgentMetaConfig
 from loom.config.fractal import FractalConfig
+from loom.kernel.core import (
+    CognitiveState,
+    Dispatcher,
+    ProjectionOperator,
+    Thought,
+    ThoughtState,
+    ToolExecutor,
+)
+from loom.llm import LLMProvider, MockLLMProvider
+from loom.memory.context import ContextAssembler, ContextManager
 
+# New Memory System
+from loom.memory.core import LoomMemory
+from loom.memory.types import ContextProjection, MemoryTier, MemoryType, MemoryUnit
+from loom.node.base import Node
+from loom.node.tool import ToolNode
+from loom.protocol.cloudevents import CloudEvent, EventType
+from loom.tools.registry import ToolRegistry
+from loom.utils.formatting import ErrorFormatter
 
-from loom.kernel.core import ToolExecutor
+# Utilities
+from loom.utils.normalization import DataNormalizer
+
 
 @dataclass
 class ReflectionConfig:
     enabled: bool = False
-    interval: int = 5 
+    interval: int = 5
 
-    
+
 @dataclass
 class ThinkingPolicy:
-    enabled: bool = False 
+    enabled: bool = False
 
 
 class AgentNode(Node):
     """
     Agent Node V3 with System 1/2 Architecture.
-    
+
     Features:
     - LoomMemory Integration (L1-L4)
     - Dual Context Managers (System 1 / System 2)
@@ -69,14 +71,14 @@ class AgentNode(Node):
         dispatcher: Dispatcher,
         role: str = "Assistant",
         system_prompt: str = "You are a helpful assistant.",
-        tools: Optional[List[ToolNode]] = None,
-        provider: Optional[LLMProvider] = None,
-        cognitive_config: Optional[CognitiveConfig] = None,
-        execution_config: Optional[ExecutionConfig] = None,
-        context_projection: Optional[ContextProjection] = None,
+        tools: list[ToolNode] | None = None,
+        provider: LLMProvider | None = None,
+        cognitive_config: CognitiveConfig | None = None,
+        execution_config: ExecutionConfig | None = None,
+        context_projection: ContextProjection | None = None,
         enable_auto_reflection: bool = False,
-        reflection_config: Optional[ReflectionConfig] = None,
-        thinking_policy: Optional[ThinkingPolicy] = None,
+        reflection_config: ReflectionConfig | None = None,
+        thinking_policy: ThinkingPolicy | None = None,
         current_depth: int = 0,
         projection_strategy: str = "selective",
         fractal_config: Optional['FractalConfig'] = None
@@ -86,7 +88,7 @@ class AgentNode(Node):
         self.system_prompt = system_prompt
 
         # Fractal configuration (inlined from FractalMixin)
-        self._fractal_config: Optional[FractalConfig] = None
+        self._fractal_config: FractalConfig | None = None
         if fractal_config:
             self.set_fractal_config(fractal_config)
 
@@ -99,16 +101,19 @@ class AgentNode(Node):
 
         # Tools
         # We maintain support for legacy known_tools while also using registry
-        self.known_tools: Dict[str, ToolNode] = {t.tool_def.name: t for t in tools} if tools else {}
+        self.known_tools: dict[str, ToolNode] = {t.tool_def.name: t for t in tools} if tools else {}
         self.tool_registry = ToolRegistry()
 
         # Initialize Orchestrator and Synthesizer for explicit delegation
         # Use get_fractal_config() from mixin
         f_config = self.get_fractal_config()
         if f_config and f_config.enable_explicit_delegation:
-            from loom.kernel.fractal import FractalOrchestrator, OrchestratorConfig
-            from loom.kernel.fractal import ResultSynthesizer
-            from loom.kernel.fractal import SynthesisConfig
+            from loom.kernel.fractal import (
+                FractalOrchestrator,
+                OrchestratorConfig,
+                ResultSynthesizer,
+                SynthesisConfig,
+            )
 
             orchestrator_config = OrchestratorConfig(
                 allow_recursive_delegation=f_config.allow_recursive_delegation,
@@ -144,17 +149,18 @@ class AgentNode(Node):
         # --- Memory & Context System ---
         self.memory = LoomMemory(node_id=node_id)
 
-        # Dual Context Managers (from unified config)
-        self.s1_config = self.cognitive_config.get_s1_context_config()
-        self.s1_assembler = ContextAssembler(config=self.s1_config, dispatcher=self.dispatcher)
-        self.s1_context = ContextManager(node_id, self.memory, self.s1_assembler)
+        # Unified Context Manager
+        context_config = self.cognitive_config.get_context_config()
+        self.context_assembler = ContextAssembler(config=context_config, dispatcher=self.dispatcher)
+        self.context = ContextManager(node_id, self.memory, self.context_assembler)
 
-        self.s2_config = self.cognitive_config.get_s2_context_config()
-        self.s2_assembler = ContextAssembler(config=self.s2_config, dispatcher=self.dispatcher)
-        self.s2_context = ContextManager(node_id, self.memory, self.s2_assembler)
-
-        # Default to S2 context for backward compatibility
-        self.context = self.s2_context
+        # Remove dual context references
+        self.s1_config = None
+        self.s1_assembler = None
+        self.s1_context = None
+        self.s2_config = None
+        self.s2_assembler = None
+        self.s2_context = None
 
         # --- Confidence Estimation ---
         self.confidence_estimator = ConfidenceEstimator()
@@ -165,15 +171,15 @@ class AgentNode(Node):
 
         # Register Internal Context Tools
         self._register_internal_tools()
-        
+
         # --- Cognitive Control ---
         self.enable_auto_reflection = enable_auto_reflection
         self.reflection_config = reflection_config or ReflectionConfig()
         self.thinking_policy = thinking_policy or ThinkingPolicy()
         self.current_depth = current_depth
-        self._active_thoughts: List[str] = []
+        self._active_thoughts: list[str] = []
         self._tokens_used: int = 0
-        
+
         self.cognitive_state = CognitiveState()
         self.projector = ProjectionOperator(strategy=projection_strategy)
 
@@ -188,7 +194,7 @@ class AgentNode(Node):
 
     def _register_internal_tools(self):
         """Register memory management tools."""
-        
+
         async def load_context(resource_id: str) -> str:
             """
             Load full content of a resource snippet into working memory.
@@ -196,7 +202,7 @@ class AgentNode(Node):
                 resource_id: The ID of the snippet to expand.
             """
             return await self.context.load_resource(resource_id)
-            
+
         async def save_to_longterm(content: str, importance: float = 0.8) -> str:
             """
             Save important information to long-term memory (Global).
@@ -218,7 +224,7 @@ class AgentNode(Node):
         # Register delegation tool if orchestrator is available
         if self.orchestrator is not None:
             async def delegate_subtasks(
-                subtasks: List[Dict[str, Any]],
+                subtasks: list[dict[str, Any]],
                 execution_mode: str = "parallel",
                 synthesis_strategy: str = "auto",
                 reasoning: str = None
@@ -265,15 +271,15 @@ class AgentNode(Node):
             # 注册工具
             self.tool_registry.register_function(delegate_subtasks)
 
-    async def _spawn_thought(self, task: str) -> Optional[str]:
+    async def _spawn_thought(self, task: str) -> str | None:
         """
         System 2: Spawn a new Ephemeral Node to think about a sub-task.
         """
         if not self.thinking_policy.enabled:
             return None
 
-        # [Entropy Checks Omitted for Brevity - Keeping Core Logic] 
-        
+        # [Entropy Checks Omitted for Brevity - Keeping Core Logic]
+
         thought_id = f"thought-{str(uuid.uuid4())[:8]}"
         thought = Thought(
             id=thought_id,
@@ -293,7 +299,7 @@ class AgentNode(Node):
                 "depth": self.current_depth + 1
             }
         ))
-        
+
         # Create Fractal Child Node with Projection
         # Project current context to child
         projection = await self.memory.create_projection(
@@ -360,10 +366,10 @@ class AgentNode(Node):
         """
         if event.type != "node.request":
             return None
-            
+
         data = event.data or {}
         task = data.get("content") or data.get("task") or str(data)
-        
+
         # 0. Perceive (Add to Memory)
         await self.memory.add(MemoryUnit(
             content=str(task),
@@ -374,7 +380,7 @@ class AgentNode(Node):
         # Execute task directly (no routing)
         return await self._execute_task(task, event)
 
-    async def _execute_task(self, task: str, event: Optional[CloudEvent] = None) -> Any:
+    async def _execute_task(self, task: str, event: CloudEvent | None = None) -> Any:
         """Execute task using standard ReAct loop."""
         if event is None:
             # Create a simple event if not provided
@@ -387,8 +393,8 @@ class AgentNode(Node):
 
     async def _call_llm_stream(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None
     ) -> 'LLMResponse':
         """
         调用LLM并通过事件总线发布流式响应
@@ -481,7 +487,7 @@ class AgentNode(Node):
 
     async def _execute_loop(self, event: CloudEvent) -> Any:
         """Standard ReAct Loop using ContextManager."""
-        
+
         data = event.data or {}
         task = data.get("content") or data.get("task") or str(data)
         system_prompt = data.get("system_prompt") or self.system_prompt
@@ -493,13 +499,13 @@ class AgentNode(Node):
             tier=MemoryTier.L1_RAW_IO,
             type=MemoryType.MESSAGE
         ))
-        
+
         iterations = 0
         final_response = ""
-        
+
         while iterations < max_iterations:
             iterations += 1
-            
+
             # 2. Recall (Context Assembly)
             messages = await self.context.build_prompt(
                 task=str(task),
@@ -510,7 +516,7 @@ class AgentNode(Node):
             # Combine external known_tools (MCP) and internal tools
             internal_definitions = self.tool_registry.definitions
             external_definitions = [t.tool_def for t in self.known_tools.values()]
-            
+
             # Convert internal definitions to dicts (model_dump) if needed by provider
             # Use by_alias=True to preserve camelCase field names (e.g., inputSchema)
             # that OpenAI and other providers expect
@@ -521,7 +527,7 @@ class AgentNode(Node):
                 response = await self._call_llm_stream(messages, tools=all_tools_dumps)
             except Exception as e:
                 return f"Error calling LLM: {str(e)}"
-            
+
             # Extract content
             if isinstance(response, dict):
                 content = response.get("content", "")
@@ -533,16 +539,16 @@ class AgentNode(Node):
             # 4. Act
             if content:
                 await self.memory.add(MemoryUnit(
-                    content=str(content), 
-                    tier=MemoryTier.L1_RAW_IO, 
+                    content=str(content),
+                    tier=MemoryTier.L1_RAW_IO,
                     type=MemoryType.THOUGHT
                 ))
-            
+
             if tool_calls:
                 # Record intent (All calls in one block)
                 await self.memory.add(MemoryUnit(
-                    content=tool_calls, 
-                    tier=MemoryTier.L1_RAW_IO, 
+                    content=tool_calls,
+                    tier=MemoryTier.L1_RAW_IO,
                     type=MemoryType.TOOL_CALL
                 ))
 
@@ -552,13 +558,12 @@ class AgentNode(Node):
                     name = tc.get("name")
                     args = tc.get("arguments") or {}
                     if isinstance(args, str):
-                        try:
+                        with contextlib.suppress(Exception):
                             args = json.loads(args)
-                        except: pass
-                    
+
                     if not isinstance(args, dict):
                          args = {"args": args}
-                    
+
                     parsed_calls.append({"name": name, "arguments": args})
 
                     # Emit Tool Call Event (Bus-Awareness) - Immediate feedback
@@ -570,10 +575,10 @@ class AgentNode(Node):
                     ))
 
                 # 2. Define Execution Wrapper (for Event Emission)
-                async def monitored_execution(name: str, args: Dict) -> Any:
+                async def monitored_execution(name: str, args: dict) -> Any:
                     # Execute
                     result_val = await self._execute_any_tool(name, args)
-                    
+
                     # Emit Result Event immediately (for streaming/UI)
                     await self.dispatcher.dispatch(CloudEvent.create(
                         source=self.source_uri,
@@ -597,7 +602,7 @@ class AgentNode(Node):
                     ))
 
                 continue # Loop again
-            
+
             final_response = content
             break
 
@@ -609,16 +614,16 @@ class AgentNode(Node):
         (Simplified implementation logic for brevity, matches structure of _execute_loop)
         """
         # For now, fallback to blocking loop as streaming requires updating
-        # how we stream context updates. 
+        # how we stream context updates.
         # But to satisfy the AgentNode contract, we wrap _execute_loop
         result = await self._execute_loop(event)
-        
-        # If result is string, wrap in expected format if needed by caller, 
+
+        # If result is string, wrap in expected format if needed by caller,
         # but _execute_loop returns string.
         # Original processed returned dict {"response": ...}
         return {"response": result, "iterations": 1}
 
-    async def _execute_any_tool(self, name: str, args: Dict) -> Any:
+    async def _execute_any_tool(self, name: str, args: dict) -> Any:
         """Execute either internal or external tool."""
         try:
             # 1. Internal
@@ -638,10 +643,7 @@ class AgentNode(Node):
                         target_node=tool_node.source_uri,
                         data={"arguments": args}
                     )
-                    if isinstance(res, dict):
-                        result = res.get("result", str(res))
-                    else:
-                        result = str(res)
+                    result = res.get("result", str(res)) if isinstance(res, dict) else str(res)
                 else:
                     return f"Tool {name} not found."
 
@@ -658,7 +660,7 @@ class AgentNode(Node):
             if not self.execution_config.error_handling.rich_formatting:
                # Fallback to simple string if rich formatting disabled
                return f"Tool Error: {str(e)}"
-               
+
             # TODO: Pass error_handling config to ErrorFormatter if we add config support there
             return ErrorFormatter.format_tool_error(e, name)
 
@@ -666,7 +668,7 @@ class AgentNode(Node):
     # Fractal Configuration Management (inlined from FractalMixin)
     # ============================================================================
 
-    def get_fractal_config(self) -> Optional[FractalConfig]:
+    def get_fractal_config(self) -> FractalConfig | None:
         """Get current fractal configuration"""
         return self._fractal_config
 

@@ -2,29 +2,28 @@
 Universal Event Bus (Kernel)
 """
 
-import asyncio
-from typing import Dict, List, Callable, Awaitable, Optional, Any
+from collections.abc import Awaitable, Callable
 
-from loom.protocol.cloudevents import CloudEvent
-from loom.infra.store import EventStore
-from loom.infra.store import InMemoryEventStore
-from loom.infra.transport import Transport, EventHandler
+from loom.infra.store import EventStore, InMemoryEventStore
+from loom.infra.transport import Transport
 from loom.infra.transport.memory import InMemoryTransport
+from loom.protocol.cloudevents import CloudEvent
+
 
 class UniversalEventBus:
     """
     Universal Event Bus based on Event Sourcing.
     Delegates routing to a Transport layer.
     """
-    
+
     def __init__(self, store: EventStore = None, transport: Transport = None):
         self.store = store or InMemoryEventStore()
         self.transport = transport or InMemoryTransport()
-        
+
     async def connect(self):
         """Connect the underlying transport."""
         await self.transport.connect()
-        
+
     async def disconnect(self):
         """Disconnect the underlying transport."""
         await self.transport.disconnect()
@@ -37,14 +36,14 @@ class UniversalEventBus:
         """
         # 1. Persist
         await self.store.append(event)
-        
+
         # 2. Route via Transport
         topic = self._get_topic(event)
-        
+
         # Ensure connected
         # (Optimistically connect. In prod, connect() called at startup app.start())
         await self.transport.connect()
-        
+
         await self.transport.publish(topic, event)
 
     async def subscribe(self, topic: str, handler: Callable[[CloudEvent], Awaitable[None]]):
@@ -68,12 +67,12 @@ class UniversalEventBus:
         if event.subject and (event.type == "node.request" or event.type == "node.call"):
             safe_subject = event.subject.strip("/")
             return f"{event.type}/{safe_subject}"
-            
+
         # Default: route by source (Origin)
         safe_source = event.source.strip("/")
         return f"{event.type}/{safe_source}"
 
-    async def get_events(self) -> List[CloudEvent]:
+    async def get_events(self) -> list[CloudEvent]:
         """Return all events in the store."""
         return await self.store.get_events(limit=1000)
 
@@ -81,5 +80,5 @@ class UniversalEventBus:
         """Clear state (for testing)."""
         if hasattr(self.store, "clear"):
             self.store.clear()
-        
+
         await self.transport.disconnect()

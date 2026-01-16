@@ -9,6 +9,21 @@ Provides dynamic structure optimization and health monitoring:
 - Pruning Strategies: Simplifies structure through intelligent pruning
 """
 
+from .landscape_optimizer import (
+    FitnessLandscapeOptimizer,
+    StructurePattern,
+    StructureSnapshot,
+)
+from .pruning_strategies import (
+    CompositePruningStrategy,
+    FitnessPruningStrategy,
+    PruningCriterion,
+    PruningDecision,
+    PruningStrategy,
+    RedundancyPruningStrategy,
+    ResourcePruningStrategy,
+    SmartPruner,
+)
 from .structure_controller import (
     StructureController,
     StructureEvent,
@@ -16,34 +31,19 @@ from .structure_controller import (
     StructureStats,
 )
 from .structure_evolution import (
-    StructureEvolver,
-    StructureGenome,
-    GenomeConverter,
     EvolutionConfig,
     GeneticOperators,
+    GenomeConverter,
     MutationType,
+    StructureEvolver,
+    StructureGenome,
 )
 from .structure_health import (
-    StructureHealthAssessor,
+    HealthDiagnostic,
+    HealthIssue,
     HealthReport,
     HealthStatus,
-    HealthIssue,
-    HealthDiagnostic,
-)
-from .landscape_optimizer import (
-    FitnessLandscapeOptimizer,
-    StructureSnapshot,
-    StructurePattern,
-)
-from .pruning_strategies import (
-    PruningStrategy,
-    PruningDecision,
-    PruningCriterion,
-    FitnessPruningStrategy,
-    RedundancyPruningStrategy,
-    ResourcePruningStrategy,
-    CompositePruningStrategy,
-    SmartPruner,
+    StructureHealthAssessor,
 )
 
 __all__ = [

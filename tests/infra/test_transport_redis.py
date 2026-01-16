@@ -2,9 +2,11 @@
 Tests for Redis Transport
 """
 
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from loom.infra.transport.redis import RedisTransport
 from loom.protocol.cloudevents import CloudEvent
 
@@ -61,7 +63,7 @@ class MockPubSub:
             try:
                 msg = await asyncio.wait_for(self.messages.get(), timeout=0.1)
                 yield msg
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
     def add_message(self, channel, data):

@@ -14,7 +14,7 @@ class TestEventStore:
     def test_cannot_instantiate_abstract_class(self):
         """Test that EventStore cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            store = EventStore()
+            EventStore()
 
 
 @pytest.mark.asyncio

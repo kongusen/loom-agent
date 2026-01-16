@@ -2,21 +2,21 @@
 Unit Tests for Structure Controller and Related Components
 """
 
-import pytest
 from unittest.mock import Mock
 
-from loom.config.fractal import FractalConfig, NodeRole, NodeMetrics, GrowthStrategy
-from loom.node.fractal import FractalAgentNode
+import pytest
+
+from loom.config.fractal import FractalConfig, GrowthStrategy, NodeRole
 from loom.kernel import (
-    StructureController,
-    StructureEventType,
-    SmartPruner,
     CompositePruningStrategy,
     FitnessPruningStrategy,
+    HealthStatus,
+    SmartPruner,
+    StructureController,
+    StructureEventType,
     StructureHealthAssessor,
-    HealthStatus
 )
-
+from loom.node.fractal import FractalAgentNode
 
 # ============================================================================
 # Fixtures
@@ -78,7 +78,7 @@ def sample_tree(mock_llm, fractal_config):
 
         # Add some metrics to children
         child.metrics.record_execution(
-            success=True if i < 2 else False,  # Last child fails
+            success=i < 2,  # Last child fails
             tokens=1000 * (i + 1),
             time=i + 1.0
         )
@@ -109,7 +109,7 @@ class TestStructureController:
             current_confidence=0.6
         )
 
-        assert should_grow == True
+        assert should_grow is True
 
     def test_should_not_grow_low_complexity(self, controller, sample_tree):
         """Test no growth for low complexity"""
@@ -121,7 +121,7 @@ class TestStructureController:
             current_confidence=0.9
         )
 
-        assert should_grow == False
+        assert should_grow is False
 
     def test_should_not_grow_at_max_depth(self, controller, fractal_config, mock_llm):
         """Test no growth at max depth"""
@@ -140,7 +140,7 @@ class TestStructureController:
             current_confidence=0.3
         )
 
-        assert should_grow == False
+        assert should_grow is False
 
     def test_choose_growth_strategy_decompose(self, controller, sample_tree):
         """Test strategy selection for sequential task"""
@@ -244,7 +244,7 @@ class TestPruning:
         assert 'pruned_count' in report
         assert 'nodes_before' in report
         assert 'nodes_after' in report
-        assert report['dry_run'] == True
+        assert report['dry_run'] is True
 
     def test_composite_pruning(self, sample_tree):
         """Test composite pruning strategy"""
@@ -345,7 +345,7 @@ class TestIntegration:
         if inefficient:
             pruner = SmartPruner(dry_run=True)
             report = pruner.prune_structure(sample_tree)
-            assert report['dry_run'] == True
+            assert report['dry_run'] is True
 
     def test_full_workflow(self, controller, sample_tree, fractal_config):
         """Test complete workflow: grow -> assess -> prune"""
@@ -359,7 +359,7 @@ class TestIntegration:
         assert health.total_nodes == 4
 
         # 3. Check for pruning candidates
-        inefficient = controller.get_inefficient_nodes(sample_tree)
+        controller.get_inefficient_nodes(sample_tree)
 
         # 4. Prune if needed (dry run)
         pruner = SmartPruner(dry_run=True)

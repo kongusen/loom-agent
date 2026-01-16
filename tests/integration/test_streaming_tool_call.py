@@ -6,17 +6,13 @@ mode had null IDs, causing "Invalid type for 'messages[2].tool_calls[1].id':
 expected a string, but got null instead." error.
 """
 
-import os
 from dataclasses import dataclass, field
-from typing import List, Optional
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
-from loom.llm import OpenAIProvider
 from loom.config import LLMConfig
-from loom.llm import StreamChunk
-
+from loom.llm import OpenAIProvider, StreamChunk
 
 # =============================================================================
 # Test Fixtures
@@ -47,9 +43,9 @@ def provider(mock_openai_client):
 class MockToolCall:
     """Mock OpenAI tool call chunk."""
     index: int
-    id: Optional[str] = None
-    name: Optional[str] = None
-    arguments: Optional[str] = None
+    id: str | None = None
+    name: str | None = None
+    arguments: str | None = None
 
     def to_mock(self):
         """Convert to unittest.mock.Mock object."""
@@ -65,9 +61,9 @@ class MockToolCall:
 @dataclass
 class MockOpenAIChunk:
     """Mock OpenAI stream chunk."""
-    content: Optional[str] = None
-    tool_calls: List[MockToolCall] = field(default_factory=list)
-    finish_reason: Optional[str] = None
+    content: str | None = None
+    tool_calls: list[MockToolCall] = field(default_factory=list)
+    finish_reason: str | None = None
 
     def to_mock(self):
         """Convert to unittest.mock.Mock object."""
@@ -82,7 +78,7 @@ class MockOpenAIChunk:
         return mock_chunk
 
 
-def create_mock_stream(chunks: List[MockOpenAIChunk], mock_client: MagicMock):
+def create_mock_stream(chunks: list[MockOpenAIChunk], mock_client: MagicMock):
     """
     Configure a mock client to return the specified chunks.
 

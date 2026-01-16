@@ -5,27 +5,22 @@ Self-organizing agent nodes that can dynamically spawn children to handle
 complex tasks through recursive decomposition.
 """
 
-import time
 import asyncio
+import time
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import Any, Optional
 
-from loom.node.agent import AgentNode
 from loom.config.fractal import (
     FractalConfig,
-    NodeRole,
-    NodeMetrics,
     GrowthStrategy,
-    GrowthTrigger,
+    NodeMetrics,
+    NodeRole,
 )
+from loom.kernel.fractal import FractalOrchestrator, OrchestratorConfig, fractal_utils
 from loom.llm import LLMProvider
 from loom.memory.core import LoomMemory
-from loom.kernel.fractal import FractalOrchestrator, OrchestratorConfig
-from loom.kernel.fractal import fractal_utils
+from loom.node.agent import AgentNode
 from loom.protocol.delegation import TaskDecomposition
-
-
-
 
 
 class FractalAgentNode(AgentNode):
@@ -43,16 +38,16 @@ class FractalAgentNode(AgentNode):
         self,
         # Core parameters (compatible with AgentNode)
         node_id: str,
-        dispatcher: Optional[Any] = None,
-        provider: Optional[LLMProvider] = None,
-        tools: Optional[List[Any]] = None,
-        memory: Optional[LoomMemory] = None,
+        dispatcher: Any | None = None,
+        provider: LLMProvider | None = None,
+        tools: list[Any] | None = None,
+        memory: LoomMemory | None = None,
 
         # Fractal-specific parameters
         role: NodeRole = NodeRole.COORDINATOR,
         parent: Optional['FractalAgentNode'] = None,
         depth: int = 0,
-        fractal_config: Optional[FractalConfig] = None,
+        fractal_config: FractalConfig | None = None,
 
         # Simplified mode (skip AgentNode init for standalone use)
         standalone: bool = True,
@@ -87,7 +82,7 @@ class FractalAgentNode(AgentNode):
             self.tools = tools or []
             self.memory = memory
             self.dispatcher = dispatcher
-            
+
             # Initialize tool helper structures
             self.known_tools = {t.name: t for t in self.tools} if hasattr(self.tools, '__iter__') else {}
             # Mock tool registry for standalone
@@ -110,7 +105,7 @@ class FractalAgentNode(AgentNode):
         self.node_id = node_id or f"node_{uuid.uuid4().hex[:8]}"
         self.role = role
         self.parent = parent
-        self.children: List[FractalAgentNode] = [] # Kept for backward compat/inspection, but managed by Orchestrator technically?
+        self.children: list[FractalAgentNode] = [] # Kept for backward compat/inspection, but managed by Orchestrator technically?
         # Actually, Orchestrator doesn't persist children list in state, it returns them.
         # But we might want to track them for visibility.
         # For Phase 2 simplicity, let's keep self.children but populate it from Orchestrator results if needed,
@@ -118,7 +113,7 @@ class FractalAgentNode(AgentNode):
         # Let's keep it empty for now, or just use it to track active children for visualization?
         # The original code used it for persistence.
         # Let's comment it out or leave it empty.
-        
+
         self.depth = depth
 
         # Configuration
@@ -152,7 +147,7 @@ class FractalAgentNode(AgentNode):
         task: str,
         force_fractal: bool = False,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute task with optional fractal decomposition
 
@@ -228,17 +223,17 @@ class FractalAgentNode(AgentNode):
         result = await self.run(task, **kwargs)
         return result
 
-    async def _fractal_execute(self, task: str, **kwargs) -> Dict[str, Any]:
+    async def _fractal_execute(self, task: str, **kwargs) -> dict[str, Any]:
         """Execute task using fractal decomposition via Orchestrator"""
         # 1. Decompose task
         decomposition = await self._decompose_task(task)
 
         # 2. Delegate via Orchestrator
         delegation_result = await self.orchestrator.process_decomposition(decomposition)
-        
+
         # 3. Update local structure tracking (optional, for visualization)
         # We might want to retrieve children from result if needed, but for now just return results
-        
+
         return {
             "aggregated_result": delegation_result.synthesized_result,
             "subtask_results": delegation_result.subtask_results,
@@ -345,7 +340,7 @@ SUBTASKS:
 Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} subtasks.
 """
 
-    def _parse_decomposition_response(self, response: str) -> tuple[List[str], str]:
+    def _parse_decomposition_response(self, response: str) -> tuple[list[str], str]:
         """Parse LLM decomposition response"""
         lines = response.strip().split('\n')
 
@@ -380,7 +375,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
     # ============================================================================
     # Child Node Management (Deprecated / Handled by Orchestrator)
     # ============================================================================
-    
+
     # Methods _spawn_children, _execute_children, _aggregate_results removed.
     # Logic is now in FractalOrchestrator.
 
@@ -388,7 +383,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
     # Structure Introspection
     # ============================================================================
 
-    def get_structure_tree(self) -> Dict[str, Any]:
+    def get_structure_tree(self) -> dict[str, Any]:
         """Get complete structure tree"""
         return {
             "node_id": self.node_id,
@@ -450,7 +445,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
 
         return result
 
-    def _collect_nodes_compact(self, nodes: List[str], depth: int = 0):
+    def _collect_nodes_compact(self, nodes: list[str], depth: int = 0):
         """Collect nodes for compact visualization"""
         indent = "  " * depth
         fitness = self.metrics.fitness_score()
@@ -463,18 +458,18 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
     # Utilities
     # ============================================================================
 
-    def _select_tools_for_child(self, subtask: str) -> List[Any]:
+    def _select_tools_for_child(self, subtask: str) -> list[Any]:
         """
         Select tools for child node based on subtask
         For backward compatibility with add_child.
         """
         return self.tools if hasattr(self, 'tools') else []
-        
+
     async def _execute_children(
         self,
-        subtasks: List[str],
+        subtasks: list[str],
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Execute subtasks on child nodes
         For backward compatibility with execute_pipeline.
@@ -485,17 +480,17 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
         # Execute in parallel
         tasks = [
             child.execute(subtask, **kwargs)
-            for child, subtask in zip(self.children, subtasks)
+            for child, subtask in zip(self.children, subtasks, strict=False)
         ]
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Helper to process results
         processed = []
         for i, res in enumerate(results):
              if isinstance(res, Exception):
                  processed.append({
-                     "success": False, 
+                     "success": False,
                      "error": str(res),
                      "node_id": self.children[i].node_id
                  })
@@ -520,7 +515,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
     def add_child(
         self,
         role: NodeRole = NodeRole.EXECUTOR,
-        tools: Optional[List[Any]] = None,
+        tools: list[Any] | None = None,
         **kwargs
     ) -> 'FractalAgentNode':
         """
@@ -560,9 +555,9 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
 
     async def execute_pipeline(
         self,
-        tasks: List[str],
+        tasks: list[str],
         mode: str = "sequential"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Execute tasks on children in specified mode
 
@@ -578,7 +573,7 @@ Keep subtasks clear and actionable. Limit to {self.fractal_config.max_children} 
 
         if mode == "sequential":
             results = []
-            for child, task in zip(self.children, tasks):
+            for child, task in zip(self.children, tasks, strict=False):
                 result = await child.execute(task)
                 results.append(result)
             return results

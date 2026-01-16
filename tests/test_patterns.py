@@ -4,17 +4,12 @@ Tests for Loom Patterns
 
 import pytest
 
-from loom.patterns import (
-    Pattern,
-    PATTERNS,
-    get_pattern,
-    list_patterns
-)
+from loom.patterns import PATTERNS, Pattern, get_pattern, list_patterns
 from loom.patterns.analytical import AnalyticalPattern
-from loom.patterns.creative import CreativePattern
 from loom.patterns.collaborative import CollaborativePattern
-from loom.patterns.iterative import IterativePattern
+from loom.patterns.creative import CreativePattern
 from loom.patterns.execution import ExecutionPattern
+from loom.patterns.iterative import IterativePattern
 
 
 class TestPattern:
@@ -23,7 +18,7 @@ class TestPattern:
     def test_cannot_instantiate_abstract_class(self):
         """Test that Pattern cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            pattern = Pattern(name="test", description="test")
+            Pattern(name="test", description="test")
 
 
 class TestAnalyticalPattern:

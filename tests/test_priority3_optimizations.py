@@ -2,17 +2,17 @@
 Test Priority 3 optimizations (Quality Improvements)
 """
 import asyncio
-import sys
 import os
+import sys
 import time
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from loom.kernel.core import ToolExecutor
 from loom.config.execution import ExecutionConfig
+from loom.kernel.core import ToolExecutor
 from loom.memory.core import LoomMemory
-from loom.memory.types import MemoryUnit, MemoryTier, MemoryType
+from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
 
 
 async def test_error_recovery_retry():
@@ -138,7 +138,7 @@ async def test_lru_memory_eviction():
         assert "High importance, recent" in contents, "High importance item should be retained"
 
         print("✅ LRU/LFU memory eviction: PASSED")
-        print(f"   Evicted low-importance item, retained high-importance items")
+        print("   Evicted low-importance item, retained high-importance items")
         return True
     except Exception as e:
         print(f"❌ LRU/LFU memory eviction: FAILED - {e}")

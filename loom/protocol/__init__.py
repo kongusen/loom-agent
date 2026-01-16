@@ -14,22 +14,22 @@ Key Components:
 # CloudEvents Protocol
 from .cloudevents import CloudEvent, EventType
 
-# Model Context Protocol (MCP)
-from .mcp import MCPToolDefinition
-
 # Delegation Protocol
 from .delegation import (
+    DELEGATE_SUBTASKS_TOOL,
     DelegationRequest,
     DelegationResult,
     SubtaskSpecification,
     TaskDecomposition,
-    DELEGATE_SUBTASKS_TOOL,
 )
+
+# Model Context Protocol (MCP)
+from .mcp import MCPToolDefinition
 
 # Memory Operations Protocol
 from .memory_operations import (
-    MemoryValidator,
     ContextSanitizer,
+    MemoryValidator,
     ProjectStateObject,
 )
 

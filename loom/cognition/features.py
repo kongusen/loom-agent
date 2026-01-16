@@ -6,10 +6,9 @@ to eliminate duplication and provide a single source of truth for
 query and response feature analysis.
 """
 
-from typing import Dict, Optional, List, Set
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
-import re
 
 
 @dataclass
@@ -23,7 +22,7 @@ class QueryFeatures:
     uncertainty_markers: int = 0
     clarity: float = 0.0  # 0-1, higher = more clear
     reasoning: str = ""
-    detected_features: List[str] = field(default_factory=list)
+    detected_features: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -35,7 +34,7 @@ class ResponseFeatures:
     directness: float = 0.0  # 0.0 to 0.15
     clarification_requested: bool = False
     alignment_with_query: float = 0.0  # -0.1 to 0.1
-    detected_features: List[str] = field(default_factory=list)
+    detected_features: list[str] = field(default_factory=list)
 
 
 class QueryFeatureExtractor:
@@ -107,7 +106,7 @@ class QueryFeatureExtractor:
     def extract_query_features(
         self,
         query: str,
-        context: Optional[Dict] = None
+        context: dict | None = None
     ) -> QueryFeatures:
         """
         Extract features from a query.
@@ -347,8 +346,8 @@ class QueryFeatureExtractor:
 
     def _analyze_alignment(self, query: str, response: str) -> float:
         """Check query-response alignment."""
-        query_words: Set[str] = set(query.lower().split())
-        response_words: Set[str] = set(response.lower().split())
+        query_words: set[str] = set(query.lower().split())
+        response_words: set[str] = set(response.lower().split())
 
         # Remove common stop words
         query_words -= self.STOP_WORDS

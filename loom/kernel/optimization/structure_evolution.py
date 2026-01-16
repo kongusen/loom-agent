@@ -6,15 +6,16 @@ optimal configurations for different task types.
 """
 
 import copy
-import random
 import logging
-from typing import List, Dict, Any, Optional, Tuple, Callable
+import random
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import numpy as np
 
-from loom.config.fractal import NodeRole, FractalConfig, GrowthStrategy
+from loom.config.fractal import FractalConfig, NodeRole
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class EvolutionConfig:
     max_structure_nodes: int = 20
     """Maximum nodes in structure"""
 
-    fitness_weights: Dict[str, float] = None
+    fitness_weights: dict[str, float] = None
     """Weights for fitness calculation"""
 
     def __post_init__(self):
@@ -83,7 +84,7 @@ class StructureGenome:
     Simplified representation that can be evolved and converted to/from
     actual FractalAgentNode structures.
     """
-    genes: List[Dict[str, Any]]  # Each gene represents a node
+    genes: list[dict[str, Any]]  # Each gene represents a node
     fitness: float = 0.0
     generation: int = 0
 
@@ -105,7 +106,7 @@ class StructureGenome:
         """Get total node count"""
         return len(self.genes)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             'genes': self.genes,
@@ -207,7 +208,7 @@ class GeneticOperators:
             to_remove = random.choice(non_root_genes)
 
             # Remove this node and all its descendants
-            def is_descendant(node: Dict, ancestor_id: str) -> bool:
+            def is_descendant(node: dict, ancestor_id: str) -> bool:
                 if node['id'] == ancestor_id:
                     return True
                 parent_id = node.get('parent_id')
@@ -255,7 +256,7 @@ class GeneticOperators:
         parent1: StructureGenome,
         parent2: StructureGenome,
         crossover_rate: float
-    ) -> Tuple[StructureGenome, StructureGenome]:
+    ) -> tuple[StructureGenome, StructureGenome]:
         """
         Perform crossover between two genomes
 
@@ -275,8 +276,8 @@ class GeneticOperators:
         offspring2 = parent2.clone()
 
         # Find common depths
-        depths1 = set(g['depth'] for g in parent1.genes)
-        depths2 = set(g['depth'] for g in parent2.genes)
+        depths1 = {g['depth'] for g in parent1.genes}
+        depths2 = {g['depth'] for g in parent2.genes}
         common_depths = list(depths1 & depths2)
 
         if len(common_depths) > 1:
@@ -308,7 +309,7 @@ class StructureEvolver:
     def __init__(
         self,
         config: EvolutionConfig,
-        fitness_evaluator: Optional[Callable[[StructureGenome], float]] = None
+        fitness_evaluator: Callable[[StructureGenome], float] | None = None
     ):
         """
         Initialize evolver
@@ -321,11 +322,11 @@ class StructureEvolver:
         self.fitness_evaluator = fitness_evaluator or self._default_fitness
 
         # Evolution history
-        self.history: List[Dict[str, Any]] = []
+        self.history: list[dict[str, Any]] = []
 
     def evolve(
         self,
-        initial_population: Optional[List[StructureGenome]] = None,
+        initial_population: list[StructureGenome] | None = None,
         target_fitness: float = 0.9
     ) -> StructureGenome:
         """
@@ -385,11 +386,11 @@ class StructureEvolver:
 
         return best_genome
 
-    def _create_initial_population(self) -> List[StructureGenome]:
+    def _create_initial_population(self) -> list[StructureGenome]:
         """Create random initial population"""
         population = []
 
-        for i in range(self.config.population_size):
+        for _i in range(self.config.population_size):
             # Create random structure
             genes = []
 
@@ -416,7 +417,7 @@ class StructureEvolver:
 
         return population
 
-    def _create_next_generation(self, population: List[StructureGenome]) -> List[StructureGenome]:
+    def _create_next_generation(self, population: list[StructureGenome]) -> list[StructureGenome]:
         """Create next generation using selection, crossover, and mutation"""
         next_gen = []
 
@@ -449,7 +450,7 @@ class StructureEvolver:
 
         return next_gen[:self.config.population_size]
 
-    def _tournament_selection(self, population: List[StructureGenome]) -> StructureGenome:
+    def _tournament_selection(self, population: list[StructureGenome]) -> StructureGenome:
         """Select individual using tournament selection"""
         tournament = random.sample(population, self.config.tournament_size)
         winner = max(tournament, key=lambda g: g.fitness)
@@ -490,7 +491,7 @@ class StructureEvolver:
                 children_counts[parent_id] = children_counts.get(parent_id, 0) + 1
 
         if children_counts:
-            avg_children = np.mean(list(children_counts.values()))
+            np.mean(list(children_counts.values()))
             std_children = np.std(list(children_counts.values()))
             balance = 1.0 / (1.0 + std_children)  # Lower std = better balance
         else:
@@ -505,7 +506,7 @@ class StructureEvolver:
 
         return min(1.0, max(0.0, fitness))
 
-    def get_evolution_summary(self) -> Dict[str, Any]:
+    def get_evolution_summary(self) -> dict[str, Any]:
         """Get summary of evolution process"""
         if not self.history:
             return {}
@@ -521,7 +522,7 @@ class StructureEvolver:
             'convergence_speed': self._calculate_convergence_speed(best_fitnesses)
         }
 
-    def _calculate_convergence_speed(self, fitnesses: List[float]) -> float:
+    def _calculate_convergence_speed(self, fitnesses: list[float]) -> float:
         """Calculate how quickly the algorithm converged"""
         if len(fitnesses) < 2:
             return 0.0
@@ -603,7 +604,7 @@ class GenomeConverter:
         """
         genes = []
 
-        def _collect(node: Any, parent_id: Optional[str] = None):
+        def _collect(node: Any, parent_id: str | None = None):
             gene = {
                 'id': node.node_id,
                 'parent_id': parent_id,

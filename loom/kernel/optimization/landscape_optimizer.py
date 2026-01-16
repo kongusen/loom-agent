@@ -5,15 +5,16 @@ Learns optimal structure patterns from historical performance data
 and provides intelligent recommendations for structure optimization.
 """
 
-import time
 import json
 import logging
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, field
+import time
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 
-from loom.config.fractal import NodeRole, GrowthStrategy
+from loom.config.fractal import GrowthStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class StructureSnapshot:
     max_depth: int
     avg_depth: float
     avg_branching: float
-    node_roles: Dict[str, int]  # role -> count
+    node_roles: dict[str, int]  # role -> count
 
     # Performance metrics
     fitness_score: float
@@ -45,9 +46,9 @@ class StructureSnapshot:
     avg_cost: float
 
     # Strategy info
-    growth_strategies: Dict[str, int]  # strategy -> count
+    growth_strategies: dict[str, int]  # strategy -> count
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             'timestamp': self.timestamp,
@@ -72,7 +73,7 @@ class StructureSnapshot:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'StructureSnapshot':
+    def from_dict(cls, data: dict[str, Any]) -> 'StructureSnapshot':
         """Create from dictionary"""
         return cls(
             timestamp=data['timestamp'],
@@ -104,8 +105,8 @@ class StructurePattern:
     # Optimal topology
     recommended_depth: int
     recommended_branching: float
-    recommended_roles: Dict[str, float]  # role -> proportion
-    recommended_strategies: List[GrowthStrategy]
+    recommended_roles: dict[str, float]  # role -> proportion
+    recommended_strategies: list[GrowthStrategy]
 
     # Performance guarantees
     min_fitness: float
@@ -114,7 +115,7 @@ class StructurePattern:
 
     confidence: float = 0.0  # How confident we are in this pattern
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             'pattern_id': self.pattern_id,
@@ -170,13 +171,13 @@ class FitnessLandscapeOptimizer:
         self.confidence_threshold = confidence_threshold
 
         # Performance history
-        self.snapshots: List[StructureSnapshot] = []
+        self.snapshots: list[StructureSnapshot] = []
 
         # Learned patterns
-        self.patterns: Dict[str, StructurePattern] = {}
+        self.patterns: dict[str, StructurePattern] = {}
 
         # Landscape data (for visualization)
-        self.landscape_data: Dict[Tuple[int, int], List[float]] = defaultdict(list)
+        self.landscape_data: dict[tuple[int, int], list[float]] = defaultdict(list)
         # Key: (complexity_bin, depth_bin), Value: list of fitness scores
 
     # ========================================================================
@@ -188,7 +189,7 @@ class FitnessLandscapeOptimizer:
         root: Any,  # FractalAgentNode
         task_type: str,
         task_complexity: float,
-        structure_id: Optional[str] = None
+        structure_id: str | None = None
     ) -> StructureSnapshot:
         """
         Record a structure's performance
@@ -235,7 +236,7 @@ class FitnessLandscapeOptimizer:
 
         return snapshot
 
-    def _analyze_topology(self, root: Any) -> Dict[str, Any]:
+    def _analyze_topology(self, root: Any) -> dict[str, Any]:
         """Analyze structure topology"""
         nodes = []
         depths = []
@@ -262,7 +263,7 @@ class FitnessLandscapeOptimizer:
             'node_roles': dict(role_counts)
         }
 
-    def _analyze_performance(self, root: Any) -> Dict[str, Any]:
+    def _analyze_performance(self, root: Any) -> dict[str, Any]:
         """Analyze structure performance"""
         nodes = []
 
@@ -297,7 +298,7 @@ class FitnessLandscapeOptimizer:
             'avg_cost': sum(avg_costs) / len(avg_costs)
         }
 
-    def _analyze_strategies(self, root: Any) -> Dict[str, int]:
+    def _analyze_strategies(self, root: Any) -> dict[str, int]:
         """Analyze growth strategies used"""
         # This would require tracking strategy history in nodes
         # For now, return empty
@@ -309,8 +310,8 @@ class FitnessLandscapeOptimizer:
 
     def learn_patterns(
         self,
-        task_type_filter: Optional[str] = None
-    ) -> List[StructurePattern]:
+        task_type_filter: str | None = None
+    ) -> list[StructurePattern]:
         """
         Learn optimal patterns from historical data
 
@@ -355,7 +356,7 @@ class FitnessLandscapeOptimizer:
     def _extract_pattern(
         self,
         task_type: str,
-        snapshots: List[StructureSnapshot]
+        snapshots: list[StructureSnapshot]
     ) -> StructurePattern:
         """Extract optimal pattern from snapshots"""
         # Aggregate statistics
@@ -408,8 +409,8 @@ class FitnessLandscapeOptimizer:
         self,
         task_type: str,
         task_complexity: float,
-        current_fitness: Optional[float] = None
-    ) -> Optional[StructurePattern]:
+        current_fitness: float | None = None
+    ) -> StructurePattern | None:
         """
         Recommend optimal structure configuration for a task
 
@@ -463,8 +464,8 @@ class FitnessLandscapeOptimizer:
 
     def visualize_landscape(
         self,
-        complexity_range: Tuple[float, float] = (0.0, 1.0),
-        depth_range: Tuple[int, int] = (0, 5)
+        complexity_range: tuple[float, float] = (0.0, 1.0),
+        depth_range: tuple[int, int] = (0, 5)
     ) -> str:
         """
         Visualize fitness landscape
@@ -547,7 +548,7 @@ class FitnessLandscapeOptimizer:
     # Analysis
     # ========================================================================
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get optimizer statistics"""
         if not self.snapshots:
             return {
@@ -564,14 +565,14 @@ class FitnessLandscapeOptimizer:
             'best_fitness': np.max(fitnesses),
             'worst_fitness': np.min(fitnesses),
             'fitness_std': np.std(fitnesses),
-            'task_types': len(set(s.task_type for s in self.snapshots))
+            'task_types': len({s.task_type for s in self.snapshots})
         }
 
     def get_best_structures(
         self,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         limit: int = 5
-    ) -> List[StructureSnapshot]:
+    ) -> list[StructureSnapshot]:
         """Get best performing structures"""
         snapshots = self.snapshots
 
@@ -605,7 +606,7 @@ class FitnessLandscapeOptimizer:
 
     def load(self, filepath: str):
         """Load optimizer state from file"""
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         self.snapshots = [

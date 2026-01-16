@@ -5,7 +5,8 @@ Tests the StatePatch class and apply_patch function.
 """
 
 import pytest
-from loom.protocol.patch import StatePatch, PatchOperation, apply_patch
+
+from loom.protocol.patch import PatchOperation, StatePatch, apply_patch
 
 
 class TestPatchOperation:

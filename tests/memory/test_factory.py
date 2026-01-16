@@ -4,8 +4,8 @@ Tests for Memory Factory
 
 import pytest
 
-from loom.memory.factory import create_vector_store, create_embedding_provider
-from loom.config.memory import VectorStoreConfig, EmbeddingConfig
+from loom.config.memory import EmbeddingConfig, VectorStoreConfig
+from loom.memory.factory import create_embedding_provider, create_vector_store
 
 
 class TestCreateVectorStore:

@@ -2,14 +2,15 @@
 Tests for Kernel Core Dispatcher
 """
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from loom.kernel.core.dispatcher import Dispatcher
-from loom.kernel.core.bus import UniversalEventBus
-from loom.protocol.cloudevents import CloudEvent
+import pytest
+
 from loom.kernel.control.base import Interceptor
+from loom.kernel.core.bus import UniversalEventBus
+from loom.kernel.core.dispatcher import Dispatcher
+from loom.protocol.cloudevents import CloudEvent
 
 
 class MockInterceptor(Interceptor):
@@ -287,7 +288,7 @@ class TestDispatcher:
         """Test handling of timeout error during dispatch."""
         async def timeout_publish(*args, **kwargs):
             await asyncio.sleep(0.1)
-            raise asyncio.TimeoutError()
+            raise TimeoutError()
 
         dispatcher.bus.publish = timeout_publish
 
@@ -338,7 +339,7 @@ class TestDispatcher:
     @pytest.mark.asyncio
     async def test_interceptor_can_modify_event(self, dispatcher, sample_event):
         """Test that interceptor can modify the event."""
-        original_data = sample_event.data.copy()
+        sample_event.data.copy()
 
         async def modifying_pre_invoke(event):
             # Modify the event

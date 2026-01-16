@@ -9,17 +9,18 @@ LLM Configuration System
 - 工具调用配置
 """
 
-from typing import Optional, List, Dict, Any, Literal
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
 
 class ConnectionConfig(BaseModel):
     """连接配置"""
-    api_key: Optional[str] = Field(None, description="API Key")
-    base_url: Optional[str] = Field(None, description="API Base URL")
+    api_key: str | None = Field(None, description="API Key")
+    base_url: str | None = Field(None, description="API Base URL")
     timeout: float = Field(60.0, description="请求超时时间（秒）")
     max_retries: int = Field(3, description="最大重试次数")
-    organization: Optional[str] = Field(None, description="组织 ID（OpenAI）")
+    organization: str | None = Field(None, description="组织 ID（OpenAI）")
 
 
 class GenerationConfig(BaseModel):
@@ -27,13 +28,13 @@ class GenerationConfig(BaseModel):
     model: str = Field("gpt-4", description="模型名称")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="温度参数")
     top_p: float = Field(1.0, ge=0.0, le=1.0, description="Top P 采样")
-    max_tokens: Optional[int] = Field(None, description="最大生成 Token 数")
-    stop: Optional[List[str]] = Field(None, description="停止序列")
+    max_tokens: int | None = Field(None, description="最大生成 Token 数")
+    stop: list[str] | None = Field(None, description="停止序列")
     presence_penalty: float = Field(0.0, ge=-2.0, le=2.0, description="存在惩罚")
     frequency_penalty: float = Field(0.0, ge=-2.0, le=2.0, description="频率惩罚")
     n: int = Field(1, description="生成数量")
-    seed: Optional[int] = Field(None, description="随机种子（可复现）")
-    user: Optional[str] = Field(None, description="用户标识（追踪）")
+    seed: int | None = Field(None, description="随机种子（可复现）")
+    user: str | None = Field(None, description="用户标识（追踪）")
 
 
 class StreamConfig(BaseModel):
@@ -76,17 +77,17 @@ class StructuredOutputConfig(BaseModel):
         "text",
         description="输出格式：json_object（声明式）或 json_schema（Schema方式）"
     )
-    json_schema: Optional[Dict[str, Any]] = Field(
+    json_schema: dict[str, Any] | None = Field(
         None,
         description="JSON Schema 定义（用于 json_schema 格式）"
     )
-    schema_name: Optional[str] = Field(
+    schema_name: str | None = Field(
         None,
         description="Schema 名称（用于 json_schema 格式）"
     )
     strict: bool = Field(True, description="严格模式（OpenAI Structured Outputs）")
 
-    def to_openai_format(self) -> Optional[Dict[str, Any]]:
+    def to_openai_format(self) -> dict[str, Any] | None:
         """
         转换为 OpenAI response_format 格式
 
@@ -134,8 +135,8 @@ class ToolConfig(BaseModel):
 class AdvancedConfig(BaseModel):
     """高级配置"""
     logprobs: bool = Field(False, description="是否返回 log probabilities")
-    top_logprobs: Optional[int] = Field(None, description="返回 top N logprobs")
-    logit_bias: Optional[Dict[str, float]] = Field(
+    top_logprobs: int | None = Field(None, description="返回 top N logprobs")
+    logit_bias: dict[str, float] | None = Field(
         None,
         description="Token 偏置"
     )
@@ -191,7 +192,7 @@ class LLMConfig(BaseModel):
         description="高级配置"
     )
 
-    def to_openai_kwargs(self) -> Dict[str, Any]:
+    def to_openai_kwargs(self) -> dict[str, Any]:
         """转换为 OpenAI API 参数"""
         kwargs = {
             "model": self.generation.model,

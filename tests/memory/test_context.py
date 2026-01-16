@@ -2,13 +2,13 @@
 Unit Tests for LoomContext and Strategies
 """
 import pytest
-from loom.memory.core import LoomMemory
-from loom.memory.types import (
-    MemoryUnit, MemoryTier, MemoryType, MemoryQuery
-)
-from loom.memory.strategies import AutoStrategy, SnippetsStrategy
-from loom.config import CurationConfig, ContextConfig
+
+from loom.config import ContextConfig, CurationConfig
 from loom.memory.context import ContextAssembler, ContextManager
+from loom.memory.core import LoomMemory
+from loom.memory.strategies import AutoStrategy, SnippetsStrategy
+from loom.memory.types import MemoryQuery, MemoryTier, MemoryType, MemoryUnit
+
 
 class TestContextCuration:
     """Tests for Curation Strategies."""
@@ -93,7 +93,7 @@ class TestContextAssembler:
 
         # Add items that would exceed budget
         long_text = "word " * 100
-        for i in range(10):
+        for _i in range(10):
             await memory.add(MemoryUnit(
                 content={"role": "user", "content": long_text},
                 tier=MemoryTier.L2_WORKING,
@@ -277,6 +277,7 @@ class TestContextAssemblerAdditional:
     async def test_assemble_with_prompt_caching_enabled(self, mock_memory):
         """Test assembly with prompt caching enabled."""
         from unittest.mock import AsyncMock, patch
+
         from loom.config.memory import ContextConfig
         config = ContextConfig(enable_prompt_caching=True)
         assembler = ContextAssembler(config=config)
@@ -297,7 +298,7 @@ class TestContextAssemblerAdditional:
     @pytest.mark.asyncio
     async def test_assemble_without_system_prompt(self, mock_memory):
         """Test assembly without system prompt."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
         assembler = ContextAssembler()
 
         with patch.object(assembler.strategy, 'curate', new=AsyncMock(return_value=[])):
@@ -367,7 +368,7 @@ class TestContextManagerAdditional:
     @pytest.mark.asyncio
     async def test_build_prompt_updates_snapshot(self, manager, mock_assembler):
         """Test that build_prompt updates last_snapshot."""
-        from unittest.mock import MagicMock, AsyncMock
+        from unittest.mock import AsyncMock
         mock_assembler.assemble = AsyncMock(return_value=[
             {"role": "system", "content": "test"},
             {"role": "user", "content": "hi"}

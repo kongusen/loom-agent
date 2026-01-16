@@ -10,14 +10,13 @@ This separates concerns and gives developers full control over
 recovery behaviors while framework handles detection logic.
 """
 
-from abc import ABC, abstractmethod
-from enum import Enum, auto
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Callable, Awaitable, List, Any, Union
+from enum import Enum, auto
+from typing import Any
 
-from loom.protocol.cloudevents import CloudEvent
 from loom.kernel.control.base import Interceptor
-
+from loom.protocol.cloudevents import CloudEvent
 
 # =============================================================================
 # 1. ANOMALY TYPES (Framework defines WHAT can be detected)
@@ -88,11 +87,11 @@ class RecoveryStrategy:
 
     Developers configure these to define recovery behavior.
     """
-    actions: List[RecoveryAction]
-    params: Dict[str, Any] = field(default_factory=dict)
+    actions: list[RecoveryAction]
+    params: dict[str, Any] = field(default_factory=dict)
 
     # Optional custom handler for CUSTOM_HANDLER action
-    custom_handler: Optional[Callable[[CloudEvent, 'AnomalyContext'], Awaitable[Optional[CloudEvent]]]] = None
+    custom_handler: Callable[[CloudEvent, 'AnomalyContext'], Awaitable[CloudEvent | None]] | None = None
 
     # Strategy metadata
     description: str = ""
@@ -108,8 +107,8 @@ class AnomalyContext:
     event: CloudEvent
     agent_id: str
     occurrence_count: int  # How many times this anomaly occurred for this agent
-    history: List[Dict]    # Recent anomaly history
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    history: list[dict]    # Recent anomaly history
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # =============================================================================
@@ -144,7 +143,7 @@ class AdaptiveConfig:
     ```
     """
     # Core strategy mapping
-    strategies: Dict[AnomalyType, RecoveryStrategy] = field(default_factory=dict)
+    strategies: dict[AnomalyType, RecoveryStrategy] = field(default_factory=dict)
 
     # Global defaults
     default_temperature: float = 0.5
@@ -157,9 +156,9 @@ class AdaptiveConfig:
     # Escalation config
     escalation_enabled: bool = True
     escalation_after_failures: int = 3  # After N failed recoveries, escalate
-    escalation_strategy: Optional[RecoveryStrategy] = None  # Ultimate fallback
+    escalation_strategy: RecoveryStrategy | None = None  # Ultimate fallback
 
-    def get_strategy(self, anomaly: AnomalyType) -> Optional[RecoveryStrategy]:
+    def get_strategy(self, anomaly: AnomalyType) -> RecoveryStrategy | None:
         """Get configured strategy for an anomaly type."""
         return self.strategies.get(anomaly)
 
@@ -221,10 +220,10 @@ class AnomalyDetector:
 
     def __init__(self, config: AdaptiveConfig):
         self.config = config
-        self._thought_history: Dict[str, List[str]] = {}  # agent_id -> recent thoughts
-        self._last_progress: Dict[str, float] = {}  # agent_id -> timestamp
+        self._thought_history: dict[str, list[str]] = {}  # agent_id -> recent thoughts
+        self._last_progress: dict[str, float] = {}  # agent_id -> timestamp
 
-    def detect(self, event: CloudEvent, agent_id: str) -> Optional[AnomalyType]:
+    def detect(self, event: CloudEvent, agent_id: str) -> AnomalyType | None:
         """
         Analyze event and return detected anomaly type (if any).
         """
@@ -297,14 +296,14 @@ class StrategyExecutor:
     def __init__(self, config: AdaptiveConfig, dispatcher=None):
         self.config = config
         self.dispatcher = dispatcher
-        self._current_temps: Dict[str, float] = {}  # agent_id -> temperature
+        self._current_temps: dict[str, float] = {}  # agent_id -> temperature
 
     async def execute(
         self,
         strategy: RecoveryStrategy,
         context: AnomalyContext,
         event: CloudEvent
-    ) -> Optional[CloudEvent]:
+    ) -> CloudEvent | None:
         """
         Execute a recovery strategy, returning modified event (or None to block).
         """
@@ -326,7 +325,7 @@ class StrategyExecutor:
         strategy: RecoveryStrategy,
         context: AnomalyContext,
         event: CloudEvent
-    ) -> Optional[CloudEvent]:
+    ) -> CloudEvent | None:
         """Execute a single recovery action."""
 
         params = strategy.params
@@ -477,20 +476,20 @@ class AdaptiveLLMInterceptor(Interceptor):
     ```
     """
 
-    def __init__(self, config: Optional[AdaptiveConfig] = None, dispatcher=None):
+    def __init__(self, config: AdaptiveConfig | None = None, dispatcher=None):
         self.config = config or create_default_config()
         self.detector = AnomalyDetector(self.config)
         self.executor = StrategyExecutor(self.config, dispatcher)
 
         # Track anomaly occurrences per agent
-        self._anomaly_counts: Dict[str, Dict[AnomalyType, int]] = {}
-        self._anomaly_history: Dict[str, List[Dict]] = {}
+        self._anomaly_counts: dict[str, dict[AnomalyType, int]] = {}
+        self._anomaly_history: dict[str, list[dict]] = {}
 
     def set_dispatcher(self, dispatcher):
         """Set dispatcher after construction (for DI)."""
         self.executor.dispatcher = dispatcher
 
-    async def pre_invoke(self, event: CloudEvent) -> Optional[CloudEvent]:
+    async def pre_invoke(self, event: CloudEvent) -> CloudEvent | None:
         """
         Detect anomalies and execute configured strategies.
         """

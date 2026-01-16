@@ -10,8 +10,9 @@ Base Response Handler for LLM Providers
 
 import json
 import logging
-from typing import Dict, Any, Optional, AsyncIterator
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
+from typing import Any
 
 from loom.llm.interface import StreamChunk
 
@@ -26,16 +27,16 @@ class ToolCallAggregator:
     """
 
     def __init__(self):
-        self.buffer: Dict[int, Dict[str, Any]] = {}
-        self.started: Dict[int, bool] = {}
+        self.buffer: dict[int, dict[str, Any]] = {}
+        self.started: dict[int, bool] = {}
 
     def add_chunk(
         self,
         index: int,
-        tool_id: Optional[str] = None,
-        name: Optional[str] = None,
-        arguments: Optional[str] = None
-    ) -> Optional[StreamChunk]:
+        tool_id: str | None = None,
+        name: str | None = None,
+        arguments: str | None = None
+    ) -> StreamChunk | None:
         """
         添加工具调用片段
 
@@ -144,7 +145,7 @@ class BaseResponseHandler(ABC):
     def create_error_chunk(
         self,
         error: Exception,
-        context: Optional[Dict[str, Any]] = None
+        context: dict[str, Any] | None = None
     ) -> StreamChunk:
         """
         创建错误事件
@@ -170,7 +171,7 @@ class BaseResponseHandler(ABC):
     def create_done_chunk(
         self,
         finish_reason: str,
-        token_usage: Optional[Dict[str, int]] = None
+        token_usage: dict[str, int] | None = None
     ) -> StreamChunk:
         """
         创建完成事件

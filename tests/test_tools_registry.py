@@ -4,11 +4,9 @@ Tests for Tool Registry
 Tests the ToolRegistry class which manages tool definitions and callables.
 """
 
-import pytest
-from typing import Optional
 
-from loom.tools.registry import ToolRegistry
 from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.registry import ToolRegistry
 
 
 class TestToolRegistry:

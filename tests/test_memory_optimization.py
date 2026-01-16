@@ -2,19 +2,19 @@
 Basic tests for memory optimization features
 """
 import asyncio
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from loom.memory.core import LoomMemory
-from loom.config import MemoryConfig, VectorStoreConfig, EmbeddingConfig
-from loom.memory.types import MemoryUnit, MemoryTier, MemoryType, MemoryQuery
-from loom.memory.compression import MemoryCompressor
-from loom.memory.metrics import MetricsCollector
-from loom.memory.visualizer import MetricsVisualizer
 from loom.cognition.confidence import ConfidenceEstimator
+from loom.config import EmbeddingConfig, MemoryConfig, VectorStoreConfig
+from loom.memory.compression import MemoryCompressor
+from loom.memory.core import LoomMemory
+from loom.memory.metrics import MetricsCollector
+from loom.memory.types import MemoryQuery, MemoryTier, MemoryType, MemoryUnit
+from loom.memory.visualizer import MetricsVisualizer
 
 
 async def test_vector_store_config():
@@ -157,7 +157,7 @@ async def test_confidence_estimation():
         assert confident_result.score >= 0.7, f"Confident response should have high score, got {confident_result.score}"
         assert uncertain_result.score < 0.7, f"Uncertain response should have low score, got {uncertain_result.score}"
 
-        print(f"✅ Confidence estimation: PASSED")
+        print("✅ Confidence estimation: PASSED")
         print(f"   Confident: {confident_result.score:.2f} - {confident_result.reasoning}")
         print(f"   Uncertain: {uncertain_result.score:.2f} - {uncertain_result.reasoning}")
         return True
@@ -196,7 +196,7 @@ async def test_memory_compression():
         summary = memory.get(summary_id)
         assert summary.tier == MemoryTier.L3_SESSION, "Summary should be in L3"
 
-        print(f"✅ Memory compression: PASSED")
+        print("✅ Memory compression: PASSED")
         print(f"   Compressed {initial_l1_size} L1 messages to L3 summary")
         return True
     except Exception as e:
@@ -235,7 +235,7 @@ async def test_metrics_collection():
         assert summary["memory"]["total_memory_units"] == 20, "Should track memory units"
         assert summary["routing"]["s1_calls"] == 1, "Should track S1 calls"
 
-        print(f"✅ Metrics collection: PASSED")
+        print("✅ Metrics collection: PASSED")
         print(f"\n{visualizer.render_compact_summary()}")
         return True
     except Exception as e:

@@ -2,8 +2,11 @@
 Mock LLM Provider for Testing
 """
 
-from typing import List, Dict, Any, AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from typing import Any
+
 from loom.llm.interface import LLMProvider, LLMResponse, StreamChunk
+
 
 class MockLLMProvider(LLMProvider):
     """
@@ -15,9 +18,9 @@ class MockLLMProvider(LLMProvider):
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        config: dict[str, Any] | None = None
     ) -> LLMResponse:
         last_msg = messages[-1]["content"].lower()
 
@@ -38,8 +41,8 @@ class MockLLMProvider(LLMProvider):
 
     async def stream_chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None
     ) -> AsyncIterator[StreamChunk]:
         """
         UPGRADED: Now yields structured StreamChunk objects.

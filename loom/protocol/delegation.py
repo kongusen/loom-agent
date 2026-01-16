@@ -5,9 +5,10 @@ Delegation Protocol
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from loom.protocol.mcp import MCPToolDefinition
+from typing import Any
+
 from loom.config.fractal import GrowthStrategy
+from loom.protocol.mcp import MCPToolDefinition
 
 
 @dataclass
@@ -21,16 +22,16 @@ class SubtaskSpecification:
     description: str
     """任务描述（必需）"""
 
-    role: Optional[str] = None
+    role: str | None = None
     """节点角色: specialist|executor|researcher|aggregator"""
 
-    tools: Optional[List[str]] = None
+    tools: list[str] | None = None
     """工具白名单（None 表示继承父节点工具）"""
 
-    max_tokens: Optional[int] = None
+    max_tokens: int | None = None
     """Token 预算限制"""
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     """额外的元数据"""
 
     def __post_init__(self):
@@ -53,7 +54,7 @@ class DelegationRequest:
     包含子任务列表、执行模式、合成策略等配置。
     """
 
-    subtasks: List[SubtaskSpecification]
+    subtasks: list[SubtaskSpecification]
     """子任务列表"""
 
     execution_mode: str = "parallel"
@@ -62,7 +63,7 @@ class DelegationRequest:
     synthesis_strategy: str = "auto"
     """合成策略: auto|concatenate|structured"""
 
-    reasoning: Optional[str] = None
+    reasoning: str | None = None
     """分解理由（可选）"""
 
     def __post_init__(self):
@@ -91,10 +92,10 @@ class DelegationResult:
     synthesized_result: str
     """合成后的最终结果"""
 
-    subtask_results: List[Dict[str, Any]]
+    subtask_results: list[dict[str, Any]]
     """各子任务的详细结果"""
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     """执行元数据（如执行时间、token 使用等）"""
 
 
@@ -159,7 +160,7 @@ DELEGATE_SUBTASKS_TOOL = MCPToolDefinition(
 @dataclass
 class TaskDecomposition:
     """Result of task decomposition"""
-    subtasks: List[str]
+    subtasks: list[str]
     """List of subtasks"""
 
     strategy: GrowthStrategy

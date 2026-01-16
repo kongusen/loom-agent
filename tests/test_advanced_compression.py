@@ -2,16 +2,15 @@
 Test advanced compression features (Phase 3 completion)
 """
 import asyncio
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from loom.memory.core import LoomMemory
-from loom.config import MemoryConfig
-from loom.memory.types import MemoryUnit, MemoryTier, MemoryType, MemoryStatus
 from loom.memory.compression import MemoryCompressor
+from loom.memory.core import LoomMemory
+from loom.memory.types import MemoryStatus, MemoryTier, MemoryType, MemoryUnit
 
 
 async def test_memory_status_enum():
@@ -109,7 +108,7 @@ async def test_compress_l1_to_l3():
         assert summary.tier == MemoryTier.L3_SESSION
         assert summary.type == MemoryType.SUMMARY
 
-        print(f"✅ L1 to L3 compression: PASSED")
+        print("✅ L1 to L3 compression: PASSED")
         print(f"   Created summary: {summary.content[:80]}...")
         return True
     except Exception as e:
@@ -154,7 +153,7 @@ async def test_extract_facts_to_l4():
             assert fact.tier == MemoryTier.L4_GLOBAL
             assert fact.type == MemoryType.FACT
 
-        print(f"✅ Extract facts to L4: PASSED")
+        print("✅ Extract facts to L4: PASSED")
         print(f"   Extracted {len(fact_ids)} facts")
         return True
     except Exception as e:

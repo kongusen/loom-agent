@@ -5,21 +5,19 @@ Fractal Orchestrator
 支持显式委托（工具调用）和隐式委托（任务分解）。
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Set, Optional
-
 import logging
+from dataclasses import dataclass, field
+from typing import Any
 
+from loom.config.execution import ExecutionConfig
+from loom.config.fractal import GrowthStrategy, NodeRole
+from loom.kernel.core import ToolExecutor
 from loom.protocol.delegation import (
     DelegationRequest,
     DelegationResult,
-    SubtaskSpecification
+    SubtaskSpecification,
+    TaskDecomposition,
 )
-from loom.kernel.core import ToolExecutor
-from loom.config.execution import ExecutionConfig
-
-from loom.config.fractal import GrowthStrategy, NodeRole
-from loom.protocol.delegation import TaskDecomposition
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +32,7 @@ class OrchestratorConfig:
     max_recursive_depth: int = 2
     """允许递归的最大深度"""
 
-    tool_blacklist: List[str] = field(default_factory=list)
+    tool_blacklist: list[str] = field(default_factory=list)
     """工具黑名单"""
 
     default_child_token_budget: int = 4000
@@ -42,7 +40,7 @@ class OrchestratorConfig:
 
     max_concurrent_children: int = 5
     """最大并发子节点数"""
-    
+
     # === Implicit Delegation Config (from FractalConfig) ===
     implicit_mode_enabled: bool = True
     """Enable implicit delegation (via decomposition)"""
@@ -146,24 +144,24 @@ class FractalOrchestrator:
     async def process_decomposition(self, decomposition: TaskDecomposition) -> DelegationResult:
         """
         Process task decomposition (Implicit Delegation)
-        
+
         Converts a TaskDecomposition object into a DelegationRequest and executes it.
-        
+
         Args:
             decomposition: Task decomposition from LLM
-            
+
         Returns:
             DelegationResult
         """
         logger.info(f"Processing implicit decomposition: {len(decomposition.subtasks)} subtasks, strategy: {decomposition.strategy}")
-        
+
         # 1. Convert to SubtaskSpecifictions
         subtasks = []
         for desc in decomposition.subtasks:
             # Determine role based on strategy (simplified logic compared to explicit tool)
             # In Phase 2, we map strategy to roles more intelligently if needed
             role = self._map_strategy_to_role(decomposition.strategy, desc)
-            
+
             subtasks.append(SubtaskSpecification(
                 description=desc,
                 role=role.value if role else "executor",
@@ -173,11 +171,9 @@ class FractalOrchestrator:
 
         # 2. Determine execution mode
         execution_mode = "parallel"
-        if decomposition.strategy == GrowthStrategy.DECOMPOSE: # Sequential chain
+        if decomposition.strategy == GrowthStrategy.DECOMPOSE or decomposition.strategy == GrowthStrategy.ITERATE: # Sequential chain
             execution_mode = "sequential"
-        elif decomposition.strategy == GrowthStrategy.ITERATE:
-            execution_mode = "sequential"
-            
+
         # 3. Create Request
         request = DelegationRequest(
             subtasks=subtasks,
@@ -185,22 +181,22 @@ class FractalOrchestrator:
             synthesis_strategy="auto", # Implicit always uses auto synthesis
             reasoning=decomposition.reasoning
         )
-        
+
         # 4. Delegate
         return await self.delegate(request)
 
-    def _map_strategy_to_role(self, strategy: GrowthStrategy, subtask_desc: str) -> Optional[NodeRole]:
+    def _map_strategy_to_role(self, strategy: GrowthStrategy, subtask_desc: str) -> NodeRole | None:
         """Map growth strategy to child role"""
         if strategy == GrowthStrategy.SPECIALIZE:
             return NodeRole.SPECIALIST
         elif strategy == GrowthStrategy.PARALLELIZE:
             return NodeRole.EXECUTOR
-            
+
         # Check aggregation keywords
         agg_keywords = ["combine", "merge", "aggregate", "synthesize", "summarize"]
         if any(kw in subtask_desc.lower() for kw in agg_keywords):
             return NodeRole.AGGREGATOR
-            
+
         return NodeRole.EXECUTOR
 
     def _validate_request(self, request: DelegationRequest):
@@ -237,7 +233,7 @@ class FractalOrchestrator:
         self,
         subtask: SubtaskSpecification,
         current_depth: int
-    ) -> Set[str]:
+    ) -> set[str]:
         """
         工具过滤逻辑（上下文隔离的核心）
 
@@ -284,7 +280,7 @@ class FractalOrchestrator:
         logger.info(f"子节点允许的工具: {allowed}")
         return allowed
 
-    async def _spawn_children(self, subtasks: List[SubtaskSpecification]) -> List:
+    async def _spawn_children(self, subtasks: list[SubtaskSpecification]) -> list:
         """
         生成子节点
 
@@ -294,8 +290,8 @@ class FractalOrchestrator:
         Returns:
             子节点列表
         """
-        from loom.node.fractal import FractalAgentNode
         from loom.config.fractal import NodeRole
+        from loom.node.fractal import FractalAgentNode
 
         children = []
         child_depth = self.parent_depth + 1
@@ -357,9 +353,9 @@ class FractalOrchestrator:
 
     async def _execute_children(
         self,
-        children: List,
+        children: list,
         request: DelegationRequest
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         执行子节点
 
@@ -386,15 +382,15 @@ class FractalOrchestrator:
 
     async def _execute_parallel(
         self,
-        children: List,
-        subtasks: List[SubtaskSpecification]
-    ) -> List[Dict[str, Any]]:
+        children: list,
+        subtasks: list[SubtaskSpecification]
+    ) -> list[dict[str, Any]]:
         """并行执行所有子节点 (via ToolExecutor)"""
         logger.info("并行执行子节点 (Engine)")
 
         # 1. Construct "tool calls" for executor
         tool_calls = []
-        for i, (child, subtask) in enumerate(zip(children, subtasks)):
+        for _i, (child, subtask) in enumerate(zip(children, subtasks, strict=False)):
             tool_calls.append({
                 "name": child.node_id, # Use node_id as virtual tool name
                 "arguments": {
@@ -404,7 +400,7 @@ class FractalOrchestrator:
             })
 
         # 2. Define adapter
-        async def _child_execution_adapter(name: str, args: Dict) -> Any:
+        async def _child_execution_adapter(name: str, args: dict) -> Any:
             child = args["child"]
             subtask = args["subtask"]
             return await child.execute(subtask.description)
@@ -428,13 +424,13 @@ class FractalOrchestrator:
                     "result": result_val.get("result", str(result_val)) if isinstance(result_val, dict) else str(result_val),
                     "metadata": result_val.get("metadata", {}) if isinstance(result_val, dict) else {}
                 })
-        
+
         return processed_results
 
     def _child_read_only_check(self, tool_name: str) -> bool:
         """
         Check if child node is safe to run in parallel.
-        In Phase 3, we assume all child nodes are safe to run in parallel 
+        In Phase 3, we assume all child nodes are safe to run in parallel
         unless they have explicit dependencies (handled by sequential mode).
         So for 'parallel' mode, we return True.
         """
@@ -442,14 +438,14 @@ class FractalOrchestrator:
 
     async def _execute_sequential(
         self,
-        children: List,
-        subtasks: List[SubtaskSpecification]
-    ) -> List[Dict[str, Any]]:
+        children: list,
+        subtasks: list[SubtaskSpecification]
+    ) -> list[dict[str, Any]]:
         """顺序执行子节点"""
         logger.info("顺序执行子节点")
 
         results = []
-        for i, (child, subtask) in enumerate(zip(children, subtasks)):
+        for i, (child, subtask) in enumerate(zip(children, subtasks, strict=False)):
             logger.info(f"执行子任务 {i+1}/{len(children)}")
             try:
                 result = await self._execute_single_child(child, subtask)
@@ -466,9 +462,9 @@ class FractalOrchestrator:
 
     async def _execute_adaptive(
         self,
-        children: List,
-        subtasks: List[SubtaskSpecification]
-    ) -> List[Dict[str, Any]]:
+        children: list,
+        subtasks: list[SubtaskSpecification]
+    ) -> list[dict[str, Any]]:
         """自适应执行（简化版：默认并行）"""
         logger.info("自适应执行（当前实现：并行）")
         # TODO: 实现依赖分析和自适应调度
@@ -478,7 +474,7 @@ class FractalOrchestrator:
         self,
         child,
         subtask: SubtaskSpecification
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """通过消息总线执行子节点"""
         try:
             # 使用消息总线调用子节点（恢复协议优先架构）
@@ -499,7 +495,7 @@ class FractalOrchestrator:
     async def _synthesize_results(
         self,
         request: DelegationRequest,
-        results: List[Dict[str, Any]]
+        results: list[dict[str, Any]]
     ) -> str:
         """
         合成结果
@@ -529,7 +525,7 @@ class FractalOrchestrator:
             logger.warning("父节点没有 synthesizer，使用简单拼接")
             return self._simple_concatenate(results)
 
-    def _simple_concatenate(self, results: List[Dict[str, Any]]) -> str:
+    def _simple_concatenate(self, results: list[dict[str, Any]]) -> str:
         """简单拼接结果（降级方案）"""
         parts = []
         for i, result in enumerate(results, 1):

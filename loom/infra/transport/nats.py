@@ -1,7 +1,8 @@
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
+
 try:
     import nats
     from nats.aio.client import Client as NATSClient
@@ -11,8 +12,11 @@ except ImportError:
     NATSClient = None # type: ignore
     JetStreamContext = None # type: ignore
 
-from . import Transport, EventHandler
+import contextlib
+
 from loom.protocol.cloudevents import CloudEvent
+
+from . import EventHandler, Transport
 
 logger = logging.getLogger(__name__)
 
@@ -25,27 +29,29 @@ class NATSTransport(Transport):
 
     def __init__(
         self,
-        servers: List[str] = ["nats://localhost:4222"],
+        servers: list[str] = None,
         use_jetstream: bool = False,
         stream_name: str = "LOOM_EVENTS",
     ):
+        if servers is None:
+            servers = ["nats://localhost:4222"]
         if not nats:
             raise ImportError("nats-py package is required for NATSTransport. Install with 'pip install nats-py'")
 
         self.servers = servers
         self.use_jetstream = use_jetstream
         self.stream_name = stream_name
-        
-        self.nc: Optional[NATSClient] = None
-        self.js: Optional[JetStreamContext] = None
-        self._handlers: Dict[str, List[EventHandler]] = {}
-        self._subscriptions: List[Tuple[str, Any]] = []  # (topic, subscription)
+
+        self.nc: NATSClient | None = None
+        self.js: JetStreamContext | None = None
+        self._handlers: dict[str, list[EventHandler]] = {}
+        self._subscriptions: list[tuple[str, Any]] = []  # (topic, subscription)
         self._connected = False
 
     async def connect(self) -> None:
         try:
             self.nc = await nats.connect(servers=self.servers)
-            
+
             if self.use_jetstream:
                 self.js = self.nc.jetstream()
                 # Create stream if not exists is best effort or explicit setup
@@ -63,13 +69,11 @@ class NATSTransport(Transport):
 
     async def disconnect(self) -> None:
         self._connected = False
-        
+
         for sub in self._subscriptions:
-             try:
+             with contextlib.suppress(Exception):
                  await sub.unsubscribe()
-             except Exception:
-                 pass
-        
+
         if self.nc:
             await self.nc.close()
 
@@ -163,7 +167,7 @@ class NATSTransport(Transport):
              logger.error(f"Handler failed: {e}")
 
     def _to_subject(self, topic: str) -> str:
-        # Replace / with . 
+        # Replace / with .
         # e.g. node.request/agent -> node.request.agent
         # loom prefix
         safe_topic = topic.replace("/", ".")

@@ -2,7 +2,8 @@
 Protocols for Metabolic Memory Operations.
 """
 
-from typing import Any, Dict, List, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
+
 
 @runtime_checkable
 class MemoryValidator(Protocol):
@@ -32,13 +33,13 @@ class ProjectStateObject(Protocol):
     Protocol for the Project State Object (PSO).
     Maintains a structured representation of the current project state.
     """
-    async def update(self, events: List[Dict[str, Any]]) -> None:
+    async def update(self, events: list[dict[str, Any]]) -> None:
         """
         Update the state based on a list of recent events or memory entries.
         """
         ...
-        
-    async def snapshot(self) -> Dict[str, Any]:
+
+    async def snapshot(self) -> dict[str, Any]:
         """
         Return the current state as a dictionary.
         """

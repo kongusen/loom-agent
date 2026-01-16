@@ -8,17 +8,17 @@ This example demonstrates all three ways to use the fractal node system:
 """
 
 import asyncio
+
+from loom.config.fractal import FractalConfig, GrowthTrigger
 from loom.llm.openai import OpenAIProvider
 from loom.memory.core import LoomMemory
-from loom.config.fractal import FractalConfig, GrowthTrigger, NodeRole
 from loom.node import (
     FractalAgentNode,
-    create_fractal_agent,
-    build_pipeline,
     PipelineTemplate,
-    add_fractal_to_agent
+    add_fractal_to_agent,
+    build_pipeline,
+    create_fractal_agent,
 )
-
 
 # ============================================================================
 # Example 1: Automatic Fractal Mode (System 2 Integration)
@@ -83,7 +83,7 @@ async def example1_auto_fractal():
     # Get statistics
     stats = agent.get_activation_stats() if hasattr(agent, 'get_activation_stats') else {}
     if stats:
-        print(f"\n📊 Statistics:")
+        print("\n📊 Statistics:")
         print(f"   System 2 activations: {stats.get('system2_activations', 0)}")
         print(f"   Fractal activations: {stats.get('fractal_activations', 0)}")
         print(f"   Total tasks: {stats.get('total_tasks', 0)}")
@@ -122,7 +122,6 @@ async def example2_manual_pipeline():
 
     # Execute task
     print("\n📝 Task: Analyze AI startups landscape\n")
-    task = "Analyze the current AI startups landscape"
 
     # Manually assign subtasks to children
     subtasks = [
@@ -238,7 +237,7 @@ async def example4_hybrid():
         "Analyze market impact with statistical modeling and trend forecasting"
     ]
 
-    result = await pipeline.execute_pipeline(subtasks, mode="sequential")
+    await pipeline.execute_pipeline(subtasks, mode="sequential")
 
     print("\n🌲 Final Structure (after execution):")
     print(pipeline.visualize_structure())

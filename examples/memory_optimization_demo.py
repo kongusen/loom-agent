@@ -9,14 +9,15 @@ This example demonstrates all the optimization features:
 5. Performance Metrics & Visualization
 """
 import asyncio
-from loom.memory.core import LoomMemory
-from loom.memory.config import MemoryConfig, VectorStoreConfig, EmbeddingConfig
-from loom.memory.types import MemoryUnit, MemoryTier, MemoryType
+
+from loom.kernel.core import Dispatcher
 from loom.memory.compression import MemoryCompressor
+from loom.memory.config import EmbeddingConfig, MemoryConfig, VectorStoreConfig
+from loom.memory.core import LoomMemory
 from loom.memory.metrics import MetricsCollector
+from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
 from loom.memory.visualizer import MetricsVisualizer
 from loom.node.agent import AgentNode
-from loom.kernel.core import Dispatcher
 
 
 async def demo_vector_store_configuration():
@@ -37,7 +38,7 @@ async def demo_vector_store_configuration():
     )
 
     # Option 2: Qdrant (Production)
-    config_qdrant = MemoryConfig(
+    MemoryConfig(
         vector_store=VectorStoreConfig(
             provider="qdrant",
             enabled=True,
@@ -58,7 +59,7 @@ async def demo_vector_store_configuration():
     )
 
     # Option 3: ChromaDB (Alternative)
-    config_chroma = MemoryConfig(
+    MemoryConfig(
         vector_store=VectorStoreConfig(
             provider="chroma",
             enabled=True,
@@ -305,7 +306,7 @@ async def demo_complete_workflow():
 
     # 4. Get statistics
     stats = memory.get_statistics()
-    print(f"\n📊 Memory Statistics:")
+    print("\n📊 Memory Statistics:")
     print(f"   L1: {stats['l1_size']} units")
     print(f"   L2: {stats['l2_size']} units")
     print(f"   L3: {stats['l3_sessions']} sessions")

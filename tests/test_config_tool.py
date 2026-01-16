@@ -2,8 +2,9 @@
 Tests for Tool Configuration
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 from loom.config.tool import ToolConfig, ToolFactory
 
@@ -106,7 +107,7 @@ class TestToolFactory:
         # Should not raise error
         try:
             ToolFactory.create_node(config, "node_id", dispatcher)
-        except Exception as e:
+        except Exception:
             # We expect it to fail at ToolNode creation, but env_vars should be set
             pass
 

@@ -4,29 +4,29 @@ Loom Agent Builder - 流式构建接口
 提供链式调用的 Builder 模式，支持细粒度配置。
 """
 
-from typing import Optional, List, Dict, Any
-from loom.node.agent import AgentNode
-from loom.node.tool import ToolNode
-from loom.llm import LLMProvider
-from loom.kernel.core import Dispatcher, UniversalEventBus
+from typing import Any
 
-# Interceptors
-from loom.kernel.control import (
-    BudgetInterceptor,
-    DepthInterceptor,
-    TimeoutInterceptor,
-    HITLInterceptor,
-    TracingInterceptor,
-    AuthInterceptor,
-)
+from loom.config.execution import ExecutionConfig
 
 # 配置类
 from loom.config.fractal import FractalConfig
-from loom.config.execution import ExecutionConfig
-from loom.config.memory import ContextConfig, CurationConfig
 from loom.config.interceptor import InterceptorConfig
+from loom.config.memory import ContextConfig, CurationConfig
 from loom.config.optimization import OptimizationConfig
-from loom.config.cognitive import CognitiveConfig
+
+# Interceptors
+from loom.kernel.control import (
+    AuthInterceptor,
+    BudgetInterceptor,
+    DepthInterceptor,
+    HITLInterceptor,
+    TimeoutInterceptor,
+    TracingInterceptor,
+)
+from loom.kernel.core import Dispatcher, UniversalEventBus
+from loom.llm import LLMProvider
+from loom.node.agent import AgentNode
+from loom.node.tool import ToolNode
 
 
 class LoomBuilder:
@@ -46,24 +46,24 @@ class LoomBuilder:
 
     def __init__(self):
         """初始化 Builder"""
-        self._node_id: Optional[str] = None
-        self._llm: Optional[LLMProvider] = None
-        self._tools: List[ToolNode] = []
-        self._dispatcher: Optional[Dispatcher] = None
+        self._node_id: str | None = None
+        self._llm: LLMProvider | None = None
+        self._tools: list[ToolNode] = []
+        self._dispatcher: Dispatcher | None = None
 
         # Agent 基本信息
         self._role: str = "Assistant"
         self._system_prompt: str = "You are a helpful assistant."
 
         # 配置对象
-        self._fractal_config: Optional[FractalConfig] = None
-        self._execution_config: Optional[ExecutionConfig] = None
-        self._memory_config: Optional[ContextConfig] = None
-        self._interceptor_config: Optional[InterceptorConfig] = None
-        self._optimization_config: Optional[OptimizationConfig] = None
+        self._fractal_config: FractalConfig | None = None
+        self._execution_config: ExecutionConfig | None = None
+        self._memory_config: ContextConfig | None = None
+        self._interceptor_config: InterceptorConfig | None = None
+        self._optimization_config: OptimizationConfig | None = None
 
         # 其他参数
-        self._extra_params: Dict[str, Any] = {}
+        self._extra_params: dict[str, Any] = {}
 
     def with_id(self, node_id: str) -> 'LoomBuilder':
         """
@@ -91,7 +91,7 @@ class LoomBuilder:
         self._llm = provider
         return self
 
-    def with_tools(self, tools: List[ToolNode]) -> 'LoomBuilder':
+    def with_tools(self, tools: list[ToolNode]) -> 'LoomBuilder':
         """
         设置工具列表
 
@@ -264,7 +264,7 @@ class LoomBuilder:
         self._interceptor_config.timeout_seconds = seconds
         return self
 
-    def with_hitl(self, patterns: List[str]) -> 'LoomBuilder':
+    def with_hitl(self, patterns: list[str]) -> 'LoomBuilder':
         """
         启用人机交互审批（HITL）
 

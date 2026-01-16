@@ -9,19 +9,18 @@ Tests:
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from loom.kernel.core import UniversalEventBus
-from loom.kernel.core import Dispatcher
+from loom.infra.llm import MockLLMProvider
+from loom.interfaces.llm import StreamChunk
+from loom.kernel.core import Dispatcher, UniversalEventBus
 from loom.node.agent import AgentNode, ThinkingPolicy
 from loom.node.tool import ToolNode
 from loom.protocol.cloudevents import CloudEvent
 from loom.protocol.mcp import MCPToolDefinition
-from loom.interfaces.llm import StreamChunk
-from loom.infra.llm import MockLLMProvider
 
 
 async def test_configurable_entropy_control():
@@ -49,7 +48,7 @@ async def test_configurable_entropy_control():
         )
     )
 
-    print(f"✓ Agent created with unlimited policy:")
+    print("✓ Agent created with unlimited policy:")
     print(f"  max_depth: {agent.thinking_policy.max_depth}")
     print(f"  max_thoughts: {agent.thinking_policy.max_thoughts}")
     print(f"  thought_timeout: {agent.thinking_policy.thought_timeout}")
@@ -162,12 +161,7 @@ async def test_projection_operator():
     """Test explicit projection operator."""
     print("\n=== Test 4: Projection Operator ===")
 
-    from loom.kernel.core import (
-        CognitiveState,
-        ProjectionOperator,
-        Thought,
-        ThoughtState
-    )
+    from loom.kernel.core import CognitiveState, ProjectionOperator, Thought, ThoughtState
 
     # Create state with completed thoughts
     state = CognitiveState()
@@ -191,7 +185,7 @@ async def test_projection_operator():
     # Collapse state
     observable = projector.collapse(state)
 
-    print(f"✓ Projection π(S) → O:")
+    print("✓ Projection π(S) → O:")
     print(f"  Input: S (dim={state.dimensionality()})")
     print(f"  Output: O = '{observable.content}'")
     print(f"  Metadata: {observable.metadata}")

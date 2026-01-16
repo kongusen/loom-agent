@@ -3,7 +3,8 @@ Core Protocols for Loom Framework.
 Adhering to the "Protocol-First" design principle using typing.Protocol.
 """
 
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable, AsyncIterator, Union
+from collections.abc import AsyncIterator
+from typing import Any, Protocol, runtime_checkable
 
 from loom.protocol.cloudevents import CloudEvent
 
@@ -18,14 +19,14 @@ class NodeProtocol(Protocol):
     """
     node_id: str
     source_uri: str
-    
+
     async def process(self, event: CloudEvent) -> Any:
         """
         Process an incoming event and return a result.
         """
         ...
 
-    async def call(self, target_node: str, data: Dict[str, Any]) -> Any:
+    async def call(self, target_node: str, data: dict[str, Any]) -> Any:
         """
         Send a request to another node and await the response.
         """
@@ -40,7 +41,7 @@ class MemoryStrategy(Protocol):
     """
     Protocol for Memory interactions.
     """
-    async def add(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    async def add(self, role: str, content: str, metadata: dict[str, Any] | None = None) -> None:
         """Add a memory entry."""
         ...
 
@@ -48,7 +49,7 @@ class MemoryStrategy(Protocol):
         """Get full context formatted for the LLM."""
         ...
 
-    async def get_recent(self, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_recent(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent memory entries."""
         ...
 
@@ -81,7 +82,7 @@ class ReflectiveMemoryStrategy(MemoryStrategy, Protocol):
         """
         ...
 
-    def get_reflection_candidates(self, count: int = 10) -> List[Any]:
+    def get_reflection_candidates(self, count: int = 10) -> list[Any]:
         """
         Get memory entries to be reflected/summarized.
 
@@ -113,9 +114,9 @@ class ReflectiveMemoryStrategy(MemoryStrategy, Protocol):
 # We need the LLMResponse type, but we can't easily import it if it's in the interface file
 # without creating circular deps if that interface file imports this protocol file.
 # For now, we will use Any or assume the structure matches.
-# Ideally, data models should be in `loom.protocol.types` or similar, 
+# Ideally, data models should be in `loom.protocol.types` or similar,
 # but we'll stick to `Any` or Dict for the strict Protocol definition to avoid tight coupling,
-# OR we rely on structural subtyping. 
+# OR we rely on structural subtyping.
 # But let's try to be precise if possible.
 
 @runtime_checkable
@@ -124,16 +125,16 @@ class LLMProviderProtocol(Protocol):
     Protocol for LLM Providers.
     """
     async def chat(
-        self, 
-        messages: List[Dict[str, Any]], 
-        tools: Optional[List[Dict[str, Any]]] = None
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None
     ) -> Any: # Returns LLMResponse compatible object
         ...
 
     async def stream_chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None
     ) -> AsyncIterator[str]:
         ...
 

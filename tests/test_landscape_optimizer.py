@@ -5,19 +5,11 @@ Tests the landscape optimizer's ability to record performance,
 learn patterns, and make recommendations for structure optimization.
 """
 
-import unittest
 import time
-import numpy as np
-from unittest.mock import Mock, MagicMock
-from typing import List, Dict, Any
+import unittest
+from unittest.mock import Mock
 
-from loom.kernel.optimization import (
-    FitnessLandscapeOptimizer,
-    StructureSnapshot,
-    StructurePattern
-)
-from loom.config.fractal import NodeRole, GrowthStrategy
-
+from loom.kernel.optimization import FitnessLandscapeOptimizer, StructurePattern, StructureSnapshot
 
 # ============================================================================
 # Mock Structures for Testing
@@ -308,7 +300,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         self.optimizer.learn_patterns()
 
         # Get recommendation
-        recommendation = self.optimizer.recommend_structure(
+        self.optimizer.recommend_structure(
             task_type="research",
             task_complexity=0.7,
             current_fitness=None
@@ -332,7 +324,7 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         self.optimizer.learn_patterns()
 
         # Request recommendation but already have high fitness
-        recommendation = self.optimizer.recommend_structure(
+        self.optimizer.recommend_structure(
             task_type="research",
             task_complexity=0.7,
             current_fitness=0.80  # Higher than recorded structures
@@ -426,8 +418,8 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
 
     def test_persistence_save_and_load(self):
         """Test saving and loading optimizer state"""
-        import tempfile
         import os
+        import tempfile
 
         # Record some structures
         for i in range(3):
@@ -475,8 +467,8 @@ class TestFitnessLandscapeOptimizer(unittest.TestCase):
         self.optimizer.learn_patterns()
 
         # Should match "text_analysis" and "analysis"
-        matches_exact = self.optimizer.recommend_structure("text_analysis", 0.6)
-        matches_partial = self.optimizer.recommend_structure("analysis", 0.6)
+        self.optimizer.recommend_structure("text_analysis", 0.6)
+        self.optimizer.recommend_structure("analysis", 0.6)
 
         # At least exact match should work
 

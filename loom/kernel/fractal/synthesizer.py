@@ -4,9 +4,9 @@ Result Synthesizer
 实现可配置的结果合成策略，支持使用轻量级模型进行高效的结果聚合。
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
 import logging
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class SynthesisConfig:
     synthesis_model: str = "lightweight"
     """合成策略: lightweight|same_model|custom"""
 
-    synthesis_model_override: Optional[str] = None
+    synthesis_model_override: str | None = None
     """自定义合成模型（当 synthesis_model='custom' 时使用）"""
 
     max_synthesis_tokens: int = 2000
@@ -72,7 +72,7 @@ class ResultSynthesizer:
     async def synthesize(
         self,
         task: str,
-        subtask_results: List[Dict[str, Any]],
+        subtask_results: list[dict[str, Any]],
         strategy: str = "auto"
     ) -> str:
         """
@@ -105,7 +105,7 @@ class ResultSynthesizer:
             # 降级到简单拼接
             return self._concatenate(subtask_results)
 
-    def _concatenate(self, subtask_results: List[Dict[str, Any]]) -> str:
+    def _concatenate(self, subtask_results: list[dict[str, Any]]) -> str:
         """
         简单拼接策略
 
@@ -118,7 +118,7 @@ class ResultSynthesizer:
 
         return "\n\n---\n\n".join(parts)
 
-    def _structured(self, subtask_results: List[Dict[str, Any]]) -> str:
+    def _structured(self, subtask_results: list[dict[str, Any]]) -> str:
         """
         结构化输出策略
 
@@ -154,7 +154,7 @@ class ResultSynthesizer:
 
         return "\n".join(lines)
 
-    async def _llm_synthesize(self, task: str, results: List[Dict[str, Any]]) -> str:
+    async def _llm_synthesize(self, task: str, results: list[dict[str, Any]]) -> str:
         """
         使用 LLM 合成（支持轻量级模型）
 
@@ -252,7 +252,7 @@ class ResultSynthesizer:
             logger.error(f"创建自定义 Provider 失败: {e}")
             return self.base_provider
 
-    def _build_synthesis_prompt(self, task: str, results: List[Dict[str, Any]]) -> str:
+    def _build_synthesis_prompt(self, task: str, results: list[dict[str, Any]]) -> str:
         """
         构建合成提示词
 

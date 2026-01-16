@@ -5,9 +5,9 @@ Loom Patterns - 解决问题的模式
 作为通用框架，Loom 不预设具体 agent，而是提供方法论。
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
-from abc import ABC, abstractmethod
 
 
 @dataclass
@@ -40,11 +40,10 @@ class Pattern(ABC):
 
 # 导入所有核心模式
 from loom.patterns.analytical import AnalyticalPattern
-from loom.patterns.creative import CreativePattern
 from loom.patterns.collaborative import CollaborativePattern
-from loom.patterns.iterative import IterativePattern
+from loom.patterns.creative import CreativePattern
 from loom.patterns.execution import ExecutionPattern
-
+from loom.patterns.iterative import IterativePattern
 
 # 模式注册表
 PATTERNS = {

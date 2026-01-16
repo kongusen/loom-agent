@@ -2,10 +2,8 @@
 Tests for Kernel Core State Management
 """
 
-import pytest
 from loom.kernel.core.state import StateStore
 from loom.protocol.cloudevents import CloudEvent
-from loom.protocol.patch import StatePatch, PatchOperation
 
 
 class TestStateStore:

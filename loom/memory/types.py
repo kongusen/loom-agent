@@ -1,11 +1,11 @@
 """
 LoomMemory Type Definitions
 """
-from enum import Enum
-from dataclasses import dataclass, field
-from typing import Optional, Any, Dict, List
-from datetime import datetime
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any
 
 
 class MemoryTier(Enum):
@@ -48,37 +48,37 @@ class MemoryUnit:
     """
     The fundamental unit of storage in LoomMemory.
     """
-    
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     content: Any = None  # The actual content (str, dict, etc.)
     tier: MemoryTier = MemoryTier.L2_WORKING
     type: MemoryType = MemoryType.MESSAGE
-    
+
     # Source Tracking
-    source_node: Optional[str] = None  # ID of the node that generated this
-    parent_id: Optional[str] = None    # ID of parent memory (for causality chains)
-    
+    source_node: str | None = None  # ID of the node that generated this
+    parent_id: str | None = None    # ID of parent memory (for causality chains)
+
     # Timestamps
     created_at: datetime = field(default_factory=datetime.now)
     accessed_at: datetime = field(default_factory=datetime.now)
-    
+
     # Metadata
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
+    metadata: dict[str, Any] = field(default_factory=dict)
+
     # Vector Embedding (for L4 Semantic Search)
-    embedding: Optional[List[float]] = None
-    
+    embedding: list[float] | None = None
+
     # Importance Score (0.0 - 1.0) for Curation/Compression
     importance: float = 0.5
 
     # Lifecycle Status
     status: MemoryStatus = MemoryStatus.ACTIVE
 
-    def to_message(self) -> Dict[str, str]:
+    def to_message(self) -> dict[str, str]:
         """Convert to LLM API message format."""
         if isinstance(self.content, dict) and "role" in self.content:
              return self.content
-             
+
         if self.type == MemoryType.MESSAGE:
             # Assuming content is the text if it's not a dict, or we adhere to dict content for messages
             if isinstance(self.content, str):
@@ -99,7 +99,7 @@ class MemoryUnit:
                 return {"role": "assistant", "content": f"🔧 Tool call: {str(self.content)}"}
         else:
             return {"role": "system", "content": str(self.content)}
-    
+
     def to_snippet(self) -> str:
         """Convert to improved snippet/summary for progressive disclosure."""
         if self.type == MemoryType.SKILL:
@@ -119,22 +119,22 @@ class ContextProjection:
     A projection of context passed from a Parent Node to a Child Node.
     This supports the fractal architecture by allowing selective inheritance.
     """
-    
+
     # Mandatory: The core instruction/task for the child
     instruction: str
-    
+
     # Selective Inheritance
-    parent_plan: Optional[str] = None
-    relevant_facts: List[MemoryUnit] = field(default_factory=list)
-    tools_available: List[str] = field(default_factory=list)
-    
+    parent_plan: str | None = None
+    relevant_facts: list[MemoryUnit] = field(default_factory=list)
+    tools_available: list[str] = field(default_factory=list)
+
     # Lineage Tracking
-    lineage: List[str] = field(default_factory=list)  # [grandparent_id, parent_id]
-    
-    def to_memory_units(self) -> List[MemoryUnit]:
+    lineage: list[str] = field(default_factory=list)  # [grandparent_id, parent_id]
+
+    def to_memory_units(self) -> list[MemoryUnit]:
         """Convert projection data into initial MemoryUnits for the child."""
         units = []
-        
+
         # 1. Instruction as L2 Working Memory
         units.append(MemoryUnit(
             content={"role": "system", "content": self.instruction},
@@ -143,7 +143,7 @@ class ContextProjection:
             importance=1.0,
             metadata={"projection_source": "instruction"}
         ))
-        
+
         # 2. Parent Plan as L3 Context
         if self.parent_plan:
             units.append(MemoryUnit(
@@ -153,7 +153,7 @@ class ContextProjection:
                 importance=0.7,
                 metadata={"projection_source": "parent_plan"}
             ))
-        
+
         # 3. Relevant Facts
         for fact in self.relevant_facts:
              # Clone fact but ensure it's treated as context/fact in new node
@@ -164,29 +164,29 @@ class ContextProjection:
                  importance=fact.importance,
                  metadata={**fact.metadata, "projection_source": "fact"}
              ))
-        
+
         return units
 
 
-@dataclass 
+@dataclass
 class MemoryQuery:
     """
     Query parameters for retrieving memories.
     """
-    
+
     # Filters
-    tiers: List[MemoryTier] = field(default_factory=list)
-    types: List[MemoryType] = field(default_factory=list)
-    node_ids: List[str] = field(default_factory=list)
-    
+    tiers: list[MemoryTier] = field(default_factory=list)
+    types: list[MemoryType] = field(default_factory=list)
+    node_ids: list[str] = field(default_factory=list)
+
     # Semantic Search (L4)
-    query_text: Optional[str] = None
+    query_text: str | None = None
     top_k: int = 5
-    
+
     # Time Range
-    since: Optional[datetime] = None
-    until: Optional[datetime] = None
-    
+    since: datetime | None = None
+    until: datetime | None = None
+
     # Sorting
     sort_by: str = "created_at"  # created_at, importance, accessed_at
     descending: bool = True

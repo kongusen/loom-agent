@@ -5,12 +5,10 @@ Advanced pruning algorithms for optimizing fractal structure performance.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Set
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-
-from loom.config.fractal import NodeMetrics
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +28,7 @@ class PruningDecision:
     """Result of pruning evaluation"""
     should_prune: bool
     confidence: float  # 0-1
-    criteria: List[PruningCriterion]
+    criteria: list[PruningCriterion]
     reason: str
     expected_impact: float  # Expected fitness improvement
 
@@ -42,9 +40,9 @@ class PruningStrategy(ABC):
     def evaluate(
         self,
         node: Any,
-        parent: Optional[Any],
-        siblings: List[Any],
-        context: Dict[str, Any]
+        parent: Any | None,
+        siblings: list[Any],
+        context: dict[str, Any]
     ) -> PruningDecision:
         """
         Evaluate if node should be pruned
@@ -79,9 +77,9 @@ class FitnessPruningStrategy(PruningStrategy):
     def evaluate(
         self,
         node: Any,
-        parent: Optional[Any],
-        siblings: List[Any],
-        context: Dict[str, Any]
+        parent: Any | None,
+        siblings: list[Any],
+        context: dict[str, Any]
     ) -> PruningDecision:
 
         # Need minimum task count
@@ -132,9 +130,9 @@ class RedundancyPruningStrategy(PruningStrategy):
     def evaluate(
         self,
         node: Any,
-        parent: Optional[Any],
-        siblings: List[Any],
-        context: Dict[str, Any]
+        parent: Any | None,
+        siblings: list[Any],
+        context: dict[str, Any]
     ) -> PruningDecision:
 
         if node.metrics.task_count < self.min_tasks:
@@ -212,9 +210,9 @@ class ResourcePruningStrategy(PruningStrategy):
     def evaluate(
         self,
         node: Any,
-        parent: Optional[Any],
-        siblings: List[Any],
-        context: Dict[str, Any]
+        parent: Any | None,
+        siblings: list[Any],
+        context: dict[str, Any]
     ) -> PruningDecision:
 
         if node.metrics.task_count < self.min_tasks:
@@ -263,7 +261,7 @@ class CompositePruningStrategy(PruningStrategy):
 
     def __init__(
         self,
-        strategies: Optional[List[PruningStrategy]] = None,
+        strategies: list[PruningStrategy] | None = None,
         min_confidence: float = 0.7
     ):
         self.strategies = strategies or [
@@ -276,9 +274,9 @@ class CompositePruningStrategy(PruningStrategy):
     def evaluate(
         self,
         node: Any,
-        parent: Optional[Any],
-        siblings: List[Any],
-        context: Dict[str, Any]
+        parent: Any | None,
+        siblings: list[Any],
+        context: dict[str, Any]
     ) -> PruningDecision:
 
         decisions = [
@@ -330,7 +328,7 @@ class SmartPruner:
 
     def __init__(
         self,
-        strategy: Optional[PruningStrategy] = None,
+        strategy: PruningStrategy | None = None,
         dry_run: bool = False,
         preserve_min_nodes: int = 1
     ):
@@ -347,14 +345,14 @@ class SmartPruner:
         self.preserve_min_nodes = preserve_min_nodes
 
         # Tracking
-        self.pruned_nodes: List[str] = []
-        self.evaluation_cache: Dict[str, PruningDecision] = {}
+        self.pruned_nodes: list[str] = []
+        self.evaluation_cache: dict[str, PruningDecision] = {}
 
     def prune_structure(
         self,
         root: Any,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Prune structure using intelligent strategy
 
@@ -410,12 +408,12 @@ class SmartPruner:
     def _identify_candidates(
         self,
         root: Any,
-        context: Dict[str, Any]
-    ) -> List[tuple[Any, Any, PruningDecision]]:
+        context: dict[str, Any]
+    ) -> list[tuple[Any, Any, PruningDecision]]:
         """Identify pruning candidates"""
         candidates = []
 
-        def _evaluate_node(node: Any, parent: Optional[Any] = None):
+        def _evaluate_node(node: Any, parent: Any | None = None):
             # Get siblings
             siblings = []
             if parent:
@@ -437,11 +435,11 @@ class SmartPruner:
 
         return candidates
 
-    def get_evaluation(self, node_id: str) -> Optional[PruningDecision]:
+    def get_evaluation(self, node_id: str) -> PruningDecision | None:
         """Get cached evaluation for a node"""
         return self.evaluation_cache.get(node_id)
 
-    def get_all_evaluations(self) -> Dict[str, PruningDecision]:
+    def get_all_evaluations(self) -> dict[str, PruningDecision]:
         """Get all evaluations"""
         return self.evaluation_cache.copy()
 

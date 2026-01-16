@@ -4,7 +4,6 @@ Structure Optimization Configuration
 Provides configuration for Layer 4 optimization capabilities.
 """
 
-from typing import Optional
 from pydantic import BaseModel, Field
 
 

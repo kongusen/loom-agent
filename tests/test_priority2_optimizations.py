@@ -2,19 +2,19 @@
 Test Priority 2 optimizations (High-Impact features)
 """
 import asyncio
-import sys
 import os
+import sys
 import time
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from loom.kernel.core import ToolExecutor
-from loom.config.execution import ExecutionConfig
-from loom.memory.core import LoomMemory
-from loom.memory.context import ContextAssembler
 from loom.config import ContextConfig
-from loom.memory.types import MemoryUnit, MemoryTier, MemoryType
+from loom.config.execution import ExecutionConfig
+from loom.kernel.core import ToolExecutor
+from loom.memory.context import ContextAssembler
+from loom.memory.core import LoomMemory
+from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
 
 
 async def test_tool_result_caching():
@@ -47,11 +47,11 @@ async def test_tool_result_caching():
 
         # Different args - should execute again
         call2 = {"name": "read_file", "arguments": {"path": "/other.txt"}}
-        result3 = await executor._safe_execute(2, call2, mock_executor)
+        await executor._safe_execute(2, call2, mock_executor)
         assert call_count == 2, f"Expected 2 executions, got {call_count}"
 
         print("✅ Tool result caching: PASSED")
-        print(f"   Cache hit rate: 50% (1 cached, 1 miss)")
+        print("   Cache hit rate: 50% (1 cached, 1 miss)")
         return True
     except Exception as e:
         print(f"❌ Tool result caching: FAILED - {e}")
@@ -79,18 +79,18 @@ async def test_cache_ttl_expiration():
 
         # First call
         call1 = {"name": "read_file", "arguments": {"path": "/test.txt"}}
-        result1 = await executor._safe_execute(0, call1, mock_executor)
+        await executor._safe_execute(0, call1, mock_executor)
         assert call_count == 1
 
         # Immediate second call - should use cache
-        result2 = await executor._safe_execute(1, call1, mock_executor)
+        await executor._safe_execute(1, call1, mock_executor)
         assert call_count == 1, "Should use cache"
 
         # Wait for TTL to expire
         time.sleep(0.6)
 
         # Third call after TTL - should execute again
-        result3 = await executor._safe_execute(2, call1, mock_executor)
+        await executor._safe_execute(2, call1, mock_executor)
         assert call_count == 2, "Cache should have expired"
 
         print("✅ Cache TTL expiration: PASSED")
@@ -117,7 +117,7 @@ async def test_adaptive_token_budgeting():
         # Test 1: Simple task - should use base budget
         simple_budget = assembler._calculate_dynamic_budget("List files", memory)
         base_budget = config.curation_config.max_tokens
-        assert simple_budget == base_budget, f"Simple task should use base budget"
+        assert simple_budget == base_budget, "Simple task should use base budget"
 
         # Test 2: Complex task - should increase budget
         complex_budget = assembler._calculate_dynamic_budget(

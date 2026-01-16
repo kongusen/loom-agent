@@ -6,9 +6,9 @@ providing diagnostics and optimization recommendations.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class HealthDiagnostic:
     """Diagnostic result for a specific issue"""
     issue: HealthIssue
     severity: float  # 0-1, higher is worse
-    affected_nodes: List[str]
+    affected_nodes: list[str]
     description: str
     recommendation: str
 
@@ -64,10 +64,10 @@ class HealthReport:
     utilization_score: float = 0.0
 
     # Issues
-    diagnostics: List[HealthDiagnostic] = field(default_factory=list)
+    diagnostics: list[HealthDiagnostic] = field(default_factory=list)
 
     # Recommendations
-    top_recommendations: List[str] = field(default_factory=list)
+    top_recommendations: list[str] = field(default_factory=list)
 
     def get_status(self) -> HealthStatus:
         """Determine status from overall score"""
@@ -124,7 +124,7 @@ class StructureHealthAssessor:
     def assess(
         self,
         root: Any,
-        target_config: Optional[Any] = None
+        target_config: Any | None = None
     ) -> HealthReport:
         """
         Perform comprehensive health assessment
@@ -188,7 +188,7 @@ class StructureHealthAssessor:
     # Data Collection
     # ========================================================================
 
-    def _collect_structure_data(self, root: Any) -> Dict[str, Any]:
+    def _collect_structure_data(self, root: Any) -> dict[str, Any]:
         """Collect comprehensive structure data"""
         nodes = []
         depths = []
@@ -247,8 +247,8 @@ class StructureHealthAssessor:
 
     def _assess_balance(
         self,
-        data: Dict[str, Any],
-        config: Optional[Any]
+        data: dict[str, Any],
+        config: Any | None
     ) -> float:
         """Assess structure balance (0-1, higher is better)"""
         score = 1.0
@@ -270,13 +270,12 @@ class StructureHealthAssessor:
             score -= branching_penalty
 
         # Factor 3: Depth within limits
-        if config and hasattr(config, 'max_depth'):
-            if data['max_depth'] > config.max_depth:
-                score -= 0.2
+        if config and hasattr(config, 'max_depth') and data['max_depth'] > config.max_depth:
+            score -= 0.2
 
         return max(0.0, min(1.0, score))
 
-    def _assess_efficiency(self, data: Dict[str, Any]) -> float:
+    def _assess_efficiency(self, data: dict[str, Any]) -> float:
         """Assess resource efficiency (0-1, higher is better)"""
         if not data['token_usage']:
             return 1.0
@@ -307,7 +306,7 @@ class StructureHealthAssessor:
 
         return max(0.0, min(1.0, score))
 
-    def _assess_performance(self, data: Dict[str, Any]) -> float:
+    def _assess_performance(self, data: dict[str, Any]) -> float:
         """Assess task performance (0-1, higher is better)"""
         if not data['fitness_scores']:
             return 0.5  # Neutral
@@ -315,7 +314,7 @@ class StructureHealthAssessor:
         # Average fitness is the primary indicator
         return data['avg_fitness']
 
-    def _assess_utilization(self, data: Dict[str, Any]) -> float:
+    def _assess_utilization(self, data: dict[str, Any]) -> float:
         """Assess node utilization (0-1, higher is better)"""
         if not data['nodes']:
             return 0.0
@@ -343,9 +342,9 @@ class StructureHealthAssessor:
 
     def _run_diagnostics(
         self,
-        data: Dict[str, Any],
-        config: Optional[Any]
-    ) -> List[HealthDiagnostic]:
+        data: dict[str, Any],
+        config: Any | None
+    ) -> list[HealthDiagnostic]:
         """Run diagnostic checks"""
         diagnostics = []
 
@@ -367,15 +366,14 @@ class StructureHealthAssessor:
                 ))
 
         # Diagnostic 2: Excessive depth
-        if config and hasattr(config, 'max_depth'):
-            if data['max_depth'] > config.max_depth:
-                diagnostics.append(HealthDiagnostic(
-                    issue=HealthIssue.EXCESSIVE_DEPTH,
-                    severity=0.8,
-                    affected_nodes=[],
-                    description=f"Max depth {data['max_depth']} exceeds limit {config.max_depth}",
-                    recommendation="Prune deep branches or increase max_depth limit"
-                ))
+        if config and hasattr(config, 'max_depth') and data['max_depth'] > config.max_depth:
+            diagnostics.append(HealthDiagnostic(
+                issue=HealthIssue.EXCESSIVE_DEPTH,
+                severity=0.8,
+                affected_nodes=[],
+                description=f"Max depth {data['max_depth']} exceeds limit {config.max_depth}",
+                recommendation="Prune deep branches or increase max_depth limit"
+            ))
 
         # Diagnostic 3: Underutilized nodes
         idle_nodes = [n for n in data['nodes'] if n.metrics.task_count == 0]
@@ -422,7 +420,7 @@ class StructureHealthAssessor:
 
         return diagnostics
 
-    def _get_node_depth(self, node: Any, all_nodes: List[Any]) -> int:
+    def _get_node_depth(self, node: Any, all_nodes: list[Any]) -> int:
         """Get depth of a node"""
         depth = 0
         current = node
@@ -437,10 +435,10 @@ class StructureHealthAssessor:
 
     def _generate_recommendations(
         self,
-        diagnostics: List[HealthDiagnostic],
-        data: Dict[str, Any],
-        config: Optional[Any]
-    ) -> List[str]:
+        diagnostics: list[HealthDiagnostic],
+        data: dict[str, Any],
+        config: Any | None
+    ) -> list[str]:
         """Generate actionable recommendations"""
         recommendations = []
 

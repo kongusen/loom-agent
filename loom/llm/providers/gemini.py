@@ -4,13 +4,14 @@ Google Gemini LLM Provider
 支持 Gemini 系列模型的完整流式工具调用。
 """
 
-import os
 import json
 import logging
-from typing import List, Dict, Any, AsyncIterator, Optional
+import os
+from collections.abc import AsyncIterator
+from typing import Any
 
+from loom.config.llm import ConnectionConfig, GenerationConfig, LLMConfig
 from loom.llm.interface import LLMProvider, LLMResponse, StreamChunk
-from loom.config.llm import LLMConfig, ConnectionConfig, GenerationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,11 @@ class GeminiProvider(LLMProvider):
 
     def __init__(
         self,
-        config: Optional[LLMConfig] = None,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        config: LLMConfig | None = None,
+        model: str | None = None,
+        api_key: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs
     ):
         """初始化 Gemini Provider"""
@@ -77,8 +78,8 @@ class GeminiProvider(LLMProvider):
 
     def _convert_messages(
         self,
-        messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """转换消息格式为 Gemini 格式"""
         gemini_messages = []
 
@@ -101,7 +102,7 @@ class GeminiProvider(LLMProvider):
 
         return gemini_messages
 
-    def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _convert_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """转换工具定义为 Gemini 格式"""
         gemini_tools = []
 
@@ -138,9 +139,9 @@ class GeminiProvider(LLMProvider):
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        config: dict[str, Any] | None = None
     ) -> LLMResponse:
         """调用 Gemini Chat API"""
         # 转换消息
@@ -202,8 +203,8 @@ class GeminiProvider(LLMProvider):
 
     async def stream_chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None
     ) -> AsyncIterator[StreamChunk]:
         """流式调用 Gemini Chat API（支持工具调用）"""
         # 转换消息
