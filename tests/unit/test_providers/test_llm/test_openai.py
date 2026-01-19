@@ -19,9 +19,7 @@ class TestOpenAIProviderInit:
 
     def test_init_with_api_key(self):
         """测试使用api_key初始化"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         assert provider.model == "gpt-4"
         assert provider.temperature == 0.7
@@ -49,9 +47,7 @@ class TestOpenAIProviderInit:
         """测试从环境变量获取api_key（用户控制配置来源）"""
         # 新架构：用户从环境变量读取并显式传递给配置
         api_key = os.environ.get("OPENAI_API_KEY")
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key=api_key)
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key=api_key))
 
         assert provider.client is not None
 
@@ -61,9 +57,7 @@ class TestOpenAIProviderGetTokenCounter:
 
     def test_get_token_counter(self):
         """测试获取token计数器"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
         counter = provider.get_token_counter()
 
         from loom.memory.tokenizer import TiktokenCounter
@@ -76,9 +70,7 @@ class TestOpenAIProviderConvertTools:
 
     def test_convert_tools_openai_format(self):
         """测试转换已经是OpenAI格式的工具"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
         tools = [
             {
                 "type": "function",
@@ -97,9 +89,7 @@ class TestOpenAIProviderConvertTools:
 
     def test_convert_tools_mcp_format(self):
         """测试转换MCP格式的工具"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
         tools = [
             {
                 "name": "search",
@@ -126,9 +116,7 @@ class TestOpenAIProviderChat:
     @pytest.mark.asyncio
     async def test_chat_basic_message(self):
         """测试基本消息的chat调用"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock the API response
         mock_response = Mock()
@@ -154,9 +142,7 @@ class TestOpenAIProviderChat:
     @pytest.mark.asyncio
     async def test_chat_with_tool_calls(self):
         """测试带工具调用的chat响应"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock tool call
         mock_tool_call = Mock()
@@ -220,9 +206,7 @@ class TestOpenAIProviderStreamChat:
     @pytest.mark.asyncio
     async def test_stream_chat_basic(self):
         """测试基本的流式响应"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock streaming chunks
         async def mock_stream():
@@ -263,9 +247,7 @@ class TestOpenAIProviderStreamChat:
     @pytest.mark.asyncio
     async def test_stream_chat_with_tool_calls(self):
         """测试流式响应中的工具调用"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock streaming chunks with tool calls
         async def mock_stream():
@@ -324,9 +306,7 @@ class TestOpenAIProviderStreamChat:
     @pytest.mark.asyncio
     async def test_stream_chat_error_handling(self):
         """测试流式响应中的错误处理"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock streaming that raises an error
         async def mock_stream():
@@ -348,9 +328,7 @@ class TestOpenAIProviderStreamChat:
     @pytest.mark.asyncio
     async def test_stream_chat_usage_only_chunk(self):
         """测试只包含usage的chunk"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock streaming with usage-only chunk
         async def mock_stream():
@@ -394,9 +372,7 @@ class TestOpenAIProviderStreamResponse:
     @pytest.mark.asyncio
     async def test_stream_response_basic(self):
         """测试基本的stream_response处理"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock streaming response
         async def mock_response():
@@ -434,9 +410,7 @@ class TestOpenAIProviderStreamResponse:
     @pytest.mark.asyncio
     async def test_stream_response_with_tool_calls(self):
         """测试stream_response中的工具调用处理"""
-        provider = OpenAIProvider(
-            LLMConfig(provider="openai", api_key="sk-test123")
-        )
+        provider = OpenAIProvider(LLMConfig(provider="openai", api_key="sk-test123"))
 
         # Mock streaming response with tool calls
         async def mock_response():
