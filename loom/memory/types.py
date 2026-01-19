@@ -1,5 +1,7 @@
 """
-LoomMemory Type Definitions
+记忆系统类型定义
+
+基于A4公理（记忆层次公理）的简化实现
 """
 
 import uuid
@@ -11,205 +13,187 @@ from typing import Any
 
 class MemoryTier(Enum):
     """
-    Memory Tiers (L1-L4) representing the lifecycle and persistence of information.
+    记忆层级 (L1-L4)
+
+    基于A4公理：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
     """
 
-    L1_RAW_IO = 1  # Raw Input/Output (Ephemeral, buffer)
-    L2_WORKING = 2  # Working Memory (Task-specific, scratchpad)
-    L3_SESSION = 3  # Session History (Conversation, context)
-    L4_GLOBAL = 4  # Global Knowledge (Persistent, semantic facts)
+    L1_RAW_IO = 1  # 原始IO（循环缓冲区）
+    L2_WORKING = 2  # 工作记忆（任务相关）
+    L3_SESSION = 3  # 会话记忆（对话历史）
+    L4_GLOBAL = 4  # 全局知识库（持久化）
 
 
 class MemoryType(Enum):
     """
-    Types of memory content for categorization and filtering.
+    记忆内容类型
+
+    用于分类和过滤
     """
 
-    MESSAGE = "message"  # Chat messages (user/assistant)
-    THOUGHT = "thought"  # Internal thoughts/monologue
-    TOOL_CALL = "tool_call"  # Tool execution requests
-    TOOL_RESULT = "tool_result"  # Tool execution results
-    PLAN = "plan"  # Plans or instructions
-    FACT = "fact"  # Extracted facts or knowledge
-    SKILL = "skill"  # Skill/Tool definitions
-    CONTEXT = "context"  # Context snippets/summaries
-    SUMMARY = "summary"  # Context compression summary
+    MESSAGE = "message"  # 对话消息
+    THOUGHT = "thought"  # 内部思考
+    TOOL_CALL = "tool_call"  # 工具调用
+    TOOL_RESULT = "tool_result"  # 工具结果
+    PLAN = "plan"  # 计划
+    FACT = "fact"  # 事实知识
+    CONTEXT = "context"  # 上下文片段
+    SUMMARY = "summary"  # 摘要
 
 
 class MemoryStatus(Enum):
     """
-    Status of memory units for lifecycle management.
+    记忆单元状态
+
+    用于生命周期管理
     """
 
-    ACTIVE = "active"  # Currently active and accessible
-    ARCHIVED = "archived"  # Archived but retrievable
-    SUMMARIZED = "summarized"  # Compressed into summary
-    EVICTED = "evicted"  # Removed from active memory
+    ACTIVE = "active"  # 当前活跃，可访问
+    ARCHIVED = "archived"  # 已归档，可检索
+    SUMMARIZED = "summarized"  # 已压缩为摘要
+    EVICTED = "evicted"  # 已从活跃记忆中移除
 
 
 @dataclass
 class MemoryUnit:
     """
-    The fundamental unit of storage in LoomMemory.
+    记忆单元 - 增强版
+
+    包含完整的生命周期管理和溯源追踪功能
     """
 
+    # 核心字段
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    content: Any = None  # The actual content (str, dict, etc.)
+    content: Any = None
     tier: MemoryTier = MemoryTier.L2_WORKING
     type: MemoryType = MemoryType.MESSAGE
 
-    # Source Tracking
-    source_node: str | None = None  # ID of the node that generated this
-    parent_id: str | None = None  # ID of parent memory (for causality chains)
+    # 溯源追踪
+    source_node: str | None = None  # 生成此记忆的节点ID
+    parent_id: str | None = None  # 父记忆ID（用于因果链）
 
-    # Timestamps
+    # 时间戳
     created_at: datetime = field(default_factory=datetime.now)
     accessed_at: datetime = field(default_factory=datetime.now)
 
-    # Metadata
+    # 扩展字段
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    # Vector Embedding (for L4 Semantic Search)
+    # L4语义搜索
     embedding: list[float] | None = None
 
-    # Importance Score (0.0 - 1.0) for Curation/Compression
-    importance: float = 0.5
+    # L4压缩需要
+    importance: float = 0.5  # 0.0-1.0
 
-    # Lifecycle Status
+    # 生命周期状态
     status: MemoryStatus = MemoryStatus.ACTIVE
 
     def to_message(self) -> dict[str, str]:
-        """Convert to LLM API message format."""
+        """
+        转换为 LLM API 消息格式
+
+        Returns:
+            符合 LLM API 格式的消息字典
+        """
+        # 如果内容已经是消息格式，直接返回
         if isinstance(self.content, dict) and "role" in self.content:
             return self.content
 
+        # 根据类型转换
         if self.type == MemoryType.MESSAGE:
-            # Assuming content is the text if it's not a dict, or we adhere to dict content for messages
             if isinstance(self.content, str):
-                return {
-                    "role": "user",
-                    "content": self.content,
-                }  # Default to user? Or should handle context contextually
-
-            # Ensure content is dict[str, str]
+                return {"role": "user", "content": self.content}
             if isinstance(self.content, dict):
                 return {str(k): str(v) for k, v in self.content.items()}
             return {"role": "system", "content": str(self.content)}
+
         elif self.type == MemoryType.THOUGHT:
             return {"role": "assistant", "content": f"💭 {self.content}"}
+
         elif self.type == MemoryType.TOOL_CALL:
-            # Handle both single tool call (dict) and multiple tool calls (list)
-            if isinstance(self.content, list):
-                # Multiple tool calls
-                tool_names = [
-                    tc.get("name", "unknown") if isinstance(tc, dict) else "unknown"
-                    for tc in self.content
-                ]
-                return {"role": "assistant", "content": f"🔧 Calling {', '.join(tool_names)}"}
-            elif isinstance(self.content, dict):
-                # Single tool call
-                return {
-                    "role": "assistant",
-                    "content": f"🔧 Calling {self.content.get('name', 'unknown')}",
-                }
-            else:
-                return {"role": "assistant", "content": f"🔧 Tool call: {str(self.content)}"}
+            return {"role": "assistant", "content": f"🔧 Tool Call: {self.content}"}
+
+        elif self.type == MemoryType.TOOL_RESULT:
+            return {"role": "system", "content": f"🔧 Tool Result: {self.content}"}
+
+        elif self.type == MemoryType.PLAN:
+            return {"role": "assistant", "content": f"📋 Plan: {self.content}"}
+
+        elif self.type == MemoryType.FACT:
+            return {"role": "system", "content": f"📚 Fact: {self.content}"}
+
+        elif self.type == MemoryType.SUMMARY:
+            return {"role": "system", "content": f"📝 Summary: {self.content}"}
+
         else:
             return {"role": "system", "content": str(self.content)}
 
-    def to_snippet(self) -> str:
-        """Convert to improved snippet/summary for progressive disclosure."""
-        if self.type == MemoryType.SKILL:
-            name = self.metadata.get("name", "Unnamed")
-            desc = self.metadata.get("description", "")[:50]
-            return f"📚 {name}: {desc}..."
-        elif self.type == MemoryType.PLAN:
-            return f"🎯 Plan: {str(self.content)[:80]}..."
-        else:
-            content_str = str(self.content)[:60]
-            return f"[{self.type.value}] {content_str}..."
+
+@dataclass
+class TaskSummary:
+    """
+    Task摘要 - 用于L3层存储
+
+    将完整的Task对象压缩为摘要，减少存储开销
+    """
+
+    task_id: str
+    action: str
+    param_summary: str  # 参数摘要（而非完整参数）
+    result_summary: str  # 结果摘要（而非完整结果）
+    tags: list[str] = field(default_factory=list)
+    importance: float = 0.5
+    created_at: datetime = field(default_factory=datetime.now)
+
+
+class FactType(Enum):
+    """
+    事实类型 - 用于分类可复用的原子知识
+
+    基于优化分析文档的改进4
+    """
+
+    API_SCHEMA = "api_schema"  # API接口定义
+    USER_PREFERENCE = "user_preference"  # 用户偏好
+    DOMAIN_KNOWLEDGE = "domain_knowledge"  # 领域知识
+    TOOL_USAGE = "tool_usage"  # 工具使用方法
+    ERROR_PATTERN = "error_pattern"  # 错误模式
+    BEST_PRACTICE = "best_practice"  # 最佳实践
 
 
 @dataclass
-class ContextProjection:
+class Fact:
     """
-    A projection of context passed from a Parent Node to a Child Node.
-    This supports the fractal architecture by allowing selective inheritance.
+    可复用的事实 - 原子化知识存储
+
+    从Task中提取的关键知识点，支持语义检索和复用。
+    基于优化分析文档的改进4。
     """
 
-    # Mandatory: The core instruction/task for the child
-    instruction: str
+    fact_id: str
+    content: str  # 事实内容（简洁的文本描述）
+    fact_type: FactType
+    source_task_ids: list[str] = field(default_factory=list)  # 来源Task
+    confidence: float = 0.8  # 置信度（0.0-1.0）
+    tags: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+    last_accessed: datetime = field(default_factory=datetime.now)
+    access_count: int = 0  # 访问次数（用于重要性评估）
 
-    # Selective Inheritance
-    parent_plan: str | None = None
-    relevant_facts: list[MemoryUnit] = field(default_factory=list)
-    tools_available: list[str] = field(default_factory=list)
-
-    # Lineage Tracking
-    lineage: list[str] = field(default_factory=list)  # [grandparent_id, parent_id]
-
-    def to_memory_units(self) -> list[MemoryUnit]:
-        """Convert projection data into initial MemoryUnits for the child."""
-        units = []
-
-        # 1. Instruction as L2 Working Memory
-        units.append(
-            MemoryUnit(
-                content={"role": "system", "content": self.instruction},
-                tier=MemoryTier.L2_WORKING,
-                type=MemoryType.PLAN,
-                importance=1.0,
-                metadata={"projection_source": "instruction"},
-            )
-        )
-
-        # 2. Parent Plan as L3 Context
-        if self.parent_plan:
-            units.append(
-                MemoryUnit(
-                    content=self.parent_plan,
-                    tier=MemoryTier.L3_SESSION,
-                    type=MemoryType.CONTEXT,
-                    importance=0.7,
-                    metadata={"projection_source": "parent_plan"},
-                )
-            )
-
-        # 3. Relevant Facts
-        for fact in self.relevant_facts:
-            # Clone fact but ensure it's treated as context/fact in new node
-            units.append(
-                MemoryUnit(
-                    content=fact.content,
-                    tier=fact.tier,  # Keep original tier (likely L4)? Or move to L3/L4?
-                    type=fact.type,
-                    importance=fact.importance,
-                    metadata={**fact.metadata, "projection_source": "fact"},
-                )
-            )
-
-        return units
+    def update_access(self) -> None:
+        """更新访问信息"""
+        self.last_accessed = datetime.now()
+        self.access_count += 1
 
 
 @dataclass
 class MemoryQuery:
     """
-    Query parameters for retrieving memories.
+    记忆查询请求
     """
 
-    # Filters
-    tiers: list[MemoryTier] = field(default_factory=list)
-    types: list[MemoryType] = field(default_factory=list)
-    node_ids: list[str] = field(default_factory=list)
-
-    # Semantic Search (L4)
-    query_text: str | None = None
-    top_k: int = 5
-
-    # Time Range
-    since: datetime | None = None
-    until: datetime | None = None
-
-    # Sorting
-    sort_by: str = "created_at"  # created_at, importance, accessed_at
-    descending: bool = True
+    query: str
+    tier: MemoryTier | None = None
+    type: MemoryType | None = None
+    limit: int = 10
+    min_importance: float = 0.0

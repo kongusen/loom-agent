@@ -1,19 +1,30 @@
 """
-Model Context Protocol (MCP) Implementation for Loom
-"""
+Model Context Protocol (MCP) - MCP 协议支持
 
-from __future__ import annotations
+基于公理A1（统一接口公理）：
+实现 MCP 协议的数据模型和接口定义，支持与 MCP 生态系统的互操作。
+
+MCP 协议提供：
+- Tools: 工具定义和调用
+- Resources: 资源访问
+- Prompts: 提示模板
+
+设计原则：
+1. 标准兼容 - 遵循 MCP 协议规范
+2. 类型安全 - 使用 Pydantic 模型
+3. 可扩展 - 支持协议扩展
+"""
 
 from abc import ABC, abstractmethod
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# --- MCP Data Models ---
+# ==================== MCP 数据模型 ====================
 
 
 class MCPToolDefinition(BaseModel):
-    """Definition of an MCP Tool."""
+    """MCP 工具定义"""
 
     name: str
     description: str
@@ -23,7 +34,7 @@ class MCPToolDefinition(BaseModel):
 
 
 class MCPResource(BaseModel):
-    """Definition of an MCP Resource."""
+    """MCP 资源定义"""
 
     uri: str
     name: str
@@ -34,7 +45,7 @@ class MCPResource(BaseModel):
 
 
 class MCPPrompt(BaseModel):
-    """Definition of an MCP Prompt."""
+    """MCP 提示模板定义"""
 
     name: str
     description: str
@@ -42,69 +53,73 @@ class MCPPrompt(BaseModel):
 
 
 class MCPToolCall(BaseModel):
-    """A request to call a tool."""
+    """MCP 工具调用请求"""
 
     name: str
     arguments: dict[str, Any]
 
 
 class MCPToolResult(BaseModel):
-    """Result of a tool call."""
+    """MCP 工具调用结果"""
 
     content: list[dict[str, Any]]  # Text or Image content
     is_error: bool = False
 
 
-# --- MCP Interfaces ---
+# ==================== MCP 接口定义 ====================
 
 
 class MCPServer(ABC):
     """
-    Abstract Interface for an MCP Server (provider of tools/resources).
+    MCP 服务器抽象接口
+
+    定义 MCP 服务器（工具/资源提供者）必须实现的接口。
     """
 
     @abstractmethod
     async def list_tools(self) -> list[MCPToolDefinition]:
-        """List available tools."""
+        """列出可用工具"""
         pass
 
     @abstractmethod
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> MCPToolResult:
-        """Call a specific tool."""
+        """调用指定工具"""
         pass
 
     @abstractmethod
     async def list_resources(self) -> list[MCPResource]:
-        """List available resources."""
+        """列出可用资源"""
         pass
 
     @abstractmethod
     async def read_resource(self, uri: str) -> str:
-        """Read a resource content."""
+        """读取资源内容"""
         pass
 
     @abstractmethod
     async def list_prompts(self) -> list[MCPPrompt]:
-        """List available prompts."""
+        """列出可用提示模板"""
         pass
 
     @abstractmethod
     async def get_prompt(self, name: str, arguments: dict[str, Any]) -> str:
-        """Get a prompt context."""
+        """获取提示模板内容"""
         pass
 
 
 class MCPClient(ABC):
     """
-    Abstract Interface for an MCP Client (consumer of tools/resources).
+    MCP 客户端抽象接口
+
+    定义 MCP 客户端（工具/资源消费者）必须实现的接口。
     """
 
     @abstractmethod
-    async def discover_capabilities(self):
-        """Discover tools and resources from connected servers."""
+    async def discover_capabilities(self) -> None:
+        """发现连接服务器的工具和资源"""
         pass
 
     @abstractmethod
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
-        """Execute a tool via the protocol."""
+        """通过协议执行工具"""
         pass

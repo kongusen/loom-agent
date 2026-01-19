@@ -1,5 +1,7 @@
 """
-Tool Converters (M4)
+Tool Converters - 工具转换器
+
+将Python函数转换为MCP工具定义。
 """
 
 import inspect
@@ -11,18 +13,27 @@ from loom.protocol.mcp import MCPToolDefinition
 
 class FunctionToMCP:
     """
-    Converts Python functions to MCP Tool Definitions.
+    将Python函数转换为MCP工具定义
+
+    使用inspect模块解析函数签名，自动生成工具定义。
     """
 
     @staticmethod
     def convert(func: Callable[..., Any], name: str | None = None) -> MCPToolDefinition:
         """
-        Introspects a python function and returns an MCP Tool Definition.
+        将Python函数转换为MCP工具定义
+
+        Args:
+            func: Python函数
+            name: 工具名称（可选，默认使用函数名）
+
+        Returns:
+            MCP工具定义
         """
         func_name = name or func.__name__
         doc = inspect.getdoc(func) or "No description provided."
 
-        # Parse arguments
+        # 解析函数签名
         sig = inspect.signature(func)
         type_hints = get_type_hints(func)
 
@@ -30,30 +41,43 @@ class FunctionToMCP:
         required = []
 
         for param_name, param in sig.parameters.items():
-            if param_name == "self" or param_name == "cls":
+            # 跳过self和cls参数
+            if param_name in ("self", "cls"):
                 continue
 
-            # Get type
+            # 获取参数类型
             py_type = type_hints.get(param_name, Any)
             json_type = FunctionToMCP._map_type(py_type)
 
-            prop_def = {"type": json_type}
+            properties[param_name] = {"type": json_type}
 
-            # TODO: Description from docstring parsing? (Google-style/NumPy-style)
-            # For now, just basic type.
-
-            properties[param_name] = prop_def
-
+            # 判断是否必需参数
             if param.default == inspect.Parameter.empty:
                 required.append(param_name)
 
-        input_schema = {"type": "object", "properties": properties, "required": required}
+        input_schema = {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+        }
 
-        return MCPToolDefinition(name=func_name, description=doc, input_schema=input_schema)
+        return MCPToolDefinition(
+            name=func_name,
+            description=doc,
+            input_schema=input_schema,
+        )
 
     @staticmethod
     def _map_type(py_type: type) -> str:
-        """Map Python type to JSON Schema type."""
+        """
+        将Python类型映射到JSON Schema类型
+
+        Args:
+            py_type: Python类型
+
+        Returns:
+            JSON Schema类型字符串
+        """
         if py_type == str:
             return "string"
         elif py_type == int:
@@ -67,4 +91,4 @@ class FunctionToMCP:
         elif py_type == dict or getattr(py_type, "__origin__", None) == dict:
             return "object"
         else:
-            return "string"  # Default fallback
+            return "string"  # 默认降级为string

@@ -1,374 +1,183 @@
 """
-LoomContext - Context Assembly Engine
+上下文管理 - Context Management
+
+基于第一性原理的上下文管理实现。
+
+核心功能：
+1. 精确的Token计数（集成TokenCounter）
+2. 智能的消息选择策略
+3. 可配置的上下文限制
+
+设计原则：
+- 策略模式：支持多种上下文选择策略
+- 精确计数：使用TokenCounter而非估算
+- 优先级保留：重要消息优先保留
 """
 
-from typing import Any
+from abc import ABC, abstractmethod
 
-from loom.config.memory import ContextConfig
-
-from .compression import ContextCompressor, MemoryCompressor
-from .core import LoomMemory
-from .strategies import StrategyFactory
-from .tokenizer import get_token_counter
-from .types import MemoryTier, MemoryUnit
+from loom.memory.tokenizer import TokenCounter
+from loom.memory.types import MemoryUnit
 
 
-class ContextAssembler:
+class ContextStrategy(ABC):
     """
-    Assembles memory units into an LLM-compatible prompt.
-    Handles curation, token budgeting, and formatting.
+    上下文选择策略抽象基类
+
+    定义上下文选择的统一接口。
     """
 
-    def __init__(
+    @abstractmethod
+    def select_context(
         self,
-        config: ContextConfig | None = None,
-        llm_provider: Any | None = None,
-        dispatcher: Any | None = None,
-    ):
-        self.config = config or ContextConfig()
-        self.strategy = StrategyFactory.create(self.config.strategy)
-        self.dispatcher = dispatcher
-
-        # Initialize Tokenizer (Default to cl100k_base for GPT-4)
-        self.token_counter = get_token_counter(self.config.tokenizer_encoding)
-
-        # Initialize Memory Compressor
-        self.compressor = MemoryCompressor(
-            llm_provider=llm_provider, token_threshold=self.config.curation_config.max_tokens // 2
-        )
-
-    async def assemble(
-        self, memory: LoomMemory, task: str | None = None, system_prompt: str | None = None
-    ) -> list[dict[str, Any]]:
+        units: list[MemoryUnit],
+        max_tokens: int,
+        token_counter: TokenCounter,
+    ) -> list[MemoryUnit]:
         """
-        Main entry point to build the context.
-        """
-
-        # 1. Curate
-        curated_units = await self.strategy.curate(
-            memory, self.config.curation_config, task_context=task
-        )
-        # Publish curation event
-        if self.dispatcher:
-            from loom.protocol.cloudevents import CloudEvent
-
-            await self.dispatcher.bus.publish(
-                CloudEvent(
-                    type="agent.context.curated",
-                    source=memory.node_id,
-                    data={"items_count": len(curated_units), "strategy": self.config.strategy},
-                )
-            )
-
-        # 1.5 Compression (Token-based trigger)
-        # Sort by time first to enable linear compression
-        curated_units.sort(key=lambda u: u.created_at)
-
-        # Check if we need compression using token count
-        token_count = self.compressor._count_tokens(curated_units)
-        if token_count > self.compressor.token_threshold:
-            # Publish compression event
-            if self.dispatcher:
-                from loom.protocol.cloudevents import CloudEvent
-
-                await self.dispatcher.bus.publish(
-                    CloudEvent(
-                        type="agent.context.compressing",
-                        source=memory.node_id,
-                        data={
-                            "original_tokens": token_count,
-                            "threshold": self.compressor.token_threshold,
-                            "items_before": len(curated_units),
-                        },
-                    )
-                )
-
-            # Compress history
-            curated_units = ContextCompressor.compress_history(curated_units)
-
-            # Add system notification about compression
-            from .types import MemoryTier, MemoryType, MemoryUnit
-
-            notification = MemoryUnit(
-                content=f"📦 System Notification: History compacted ({token_count} tokens compressed)",
-                tier=MemoryTier.L3_SESSION,
-                type=MemoryType.CONTEXT,
-                importance=0.6,
-            )
-            curated_units.insert(0, notification)
-
-        # 2. Sort by Importance (For Budgeting Priority)
-        # We want high importance items first in priority.
-        curated_units.sort(key=lambda u: (u.importance, u.created_at), reverse=True)
-
-        # 3. Budgeting & Selection (Dynamic)
-        selected_units = []
-        current_tokens = 0
-
-        # Calculate dynamic budget based on task complexity
-        max_tokens = self._calculate_dynamic_budget(task, memory)
-
-        # Publish budget allocation event
-        if self.dispatcher:
-            from loom.protocol.cloudevents import CloudEvent
-
-            await self.dispatcher.bus.publish(
-                CloudEvent(
-                    type="agent.context.budget_allocated",
-                    source=memory.node_id,
-                    data={"max_tokens": max_tokens, "available_items": len(curated_units)},
-                )
-            )
-
-        # Reserve space for system prompt
-        if system_prompt:
-            current_tokens += self._count_tokens_str(system_prompt)
-
-        for unit in curated_units:
-            msg = unit.to_message()
-            msg_tokens = self._count_tokens_msg(msg)
-
-            if current_tokens + msg_tokens > max_tokens:
-                continue  # Skip if over budget (greedy approach)
-
-            selected_units.append(unit)
-            current_tokens += msg_tokens
-
-            # Publish progressive loading event
-            if self.dispatcher:
-                from loom.protocol.cloudevents import CloudEvent
-
-                await self.dispatcher.bus.publish(
-                    CloudEvent(
-                        type="agent.context.item_loaded",
-                        source=memory.node_id,
-                        data={
-                            "tier": unit.tier.value,
-                            "type": unit.type.value,
-                            "tokens": msg_tokens,
-                            "total_tokens": current_tokens,
-                            "budget_used_percent": round((current_tokens / max_tokens) * 100, 2),
-                        },
-                    )
-                )
-
-        # Publish final budget summary
-        if self.dispatcher:
-            from loom.protocol.cloudevents import CloudEvent
-
-            await self.dispatcher.bus.publish(
-                CloudEvent(
-                    type="agent.context.budget_finalized",
-                    source=memory.node_id,
-                    data={
-                        "selected_items": len(selected_units),
-                        "total_items": len(curated_units),
-                        "tokens_used": current_tokens,
-                        "max_tokens": max_tokens,
-                        "budget_used_percent": round((current_tokens / max_tokens) * 100, 2),
-                        "items_skipped": len(curated_units) - len(selected_units),
-                    },
-                )
-            )
-
-        # 4. Final Ordering (Cache-Aware)
-        # Static/Long-term content first (System -> L4 -> L3 -> L2 -> L1)
-        # This increases KV cache hit rate for persistent prefixes.
-        if self.config.enable_prompt_caching:
-            selected_units.sort(key=lambda u: (u.tier.value, u.created_at))
-        else:
-            # Default chronological
-            selected_units.sort(key=lambda u: u.created_at)
-
-        # 5. Convert to Messages
-        messages = []
-
-        # System Prompt
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        # Add Units
-        for unit in selected_units:
-            messages.append(unit.to_message())
-
-        # Add Snippet Hint (Progressive Disclosure)
-        if self.config.curation_config.use_snippets:
-            load_hint = self._build_load_hint(selected_units)
-            if load_hint:
-                # Insert hint after system prompt
-                insert_idx = 1 if system_prompt else 0
-                messages.insert(insert_idx, {"role": "system", "content": load_hint})
-
-        # 6. Insert cache boundaries for prompt caching optimization
-        messages = self._insert_cache_boundaries(messages, selected_units)
-
-        return messages
-
-    def _count_tokens_msg(self, message: dict[str, str]) -> int:
-        """Count tokens in a message dict."""
-        text = str(message.get("content", ""))
-        return self.token_counter.count_string(text)
-
-    def _count_tokens_str(self, text: str) -> int:
-        """Count tokens in a string."""
-        return self.token_counter.count_string(text)
-
-    def _calculate_dynamic_budget(self, task: str | None, memory: LoomMemory) -> int:
-        """
-        Calculate dynamic token budget based on task complexity and context.
+        从记忆单元列表中选择上下文
 
         Args:
-            task: The task description
-            memory: LoomMemory instance
+            units: 候选记忆单元列表
+            max_tokens: 最大token数限制
+            token_counter: Token计数器
 
         Returns:
-            Adjusted token budget
+            选中的记忆单元列表
         """
-        base_budget = self.config.curation_config.max_tokens
+        pass
 
-        # Increase budget for complex tasks
-        complexity_indicators = [
-            "analyze",
-            "refactor",
-            "debug",
-            "explain",
-            "implement",
-            "design",
-            "architect",
-            "optimize",
-            "review",
-        ]
-        task_lower = task.lower() if task else ""
-        complexity_matches = sum(
-            1 for indicator in complexity_indicators if indicator in task_lower
-        )
 
-        if complexity_matches >= 2:
-            base_budget = int(base_budget * 1.5)  # 50% increase for very complex tasks
-        elif complexity_matches == 1:
-            base_budget = int(base_budget * 1.2)  # 20% increase for complex tasks
+class PriorityContextStrategy(ContextStrategy):
+    """
+    基于优先级的上下文选择策略
 
-        # Reduce budget if L4 has rich context (facts are more efficient)
-        l4_count = len([u for u in memory._l4_global if u.importance > 0.8])
-        if l4_count > 10:
-            base_budget = int(base_budget * 0.8)  # 20% reduction
-        elif l4_count > 5:
-            base_budget = int(base_budget * 0.9)  # 10% reduction
+    选择规则：
+    1. 按importance排序
+    2. 优先保留高importance的记忆单元
+    3. 在token限制内尽可能多地保留
+    """
 
-        # Ensure we don't exceed absolute maximum
-        max_absolute = getattr(self.config, "max_absolute_tokens", base_budget * 2)
-        return min(base_budget, max_absolute)
+    def select_context(
+        self,
+        units: list[MemoryUnit],
+        max_tokens: int,
+        token_counter: TokenCounter,
+    ) -> list[MemoryUnit]:
+        """选择高优先级的记忆单元"""
+        if not units:
+            return []
 
-    def _build_load_hint(self, units: list[MemoryUnit]) -> str | None:
-        """Build hint string for loadable resources."""
-        loadable = [u for u in units if u.metadata.get("full_available")]
+        # 按importance降序排序
+        sorted_units = sorted(units, key=lambda u: u.importance, reverse=True)
 
-        if not loadable:
-            return None
+        selected = []
+        current_tokens = 0
 
-        hint = "📚 Available Resources (use load_context to access):\n"
-        for unit in loadable[:5]:  # Limit to top 5
-            snippet_id = unit.metadata.get("snippet_of")
-            hint += f"- {unit.content} [ID: {snippet_id}]\n"
+        for unit in sorted_units:
+            # 计算当前单元的token数
+            unit_tokens = token_counter.count(str(unit.content))
 
-        return hint
+            # 检查是否超过限制
+            if current_tokens + unit_tokens <= max_tokens:
+                selected.append(unit)
+                current_tokens += unit_tokens
+            else:
+                # 已达到token限制
+                break
 
-    def expand_snippet(self, memory: LoomMemory, snippet_id: str) -> MemoryUnit | None:
-        """Resolve a snippet ID to the full memory unit."""
-        return memory.get(snippet_id)
+        return selected
 
-    def _insert_cache_boundaries(
-        self, messages: list[dict[str, Any]], selected_units: list[MemoryUnit]
-    ) -> list[dict[str, Any]]:
-        """Insert cache_control markers at strategic points for prompt caching."""
-        if not self.config.enable_prompt_caching:
-            return messages
 
-        # Mark system prompt for caching (first message)
-        if messages and messages[0].get("role") == "system":
-            messages[0]["cache_control"] = {"type": "ephemeral"}
+class SlidingWindowStrategy(ContextStrategy):
+    """
+    滑动窗口策略
 
-        # Find L4 facts boundary
-        l4_boundary_idx = None
-        for i, unit in enumerate(selected_units):
-            if unit.tier == MemoryTier.L4_GLOBAL:
-                l4_boundary_idx = i
+    选择规则：
+    1. 保留最近的N个记忆单元
+    2. 按时间顺序（created_at）排序
+    3. 在token限制内从最新开始选择
+    """
 
-        # Mark L4 boundary in messages (static content)
-        if l4_boundary_idx is not None and l4_boundary_idx < len(messages) - 1:
-            # Find corresponding message index (accounting for system prompt)
-            msg_idx = l4_boundary_idx + (
-                1 if messages and messages[0].get("role") == "system" else 0
-            )
-            if msg_idx < len(messages):
-                messages[msg_idx]["cache_control"] = {"type": "ephemeral"}
+    def select_context(
+        self,
+        units: list[MemoryUnit],
+        max_tokens: int,
+        token_counter: TokenCounter,
+    ) -> list[MemoryUnit]:
+        """选择最近的记忆单元"""
+        if not units:
+            return []
 
-        return messages
+        # 按时间降序排序（最新的在前）
+        sorted_units = sorted(units, key=lambda u: u.created_at, reverse=True)
+
+        selected = []
+        current_tokens = 0
+
+        for unit in sorted_units:
+            # 计算当前单元的token数
+            unit_tokens = token_counter.count(str(unit.content))
+
+            # 检查是否超过限制
+            if current_tokens + unit_tokens <= max_tokens:
+                selected.append(unit)
+                current_tokens += unit_tokens
+            else:
+                break
+
+        # 恢复时间顺序（旧的在前）
+        selected.reverse()
+        return selected
 
 
 class ContextManager:
     """
-    High-level facade for Agent interaction.
+    上下文管理器
+
+    负责管理上下文的构建和选择。
+
+    使用方式：
+        manager = ContextManager(
+            token_counter=TiktokenCounter("gpt-4"),
+            strategy=PriorityContextStrategy(),
+            max_tokens=4000
+        )
+        context = manager.build_context(memory_units)
     """
 
-    def __init__(self, node_id: str, memory: LoomMemory, assembler: ContextAssembler):
-        self.node_id = node_id
-        self.memory = memory
-        self.assembler = assembler
+    def __init__(
+        self,
+        token_counter: TokenCounter,
+        strategy: ContextStrategy | None = None,
+        max_tokens: int = 4000,
+    ):
+        """
+        初始化上下文管理器
 
-        self.last_snapshot: list[dict[str, Any]] = []
+        Args:
+            token_counter: Token计数器
+            strategy: 上下文选择策略（默认使用滑动窗口）
+            max_tokens: 最大token数限制
+        """
+        self.token_counter = token_counter
+        self.strategy = strategy or SlidingWindowStrategy()
+        self.max_tokens = max_tokens
 
-    async def build_prompt(
-        self, task: str, system_prompt: str | None = None
-    ) -> list[dict[str, Any]]:
-        """Build the complete prompt for the current context."""
-        messages = await self.assembler.assemble(
-            self.memory, task=task, system_prompt=system_prompt
-        )
+    def build_context(
+        self,
+        units: list[MemoryUnit],
+        max_tokens: int | None = None,
+    ) -> list[MemoryUnit]:
+        """
+        构建上下文
 
-        self.last_snapshot = messages
-        return messages
+        Args:
+            units: 候选记忆单元列表
+            max_tokens: 最大token数（覆盖默认值）
 
-    async def load_resource(self, resource_id: str) -> str:
-        """Load a resource from snippet ID into working memory."""
-        unit = self.assembler.expand_snippet(self.memory, resource_id)
-
-        if not unit:
-            return f"❌ Resource {resource_id} not found"
-
-        # Clone/Promote to L2 Working Memory
-        # We create a NEW unit based on the full content
-        # Or we can just link it?
-        # For now, we clone content to L2 so it appears in next prompt
-        new_unit = MemoryUnit(
-            content=unit.content,  # Full content
-            tier=MemoryTier.L2_WORKING,
-            type=unit.type,
-            metadata={**unit.metadata, "loaded_from": resource_id},
-            importance=1.0,  # High importance as requested
-        )
-        await self.memory.add(new_unit)
-
-        return f"✅ Loaded Resource: {resource_id}"
-
-    def get_context_stats(self) -> dict[str, Any]:
-        """Get debug stats."""
-        return {
-            "last_message_count": len(self.last_snapshot),
-            "memory_stats": self.memory.get_statistics(),
-        }
-
-    def visualize(self) -> str:
-        """Debug visualization of the context."""
-        viz = "=" * 60 + "\n"
-        viz += f"Context Snapshot for Node: {self.node_id}\n"
-        viz += "=" * 60 + "\n\n"
-
-        for i, msg in enumerate(self.last_snapshot):
-            role = msg.get("role", "unknown")
-            content = str(msg.get("content", ""))[:100]
-            viz += f"[{i}] {role.upper()}: {content}...\n\n"
-
-        viz += "=" * 60 + "\n"
-
-        return viz
+        Returns:
+            选中的记忆单元列表
+        """
+        tokens = max_tokens or self.max_tokens
+        return self.strategy.select_context(units, tokens, self.token_counter)

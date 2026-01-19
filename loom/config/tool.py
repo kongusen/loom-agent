@@ -1,57 +1,44 @@
 """
-Tool Configuration & Factory
+工具配置 (Tool Configuration)
+
+提供工具相关的配置选项。
+
+基于 Phase 4 配置系统
 """
 
-import importlib
-import os
-from typing import Any
-
-from pydantic import BaseModel, Field
-
-from loom.kernel.core import Dispatcher
-from loom.node.tool import ToolNode
-from loom.protocol.mcp import MCPToolDefinition
+from loom.config.base import LoomBaseConfig
 
 
-class ToolConfig(BaseModel):
+class ToolConfig(LoomBaseConfig):
     """
-    Configuration for a Tool.
+    工具配置
+
+    管理工具的注册和使用
     """
 
-    name: str
-    description: str = ""
-    python_path: str = Field(
-        ..., description="Dot-path to the python function e.g. 'my_pkg.tools.search'"
-    )
-    parameters: dict[str, Any] = Field(default_factory=dict, description="Input schema properties")
-    env_vars: dict[str, str] = Field(default_factory=dict)
+    enabled: bool = True
+    """是否启用工具系统"""
 
+    auto_register: bool = True
+    """是否自动注册工具"""
 
-class ToolFactory:
-    """
-    Factory to load valid ToolConfigs into ToolNodes.
-    """
+    tool_timeout: int = 30
+    """单个工具的默认超时时间（秒）"""
 
-    @staticmethod
-    def create_node(config: ToolConfig, node_id: str, dispatcher: Dispatcher) -> ToolNode:
-        # 1. Load function
-        module_name, func_name = config.python_path.rsplit(".", 1)
-        try:
-            mod = importlib.import_module(module_name)
-            func = getattr(mod, func_name)
-        except (ImportError, AttributeError) as e:
-            raise ValueError(f"Could not load tool function {config.python_path}: {e}") from e
+    max_tool_calls: int = 10
+    """单次对话中允许的最大工具调用次数"""
 
-        # 2. Apply Env Vars
-        for k, v in config.env_vars.items():
-            os.environ[k] = v
+    require_confirmation: bool = False
+    """是否需要用户确认才能执行工具"""
 
-        # 3. Create Definition
-        tool_def = MCPToolDefinition(
-            name=config.name,
-            description=config.description,
-            input_schema={"type": "object", "properties": config.parameters},
-        )
+    allowed_tools: list[str] | None = None
+    """允许使用的工具列表（None 表示允许所有）"""
 
-        # 4. Create Node
-        return ToolNode(node_id=node_id, dispatcher=dispatcher, tool_def=tool_def, func=func)
+    blocked_tools: list[str] | None = None
+    """禁止使用的工具列表"""
+
+    enable_tool_cache: bool = True
+    """是否启用工具结果缓存"""
+
+    cache_ttl: int = 300
+    """缓存过期时间（秒）"""

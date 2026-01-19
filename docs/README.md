@@ -1,93 +1,60 @@
-# Loom Agent 文档
+# Loom Documentation
 
-> 基于认知动力学的事件驱动 Agent 框架
+Welcome to Loom.
 
-## 🚀 快速开始
+Loom is a framework for building **Cognitive Organisms**—AI agents that can scale to infinite complexity and duration.
 
-**5 分钟上手：**
+This documentation is structured to take you from the "Why" to the "How".
 
-```python
-from loom.weave import create_agent, run
+## 1. The Goal (Why?)
 
-agent = create_agent("助手", role="通用助手")
-result = run(agent, "你好，请介绍一下自己")
-```
+Before writing a line of code, understand why Loom exists.
 
-👉 [完整快速开始指南](getting-started/quickstart.md)
+*   **[Context](concepts/axiomatic-framework.md#part-0-teleological-goal)**: We are hitting the "Cognitive Entropy" wall.
+*   **[The Solution](README.md#)**: Fractal Architecture (for Complexity) and Metabolic Memory (for Time).
 
----
+## 2. The Laws (Axioms)
 
-## 📚 文档导航
+The system is built on 5 immutable laws. Understanding them explains every design decision.
 
-本文档基于 [Diátaxis](https://diataxis.fr/) 框架组织，分为四个部分：
+*   **[Axiomatic Framework](concepts/axiomatic-framework.md)**: The mathematical foundation of the system.
 
-### 📖 [教程 (Tutorials)](tutorials/)
-**学习导向** - 循序渐进地学习 loom-agent
+## 3. The Engine (Framework)
 
-- [创建你的第一个 Agent](tutorials/01-your-first-agent.md)
-- [添加技能到 Agent](tutorials/02-adding-skills.md)
-- [构建 Agent 团队](tutorials/03-building-teams.md)
-- [使用 YAML 配置](tutorials/04-yaml-configuration.md)
+How the machine works under the hood.
 
-### 🛠️ [操作指南 (How-to Guides)](guides/)
-**问题导向** - 解决具体问题
+*   **[Fractal Architecture](framework/fractal-architecture.md)**: How Loom solves "Spatial Entropy" through infinite recursion.
+*   **[Context Management](framework/context-management.md)**: Intelligent context building and token optimization.
+*   **[The Event Nervous System](framework/event-bus.md)**: How agents communicate (Axiom 2).
 
-- [Agents](guides/agents/) - 创建和配置 Agent
-- [分形节点](guides/fractal-nodes.md) - 构建自组织 Agent 结构
-- [记忆优化](guides/memory-optimization.md) - 记忆系统优化和最佳实践
-- [双系统使用](guides/dual-system-usage.md) - System 1/2 配置指南
-- [LLM 流式调用](guides/llm-streaming.md) - 处理流式工具调用
-- [结构化输出](guides/structured-output.md) - Claude/Gemini JSON 输出指南
-- [Skills](guides/skills/) - 开发自定义技能
-- [Configuration](guides/configuration/) - 配置和部署
-- [Deployment](guides/deployment/) - 生产环境部署
+## 4. The Capabilities (Features)
 
-### 💡 [概念 (Concepts)](concepts/)
-**理解导向** - 深入理解核心概念
+What the agents can actually *do*.
 
-- [架构设计](concepts/architecture.md)
-- [认知动力学](concepts/cognitive-dynamics.md)
-- [设计哲学](concepts/design-philosophy.md)
-- [记忆系统](concepts/memory_system.md)
-- [双系统思维](concepts/dual-system.md)
-- [Agent 节点](concepts/agent-node.md)
-- [协议设计](concepts/protocol.md)
+*   **[Memory System](features/memory-system.md)**: Four-layer hierarchical memory (L1-L4) with automatic promotion and compression.
+*   **[External Knowledge Base](features/external-knowledge-base.md)**: Integrate domain knowledge from multiple sources.
+*   **[Search & Retrieval](features/search-and-retrieval.md)**: Semantic search across memory layers using embeddings.
+*   **[Tool System](features/tool-system.md)**: Interacting with the outside world (Axiom 6).
+*   **[Orchestration](features/orchestration.md)**: Patterns for Delegation, Routing, and Crew collaboration (Axiom 5).
 
-### 📚 [API 参考 (Reference)](reference/)
-**信息导向** - 完整的 API 文档
+## 5. The Manual (Usage)
 
-- [loom.weave API](reference/api/weave.md)
-- [loom.stdlib API](reference/api/stdlib.md)
-- [配置参考](reference/api/config.md)
-- [示例代码](reference/examples/)
+Ready to build? Start here.
+
+*   **[Getting Started](usage/getting-started.md)**: Build your first agent in 5 minutes.
+*   **[API Reference](usage/api-reference.md)**: Comprehensive guide to the SDK (Levels 1-4).
+
+## 6. Pattern Language
+
+Recurring solutions to common problems.
+
+*   **[Solving Complexity](patterns/solving-complexity.md)**: How to break down "Impossible Tasks".
 
 ---
 
-## 🎯 根据你的需求选择
+## 📂 Archive
 
-**我是新手，想快速上手：**
-→ 从 [快速开始](getting-started/quickstart.md) 开始
+Legacy design documents and implementation plans.
 
-**我想系统学习：**
-→ 按顺序阅读 [教程](tutorials/)
-
-**我遇到了具体问题：**
-→ 查看 [操作指南](guides/)
-
-**我想深入理解原理：**
-→ 阅读 [概念文档](concepts/)
-
-**我需要查 API：**
-→ 查阅 [API 参考](reference/)
-
----
-
-## 🔬 技术文档
-
-深入的技术设计和实现文档：
-
-- [BGE Embedding 优化](bge_embedding_optimization.md) - ONNX + Int8 量化优化
-- [L4 压缩设计](l4_compression_design.md) - 知识库自动压缩机制
-- [投影策略设计](projection_strategy_design.md) - 上下文投影完整方案
-- [投影优化分析](projection_optimization_analysis.md) - 投影系统分析
-- [通用框架投影](projection_for_general_framework.md) - 通用框架投影建议
+*   [Legacy Plans](archive/legacy-plans/)
+*   [Legacy Analysis](archive/legacy-analysis/)

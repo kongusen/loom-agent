@@ -3,6 +3,86 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.4.0-alpha] - 2026-01-19
+
+### 🎯 The "Axiomatic Framework" Release
+
+Loom v0.4.0-alpha represents a fundamental shift in the framework's theoretical foundation. This release introduces a formal axiomatic system that defines the core principles of cognitive organisms, reorganizes the entire documentation structure, and emphasizes the framework's mission to counter cognitive entropy.
+
+### 🧩 Core Philosophy
+
+#### 1. Axiomatic Framework
+- **5 Foundational Axioms**: Established a formal mathematical foundation for the framework
+  - **Axiom A1 (Uniform Interface)**: All nodes implement `NodeProtocol`
+  - **Axiom A2 (Event Sovereignty)**: All communication through standardized task models
+  - **Axiom A3 (Fractal Composition)**: Nodes recursively compose with O(1) complexity
+  - **Axiom A4 (Memory Metabolism)**: Information transforms into knowledge through metabolism
+  - **Axiom A5 (Cognitive Emergence)**: Cognition emerges from orchestration interactions
+- **Theoretical Foundation**: Every design decision now derives from these axioms
+- **Cognitive Organisms**: Shifted focus from "production-grade systems" to building cognitive life forms
+
+#### 2. Countering Cognitive Entropy
+- **Spatial Entropy**: Fractal architecture maintains O(1) local complexity at infinite depth
+- **Temporal Entropy**: Metabolic memory transforms flowing experience into fixed knowledge
+- **Ultimate Goal**: Reliable operation at infinite complexity and infinite time
+
+### 📚 Documentation Overhaul
+
+#### 3. New Documentation Structure
+- **Removed**: Old `docs/en/` and `docs/zh/` bilingual structure
+- **New Organization**:
+  - `docs/concepts/` - Theoretical foundations and axiomatic framework
+  - `docs/usage/` - User guides and API references
+  - `docs/framework/` - Core architecture documentation
+  - `docs/features/` - Feature-specific documentation
+  - `docs/patterns/` - Design patterns and best practices
+  - `docs/optimization/` - Performance optimization guides
+  - `docs/archive/` - Legacy documentation
+- **Axiomatic Framework Document**: Comprehensive theoretical foundation document
+- **Updated Navigation**: Restructured documentation index for better discoverability
+
+#### 4. Updated README Files
+- **README.md** (Chinese): Updated to reflect v0.4.0-alpha features and new doc structure
+- **README_EN.md** (English): Updated to reflect v0.4.0-alpha features and new doc structure
+- **CONTRIBUTING.md**: Updated with new documentation structure guidelines
+- **Core Features**: Reorganized to emphasize axiomatic foundation and cognitive organisms
+
+### 🛡️ Protocol Evolution
+
+#### 5. Google A2A Protocol Integration
+- **Task-Based Communication**: All interactions now explicitly based on Google A2A protocol
+- **SSE Transport**: Server-Sent Events for real-time streaming
+- **Standard Task Model**: Formalized task structure with status, parameters, and results
+
+### 🎯 API Refinements
+
+#### 6. FastAPI-Style API Emphasis
+- **Type Safety**: Pydantic-based configuration models highlighted
+- **LoomApp + AgentConfig**: Simplified agent creation pattern
+- **Unified Management**: Centralized event bus and dispatcher management
+
+### 📖 Documentation Content
+
+#### 7. Enhanced Conceptual Documentation
+- **Fractal Architecture**: Detailed explanation of complexity conservation
+- **Memory System**: Emphasis on metabolic processes and entropy reduction
+- **Event Bus**: Clarified as the "nervous system" of cognitive organisms
+- **Tool System**: Updated to reflect protocol-first approach
+
+### 🔄 Breaking Changes
+
+- **Documentation Paths**: All documentation links updated to new structure
+  - Old: `docs/en/README.md`, `docs/zh/README.md`
+  - New: `docs/README.md` with organized subdirectories
+- **Conceptual Framing**: Shift from "production systems" to "cognitive organisms"
+- **Theoretical Emphasis**: Framework now explicitly grounded in axiomatic system
+
+### 📝 Notes
+
+This is an **alpha release** focused on establishing the theoretical foundation and documentation structure. The core implementation remains stable from v0.3.8, but the conceptual framework and documentation have been fundamentally reorganized to better communicate the framework's unique approach to building AI agents.
+
+---
+
 ## [0.3.8] - 2026-01-14
 
 ### 🎯 The "PostgreSQL Vector Store" Release

@@ -1,282 +1,195 @@
 """
-Unified Token Counter Service
+Token Counter - Token 计数器
 
-Consolidates token counting logic from context.py and compression.py
-to eliminate duplication and provide consistent token counting across
-the memory and context systems.
+提供统一的 token 计数接口，支持多种 LLM 的 tokenizer。
+
+设计原则：
+1. 抽象接口 - 支持多种实现
+2. 缓存优化 - 使用 LRU 缓存提升性能
+3. 降级策略 - 提供估算模式作为后备
 """
 
-from typing import Any, Optional
-
-try:
-    import tiktoken
-except ImportError:
-    tiktoken = None  # type: ignore
-
-from loom.memory.types import MemoryUnit
+from abc import ABC, abstractmethod
 
 
-class TokenCounter:
+class TokenCounter(ABC):
     """
-    Singleton token counter service using tiktoken.
+    Token 计数器抽象基类
 
-    Replaces:
-    - context.py::ContextAssembler._count_tokens_msg
-    - context.py::ContextAssembler._count_tokens_str
-    - compression.py::MemoryCompressor._count_tokens
-
-    Benefits:
-    - Single source of truth for token counting
-    - LRU cache to avoid recalculating tokens for identical content
-    - Consistent encoding across memory and context systems
-    - Support for multiple input types (strings, messages, units, lists)
-    - Fallback when tiktoken is unavailable
+    所有 token 计数器必须实现此接口。
     """
 
-    _instance: Optional["TokenCounter"] = None
-    _initialized = False
-
-    def __new__(cls, _encoding: str = "cl100k_base") -> "TokenCounter":
-        """Implement singleton pattern."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self, encoding: str = "cl100k_base"):
-        """Initialize token counter (only once due to singleton)."""
-        if self._initialized:
-            return
-
-        self.encoding_name = encoding
-        self.encoder: Any | None = None
-        if tiktoken is None:
-            print("tiktoken not available, falling back to simple token estimation")
-            self.encoder = None
-        else:
-            try:
-                self.encoder = tiktoken.get_encoding(encoding)
-            except Exception as e:
-                print(f"Failed to load tiktoken encoding '{encoding}': {e}")
-                print("Falling back to simple token estimation")
-                self.encoder = None
-
-        # Instance-level cache to avoid memory leaks from lru_cache on methods
-        self._cache: dict[str, int] = {}
-        self._cache_maxsize = 2048
-        self._cache_hits = 0
-        self._cache_misses = 0
-
-        self._initialized = True
-
-    def count_string(self, text: str) -> int:
+    @abstractmethod
+    def count(self, text: str) -> int:
         """
-        Count tokens in a string.
-
-        Replaces:
-        - context.py::ContextAssembler._count_tokens_str
+        计算文本的 token 数
 
         Args:
-            text: Text to count tokens for
+            text: 要计算的文本
 
         Returns:
-            Number of tokens
+            token 数量
         """
+        pass
+
+    @abstractmethod
+    def count_messages(self, messages: list[dict]) -> int:
+        """
+        计算消息列表的 token 数
+
+        Args:
+            messages: 消息列表，格式为 [{"role": "user", "content": "..."}]
+
+        Returns:
+            总 token 数量
+        """
+        pass
+
+
+class EstimateCounter(TokenCounter):
+    """
+    估算计数器 - 使用简单的字符数估算
+
+    规则：1 token ≈ 4 字符（英文）或 1.5 字符（中文）
+
+    适用场景：
+    - 没有对应 tokenizer 的模型
+    - 不需要精确计数的场景
+    - 作为其他计数器的后备
+    """
+
+    def __init__(self, chars_per_token: float = 4.0):
+        """
+        初始化估算计数器
+
+        Args:
+            chars_per_token: 每个 token 的平均字符数
+        """
+        self.chars_per_token = chars_per_token
+
+    def count(self, text: str) -> int:
+        """计算文本的 token 数（估算）"""
         if not text:
             return 0
+        return max(1, int(len(text) / self.chars_per_token))
 
-        # Try to use cached encoding
-        return self._encode_cached(text)
-
-    def count_message(self, message: dict[str, str]) -> int:
-        """
-        Count tokens in a message dictionary.
-
-        Replaces:
-        - context.py::ContextAssembler._count_tokens_msg
-
-        Args:
-            message: Message dict with 'content' key (and optionally 'role')
-
-        Returns:
-            Number of tokens
-        """
-        if not message:
-            return 0
-
-        # Extract content and encode
-        content = str(message.get("content", ""))
-
-        # Account for message formatting overhead
-        # Role field adds minimal overhead (~2-3 tokens per message)
-        role_tokens = 3
-
-        return self._encode_cached(content) + role_tokens
-
-    def count_memory_units(self, units: list[MemoryUnit]) -> int:
-        """
-        Count total tokens in a list of memory units.
-
-        Replaces:
-        - compression.py::MemoryCompressor._count_tokens
-
-        Args:
-            units: List of MemoryUnit objects
-
-        Returns:
-            Total number of tokens
-        """
-        if not units:
-            return 0
-
-        total = 0
-        for unit in units:
-            total += self.count_unit(unit)
-
-        return total
-
-    def count_unit(self, unit: MemoryUnit) -> int:
-        """
-        Count tokens in a single memory unit.
-
-        Args:
-            unit: MemoryUnit to count
-
-        Returns:
-            Number of tokens
-        """
-        if not unit or not unit.content:
-            return 0
-
-        content_str = str(unit.content)
-        return self._encode_cached(content_str)
-
-    def count_messages(self, messages: list[dict[str, str]]) -> int:
-        """
-        Count total tokens in a list of messages.
-
-        Args:
-            messages: List of message dicts
-
-        Returns:
-            Total number of tokens
-        """
-        if not messages:
-            return 0
-
+    def count_messages(self, messages: list[dict]) -> int:
+        """计算消息列表的 token 数（估算）"""
         total = 0
         for msg in messages:
-            total += self.count_message(msg)
-
+            # 消息格式开销：约 4 tokens
+            total += 4
+            # 角色
+            total += self.count(msg.get("role", ""))
+            # 内容
+            total += self.count(msg.get("content", ""))
         return total
 
-    # ============================================================================
-    # Estimation Fallback
-    # ============================================================================
 
-    def estimate_tokens(self, text: str) -> int:
+class TiktokenCounter(TokenCounter):
+    """
+    Tiktoken 计数器 - 用于 OpenAI 模型
+
+    使用 OpenAI 的 tiktoken 库进行精确计数。
+
+    支持的模型：
+    - gpt-4, gpt-4-turbo, gpt-4o
+    - gpt-3.5-turbo
+    - text-embedding-ada-002
+    """
+
+    def __init__(self, model: str = "gpt-4"):
         """
-        Estimate tokens when tiktoken is unavailable.
-
-        Rule of thumb: ~4 characters ≈ 1 token for English text
+        初始化 Tiktoken 计数器
 
         Args:
-            text: Text to estimate
-
-        Returns:
-            Estimated token count
+            model: OpenAI 模型名称
         """
-        return max(1, len(text) // 4)
+        self.model = model
+        self._encoding = None
+        self._load_encoding()
 
-    # ============================================================================
-    # Internal Methods with Caching
-    # ============================================================================
+    def _load_encoding(self):
+        """加载 tiktoken encoding"""
+        try:
+            import tiktoken
 
-    def _encode_cached(self, text: str) -> int:
-        """
-        Encode text with caching.
+            try:
+                self._encoding = tiktoken.encoding_for_model(self.model)
+            except KeyError:
+                # 如果模型不支持，使用默认的 cl100k_base（GPT-4）
+                self._encoding = tiktoken.get_encoding("cl100k_base")
+        except ImportError:
+            # tiktoken 未安装，降级到估算模式
+            self._encoding = None
 
-        Uses instance-level cache to avoid re-encoding identical strings.
-        This is important for repeated content like system prompts.
-
-        Args:
-            text: Text to encode
-
-        Returns:
-            Number of tokens
-        """
+    def count(self, text: str) -> int:
+        """计算文本的 token 数（精确）"""
         if not text:
             return 0
 
-        # Check cache first
-        if text in self._cache:
-            self._cache_hits += 1
-            return self._cache[text]
+        if self._encoding is None:
+            # 降级到估算模式
+            return EstimateCounter().count(text)
 
-        # Cache miss
-        self._cache_misses += 1
+        return len(self._encoding.encode(text))
 
-        # Encode and cache result
-        if self.encoder:
-            try:
-                tokens = self.encoder.encode(text)
-                result = len(tokens)
-            except Exception as e:
-                print(f"Error encoding text with tiktoken: {e}")
-                result = self.estimate_tokens(text)
-        else:
-            result = self.estimate_tokens(text)
-
-        # Add to cache with LRU eviction
-        if len(self._cache) >= self._cache_maxsize:
-            # Remove oldest entry (first key)
-            self._cache.pop(next(iter(self._cache)))
-        self._cache[text] = result
-
-        return result
-
-    # ============================================================================
-    # Statistics and Cache Management
-    # ============================================================================
-
-    def get_cache_info(self) -> dict[str, int]:
+    def count_messages(self, messages: list[dict]) -> int:
         """
-        Get cache statistics for the internal encoding cache.
+        计算消息列表的 token 数（精确）
 
-        Returns:
-            Dictionary with hits, misses, currsize, maxsize
+        参考 OpenAI 的计算方法：
+        https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
         """
-        return {
-            "hits": self._cache_hits,
-            "misses": self._cache_misses,
-            "currsize": len(self._cache),
-            "maxsize": self._cache_maxsize,
-        }
+        if self._encoding is None:
+            # 降级到估算模式
+            return EstimateCounter().count_messages(messages)
 
-    def clear_cache(self):
-        """Clear the encoding cache."""
-        self._cache.clear()
-        self._cache_hits = 0
-        self._cache_misses = 0
+        total = 3  # 每个消息列表的固定开销
+
+        for msg in messages:
+            total += 3  # 每条消息的固定开销
+            total += self.count(msg.get("role", ""))
+            total += self.count(msg.get("content", ""))
+
+            # 如果有 name 字段
+            if "name" in msg:
+                total += self.count(msg["name"])
+                total -= 1  # name 字段会减少 1 个 token
+
+        return total
 
 
-# Module-level convenience access
-_counter: TokenCounter | None = None
-
-
-def get_token_counter(encoding: str = "cl100k_base") -> TokenCounter:
+class AnthropicCounter(TokenCounter):
     """
-    Get the singleton TokenCounter instance.
+    Anthropic 计数器 - 用于 Claude 模型
 
-    This is the recommended way to access the token counter across
-    the application to ensure consistent token counting.
+    Anthropic 使用自己的 tokenizer，规则：
+    - 英文：约 3.5 字符/token
+    - 中文：约 1.5 字符/token
 
-    Args:
-        encoding: Tiktoken encoding name (default: cl100k_base for GPT-4)
-
-    Returns:
-        TokenCounter singleton instance
+    由于 Anthropic 没有公开的 tokenizer 库，使用估算方法。
     """
-    global _counter
-    if _counter is None:
-        _counter = TokenCounter(encoding)
-    return _counter
+
+    def __init__(self):
+        """初始化 Anthropic 计数器"""
+        # Anthropic 的平均字符/token 比率
+        self.chars_per_token = 3.5
+
+    def count(self, text: str) -> int:
+        """计算文本的 token 数（估算）"""
+        if not text:
+            return 0
+        return max(1, int(len(text) / self.chars_per_token))
+
+    def count_messages(self, messages: list[dict]) -> int:
+        """计算消息列表的 token 数（估算）"""
+        total = 0
+        for msg in messages:
+            # 消息格式开销
+            total += 3
+            # 角色
+            total += self.count(msg.get("role", ""))
+            # 内容
+            total += self.count(msg.get("content", ""))
+        return total

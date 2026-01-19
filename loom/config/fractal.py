@@ -1,293 +1,139 @@
 """
-Fractal Node Configuration
+Fractal Configuration - 分形编排配置
 
-Configuration for self-organizing fractal node structures that enable
-adaptive task decomposition and dynamic agent orchestration.
+配置分形自相似结构的参数，支持递归任务分解和动态编排。
+
+基于公理A3（分形自相似公理）：
+配置分形增长、修剪和策略选择。
+
+设计原则：
+1. 可控增长 - 限制深度和节点数
+2. 智能触发 - 基于复杂度自动增长
+3. 性能优化 - 自动修剪低效节点
 """
 
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+
+from pydantic import Field
+
+from loom.config.base import LoomBaseConfig
 
 
-class NodeRole(Enum):
-    """Node roles in the fractal structure"""
+class GrowthTrigger(str, Enum):
+    """
+    增长触发条件
 
-    COORDINATOR = "coordinator"  # Decomposes tasks and delegates
-    SPECIALIST = "specialist"  # Handles domain-specific tasks
-    EXECUTOR = "executor"  # Leaf node that executes tasks directly
-    AGGREGATOR = "aggregator"  # Combines results from multiple nodes
+    定义何时触发分形增长。
+    """
 
-
-class GrowthTrigger(Enum):
-    """When to trigger fractal growth"""
-
-    COMPLEXITY = "complexity"  # When task complexity is high (formerly SYSTEM2)
-    ALWAYS = "always"  # Always evaluate for growth
-    MANUAL = "manual"  # Only when explicitly requested
-    NEVER = "never"  # Disable fractal mode entirely
+    COMPLEXITY = "complexity"  # 基于任务复杂度
+    ALWAYS = "always"  # 总是评估增长
+    MANUAL = "manual"  # 仅手动触发
+    NEVER = "never"  # 禁用分形模式
 
 
-class GrowthStrategy(Enum):
-    """Strategy for node growth"""
+class GrowthStrategy(str, Enum):
+    """
+    增长策略
 
-    DECOMPOSE = "decompose"  # Split into sequential subtasks (1→N chain)
-    SPECIALIZE = "specialize"  # Create domain experts (1→N star)
-    PARALLELIZE = "parallelize"  # Clone for parallel execution (1→N parallel)
-    ITERATE = "iterate"  # Create iterative refinement loop
+    定义节点增长的方式。
+    """
+
+    DECOMPOSE = "decompose"  # 分解为顺序子任务
+    SPECIALIZE = "specialize"  # 创建领域专家
+    PARALLELIZE = "parallelize"  # 并行执行
+    ITERATE = "iterate"  # 迭代优化
 
 
-@dataclass
-class FractalConfig:
-    """Configuration for fractal node behavior"""
+class FractalConfig(LoomBaseConfig):
+    """
+    分形配置
 
-    # === Core Settings ===
-    enabled: bool = False
-    """Enable fractal mode (self-organizing structure)"""
+    配置分形编排的行为和限制。
+    """
 
-    growth_trigger: GrowthTrigger = GrowthTrigger.COMPLEXITY
-    """When to trigger automatic growth"""
-
-    # === Structure Limits ===
-    max_depth: int = 3
-    """Maximum depth of the node tree (0 = root only)"""
-
-    max_children: int = 5
-    """Maximum children per node"""
-
-    max_total_nodes: int = 20
-    """Maximum total nodes in the structure (防止爆炸性增长)"""
-
-    # === Growth Thresholds ===
-    complexity_threshold: float = 0.7
-    """Task complexity score (0-1) to trigger growth"""
-
-    confidence_threshold: float = 0.6
-    """Minimum confidence to NOT grow (低于此值则分解)"""
-
-    token_threshold: int = 4000
-    """Token budget threshold to trigger decomposition"""
-
-    # === Pruning Settings ===
-    enable_auto_pruning: bool = True
-    """Automatically remove inefficient nodes"""
-
-    pruning_threshold: float = 0.3
-    """Minimum fitness score to keep a node"""
-
-    min_tasks_before_pruning: int = 3
-    """Minimum task count before considering pruning"""
-
-    # === Strategy Selection ===
-    default_strategy: GrowthStrategy = GrowthStrategy.DECOMPOSE
-    """Default growth strategy when auto-detection fails"""
-
-    strategy_keywords: dict[GrowthStrategy, list[str]] = field(
-        default_factory=lambda: {
-            GrowthStrategy.DECOMPOSE: ["step", "phase", "sequential", "order"],
-            GrowthStrategy.SPECIALIZE: ["expert", "specialist", "domain", "field"],
-            GrowthStrategy.PARALLELIZE: ["parallel", "concurrent", "independent", "simultaneous"],
-            GrowthStrategy.ITERATE: ["iterate", "refine", "improve", "optimize"],
-        }
+    enabled: bool = Field(
+        False,
+        description="启用分形模式",
     )
-    """Keywords to detect appropriate growth strategy"""
 
-    # === Performance Tracking ===
-    track_metrics: bool = True
-    """Track and record node performance metrics"""
+    # === 结构限制 ===
 
-    persist_to_memory: bool = True
-    """Persist structure performance to L4 memory"""
+    max_depth: int = Field(
+        3,
+        ge=0,
+        le=10,
+        description="最大深度（0 = 仅根节点）",
+    )
 
-    # === Visualization ===
-    enable_visualization: bool = True
-    """Enable structure visualization output"""
+    max_children: int = Field(
+        5,
+        ge=1,
+        le=20,
+        description="每个节点的最大子节点数",
+    )
 
-    visualization_format: str = "tree"  # "tree" | "graph" | "compact"
-    """Format for structure visualization"""
+    max_total_nodes: int = Field(
+        20,
+        ge=1,
+        le=100,
+        description="最大总节点数（防止爆炸性增长）",
+    )
 
-    # === Explicit Delegation (显式委托配置) ===
-    enable_explicit_delegation: bool = True
-    """启用显式委托工具（delegate_subtasks）"""
+    # === 增长控制 ===
 
-    allow_recursive_delegation: bool = True
-    """允许子代理再次委托（受 max_depth 限制）"""
+    growth_trigger: GrowthTrigger = Field(
+        GrowthTrigger.COMPLEXITY,
+        description="增长触发条件",
+    )
 
-    max_recursive_depth: int = 2
-    """允许递归委托的最大深度"""
+    default_strategy: GrowthStrategy = Field(
+        GrowthStrategy.DECOMPOSE,
+        description="默认增长策略",
+    )
 
-    delegation_tool_name: str = "delegate_subtasks"
-    """委托工具的名称"""
+    complexity_threshold: float = Field(
+        0.7,
+        ge=0.0,
+        le=1.0,
+        description="复杂度阈值（0-1），超过此值触发增长",
+    )
 
-    # === Synthesis Configuration (合成配置) ===
-    synthesis_strategy: str = "auto"
-    """默认合成策略: auto|concatenate|structured"""
+    confidence_threshold: float = Field(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="置信度阈值（0-1），低于此值触发分解",
+    )
 
-    synthesis_model: str = "lightweight"
-    """默认合成模型策略: lightweight|same_model|custom"""
+    # === 修剪设置 ===
 
-    synthesis_model_override: str | None = None
-    """自定义合成模型名称"""
+    enable_auto_pruning: bool = Field(
+        True,
+        description="自动修剪低效节点",
+    )
 
-    synthesis_max_tokens: int = 2000
-    """合成时的最大 token 数"""
+    pruning_threshold: float = Field(
+        0.3,
+        ge=0.0,
+        le=1.0,
+        description="修剪阈值（0-1），低于此值的节点被修剪",
+    )
 
-    # === Child Node Configuration (子节点配置) ===
-    default_child_token_budget: int = 4000
-    """子节点的默认 token 预算"""
+    min_tasks_before_pruning: int = Field(
+        3,
+        ge=1,
+        description="修剪前的最小任务数",
+    )
 
-    child_tool_blacklist: list[str] = field(default_factory=list)
-    """子节点工具黑名单（额外的）"""
+    # === 性能跟踪 ===
 
-    max_concurrent_children: int = 5
-    """最大并发子节点数"""
+    track_metrics: bool = Field(
+        True,
+        description="跟踪节点性能指标",
+    )
 
-    # === Hybrid Mode (混合模式配置) ===
-    hybrid_mode_enabled: bool = True
-    """启用混合模式（显式+隐式并存）"""
-
-    default_delegation_mode: str = "auto"
-    """默认委托模式: auto|explicit_only|implicit_only"""
-
-    def validate(self):
-        """Validate configuration"""
-        if self.max_depth < 0:
-            raise ValueError("max_depth must be >= 0")
-
-        if self.max_children < 1:
-            raise ValueError("max_children must be >= 1")
-
-        if not 0 <= self.complexity_threshold <= 1:
-            raise ValueError("complexity_threshold must be in [0, 1]")
-
-        if not 0 <= self.confidence_threshold <= 1:
-            raise ValueError("confidence_threshold must be in [0, 1]")
-
-        if not 0 <= self.pruning_threshold <= 1:
-            raise ValueError("pruning_threshold must be in [0, 1]")
-
-
-@dataclass
-class NodeMetrics:
-    """Performance metrics for a single node"""
-
-    # === Execution Metrics ===
-    task_count: int = 0
-    """Total number of tasks executed"""
-
-    success_count: int = 0
-    """Number of successful task completions"""
-
-    failure_count: int = 0
-    """Number of failed task executions"""
-
-    total_tokens: int = 0
-    """Total tokens consumed"""
-
-    total_time: float = 0.0
-    """Total execution time in seconds"""
-
-    total_cost: float = 0.0
-    """Total execution cost in USD"""
-
-    # === Derived Metrics ===
-    @property
-    def success_rate(self) -> float:
-        """Success rate (0-1)"""
-        if self.task_count == 0:
-            return 0.0
-        return self.success_count / self.task_count
-
-    @property
-    def avg_tokens(self) -> float:
-        """Average tokens per task"""
-        if self.task_count == 0:
-            return 0.0
-        return self.total_tokens / self.task_count
-
-    @property
-    def avg_time(self) -> float:
-        """Average time per task (seconds)"""
-        if self.task_count == 0:
-            return 0.0
-        return self.total_time / self.task_count
-
-    @property
-    def avg_cost(self) -> float:
-        """Average cost per task (USD)"""
-        if self.task_count == 0:
-            return 0.0
-        return self.total_cost / self.task_count
-
-    # === Fitness Score ===
-    def fitness_score(
-        self,
-        success_weight: float = 0.4,
-        token_weight: float = 0.3,
-        time_weight: float = 0.2,
-        cost_weight: float = 0.1,
-    ) -> float:
-        """
-        Calculate composite fitness score (0-1, higher is better)
-
-        Args:
-            success_weight: Weight for success rate
-            token_weight: Weight for token efficiency
-            time_weight: Weight for time efficiency
-            cost_weight: Weight for cost efficiency
-
-        Returns:
-            Fitness score in [0, 1]
-        """
-        if self.task_count == 0:
-            return 0.0
-
-        # Component 1: Success rate (0-1)
-        success_component = self.success_rate
-
-        # Component 2: Token efficiency (normalized by 4000 tokens baseline)
-        token_component = 1 / (1 + self.avg_tokens / 4000)
-
-        # Component 3: Time efficiency (normalized by 10s baseline)
-        time_component = 1 / (1 + self.avg_time / 10)
-
-        # Component 4: Cost efficiency (normalized by $0.01 baseline)
-        cost_component = 1 / (1 + self.avg_cost / 0.01)
-
-        # Weighted sum
-        fitness = (
-            success_component * success_weight
-            + token_component * token_weight
-            + time_component * time_weight
-            + cost_component * cost_weight
-        )
-
-        return min(1.0, max(0.0, fitness))
-
-    def record_execution(self, success: bool, tokens: int, time: float, cost: float = 0.0):
-        """Record a task execution"""
-        self.task_count += 1
-        if success:
-            self.success_count += 1
-        else:
-            self.failure_count += 1
-
-        self.total_tokens += tokens
-        self.total_time += time
-        self.total_cost += cost
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization"""
-        return {
-            "task_count": self.task_count,
-            "success_count": self.success_count,
-            "failure_count": self.failure_count,
-            "total_tokens": self.total_tokens,
-            "total_time": self.total_time,
-            "total_cost": self.total_cost,
-            "success_rate": self.success_rate,
-            "avg_tokens": self.avg_tokens,
-            "avg_time": self.avg_time,
-            "avg_cost": self.avg_cost,
-            "fitness_score": self.fitness_score(),
-        }
+    persist_to_memory: bool = Field(
+        True,
+        description="将结构性能持久化到 L4 记忆",
+    )

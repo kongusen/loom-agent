@@ -1,670 +1,568 @@
 """
-LoomMemory Storage Engine
+记忆系统核心实现 - 基于Task的分层存储
+
+基于A4公理（记忆层次公理）：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
+
+核心改动：
+- L1: 存储完整Task对象（循环缓冲区）
+- L2: 存储重要Task对象（按重要性排序）
+- L3: 存储TaskSummary（压缩表示）
+- L4: 向量存储（语义检索）
 """
 
-import math
-from collections import defaultdict
-from datetime import datetime
+from collections import deque
 from typing import TYPE_CHECKING, Any
 
-from loom.config.memory import MemoryConfig
-from loom.projection.profiles import ProjectionConfig, ProjectionMode
-
-from .embedding import EmbeddingProvider
-from .factory import create_embedding_provider, create_vector_store
-from .types import ContextProjection, MemoryQuery, MemoryTier, MemoryType, MemoryUnit
-from .vector_store import VectorStoreProvider
+from .fact_extractor import FactExtractor
+from .types import Fact, MemoryTier, TaskSummary
 
 if TYPE_CHECKING:
-    from .compression import L4Compressor
+    from loom.protocol import Task
+
+    from .vector_store import VectorStoreProvider
 
 
 class LoomMemory:
     """
-    Tiered Memory Storage System.
+    基于Task的分层记忆系统
 
-    L1 (Raw IO): Circular buffer for recent raw interactions.
-    L2 (Working): Task-specific working memory.
-    L3 (Session): Session-scoped history.
-    L4 (Global): Persistent global knowledge.
+    L1: 完整Task对象（循环缓冲区，最近50个）
+    L2: 重要Task对象（按重要性排序，最多100个）
+    L3: Task摘要（最多500个）
+    L4: 向量存储（无限）
     """
 
-    def __init__(self, node_id: str, max_l1_size: int = 50, config: MemoryConfig | None = None):
-        self.node_id = node_id
-        self.config = config or MemoryConfig()
-        # Use passed max_l1_size parameter, not config default
-        self.max_l1_size = max_l1_size
-
-        # Tiered Storage
-        self._l1_buffer: list[MemoryUnit] = []  # Circular buffer
-        self._l2_working: list[MemoryUnit] = []  # Working memory list
-        self._l3_session: dict[str, list[MemoryUnit]] = defaultdict(list)  # By session_id
-        self._l4_global: list[MemoryUnit] = []  # Mock for VectorDB
-
-        # Indexes
-        self._id_index: dict[str, MemoryUnit] = {}
-        self._type_index: dict[MemoryType, list[str]] = defaultdict(list)
-
-        # Vector Store & Embedding (Pluggable)
-        self.vector_store: VectorStoreProvider | None = create_vector_store(
-            self.config.vector_store
-        )
-        self.embedding_provider: EmbeddingProvider | None = (
-            create_embedding_provider(self.config.embedding) if self.vector_store else None
-        )
-
-        # L4 Compressor (Optional)
-        self.l4_compressor: "L4Compressor" | None = None
-
-    async def add(self, unit: MemoryUnit) -> str:
-        """Add a memory unit to the appropriate tier."""
-        # Ensure source_node is set
-        unit.source_node = unit.source_node or self.node_id
-
-        # Add to Tier
-        if unit.tier == MemoryTier.L1_RAW_IO:
-            self._l1_buffer.append(unit)
-            if len(self._l1_buffer) > self.max_l1_size:
-                self._evict_from_l1()
-
-        elif unit.tier == MemoryTier.L2_WORKING:
-            self._l2_working.append(unit)
-
-        elif unit.tier == MemoryTier.L3_SESSION:
-            session_id = unit.metadata.get("session_id", "default")
-            self._l3_session[session_id].append(unit)
-
-        elif unit.tier == MemoryTier.L4_GLOBAL:
-            self._l4_global.append(unit)
-
-            # Auto-vectorize L4 content if enabled
-            if self.config.auto_vectorize_l4 and self.vector_store and self.embedding_provider:
-                await self._vectorize_unit(unit)
-
-            # Check if L4 compression is needed
-            if self.l4_compressor and await self.l4_compressor.should_compress(self._l4_global):
-                await self._compress_l4()
-
-        # Update Indexes
-        self._id_index[unit.id] = unit
-        self._type_index[unit.type].append(unit.id)
-
-        return unit.id
-
-    def add_sync(self, unit: MemoryUnit) -> str:
-        """Synchronously add a memory unit (for projection, skips vectorization)."""
-        # Ensure source_node is set
-        unit.source_node = unit.source_node or self.node_id
-
-        # Add to Tier
-        if unit.tier == MemoryTier.L1_RAW_IO:
-            self._l1_buffer.append(unit)
-            if len(self._l1_buffer) > self.max_l1_size:
-                self._evict_from_l1()
-
-        elif unit.tier == MemoryTier.L2_WORKING:
-            self._l2_working.append(unit)
-
-        elif unit.tier == MemoryTier.L3_SESSION:
-            session_id = unit.metadata.get("session_id", "default")
-            self._l3_session[session_id].append(unit)
-
-        elif unit.tier == MemoryTier.L4_GLOBAL:
-            self._l4_global.append(unit)
-            # Note: Skips vectorization for sync operation
-
-        # Update Indexes
-        self._id_index[unit.id] = unit
-        self._type_index[unit.type].append(unit.id)
-
-        return unit.id
-
-    def get(self, unit_id: str) -> MemoryUnit | None:
-        """Retrieve a memory unit by ID."""
-        return self._id_index.get(unit_id)
-
-    async def query(self, q: MemoryQuery) -> list[MemoryUnit]:
-        """
-        Query memory units based on criteria.
-        """
-        results = []
-
-        # 1. Collect from requested tiers
-        target_tiers = q.tiers or [
-            MemoryTier.L1_RAW_IO,
-            MemoryTier.L2_WORKING,
-            MemoryTier.L3_SESSION,
-            MemoryTier.L4_GLOBAL,
-        ]
-
-        for tier in target_tiers:
-            if tier == MemoryTier.L1_RAW_IO:
-                results.extend(self._l1_buffer)
-            elif tier == MemoryTier.L2_WORKING:
-                results.extend(self._l2_working)
-            elif tier == MemoryTier.L3_SESSION:
-                for session_units in self._l3_session.values():
-                    results.extend(session_units)
-            elif tier == MemoryTier.L4_GLOBAL:
-                results.extend(self._l4_global)
-
-        # 2. Filter by Type
-        if q.types:
-            results = [u for u in results if u.type in q.types]
-
-        # 3. Filter by Node ID
-        if q.node_ids:
-            results = [u for u in results if u.source_node in q.node_ids]
-
-        # 4. Filter by Time
-        if q.since:
-            results = [u for u in results if u.created_at >= q.since]
-        if q.until:
-            results = [u for u in results if u.created_at <= q.until]
-
-        # 5. Semantic Search (L4 Only for MVP)
-        if q.query_text and MemoryTier.L4_GLOBAL in target_tiers:
-            # Only perform semantic search on L4 items within the result set
-            l4_candidates = [u for u in results if u.tier == MemoryTier.L4_GLOBAL]
-            others = [u for u in results if u.tier != MemoryTier.L4_GLOBAL]
-
-            scored_l4 = await self._semantic_search(q.query_text, l4_candidates, q.top_k)
-            # For now, just append top K L4 matches to others.
-            # Ideally, we might want to filter L4 to ONLY top K.
-            # Strategy: If semantic search is requested, we PRIORITIZE semantic matches.
-            results = others + scored_l4
-
-        # 6. Sort
-        reverse = q.descending
-        # Dynamic getattr for sort key
-        results.sort(key=lambda u: getattr(u, q.sort_by, u.created_at), reverse=reverse)
-
-        return results
-
-    def promote_to_l4(self, unit_id: str):
-        """Promote a memory unit to L4 Global persistence."""
-        unit = self.get(unit_id)
-        if not unit:
-            return
-
-        # Remove from current tier if necessary (e.g. L2)
-        if unit.tier == MemoryTier.L2_WORKING and unit in self._l2_working:
-            self._l2_working.remove(unit)
-
-        # Update tier and add to L4
-        unit.tier = MemoryTier.L4_GLOBAL
-        if unit not in self._l4_global:
-            self._l4_global.append(unit)
-
-    def clear_working(self):
-        """Clear L2 Working Memory."""
-        for unit in self._l2_working:
-            self._remove_from_index(unit)
-        self._l2_working.clear()
-
-    def _evict_from_l1(self):
-        """
-        Evict least important + least recently used item from L1 buffer.
-        Uses importance-weighted LRU policy.
-        """
-        if not self._l1_buffer:
-            return
-
-        try:
-            # Score = importance * recency_factor
-            now = datetime.now()
-            scored = []
-
-            for unit in self._l1_buffer:
-                age_seconds = (now - unit.created_at).total_seconds()
-                # Recency factor decays over hours (1.0 at 0 hours, 0.5 at 1 hour, etc.)
-                recency_factor = 1.0 / (1.0 + age_seconds / 3600)
-                score = unit.importance * recency_factor
-                scored.append((score, unit))
-
-            # Sort by score (lowest first)
-            scored.sort(key=lambda x: x[0])
-
-            # Evict lowest scored item
-            victim = scored[0][1]
-            self._l1_buffer.remove(victim)
-            self._remove_from_index(victim)
-        except Exception:
-            # Fallback to simple FIFO if scoring fails
-            if self._l1_buffer:
-                removed = self._l1_buffer.pop(0)
-                self._remove_from_index(removed)
-
-    async def create_projection(
+    def __init__(
         self,
-        instruction: str,
-        _total_budget: int = 2000,
-        mode: ProjectionMode | None = None,
-        include_plan: bool = True,
-        include_facts: bool = True,
-    ) -> ContextProjection:
-        """创建上下文投影（增强版）
+        node_id: str,
+        max_l1_size: int = 50,
+        max_l2_size: int = 100,
+        max_l3_size: int = 500,
+        enable_l4_vectorization: bool = True,
+        max_task_index_size: int = 1000,
+        max_fact_index_size: int = 5000,
+    ):
+        self.node_id = node_id
+        self.max_l1_size = max_l1_size
+        self.max_l2_size = max_l2_size
+        self.max_l3_size = max_l3_size
+        self.enable_l4_vectorization = enable_l4_vectorization
+        self.max_task_index_size = max_task_index_size
+        self.max_fact_index_size = max_fact_index_size
+
+        # L1: 完整Task（循环缓冲区）
+        self._l1_tasks: deque["Task"] = deque(maxlen=max_l1_size)
+
+        # L2: 重要Task（按重要性排序）
+        self._l2_tasks: list["Task"] = []
+
+        # L3: Task摘要
+        self._l3_summaries: list[TaskSummary] = []
+
+        # L4: 向量存储（延迟初始化）
+        self._l4_vector_store: "VectorStoreProvider | None" = None
+        self.embedding_provider = None
+
+        # Task索引（用于快速查找）
+        self._task_index: dict[str, "Task"] = {}
+
+        # Fact索引（用于快速查找）
+        self._fact_index: dict[str, Fact] = {}
+
+        # 事实提取器
+        self.fact_extractor = FactExtractor()
+
+    # ==================== L1管理 ====================
+
+    def add_task(self, task: "Task", tier: MemoryTier = MemoryTier.L1_RAW_IO) -> None:
+        """
+        添加Task到指定层级
 
         Args:
-            instruction: 任务指令
-            total_budget: 总 token 预算（默认2000）
-            mode: 投影模式（可选，不指定则自动检测）
-            include_plan: 是否包含父计划
-            include_facts: 是否包含相关事实
+            task: Task对象
+            tier: 目标层级（默认L1）
+        """
+        # 添加到索引
+        self._task_index[task.task_id] = task
+
+        # 定期清理索引（防止内存泄漏）
+        if len(self._task_index) > self.max_task_index_size:
+            self._cleanup_task_index()
+
+        # 根据层级分发
+        if tier == MemoryTier.L1_RAW_IO:
+            self._add_to_l1(task)
+        elif tier == MemoryTier.L2_WORKING:
+            self._add_to_l2(task)
+
+    def _add_to_l1(self, task: "Task") -> None:
+        """添加到L1循环缓冲区"""
+        self._l1_tasks.append(task)
+
+        # deque会自动驱逐最旧的（maxlen限制）
+        # 但我们需要从索引中移除被驱逐的
+        if len(self._l1_tasks) == self.max_l1_size:
+            # 检查是否有Task被驱逐（通过检查索引）
+            current_ids = {t.task_id for t in self._l1_tasks}
+            evicted_ids = set(self._task_index.keys()) - current_ids
+            for evicted_id in evicted_ids:
+                self._task_index.pop(evicted_id, None)
+
+    def get_l1_tasks(self, limit: int = 10) -> list["Task"]:
+        """
+        获取L1最近的Task
+
+        Args:
+            limit: 返回数量限制
 
         Returns:
-            上下文投影对象
+            最近的Task列表
         """
-        # 1. 自动检测模式（如果未指定）
-        if mode is None:
-            mode = self._detect_mode(instruction)
+        return list(self._l1_tasks)[-limit:]
 
-        # 2. 获取配置
-        config = ProjectionConfig.from_mode(mode)
+    def _cleanup_task_index(self) -> None:
+        """
+        清理Task索引，防止内存泄漏
 
-        # 3. 创建投影对象
-        projection = ContextProjection(instruction=instruction, lineage=[self.node_id])
+        保留L1、L2、L3中的活跃Task，删除不活跃的Task
+        """
+        # 收集活跃的Task ID
+        active_task_ids: set[str] = set()
+        active_task_ids.update(t.task_id for t in self._l1_tasks)
+        active_task_ids.update(t.task_id for t in self._l2_tasks)
+        active_task_ids.update(s.task_id for s in self._l3_summaries)
 
-        # 4. 提取 VIP 内容（plan）
-        if include_plan:
-            plans = [u for u in self._l2_working if u.type == MemoryType.PLAN]
-            if plans:
-                projection.parent_plan = str(plans[-1].content)
-
-        # 5. 提取 L4 facts（带语义相关性评分）
-        if include_facts and self._l4_global:
-            scored_facts = await self._score_facts(
-                instruction=instruction,
-                facts=self._l4_global,
-                max_count=config.max_l4_facts,
-                config=config,
-            )
-            projection.relevant_facts = scored_facts
-
-        return projection
-
-    def get_statistics(self) -> dict[str, Any]:
-        """Get current memory statistics."""
-        return {
-            "l1_size": len(self._l1_buffer),
-            "l2_size": len(self._l2_working),
-            "l3_sessions": len(self._l3_session),
-            "l4_size": len(self._l4_global),
-            "total_units": len(self._id_index),
-            "types": {t.value: len(ids) for t, ids in self._type_index.items()},
+        # 删除不活跃的Task
+        self._task_index = {
+            tid: task for tid, task in self._task_index.items() if tid in active_task_ids
         }
 
-    def _remove_from_index(self, unit: MemoryUnit):
-        """Helper to remove unit from indexes."""
-        if unit.id in self._id_index:
-            del self._id_index[unit.id]
-        if unit.id in self._type_index[unit.type]:
-            self._type_index[unit.type].remove(unit.id)
+    # ==================== L2管理 ====================
 
-    async def _semantic_search(
-        self, query: str, candidates: list[MemoryUnit], top_k: int
-    ) -> list[MemoryUnit]:
+    def _add_to_l2(self, task: "Task") -> None:
         """
-        Semantic Search using vector store if available, otherwise fallback to keyword matching.
+        添加到L2工作记忆
+
+        按重要性排序，超过容量时移除最不重要的
         """
-        # Use vector store if available
-        if self.vector_store and self.embedding_provider:
-            try:
-                # Generate query embedding
-                query_embedding = await self.embedding_provider.embed_text(query)
+        importance = task.metadata.get("importance", 0.5)
 
-                # Search vector store
-                results = await self.vector_store.search(
-                    query_embedding=query_embedding, top_k=top_k
-                )
-
-                # Map results back to MemoryUnits
-                matched_units = []
-                for result in results:
-                    unit = self.get(result.id)
-                    if unit and unit in candidates:
-                        matched_units.append(unit)
-
-                return matched_units
-            except Exception:
-                # Fallback to keyword matching on error
-                pass
-
-        # Fallback: Simple keyword matching
-        scored = []
-        query_lower = query.lower()
-
-        for unit in candidates:
-            score = 0.0
-            content_str = str(unit.content).lower()
-
-            if query_lower in content_str:
-                score = 1.0
-
-            final_score = score + (unit.importance * 0.1)
-            scored.append((final_score, unit))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [unit for _, unit in scored[:top_k]]
-
-    async def _vectorize_unit(self, unit: MemoryUnit):
-        """
-        Generate and store embedding for a memory unit.
-        """
-        if not self.vector_store or not self.embedding_provider:
+        # 如果L2未满，直接添加
+        if len(self._l2_tasks) < self.max_l2_size:
+            self._l2_tasks.append(task)
+            # 按重要性排序（降序）
+            self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
             return
 
-        try:
-            # Generate embedding
-            text = str(unit.content)
-            embedding = await self.embedding_provider.embed_text(text)
+        # L2已满，检查是否应该替换
+        min_importance = min(t.metadata.get("importance", 0.5) for t in self._l2_tasks)
 
-            # Store in vector database
-            await self.vector_store.add(
-                id=unit.id,
-                text=text,
-                embedding=embedding,
+        if importance > min_importance:
+            # 移除最不重要的
+            self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
+            removed = self._l2_tasks.pop()
+            self._task_index.pop(removed.task_id, None)
+
+            # 添加新Task
+            self._l2_tasks.append(task)
+            self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
+
+    def get_l2_tasks(self, limit: int | None = None) -> list["Task"]:
+        """
+        获取L2工作记忆Task
+
+        Args:
+            limit: 返回数量限制，None表示返回全部
+
+        Returns:
+            L2中的Task（按重要性排序）
+        """
+        if limit is None:
+            return self._l2_tasks.copy()
+        return self._l2_tasks[:limit]
+
+    def clear_l2(self) -> None:
+        """清空L2工作记忆（任务结束时调用）"""
+        for task in self._l2_tasks:
+            self._task_index.pop(task.task_id, None)
+        self._l2_tasks.clear()
+
+    # ==================== L3管理 ====================
+
+    def _add_to_l3(self, summary: TaskSummary) -> None:
+        """
+        添加Task摘要到L3
+
+        超过容量时移除最旧的
+        """
+        self._l3_summaries.append(summary)
+
+        # 超过容量时驱逐最旧的
+        if len(self._l3_summaries) > self.max_l3_size:
+            self._l3_summaries.pop(0)
+
+    def get_l3_summaries(self, limit: int | None = None) -> list[TaskSummary]:
+        """
+        获取L3 Task摘要
+
+        Args:
+            limit: 返回数量限制
+
+        Returns:
+            Task摘要列表
+        """
+        if limit is None:
+            return self._l3_summaries.copy()
+        return self._l3_summaries[-limit:]
+
+    # ==================== L4管理 ====================
+
+    async def _add_to_l4(self, summary: TaskSummary) -> None:
+        """
+        添加Task摘要到L4向量存储
+
+        Args:
+            summary: Task摘要
+        """
+        if not self.enable_l4_vectorization or not self.embedding_provider:
+            return
+
+        # 生成文本表示
+        text = f"{summary.action}: {summary.param_summary} -> {summary.result_summary}"
+
+        # 生成向量
+        embedding = await self.embedding_provider.embed(text)
+
+        # 存储到向量数据库
+        if self._l4_vector_store:
+            await self._l4_vector_store.add(
+                id=summary.task_id,
+                vector=embedding,
                 metadata={
-                    "tier": unit.tier.name,
-                    "type": unit.type.value,
-                    "importance": unit.importance,
-                    "source_node": unit.source_node,
+                    "action": summary.action,
+                    "tags": summary.tags,
+                    "importance": summary.importance,
+                    "created_at": summary.created_at.isoformat(),
                 },
             )
 
-            # Store embedding in unit for future use
-            unit.embedding = embedding
-        except Exception:
-            # Log error but don't fail the add operation
-            pass
-
-    def _detect_mode(self, instruction: str) -> ProjectionMode:
-        """简单的模式检测（基于关键词匹配，支持中英文）
+    async def search_tasks(self, query: str, limit: int = 5) -> list["Task"]:
+        """
+        从L4语义检索相关Task
 
         Args:
-            instruction: 任务指令
+            query: 查询字符串
+            limit: 返回数量限制
 
         Returns:
-            检测到的投影模式
+            相关Task列表
         """
-        instruction_lower = instruction.lower()
+        if not self._l4_vector_store or not self.embedding_provider:
+            # 降级到简单搜索
+            return self._simple_search_tasks(query, limit)
 
-        # 检测 DEBUG 模式（英文 + 中文关键词，各15个）
-        debug_keywords = [
-            # 英文 (15个)
-            "error",
-            "fix",
-            "debug",
-            "retry",
-            "bug",
-            "exception",
-            "failed",
-            "failure",
-            "crash",
-            "broken",
-            "issue",
-            "troubleshoot",
-            "diagnose",
-            "resolve",
-            "repair",
-            # 中文 (15个)
-            "错误",
-            "修复",
-            "调试",
-            "重试",
-            "失败",
-            "异常",
-            "问题",
-            "bug",
-            "崩溃",
-            "故障",
-            "排查",
-            "诊断",
-            "解决",
-            "修理",
-            "出错",
-        ]
-        if any(kw in instruction_lower for kw in debug_keywords):
-            return ProjectionMode.DEBUG
+        # 向量化查询
+        query_embedding = await self.embedding_provider.embed(query)
 
-        # 检测 ANALYTICAL 模式（英文 + 中文关键词，各15个）
-        analytical_keywords = [
-            # 英文 (15个)
-            "analyze",
-            "analyse",
-            "evaluate",
-            "research",
-            "investigate",
-            "study",
-            "examine",
-            "review",
-            "assess",
-            "compare",
-            "measure",
-            "benchmark",
-            "profile",
-            "inspect",
-            "survey",
-            # 中文 (15个)
-            "分析",
-            "评估",
-            "研究",
-            "调查",
-            "探索",
-            "检验",
-            "审查",
-            "对比",
-            "比较",
-            "测量",
-            "测试",
-            "考察",
-            "观察",
-            "查看",
-            "统计",
-        ]
-        if any(kw in instruction_lower for kw in analytical_keywords):
-            return ProjectionMode.ANALYTICAL
+        # 向量搜索
+        results = await self._l4_vector_store.search(query_embedding, limit)
 
-        # 检测 CONTEXTUAL 模式（英文 + 中文关键词，各15个）
-        contextual_keywords = [
-            # 英文 (15个)
-            "continue",
-            "context",
-            "previous",
-            "earlier",
-            "before",
-            "last",
-            "resume",
-            "recall",
-            "remember",
-            "mentioned",
-            "discussed",
-            "talked",
-            "said",
-            "above",
-            "prior",
-            # 中文 (15个)
-            "继续",
-            "上下文",
-            "之前",
-            "刚才",
-            "前面",
-            "上次",
-            "接着",
-            "恢复",
-            "回忆",
-            "记得",
-            "提到",
-            "讨论过",
-            "说过",
-            "上面",
-            "最近",
-        ]
-        if any(kw in instruction_lower for kw in contextual_keywords):
-            return ProjectionMode.CONTEXTUAL
+        # 返回Task（如果还在索引中）
+        tasks = []
+        for result in results:
+            task_id = result.get("id")
+            if task_id and task_id in self._task_index:
+                tasks.append(self._task_index[task_id])
 
-        # 检测 MINIMAL 模式（非常短的指令）
-        # 检测是否包含中文字符
-        def has_chinese(text):
-            return any("\u4e00" <= char <= "\u9fff" for char in text)
+        return tasks
 
-        instruction_stripped = instruction.strip()
-
-        if has_chinese(instruction_stripped):
-            # 中文或中英混合：按字符数判断（< 8个字符）
-            if len(instruction_stripped) < 8:
-                return ProjectionMode.MINIMAL
-        else:
-            # 纯英文：按单词数判断（< 3个单词）
-            word_count = len(instruction_stripped.split())
-            if word_count < 3:
-                return ProjectionMode.MINIMAL
-
-        # 默认：STANDARD 模式
-        return ProjectionMode.STANDARD
-
-    def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
-        """计算余弦相似度
+    def _simple_search_tasks(self, query: str, limit: int) -> list["Task"]:
+        """
+        简单的文本匹配搜索（降级方案）
 
         Args:
-            vec1: 向量1
-            vec2: 向量2
+            query: 查询字符串
+            limit: 返回数量限制
 
         Returns:
-            余弦相似度 (0-1)
+            匹配的Task列表
         """
-        if not vec1 or not vec2 or len(vec1) != len(vec2):
-            return 0.0
+        query_lower = query.lower()
+        matches = []
 
-        dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
-        norm1 = math.sqrt(sum(a * a for a in vec1))
-        norm2 = math.sqrt(sum(b * b for b in vec2))
+        # 搜索L1和L2中的Task
+        all_tasks = list(self._l1_tasks) + self._l2_tasks
 
-        if norm1 == 0 or norm2 == 0:
-            return 0.0
+        for task in all_tasks:
+            # 检查action和parameters中是否包含查询字符串
+            if query_lower in task.action.lower() or query_lower in str(task.parameters).lower():
+                matches.append(task)
 
-        return dot_product / (norm1 * norm2)
+        # 按重要性排序
+        matches.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
 
-    async def _score_facts(
-        self, instruction: str, facts: list[MemoryUnit], max_count: int, config: ProjectionConfig
-    ) -> list[MemoryUnit]:
-        """评分并选择 facts
+        return matches[:limit]
+
+    async def search_facts(self, query: str, limit: int = 5) -> list[Fact]:
+        """
+        从L4检索相关事实
 
         Args:
-            instruction: 任务指令
-            facts: 候选 facts
-            max_count: 最大选择数量
-            config: 投影配置
+            query: 查询字符串
+            limit: 返回数量限制
 
         Returns:
-            评分后的 top K facts
+            相关Fact列表
         """
-        if not facts:
-            return []
+        if not self._l4_vector_store or not self.embedding_provider:
+            # 降级到简单搜索
+            return self._simple_search_facts(query, limit)
 
-        # 如果有 embedding provider，使用语义相似度
-        if self.embedding_provider:
-            return await self._score_facts_semantic(instruction, facts, max_count, config)
-        else:
-            # 降级：只按 importance 排序
-            sorted_facts = sorted(facts, key=lambda f: f.importance, reverse=True)
-            return sorted_facts[:max_count]
+        # 向量化查询
+        query_embedding = await self.embedding_provider.embed(query)
 
-    async def _score_facts_semantic(
-        self, instruction: str, facts: list[MemoryUnit], max_count: int, config: ProjectionConfig
-    ) -> list[MemoryUnit]:
-        """使用语义相似度评分 facts
+        # 向量搜索（搜索fact_前缀的ID）
+        results = await self._l4_vector_store.search(query_embedding, limit * 2)
+
+        # 返回Fact对象
+        facts = []
+        for result in results:
+            fact_id = result.get("id")
+            if fact_id and fact_id.startswith("fact_") and fact_id in self._fact_index:
+                fact = self._fact_index[fact_id]
+                fact.update_access()  # 更新访问信息
+                facts.append(fact)
+                if len(facts) >= limit:
+                    break
+
+        return facts
+
+    def _simple_search_facts(self, query: str, limit: int) -> list[Fact]:
+        """
+        简单的文本匹配搜索事实（降级方案）
 
         Args:
-            instruction: 任务指令
-            facts: 候选 facts
-            max_count: 最大选择数量
-            config: 投影配置
+            query: 查询字符串
+            limit: 返回数量限制
 
         Returns:
-            评分后的 top K facts
+            匹配的Fact列表
         """
-        if not facts or not self.embedding_provider:
-            return []
+        query_lower = query.lower()
+        matches = []
 
-        try:
-            # 计算 instruction 的 embedding
-            instruction_emb = await self.embedding_provider.embed_text(instruction)
+        for fact in self._fact_index.values():
+            # 检查content和tags中是否包含查询字符串
+            if query_lower in fact.content.lower() or any(
+                query_lower in tag.lower() for tag in fact.tags
+            ):
+                matches.append(fact)
 
-            # 计算每个 fact 的分数
-            scored = []
-            for fact in facts:
-                # 如果 fact 已有 embedding，使用它
-                if fact.embedding:
-                    fact_emb = fact.embedding
-                else:
-                    # 否则实时计算
-                    fact_emb = await self.embedding_provider.embed_text(str(fact.content))
+        # 按访问次数和置信度排序
+        matches.sort(key=lambda f: (f.access_count, f.confidence), reverse=True)
 
-                # 计算余弦相似度
-                similarity = self._cosine_similarity(instruction_emb, fact_emb)
+        return matches[:limit]
 
-                # 混合评分：importance + relevance
-                score = (
-                    config.importance_weight * fact.importance
-                    + config.relevance_weight * similarity
-                )
-                scored.append((score, fact))
+    # ==================== Fact管理 ====================
 
-            # 排序并返回 top K
-            scored.sort(key=lambda x: x[0], reverse=True)
-            return [fact for _, fact in scored[:max_count]]
-
-        except Exception:
-            # 出错时降级到只按 importance 排序
-            sorted_facts = sorted(facts, key=lambda f: f.importance, reverse=True)
-            return sorted_facts[:max_count]
-
-    def enable_l4_compression(
-        self,
-        llm_provider,
-        threshold: int = 150,
-        similarity_threshold: float = 0.75,
-        min_cluster_size: int = 3,
-    ):
-        """启用L4自动压缩
+    def add_fact(self, fact: Fact) -> None:
+        """
+        添加Fact到索引（公共API）
 
         Args:
-            llm_provider: LLM提供者，用于总结clusters
-            threshold: 触发压缩的facts数量阈值
-            similarity_threshold: 聚类相似度阈值（0-1）
-            min_cluster_size: 最小聚类大小
+            fact: Fact对象
         """
-        from .compression import L4Compressor
+        self._fact_index[fact.fact_id] = fact
 
-        self.l4_compressor = L4Compressor(
-            llm_provider=llm_provider,
-            embedding_provider=self.embedding_provider,
-            threshold=threshold,
-            similarity_threshold=similarity_threshold,
-            min_cluster_size=min_cluster_size,
-        )
+        # 定期清理索引（防止内存泄漏）
+        if len(self._fact_index) > self.max_fact_index_size:
+            self._cleanup_fact_index()
 
-    async def _compress_l4(self):
-        """执行L4压缩"""
-        if not self.l4_compressor:
+    def _cleanup_fact_index(self) -> None:
+        """
+        清理Fact索引，防止内存泄漏
+
+        按访问次数和置信度排序，保留前80%的高价值Facts
+        """
+        if len(self._fact_index) <= self.max_fact_index_size:
             return
 
-        print(f"🗜️  L4压缩开始：当前{len(self._l4_global)}个facts")
+        # 按访问次数和置信度排序
+        facts = sorted(
+            self._fact_index.values(), key=lambda f: (f.access_count, f.confidence), reverse=True
+        )
 
-        # 执行压缩
-        compressed = await self.l4_compressor.compress(self._l4_global)
+        # 保留前80%
+        keep_count = int(len(facts) * 0.8)
+        self._fact_index = {f.fact_id: f for f in facts[:keep_count]}
 
-        # 更新索引：移除旧的facts
-        for fact in self._l4_global:
-            self._remove_from_index(fact)
+    # ==================== 压缩策略 ====================
 
-        # 替换L4
-        self._l4_global = compressed
+    def promote_tasks(self) -> None:
+        """
+        触发L1→L2→L3→L4的压缩提升
 
-        # 更新索引：添加新的facts
-        for fact in compressed:
-            self._id_index[fact.id] = fact
-            self._type_index[fact.type].append(fact.id)
+        调用时机：
+        - 每次添加Task后
+        - 定期维护
+        """
+        # L1 → L2: 提升重要的Task
+        self._promote_l1_to_l2()
 
-        print(f"✅ L4压缩完成：压缩后{len(self._l4_global)}个facts")
+        # L2 → L3: 当L2满时，将旧的Task压缩为摘要
+        if len(self._l2_tasks) >= self.max_l2_size * 0.9:  # 90%阈值
+            self._promote_l2_to_l3()
+
+        # L3 → L4: 当L3满时，向量化摘要
+        if len(self._l3_summaries) >= self.max_l3_size * 0.9:  # 90%阈值
+            # 注意：这是异步操作，实际应该在异步上下文中调用
+            # 这里只是标记，实际向量化需要在异步方法中完成
+            pass
+
+    async def promote_tasks_async(self) -> None:
+        """
+        异步版本的promote_tasks，支持L4向量化
+
+        调用时机：
+        - 在异步上下文中调用
+        - 支持完整的L1→L2→L3→L4压缩流程
+        """
+        # L1 → L2: 提升重要的Task
+        self._promote_l1_to_l2()
+
+        # L2 → L3: 当L2满时，将旧的Task压缩为摘要
+        if len(self._l2_tasks) >= self.max_l2_size * 0.9:
+            self._promote_l2_to_l3()
+
+        # L3 → L4: 当L3满时，向量化摘要（真正实现）
+        if len(self._l3_summaries) >= self.max_l3_size * 0.9:
+            await self._promote_l3_to_l4()
+
+    def _promote_l1_to_l2(self) -> None:
+        """
+        L1 → L2: 提升重要的Task
+
+        规则：
+        - 重要性 > 0.6 的Task提升到L2
+        - L2已满时，只保留最重要的
+        """
+        for task in list(self._l1_tasks):
+            importance = task.metadata.get("importance", 0.5)
+
+            # 判断是否应该提升（重要性>0.6且不在L2中）
+            if importance > 0.6 and task.task_id not in [t.task_id for t in self._l2_tasks]:
+                self._add_to_l2(task)
+
+    def _promote_l2_to_l3(self) -> None:
+        """
+        L2 → L3: 生成Task摘要
+
+        当L2接近满时，将最不重要的Task压缩为摘要
+        """
+        if len(self._l2_tasks) < self.max_l2_size * 0.9:
+            return
+
+        # 按重要性排序
+        self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
+
+        # 移除最不重要的20%
+        num_to_remove = max(1, int(len(self._l2_tasks) * 0.2))
+        tasks_to_summarize = self._l2_tasks[-num_to_remove:]
+        self._l2_tasks = self._l2_tasks[:-num_to_remove]
+
+        # 生成摘要并添加到L3
+        for task in tasks_to_summarize:
+            summary = self._summarize_task(task)
+            self._add_to_l3(summary)
+            # 从索引中移除
+            self._task_index.pop(task.task_id, None)
+
+    def _summarize_task(self, task: "Task") -> TaskSummary:
+        """
+        将Task压缩为摘要
+
+        Args:
+            task: 要压缩的Task
+
+        Returns:
+            TaskSummary对象
+        """
+        # 参数摘要（截断）
+        param_str = str(task.parameters)
+        param_summary = param_str[:200] + "..." if len(param_str) > 200 else param_str
+
+        # 结果摘要（截断）
+        result_str = str(task.result)
+        result_summary = result_str[:200] + "..." if len(result_str) > 200 else result_str
+
+        # 提取标签
+        tags = task.metadata.get("tags", [])
+        if not tags:
+            # 自动生成标签
+            tags = [task.action, task.status.value]
+
+        return TaskSummary(
+            task_id=task.task_id,
+            action=task.action,
+            param_summary=param_summary,
+            result_summary=result_summary,
+            tags=tags,
+            importance=task.metadata.get("importance", 0.5),
+            created_at=task.created_at,
+        )
+
+    async def _promote_l3_to_l4(self) -> None:
+        """
+        L3 → L4: 向量化摘要
+
+        当L3接近满时，将最旧的摘要向量化并存储到L4
+        """
+        if not self.enable_l4_vectorization or not self.embedding_provider:
+            return
+
+        # 移除最旧的20%
+        num_to_vectorize = max(1, int(len(self._l3_summaries) * 0.2))
+        summaries_to_vectorize = self._l3_summaries[:num_to_vectorize]
+        self._l3_summaries = self._l3_summaries[num_to_vectorize:]
+
+        # 向量化并存储到L4
+        for summary in summaries_to_vectorize:
+            await self._add_to_l4(summary)
+
+    # ==================== 工具方法 ====================
+
+    def get_task(self, task_id: str) -> "Task | None":
+        """
+        根据ID获取Task
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Task对象，如果不存在则返回None
+        """
+        return self._task_index.get(task_id)
+
+    def get_stats(self) -> dict[str, Any]:
+        """
+        获取记忆系统统计信息
+
+        Returns:
+            统计信息字典
+        """
+        return {
+            "l1_size": len(self._l1_tasks),
+            "l2_size": len(self._l2_tasks),
+            "l3_size": len(self._l3_summaries),
+            "total_tasks": len(self._task_index),
+            "max_l1_size": self.max_l1_size,
+            "max_l2_size": self.max_l2_size,
+            "max_l3_size": self.max_l3_size,
+        }
+
+    def clear_all(self) -> None:
+        """清空所有记忆（慎用）"""
+        self._l1_tasks.clear()
+        self._l2_tasks.clear()
+        self._l3_summaries.clear()
+        self._task_index.clear()

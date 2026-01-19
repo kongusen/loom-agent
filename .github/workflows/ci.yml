@@ -116,7 +116,10 @@ jobs:
             --cov=loom \
             --cov-report=xml \
             --cov-report=term-missing \
-            --verbose
+            --cov-report=html \
+            --cov-fail-under=80 \
+            --verbose \
+            -m "not slow"
 
       - name: Upload Coverage Report
         uses: codecov/codecov-action@v4
@@ -125,6 +128,14 @@ jobs:
           file: ./coverage.xml
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11'
+        with:
+          name: coverage-report-html
+          path: htmlcov/
+          retention-days: 30
 
   # 安全检查（可选）
   security:

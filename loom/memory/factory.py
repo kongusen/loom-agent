@@ -1,108 +1,85 @@
 """
-Factory functions for creating vector stores and embedding providers.
+记忆工厂 (Memory Factory)
+
+提供便捷的记忆系统创建方法，简化初始化过程。
+
+基于 A4 公理：记忆层次公理
 """
 
-from typing import cast
-
-from loom.config.memory import EmbeddingConfig, VectorStoreConfig
-
-from .embedding import EmbeddingProvider
-from .vector_store import VectorStoreProvider
+from loom.memory.core import LoomMemory
 
 
-def create_vector_store(config: VectorStoreConfig) -> VectorStoreProvider | None:
+class MemoryFactory:
     """
-    Create a vector store instance based on configuration.
+    记忆工厂
 
-    Args:
-        config: Vector store configuration
-
-    Returns:
-        VectorStoreProvider instance or None if disabled
+    提供预设配置的记忆系统创建方法
     """
-    if not config.enabled:
-        return None
 
-    provider = config.provider.lower()
+    @staticmethod
+    def create_default(node_id: str = "default_memory") -> LoomMemory:
+        """
+        创建默认配置的记忆系统
 
-    if provider == "inmemory":
-        from .vector_store import InMemoryVectorStore
+        使用标准的四层记忆配置
 
-        return InMemoryVectorStore()
+        Args:
+            node_id: 节点ID
 
-    elif provider == "qdrant":
-        from .vector_store import QdrantVectorStore
+        Returns:
+            LoomMemory 实例
+        """
+        return LoomMemory(node_id=node_id)
 
-        return QdrantVectorStore(**config.provider_config)
+    @staticmethod
+    def create_for_chat(node_id: str = "chat_memory") -> LoomMemory:
+        """
+        创建适合对话的记忆系统
 
-    elif provider == "chroma":
-        from .vector_store import ChromaVectorStore
+        优化配置：较小的 L1 缓冲区，适合快速对话
 
-        return ChromaVectorStore(**config.provider_config)
+        Args:
+            node_id: 节点ID
 
-    elif provider == "postgres":
-        from .vector_store import PostgreSQLVectorStore
+        Returns:
+            LoomMemory 实例
+        """
+        return LoomMemory(node_id=node_id, max_l1_size=30)
 
-        return PostgreSQLVectorStore(**config.provider_config)
+    @staticmethod
+    def create_for_task(node_id: str = "task_memory") -> LoomMemory:
+        """
+        创建适合任务的记忆系统
 
-    else:
-        # Custom provider: assume it's a class path
-        # e.g., "mypackage.MyVectorStore"
-        try:
-            module_path, class_name = provider.rsplit(".", 1)
-            import importlib
+        优化配置：较大的 L1 缓冲区，适合复杂任务
 
-            module = importlib.import_module(module_path)
-            provider_class = getattr(module, class_name)
-            return cast(VectorStoreProvider, provider_class(**config.provider_config))
-        except Exception as e:
-            raise ValueError(f"Failed to load custom vector store '{provider}': {e}") from e
+        Args:
+            node_id: 节点ID
 
+        Returns:
+            LoomMemory 实例
+        """
+        return LoomMemory(node_id=node_id, max_l1_size=100)
 
-def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
-    """
-    Create an embedding provider instance based on configuration.
+    @staticmethod
+    def create_custom(
+        node_id: str,
+        max_l1_size: int = 50,
+        enable_l4_vectorization: bool = True,
+    ) -> LoomMemory:
+        """
+        创建自定义配置的记忆系统
 
-    Args:
-        config: Embedding configuration
+        Args:
+            node_id: 节点ID
+            max_l1_size: L1 缓冲区最大大小
+            enable_l4_vectorization: 是否启用 L4 向量化
 
-    Returns:
-        EmbeddingProvider instance
-    """
-    provider = config.provider.lower()
-    base_provider: EmbeddingProvider
-
-    if provider == "openai":
-        from .embedding import OpenAIEmbeddingProvider
-
-        base_provider = OpenAIEmbeddingProvider(**config.provider_config)
-
-    elif provider == "bge":
-        from .embedding import BGEEmbeddingProvider
-
-        base_provider = BGEEmbeddingProvider(**config.provider_config)
-
-    elif provider == "mock":
-        from .embedding import MockEmbeddingProvider
-
-        base_provider = MockEmbeddingProvider(**config.provider_config)
-
-    else:
-        # Custom provider
-        try:
-            module_path, class_name = provider.rsplit(".", 1)
-            import importlib
-
-            module = importlib.import_module(module_path)
-            provider_class = getattr(module, class_name)
-            base_provider = cast(EmbeddingProvider, provider_class(**config.provider_config))
-        except Exception as e:
-            raise ValueError(f"Failed to load custom embedding provider '{provider}': {e}") from e
-
-    # Wrap with cache if enabled
-    if config.enable_cache:
-        from .embedding import CachedEmbeddingProvider
-
-        return CachedEmbeddingProvider(base_provider, max_cache_size=config.cache_size)
-
-    return base_provider
+        Returns:
+            LoomMemory 实例
+        """
+        return LoomMemory(
+            node_id=node_id,
+            max_l1_size=max_l1_size,
+            enable_l4_vectorization=enable_l4_vectorization,
+        )

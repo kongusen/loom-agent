@@ -1,161 +1,141 @@
 """
-LoomMemory Configuration
+Memory Configuration - 记忆系统配置
+
+配置四层记忆系统（L1-L4）的参数和策略。
+
+基于公理A4（记忆层次公理）：
+配置记忆的容量、保留时间和管理策略。
+
+设计原则：
+1. 分层配置 - 每层独立配置
+2. 策略灵活 - 支持多种记忆策略
+3. 合理默认 - 提供开箱即用的默认值
 """
 
-from dataclasses import dataclass, field
-from typing import Any
+from enum import Enum
+from typing import TYPE_CHECKING
+
+from pydantic import Field
+
+from loom.config.base import LoomBaseConfig
+
+if TYPE_CHECKING:
+    from loom.config.knowledge import KnowledgeBaseProvider
 
 
-@dataclass
-class CurationConfig:
+class MemoryStrategyType(str, Enum):
     """
-    Configuration for Context Curation strategies.
-    """
+    记忆策略类型
 
-    max_tokens: int = 4000  # Target maximum context size in tokens
-    use_snippets: bool = True  # Whether to use Progressive Disclosure (Snippets)
-    focus_distance: int = 2  # Graph distance for focus (0=self, 1=parent, 2=grandparent+)
-    include_tools: bool = True  # Whether to include available tools in context
-    include_facts: bool = True  # Whether to include relevant facts from L4
-
-    # Summarization thresholds
-    auto_summarize_l3: bool = True
-    l3_summary_threshold: int = 20  # Number of turns before summarizing L3
-
-
-@dataclass
-class ContextConfig:
-    """
-    Global Configuration for the LoomContext system.
+    定义记忆项的提升和压缩策略。
     """
 
-    # LLM & Tokenizer Settings
-    model_name: str = "gpt-4"
-    max_context_tokens: int = 8192  # Absolute hard limit
-    tokenizer_encoding: str = "cl100k_base"
-
-    # Strategy Selection
-    strategy: str = "auto"  # 'auto', 'snippets', 'focused'
-    curation_config: CurationConfig = field(default_factory=CurationConfig)
-
-    # Token Budget Allocation (Percentages 0.0 - 1.0)
-    # The total of these should sum to 1.0
-    # How the max_tokens should be distributed among tiers
-    tokens_budget_l4: float = 0.2  # Global Facts
-    tokens_budget_l3: float = 0.3  # Session History
-    tokens_budget_l2: float = 0.4  # Working Memory (Target)
-    tokens_budget_l1: float = 0.1  # Raw IO
-
-    # Advanced Optimizations
-    enable_prompt_caching: bool = True  # Reorder prompt for KV cache hit rate
-    enable_dynamic_budget: bool = True  # Allow borrowing budget between tiers if unused
+    SIMPLE = "simple"  # 基于访问次数的简单策略
+    TIME_BASED = "time_based"  # 基于时间的策略
+    IMPORTANCE_BASED = "importance_based"  # 基于重要性的策略
 
 
-@dataclass
-class VectorStoreConfig:
+class MemoryLayerConfig(LoomBaseConfig):
     """
-    Configuration for Vector Store backend.
-    Users can specify their preferred vector database.
+    单层记忆配置
+
+    配置单个记忆层的参数。
     """
 
-    # Provider type: 'inmemory', 'qdrant', 'chroma', 'postgres', or custom class path
-    provider: str = "inmemory"
+    capacity: int = Field(
+        10,
+        ge=1,
+        le=10000,
+        description="层容量（最大记忆项数量）",
+    )
 
-    # Provider-specific configuration
-    provider_config: dict[str, Any] = field(default_factory=dict)
+    retention_hours: int | None = Field(
+        None,
+        ge=0,
+        description="保留时间（小时），None 表示永久保留",
+    )
 
-    # Examples:
-    # For Qdrant:
-    #   provider = "qdrant"
-    #   provider_config = {
-    #       "url": "http://localhost:6333",
-    #       "collection_name": "loom_memory",
-    #       "vector_size": 512
-    #   }
-    #
-    # For Chroma:
-    #   provider = "chroma"
-    #   provider_config = {
-    #       "persist_directory": "./chroma_db",
-    #       "collection_name": "loom_memory"
-    #   }
-    #
-    # For PostgreSQL + pgvector:
-    #   provider = "postgres"
-    #   provider_config = {
-    #       "host": "localhost",
-    #       "port": 5432,
-    #       "database": "loom_db",
-    #       "user": "loom_user",
-    #       "password": "your_password",
-    #       "table_name": "loom_vectors",
-    #       "vector_dimensions": 512
-    #   }
+    auto_compress: bool = Field(
+        True,
+        description="是否自动压缩",
+    )
 
-    # Enable/disable vector search entirely
-    enabled: bool = True
-
-    # Batch size for bulk operations
-    batch_size: int = 100
+    promote_threshold: int = Field(
+        3,
+        ge=0,
+        description="提升阈值（访问次数），0 表示不提升",
+    )
 
 
-@dataclass
-class EmbeddingConfig:
+class MemoryConfig(LoomBaseConfig):
     """
-    Configuration for Embedding provider.
-    Users can specify their preferred embedding service.
+    记忆系统配置
+
+    配置完整的四层记忆系统。
+
+    层级说明：
+    - L1: 工作记忆（Working Memory）- 当前对话上下文
+    - L2: 会话记忆（Session Memory）- 当前会话历史
+    - L3: 情节记忆（Episodic Memory）- 跨会话的重要事件
+    - L4: 语义记忆（Semantic Memory）- 长期知识和事实
     """
 
-    # Provider type: 'bge', 'openai', 'mock', or custom class path
-    provider: str = "bge"
+    strategy: MemoryStrategyType = Field(
+        MemoryStrategyType.SIMPLE,
+        description="记忆管理策略",
+    )
 
-    # Provider-specific configuration
-    provider_config: dict[str, Any] = field(default_factory=dict)
+    l1: MemoryLayerConfig = Field(
+        default_factory=lambda: MemoryLayerConfig(
+            capacity=10,
+            retention_hours=1,
+            auto_compress=True,
+            promote_threshold=3,
+        ),
+        description="L1 工作记忆配置",
+    )
 
-    # Examples:
-    # For BGE (default, optimized for CPU):
-    #   provider = "bge"
-    #   provider_config = {
-    #       "model_name": "BAAI/bge-small-zh-v1.5",
-    #       "use_onnx": True,
-    #       "use_quantization": True
-    #   }
-    #
-    # For OpenAI:
-    #   provider = "openai"
-    #   provider_config = {
-    #       "api_key": "sk-...",
-    #       "model": "text-embedding-3-small",
-    #       "dimensions": 1536
-    #   }
+    l2: MemoryLayerConfig = Field(
+        default_factory=lambda: MemoryLayerConfig(
+            capacity=50,
+            retention_hours=24,
+            auto_compress=True,
+            promote_threshold=5,
+        ),
+        description="L2 会话记忆配置",
+    )
 
-    # Enable caching to avoid redundant API calls
-    enable_cache: bool = True
-    cache_size: int = 10000
+    l3: MemoryLayerConfig = Field(
+        default_factory=lambda: MemoryLayerConfig(
+            capacity=200,
+            retention_hours=168,  # 7 days
+            auto_compress=True,
+            promote_threshold=10,
+        ),
+        description="L3 情节记忆配置",
+    )
 
-    # Batch processing
-    batch_size: int = 50
+    l4: MemoryLayerConfig = Field(
+        default_factory=lambda: MemoryLayerConfig(
+            capacity=1000,
+            retention_hours=None,  # 永久保留
+            auto_compress=False,
+            promote_threshold=0,  # L4 不再提升
+        ),
+        description="L4 语义记忆配置",
+    )
 
+    enable_auto_migration: bool = Field(
+        True,
+        description="启用自动迁移（根据策略自动提升记忆项）",
+    )
 
-@dataclass
-class MemoryConfig:
-    """
-    Unified configuration for the entire LoomMemory system.
-    """
+    enable_compression: bool = Field(
+        True,
+        description="启用压缩（自动压缩满层）",
+    )
 
-    # L1 Buffer Settings
-    max_l1_size: int = 50
-
-    # Vector Store
-    vector_store: VectorStoreConfig = field(default_factory=VectorStoreConfig)
-
-    # Embedding Provider
-    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
-
-    # Auto-vectorization: Automatically embed and index L4 content
-    auto_vectorize_l4: bool = True
-
-    # Compression Settings
-    enable_auto_compression: bool = True
-    l1_to_l3_threshold: int = 30  # Compress L1 to L3 after N messages
-    l3_to_l4_threshold: int = 50  # Extract facts to L4 after N L3 items
+    knowledge_base: "KnowledgeBaseProvider | None" = Field(
+        None,
+        description="外部知识库提供者（可选）",
+    )

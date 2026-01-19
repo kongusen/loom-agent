@@ -1,44 +1,41 @@
 """
-Execution Configuration
+执行配置 (Execution Configuration)
+
+提供工具执行相关的配置选项。
+
+基于 Phase 4 配置系统
 """
 
-from pydantic import BaseModel, Field
+from loom.config.base import LoomBaseConfig
 
 
-class NormalizationConfig(BaseModel):
-    """Configuration for data normalization."""
-
-    max_depth: int = Field(3, description="Maximum recursion depth for object normalization")
-    max_bytes: int = Field(100_000, description="Maximum byte size for tool outputs")
-    truncate_strings: int = Field(20_000, description="Maximum string length before truncation")
-    enable_circular_check: bool = Field(True, description="Detect and handle circular references")
-
-
-class ErrorHandlingConfig(BaseModel):
-    """Configuration for error formatting."""
-
-    enable_hints: bool = Field(True, description="Provide actionable suggestions for errors")
-    include_traceback: bool = Field(False, description="Include full stack trace in output")
-    rich_formatting: bool = Field(True, description="Use Markdown formatting for errors")
-
-
-class ExecutionConfig(BaseModel):
+class ExecutionConfig(LoomBaseConfig):
     """
-    Configuration for Agent Execution Environment.
-    Controls how tools are executed and results are processed.
+    执行配置
+
+    管理工具执行的行为和限制
     """
 
-    timeout: int = Field(60, description="Tool execution timeout in seconds")
-    max_retries: int = Field(0, description="Automatic retries for system errors")
-    parallel_execution: bool = Field(
-        False, description="Enable parallel execution for read-only tools"
-    )
-    concurrency_limit: int = Field(5, description="Maximum concurrent tool executions")
+    timeout: int = 30
+    """工具执行超时时间（秒）"""
 
-    # Sub-configs
-    normalization: NormalizationConfig = Field(default_factory=NormalizationConfig)
-    error_handling: ErrorHandlingConfig = Field(default_factory=ErrorHandlingConfig)
+    max_retries: int = 2
+    """工具执行失败时的最大重试次数"""
 
-    @staticmethod
-    def default() -> "ExecutionConfig":
-        return ExecutionConfig()
+    retry_delay: float = 1.0
+    """重试之间的延迟时间（秒）"""
+
+    parallel_execution: bool = False
+    """是否允许并行执行多个工具"""
+
+    max_parallel_tools: int = 3
+    """最大并行执行的工具数量"""
+
+    enable_sandbox: bool = True
+    """是否启用沙箱环境"""
+
+    capture_output: bool = True
+    """是否捕获工具输出"""
+
+    log_execution: bool = True
+    """是否记录工具执行日志"""

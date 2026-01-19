@@ -12,7 +12,7 @@
 
 **English** | [中文](README.md)
 
-[📖 Documentation](docs/index.md) | [🚀 Quickstart](docs/01_getting_started/quickstart.md) | [🧩 Concepts](docs/02_core_concepts/index.md)
+[📖 Documentation Index](docs/README.md) | [🧩 Axiomatic Framework](docs/concepts/axiomatic-framework.md) | [🚀 Getting Started](docs/usage/getting-started.md)
 
 </div>
 
@@ -20,36 +20,40 @@
 
 ## 🎯 What is Loom?
 
-Loom is a **High-Assurance** AI Agent framework designed for building production-grade systems. Unlike frameworks focused on "rapid prototyping," Loom focuses on **Control, Persistence, and Scalability**.
+Loom is a **High-Assurance** AI Agent framework designed for building **Cognitive Organisms**. Unlike frameworks focused on "rapid prototyping," Loom starts from an **Axiomatic Framework** and uses **Fractal Architecture** and **Metabolic Memory** to counter cognitive entropy, achieving reliable operation at infinite complexity and infinite time.
 
-### Core Features (v0.3.7)
+### Core Features (v0.4.0-alpha)
 
-1.  **🧬 Controlled Fractal Architecture**:
-    *   Agent, Tool, and Crew are all **Nodes**. Nodes can recursively contain other nodes.
-    *   Complex swarms expose simple function-like interfaces.
+1.  **🧩 Axiomatic Framework**:
+    *   Built from 5 foundational axioms to create a formal theoretical framework.
+    *   **Axiom A1**: Uniform Interface - All nodes implement `NodeProtocol`.
+    *   **Axiom A2**: Event Sovereignty - All communication through standardized task models.
+    *   **Axiom A3**: Fractal Composition - Nodes can recursively compose, complexity remains O(1).
+    *   **Axiom A4**: Memory Metabolism - Information transforms into knowledge through metabolism.
+    *   **Axiom A5**: Cognitive Emergence - Cognition emerges from orchestration interactions.
 
-2.  **🎯 Cognitive Dynamics System**:
-    *   **Dual-System Thinking**: Intelligent collaboration between System 1 (fast intuition) and System 2 (deep reasoning).
-    *   **Confidence Assessment**: System 1 automatically falls back to System 2 on low confidence responses.
-    *   **Unified Configuration**: Manage cognitive, context, and memory configurations through `CognitiveConfig`.
-    *   **Preset Modes**: Three out-of-the-box configuration modes: fast/balanced/deep.
+2.  **🧬 Fractal Architecture**:
+    *   **Infinite Recursion**: Agent, Tool, Crew are all nodes, infinitely nestable.
+    *   **Complexity Conservation**: Local context complexity at any level remains constant at O(1).
+    *   **Unified Interface**: All nodes communicate through `NodeProtocol`, achieving interface transparency.
+    *   **Counter Spatial Entropy**: Achieve infinite semantic depth through recursive encapsulation.
 
-3.  **🧠 Composite Memory System**:
-    *   **L1-L4 Hierarchy**: From ephemeral reaction (L1) to semantic knowledge (L4).
-    *   **Multiple Vector Stores**: Support for Qdrant, Chroma, PostgreSQL (pgvector), and more vector database backends.
-    *   **BGE Embedding**: Integrated ONNX-optimized BGE model for high-performance semantic retrieval.
-    *   **Smart Compression**: L4 knowledge base automatically clusters and compresses to maintain optimal size (<150 facts).
+3.  **🧠 Metabolic Memory System**:
+    *   **L1-L4 Hierarchy**: Complete memory spectrum from ephemeral reaction to semantic knowledge.
     *   **Memory Metabolism**: Automated `Ingest` -> `Digest` -> `Assimilate` consolidation loop.
-    *   **Context Projection**: Smart projection of parent Agent context to child Agents with 5 projection modes.
+    *   **Smart Compression**: L4 knowledge base automatically clusters and compresses to maintain optimal size.
+    *   **Counter Temporal Entropy**: Transform flowing experience into fixed knowledge.
+    *   **Multiple Vector Stores**: Support for Qdrant, Chroma, PostgreSQL (pgvector).
 
-4.  **🛡️ Protocol-First & Recursion**:
-    *   **Infinite Recursion**: Agents can delegate tasks to other nodes recursively with no depth limit.
-    *   **Unified Execution**: `FractalOrchestrator` unifies tool execution and sub-agent orchestration.
-    *   **Standard Contracts**: All interactions defined by CloudEvents and MCP.
+4.  **🎯 FastAPI-Style API**:
+    *   **Type Safety**: Pydantic-based configuration models with automatic validation.
+    *   **Simple & Elegant**: `LoomApp` + `AgentConfig` for quick agent creation.
+    *   **Unified Management**: Centralized management of event bus, dispatcher, and LLM providers.
 
-5.  **⚡ Universal Event Bus**:
-    *   Based on CloudEvents standard.
-    *   Supports full-stack Tracing and Auditing.
+5.  **🛡️ Protocol-First**:
+    *   **Standard Contracts**: Based on Google A2A protocol and SSE transport.
+    *   **Event-Driven**: All communication through standardized task models.
+    *   **Observability**: Support for full-stack tracing and auditing.
 
 6.  **🌐 Multi-LLM Support**:
     *   **10+ Providers**: OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Kimi, Doubao, and more.
@@ -91,18 +95,33 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-> **Note**: Loom uses a Mock LLM by default for testing. To use real models, see [Examples](docs/08_examples/index.md).
+> **Note**: To connect to real LLMs (like OpenAI/Claude), see [Getting Started](docs/usage/getting-started.md).
 
 ## 📚 Documentation
 
-We provide comprehensive documentation:
+Complete documentation system from theory to practice:
 
-*   **[User Guide](docs/index.md)**
-    *   [Installation](docs/01_getting_started/installation.md)
-    *   [Building Agents](docs/03_guides/building_agents.md)
-*   **[Core Concepts](docs/02_core_concepts/index.md)**
-    *   [Metabolic Memory](docs/02_core_concepts/memory_system.md)
-    *   [Design Philosophy](docs/05_design_philosophy/index.md)
+### Core Concepts
+*   **[Documentation Home](docs/README.md)**: Documentation navigation
+*   **[Axiomatic Framework](docs/concepts/axiomatic-framework.md)**: 5 foundational axioms and theoretical foundation
+
+### Getting Started
+*   **[Getting Started](docs/usage/getting-started.md)**: 5-minute quickstart guide
+*   **[API Reference](docs/usage/api-reference.md)**: Complete API documentation
+
+### Framework Architecture
+*   **[Fractal Architecture](docs/framework/fractal-architecture.md)**: Core design for countering spatial entropy
+*   **[Context Management](docs/framework/context-management.md)**: Intelligent context building and optimization
+*   **[Event Bus](docs/framework/event-bus.md)**: Event-driven nervous system
+
+### Core Features
+*   **[Memory System](docs/features/memory-system.md)**: L1-L4 metabolic memory mechanism
+*   **[Tool System](docs/features/tool-system.md)**: Tool integration and execution
+*   **[Orchestration](docs/features/orchestration.md)**: Multi-agent collaboration patterns
+*   **[Search & Retrieval](docs/features/search-and-retrieval.md)**: Semantic search and knowledge retrieval
+
+### Design Patterns
+*   **[Solving Complexity](docs/patterns/solving-complexity.md)**: How to break down "impossible tasks"
 
 ## 🤝 Contributing
 

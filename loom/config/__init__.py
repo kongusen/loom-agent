@@ -1,64 +1,28 @@
 """
-Loom Configuration Module - 统一配置导出
+Loom Configuration System
+
+提供类型安全的配置模型，支持从文件加载和验证。
+
+基于公理A1（统一接口公理）：
+所有配置都遵循统一的接口和验证规则。
 """
 
-# Agent 配置
-# 执行配置
+from loom.config.base import LoomBaseConfig
 from loom.config.execution import ExecutionConfig
-
-# 分型配置
-from loom.config.fractal import (
-    FractalConfig,
-    GrowthStrategy,
-    GrowthTrigger,
-    NodeMetrics,
-    NodeRole,
-)
-
-# LLM 配置
-from loom.config.llm import (
-    AdvancedConfig,
-    ConnectionConfig,
-    GenerationConfig,
-    LLMConfig,
-    StreamConfig,
-    StructuredOutputConfig,
-    ToolConfig,
-)
-
-# Memory 配置
-from loom.config.memory import (
-    ContextConfig,
-    CurationConfig,
-    EmbeddingConfig,
-    MemoryConfig,
-    VectorStoreConfig,
-)
-from loom.config.models import AgentConfig
+from loom.config.fractal import FractalConfig, GrowthStrategy, GrowthTrigger
+from loom.config.llm import LLMConfig
+from loom.config.memory import MemoryConfig, MemoryLayerConfig, MemoryStrategyType
+from loom.config.tool import ToolConfig
 
 __all__ = [
-    # Agent 配置
-    "AgentConfig",
-    # 分型配置
+    "LoomBaseConfig",
+    "MemoryConfig",
+    "MemoryLayerConfig",
+    "MemoryStrategyType",
     "FractalConfig",
-    "NodeRole",
-    "NodeMetrics",
     "GrowthTrigger",
     "GrowthStrategy",
-    # 执行配置
-    "ExecutionConfig",
-    # Memory 配置
-    "ContextConfig",
-    "CurationConfig",
-    "MemoryConfig",
-    "VectorStoreConfig",
-    "EmbeddingConfig",
-    # LLM 配置
     "LLMConfig",
-    "ConnectionConfig",
-    "GenerationConfig",
-    "StreamConfig",
-    "StructuredOutputConfig",
+    "ExecutionConfig",
     "ToolConfig",
-    "AdvancedConfig",
 ]

@@ -4,8 +4,9 @@ Thank you for your interest in contributing to Loom Agent! 🎉
 
 ## Quick Links
 
-- **User Guide (English)**: [docs/en/README.md](docs/en/README.md)
-- **User Guide (Chinese)**: [docs/README.md](docs/README.md)
+- **Documentation Home**: [docs/README.md](docs/README.md)
+- **Axiomatic Framework**: [docs/concepts/axiomatic-framework.md](docs/concepts/axiomatic-framework.md)
+- **Getting Started**: [docs/usage/getting-started.md](docs/usage/getting-started.md)
 - **Issues**: [GitHub Issues](https://github.com/kongusen/loom-agent/issues)
 
 ## How to Contribute
@@ -37,4 +38,17 @@ Thank you for your interest in contributing to Loom Agent! 🎉
 
 ## Documentation
 
-If you are updating documentation, please try to keep both English (`docs/`) and Chinese (`docs/zh/`) sections in sync if possible. If not, just update the English one and open an issue for translation.
+We follow a structured documentation system organized by purpose:
+
+- **`docs/concepts/`**: Theoretical foundations and axiomatic framework
+- **`docs/usage/`**: User guides and API references
+- **`docs/framework/`**: Core architecture documentation
+- **`docs/features/`**: Feature-specific documentation
+- **`docs/patterns/`**: Design patterns and best practices
+- **`docs/optimization/`**: Performance optimization guides
+
+When updating documentation:
+1. Place new docs in the appropriate category
+2. Update the main [docs/README.md](docs/README.md) navigation if adding new sections
+3. Ensure code examples are tested and working
+4. Use clear, concise language suitable for both beginners and advanced users

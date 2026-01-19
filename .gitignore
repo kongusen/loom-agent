@@ -181,25 +181,6 @@ scripts/
 .codex/
 .specify/
 
-# Temporary documentation and reports
-*_STATUS.md
-*_REPORT.md
-*_COMPLETE.md
-*_FEATURES.md
-DELIVERABLES.md
-PROJECT_STATUS.md
-PRE_RELEASE_*.md
-READY_TO_*.md
-RELEASE_STEPS_*.md
-QUICK_PUBLISH.md
-DOCUMENTATION_INDEX.md
-V4_FINAL_SUMMARY.md
-
-# Keep only cleaned documentation in docs/
-# Original markdown files (moved to docs/)
-USER_GUIDE.md
-API_REFERENCE.md
-PYPI_PUBLISHING_GUIDE.md
 
 # Build artifacts
 dist/
@@ -214,5 +195,4 @@ test-*/
 testpypi-*/
 verify-*/
 
-papers/
-cc分析/
+docs/design/*.md
