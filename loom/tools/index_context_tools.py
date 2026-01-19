@@ -25,6 +25,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from loom.memory.core import LoomMemory
 
+from loom.memory.types import TaskSummary
+from loom.protocol import Task
+
 
 # ==================== List Tools (阶段1：列出索引) ====================
 
@@ -220,10 +223,15 @@ async def execute_select_memory_by_index_tool(args: dict, memory: "LoomMemory") 
         }
 
     # 根据层级获取数据
+    from loom.protocol import Task
+    from loom.memory.types import TaskSummary
+    
     if layer == "L2":
-        items = memory.get_l2_tasks(limit=100)  # 获取足够多的项
+        items: list[Task] = memory.get_l2_tasks(limit=100)  # 获取足够多的项
     elif layer == "L3":
-        items = memory.get_l3_summaries(limit=100)
+        l3_items: list[TaskSummary] = memory.get_l3_summaries(limit=100)
+        # 将 TaskSummary 转换为类似 Task 的结构以便统一处理
+        items = l3_items  # type: ignore[assignment]
     else:
         return {
             "error": f"Invalid layer: {layer}",
@@ -231,48 +239,50 @@ async def execute_select_memory_by_index_tool(args: dict, memory: "LoomMemory") 
         }
 
     # 根据索引选择项（索引从1开始）
-    selected = []
+    selected: list[dict[str, Any]] = []
     for idx in indices:
         if 1 <= idx <= len(items):
             item = items[idx - 1]  # 转换为0-based索引
 
             if layer == "L2":
                 # L2: 返回中等压缩陈述句
-                params_str = (
-                    str(item.parameters)[:50] + "..."
-                    if len(str(item.parameters)) > 50
-                    else str(item.parameters)
-                )
-                result_str = (
-                    str(item.result)[:100] + "..."
-                    if item.result and len(str(item.result)) > 100
-                    else str(item.result or "无结果")
-                )
-                statement = f"执行了{item.action}操作，参数{params_str}，结果{result_str}"
+                if isinstance(item, Task):
+                    params_str = (
+                        str(item.parameters)[:50] + "..."
+                        if len(str(item.parameters)) > 50
+                        else str(item.parameters)
+                    )
+                    result_str = (
+                        str(item.result)[:100] + "..."
+                        if item.result and len(str(item.result)) > 100
+                        else str(item.result or "无结果")
+                    )
+                    statement = f"执行了{item.action}操作，参数{params_str}，结果{result_str}"
 
-                selected.append(
-                    {
-                        "index": idx,
-                        "task_id": item.task_id,
-                        "statement": statement,
-                    }
-                )
+                    selected.append(
+                        {
+                            "index": idx,
+                            "task_id": item.task_id,
+                            "statement": statement,
+                        }
+                    )
             elif layer == "L3":
                 # L3: 返回高度压缩陈述句
-                result_brief = (
-                    item.result_summary[:50] + "..."
-                    if len(item.result_summary) > 50
-                    else item.result_summary
-                )
-                statement = f"{item.action}: {result_brief}"
+                if isinstance(item, TaskSummary):
+                    result_brief = (
+                        item.result_summary[:50] + "..."
+                        if len(item.result_summary) > 50
+                        else item.result_summary
+                    )
+                    statement = f"{item.action}: {result_brief}"
 
-                selected.append(
-                    {
-                        "index": idx,
-                        "task_id": item.task_id,
-                        "statement": statement,
-                    }
-                )
+                    selected.append(
+                        {
+                            "index": idx,
+                            "task_id": item.task_id,
+                            "statement": statement,
+                        }
+                    )
 
     return {
         "layer": layer,

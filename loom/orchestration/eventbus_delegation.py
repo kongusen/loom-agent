@@ -8,6 +8,7 @@ import asyncio
 from typing import Any
 
 from loom.events.queryable_event_bus import QueryableEventBus
+from loom.protocol import Task
 
 
 class EventBusDelegationHandler:
@@ -51,25 +52,27 @@ class EventBusDelegationHandler:
         request_id = f"{parent_task_id}:delegated:{target_agent_id}"
 
         # 创建Future用于等待响应
-        future = asyncio.Future()
+        future: asyncio.Future[str] = asyncio.Future()
         self._pending_requests[request_id] = future
 
         # 发布委派请求事件
-        await self.event_bus.publish(
-            {
-                "type": "node.delegation_request",
+        delegation_task = Task(
+            task_id=request_id,
+            action="node.delegation_request",
+            parameters={
                 "source_agent": source_agent_id,
                 "target_agent": target_agent_id,
                 "request_id": request_id,
                 "subtask": subtask,
                 "parent_task_id": parent_task_id,
-            }
+            },
         )
+        await self.event_bus.publish(delegation_task)
 
         # 等待响应（带超时）
         try:
             result = await asyncio.wait_for(future, timeout=self.timeout)
-            return result
+            return str(result)
         except TimeoutError:
             self._pending_requests.pop(request_id, None)
             return f"Delegation timeout: {target_agent_id} did not respond within {self.timeout}s"

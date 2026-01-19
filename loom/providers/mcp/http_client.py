@@ -161,10 +161,14 @@ class HttpMCPClient(MCPProvider):
         response = await self._send_request("resources/read", {"uri": uri})
         contents = response.get("contents", [])
 
-        if not contents:
+        if not contents or not isinstance(contents, list):
             return ""
 
-        return contents[0].get("text", "")
+        first_content = contents[0] if contents else {}
+        if isinstance(first_content, dict):
+            text = first_content.get("text", "")
+            return str(text) if text is not None else ""
+        return ""
 
     async def list_prompts(self) -> list[MCPPrompt]:
         """列出所有可用提示模板"""
@@ -224,6 +228,13 @@ class HttpMCPClient(MCPProvider):
         # 检查错误
         if "error" in response_data:
             error = response_data["error"]
-            raise RuntimeError(f"MCP error: {error.get('message', 'Unknown error')}")
+            if isinstance(error, dict):
+                error_msg = error.get("message", "Unknown error")
+            else:
+                error_msg = str(error)
+            raise RuntimeError(f"MCP error: {error_msg}")
 
-        return response_data.get("result", {})
+        result = response_data.get("result", {})
+        if not isinstance(result, dict):
+            return {}
+        return result

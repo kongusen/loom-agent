@@ -57,7 +57,7 @@ class ContextBuilder:
         Returns:
             上下文字典
         """
-        context = {
+        context: dict[str, Any] = {
             "node_id": node_id,
             "task_id": task_id,
             "self_history": [],
@@ -74,7 +74,7 @@ class ContextBuilder:
         )
         context["self_history"] = [
             {
-                "content": e.parameters.get("content", ""),
+                "content": str(e.parameters.get("content", "")),
                 "timestamp": e.created_at.isoformat() if e.created_at else None,
             }
             for e in self_events
@@ -82,11 +82,13 @@ class ContextBuilder:
 
         # 2. 兄弟节点的洞察（如果需要）
         if include_siblings:
-            context["sibling_insights"] = self._get_sibling_insights(node_id, task_id, max_events)
+            sibling_insights: list[dict[str, Any]] = self._get_sibling_insights(node_id, task_id, max_events)
+            context["sibling_insights"] = sibling_insights  # type: ignore[assignment]
 
         # 3. 父节点的上下文（如果需要）
         if include_parent:
-            context["parent_context"] = self._get_parent_context(task_id, max_events)
+            parent_context: list[dict[str, Any]] = self._get_parent_context(task_id, max_events)
+            context["parent_context"] = parent_context  # type: ignore[assignment]
 
         # 4. 集体记忆
         context["collective_memory"] = self.event_bus.get_collective_memory(limit=max_events)
@@ -266,30 +268,41 @@ class ContextBuilder:
         # 获取集体记忆
         collective_memory = self.event_bus.get_collective_memory(limit=limit)
 
-        insights = {
-            "total_nodes": len(
-                collective_memory.get(
-                    "node.thinking",
-                )
-            ),
+        thinking_memory = collective_memory.get("node.thinking", {})
+        if not isinstance(thinking_memory, dict):
+            thinking_memory = {}
+        
+        insights: dict[str, Any] = {
+            "total_nodes": len(thinking_memory),
             "total_thoughts": 0,
             "by_node": {},
         }
 
         # 统计每个节点的思考数量
-        for node_id, thoughts in collective_memory.get("node.thinking", {}).items():
-            insights["total_thoughts"] += len(thoughts)
+        for node_id, thoughts in thinking_memory.items():
+            if not isinstance(thoughts, list):
+                continue
+            thought_count = len(thoughts)
+            insights["total_thoughts"] += thought_count
             insights["by_node"][node_id] = {
-                "thought_count": len(thoughts),
-                "recent_thoughts": [t["content"] for t in thoughts[-3:]],  # 最近3条
+                "thought_count": thought_count,
+                "recent_thoughts": [
+                    str(t.get("content", "")) if isinstance(t, dict) else str(t)
+                    for t in thoughts[-3:]
+                ],  # 最近3条
             }
 
         # 如果有主题过滤
         if topic:
-            filtered_insights = {"by_node": {}}
+            filtered_insights: dict[str, Any] = {"by_node": {}}
             for node_id, node_data in insights["by_node"].items():
+                if not isinstance(node_data, dict):
+                    continue
+                recent_thoughts = node_data.get("recent_thoughts", [])
+                if not isinstance(recent_thoughts, list):
+                    continue
                 relevant_thoughts = [
-                    t for t in node_data["recent_thoughts"] if topic.lower() in t.lower()
+                    str(t) for t in recent_thoughts if topic.lower() in str(t).lower()
                 ]
                 if relevant_thoughts:
                     filtered_insights["by_node"][node_id] = {

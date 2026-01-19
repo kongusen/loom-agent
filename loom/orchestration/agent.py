@@ -114,7 +114,9 @@ class Agent(BaseNode):
         self.memory = LoomMemory(node_id=node_id, **(memory_config or {}))
 
         # 创建 TaskContextManager
-        sources = []
+        from loom.memory.task_context import ContextSource
+        
+        sources: list[ContextSource] = []
         sources.append(MemoryContextSource(self.memory))
         if event_bus and isinstance(event_bus, QueryableEventBus):
             sources.append(EventBusContextSource(event_bus))
@@ -273,7 +275,7 @@ class Agent(BaseNode):
         relevant_skills = await self._load_relevant_skills(task_content)
 
         # Agent 循环
-        accumulated_messages = []
+        accumulated_messages: list[dict[str, Any]] = []
         final_content = ""
 
         try:
@@ -303,15 +305,24 @@ class Agent(BaseNode):
                     messages, tools=self.all_tools if self.all_tools else None
                 ):
                     if chunk.type == "text":
-                        full_content += chunk.content
+                        content_str = str(chunk.content) if isinstance(chunk.content, dict) else chunk.content
+                        full_content += content_str
                         await self.publish_thinking(
-                            content=chunk.content,
+                            content=content_str,
                             task_id=task.task_id,
                             metadata={"iteration": iteration},
                         )
 
                     elif chunk.type == "tool_call_complete":
-                        tool_calls.append(chunk.content)
+                        if isinstance(chunk.content, dict):
+                            tool_calls.append(chunk.content)
+                        else:
+                            # 如果不是dict，尝试解析
+                            import json
+                            try:
+                                tool_calls.append(json.loads(str(chunk.content)))
+                            except (json.JSONDecodeError, TypeError):
+                                tool_calls.append({"name": "", "arguments": {}, "content": str(chunk.content)})
 
                     elif chunk.type == "error":
                         await self._publish_event(
@@ -340,8 +351,12 @@ class Agent(BaseNode):
 
                 # 4. 执行工具调用
                 for tool_call in tool_calls:
+                    if not isinstance(tool_call, dict):
+                        continue
                     tool_name = tool_call.get("name", "")
                     tool_args = tool_call.get("arguments", {})
+                    if not isinstance(tool_args, dict):
+                        tool_args = {}
 
                     # 发布工具调用事件
                     await self.publish_tool_call(
@@ -425,8 +440,9 @@ class Agent(BaseNode):
             ephemeral 计数（0 表示不是 ephemeral 工具）
         """
         for tool in self.all_tools:
-            if tool.get("function", {}).get("name") == tool_name:
-                return tool.get("_ephemeral", 0)
+            if isinstance(tool, dict) and tool.get("function", {}).get("name") == tool_name:
+                ephemeral = tool.get("_ephemeral", 0)
+                return int(ephemeral) if isinstance(ephemeral, (int, float)) else 0
         return 0
 
     def _filter_ephemeral_messages(
@@ -625,7 +641,8 @@ class Agent(BaseNode):
                 if result_task.status == TaskStatus.COMPLETED:
                     # 提取结果内容
                     if isinstance(result_task.result, dict):
-                        return result_task.result.get("content", str(result_task.result))
+                        content = result_task.result.get("content", str(result_task.result))
+                        return str(content)
                     else:
                         return str(result_task.result)
                 else:

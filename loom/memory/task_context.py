@@ -321,7 +321,7 @@ class TaskContextManager:
             return [system_msg] if system_msg else []
 
         # 从后往前添加，直到填满
-        kept_messages = []
+        kept_messages: list[dict[str, str]] = []
         current_count = 0
 
         for msg in reversed(other_messages):
