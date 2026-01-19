@@ -4,7 +4,7 @@ Event Bus Unit Tests
 测试事件总线的核心功能
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 

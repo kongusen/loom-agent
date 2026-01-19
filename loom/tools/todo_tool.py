@@ -43,7 +43,11 @@ class TodoTool:
 
         try:
             content = self.storage_path.read_text(encoding="utf-8")
-            return json.loads(content)
+            data = json.loads(content)
+            # 类型转换：确保返回 list[dict[str, Any]]
+            if isinstance(data, list):
+                return data  # type: ignore[return-value]
+            return []
         except (json.JSONDecodeError, Exception):
             return []
 

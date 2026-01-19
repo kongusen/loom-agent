@@ -115,7 +115,7 @@ class Agent(BaseNode):
 
         # 创建 TaskContextManager
         from loom.memory.task_context import ContextSource
-        
+
         sources: list[ContextSource] = []
         sources.append(MemoryContextSource(self.memory))
         if event_bus and isinstance(event_bus, QueryableEventBus):
@@ -442,7 +442,7 @@ class Agent(BaseNode):
         for tool in self.all_tools:
             if isinstance(tool, dict) and tool.get("function", {}).get("name") == tool_name:
                 ephemeral = tool.get("_ephemeral", 0)
-                return int(ephemeral) if isinstance(ephemeral, (int, float)) else 0
+                return int(ephemeral) if isinstance(ephemeral, int | float) else 0
         return 0
 
     def _filter_ephemeral_messages(

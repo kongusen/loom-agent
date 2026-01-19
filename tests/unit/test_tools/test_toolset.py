@@ -2,7 +2,6 @@
 Tests for Toolset
 """
 
-from pathlib import Path
 
 import pytest
 

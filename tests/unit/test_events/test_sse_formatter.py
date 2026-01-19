@@ -2,7 +2,6 @@
 Tests for SSE Formatter
 """
 
-import pytest
 
 from loom.events.sse_formatter import SSEFormatter
 
@@ -129,7 +128,7 @@ class TestSSEFormatter:
     def test_format_sse_message_order_of_fields(self):
         """Test that fields are in correct order: id, event, data"""
         result = SSEFormatter.format_sse_message("test", "data", "id123")
-        lines = [l for l in result.split("\n") if l.strip()]
+        lines = [line for line in result.split("\n") if line.strip()]
 
         assert lines[0].startswith("id:")
         assert lines[1].startswith("event:")

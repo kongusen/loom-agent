@@ -252,7 +252,6 @@ class TestSandboxSafeMethods:
         (tmp_path / "file.txt").write_text("content")
 
         # NotADirectoryError can be either from os or pathlib module
-        import os
 
         with pytest.raises(NotADirectoryError):
             sandbox.safe_list_dir("file.txt")

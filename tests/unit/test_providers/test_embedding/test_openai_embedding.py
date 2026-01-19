@@ -2,7 +2,6 @@
 Tests for OpenAI Embedding Provider
 """
 
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -46,7 +45,7 @@ class TestOpenAIEmbeddingProvider:
     def test_init_with_base_url(self, mock_openai_client):
         """Test initialization with custom base URL"""
         with patch("loom.providers.embedding.openai.AsyncOpenAI") as mock:
-            provider = OpenAIEmbeddingProvider(
+            OpenAIEmbeddingProvider(
                 api_key="test-key",
                 base_url="https://custom.example.com"
             )
@@ -55,7 +54,7 @@ class TestOpenAIEmbeddingProvider:
     def test_init_with_timeout(self, mock_openai_client):
         """Test initialization with custom timeout"""
         with patch("loom.providers.embedding.openai.AsyncOpenAI") as mock:
-            provider = OpenAIEmbeddingProvider(
+            OpenAIEmbeddingProvider(
                 api_key="test-key",
                 timeout=120.0
             )
@@ -64,7 +63,7 @@ class TestOpenAIEmbeddingProvider:
     def test_init_with_extra_kwargs(self, mock_openai_client):
         """Test initialization with extra kwargs"""
         with patch("loom.providers.embedding.openai.AsyncOpenAI") as mock:
-            provider = OpenAIEmbeddingProvider(
+            OpenAIEmbeddingProvider(
                 api_key="test-key",
                 max_retries=3,
                 http_client="custom"
@@ -75,7 +74,7 @@ class TestOpenAIEmbeddingProvider:
         """Test that API key is read from environment variable"""
         monkeypatch.setenv("OPENAI_API_KEY", "env-api-key")
         with patch("loom.providers.embedding.openai.AsyncOpenAI") as mock:
-            provider = OpenAIEmbeddingProvider()
+            OpenAIEmbeddingProvider()
             mock.assert_called_once()
 
     @pytest.mark.asyncio

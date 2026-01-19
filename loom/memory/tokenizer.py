@@ -10,6 +10,10 @@ Token Counter - Token 计数器
 """
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tiktoken import Encoding
 
 
 class TokenCounter(ABC):
@@ -106,7 +110,7 @@ class TiktokenCounter(TokenCounter):
             model: OpenAI 模型名称
         """
         self.model = model
-        self._encoding = None
+        self._encoding: Encoding | None = None
         self._load_encoding()
 
     def _load_encoding(self):

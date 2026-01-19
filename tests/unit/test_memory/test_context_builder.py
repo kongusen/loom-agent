@@ -5,13 +5,13 @@ Context Builder Unit Tests
 """
 
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
 from loom.events.queryable_event_bus import QueryableEventBus
 from loom.memory.context_builder import ContextBuilder
-from loom.protocol import Task, TaskStatus
+from loom.protocol import Task
 
 
 class TestContextBuilder:

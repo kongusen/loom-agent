@@ -4,7 +4,7 @@ Stream API Unit Tests
 测试流式观测API功能
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 

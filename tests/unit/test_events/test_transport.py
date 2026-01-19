@@ -2,7 +2,6 @@
 Tests for Transport Abstract Interface
 """
 
-from unittest.mock import AsyncMock
 
 import pytest
 

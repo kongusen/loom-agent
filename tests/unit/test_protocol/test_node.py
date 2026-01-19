@@ -2,11 +2,10 @@
 Tests for NodeProtocol
 """
 
-from unittest.mock import AsyncMock
 
 import pytest
 
-from loom.protocol.agent_card import AgentCard, AgentCapability
+from loom.protocol.agent_card import AgentCapability, AgentCard
 from loom.protocol.node import NodeProtocol
 from loom.protocol.task import Task, TaskStatus
 

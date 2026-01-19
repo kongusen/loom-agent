@@ -4,9 +4,7 @@ Event Stream Converter Unit Tests
 测试事件流转换器
 """
 
-from unittest.mock import AsyncMock, Mock, patch
-
-import pytest
+from unittest.mock import patch
 
 from loom.events.event_bus import EventBus
 from loom.events.stream_converter import EventStreamConverter

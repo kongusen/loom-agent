@@ -2,10 +2,10 @@
 Tests for NATS Transport
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+import sys
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import sys
 
 # Mock nats module at import time
 mock_nats_module = MagicMock()
@@ -13,7 +13,7 @@ sys.modules["nats"] = mock_nats_module
 sys.modules["nats.aio"] = MagicMock()
 sys.modules["nats.aio.client"] = MagicMock()
 
-from loom.events.nats_transport import NATSTransport
+from loom.events.nats_transport import NATSTransport  # noqa: E402
 
 
 @pytest.fixture

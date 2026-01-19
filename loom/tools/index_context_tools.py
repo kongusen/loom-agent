@@ -25,9 +25,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from loom.memory.core import LoomMemory
 
-from loom.memory.types import TaskSummary
 from loom.protocol import Task
-
 
 # ==================== List Tools (阶段1：列出索引) ====================
 
@@ -223,9 +221,8 @@ async def execute_select_memory_by_index_tool(args: dict, memory: "LoomMemory") 
         }
 
     # 根据层级获取数据
-    from loom.protocol import Task
     from loom.memory.types import TaskSummary
-    
+
     if layer == "L2":
         items: list[Task] = memory.get_l2_tasks(limit=100)  # 获取足够多的项
     elif layer == "L3":
@@ -266,9 +263,8 @@ async def execute_select_memory_by_index_tool(args: dict, memory: "LoomMemory") 
                             "statement": statement,
                         }
                     )
-            elif layer == "L3":
+            elif layer == "L3" and isinstance(item, TaskSummary):
                 # L3: 返回高度压缩陈述句
-                if isinstance(item, TaskSummary):
                     result_brief = (
                         item.result_summary[:50] + "..."
                         if len(item.result_summary) > 50

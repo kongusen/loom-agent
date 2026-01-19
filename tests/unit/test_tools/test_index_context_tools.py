@@ -7,7 +7,7 @@ Index Context Tools Unit Tests
 import pytest
 
 from loom.memory.core import LoomMemory
-from loom.memory.types import MemoryTier, TaskSummary
+from loom.memory.types import MemoryTier
 from loom.protocol import Task, TaskStatus
 from loom.tools.index_context_tools import (
     create_list_l2_memory_tool,

@@ -4,7 +4,6 @@ MCP Stdio Client Unit Tests
 测试基于 stdio 的 MCP 客户端功能
 """
 
-import asyncio
 import json
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -92,9 +91,11 @@ class TestStdioMCPClientConnect:
             command="nonexistent_command",
         )
 
-        with patch("asyncio.create_subprocess_exec", side_effect=Exception("Command not found")):
-            with pytest.raises(ConnectionError, match="Failed to start"):
-                await client.connect()
+        with (
+            patch("asyncio.create_subprocess_exec", side_effect=Exception("Command not found")),
+            pytest.raises(ConnectionError, match="Failed to start"),
+        ):
+            await client.connect()
 
 
 class TestStdioMCPClientDisconnect:

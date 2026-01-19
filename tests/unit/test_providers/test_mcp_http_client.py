@@ -34,12 +34,14 @@ class TestHttpMCPClientInit:
 
     def test_init_without_httpx(self):
         """测试没有 httpx 时初始化失败"""
-        with patch("loom.providers.mcp.http_client.HTTPX_AVAILABLE", False):
-            with pytest.raises(ImportError, match="httpx is required"):
-                HttpMCPClient(
-                    provider_id="test-provider",
-                    base_url="http://localhost:8000",
-                )
+        with (
+            patch("loom.providers.mcp.http_client.HTTPX_AVAILABLE", False),
+            pytest.raises(ImportError, match="httpx is required"),
+        ):
+            HttpMCPClient(
+                provider_id="test-provider",
+                base_url="http://localhost:8000",
+            )
 
     def test_init_strips_trailing_slash(self):
         """测试初始化时移除 URL 末尾的斜杠"""
@@ -103,9 +105,11 @@ class TestHttpMCPClientConnect:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(side_effect=Exception("Connection failed"))
 
-            with patch("httpx.AsyncClient", return_value=mock_client):
-                with pytest.raises(ConnectionError, match="Failed to connect"):
-                    await client.connect()
+            with (
+                patch("httpx.AsyncClient", return_value=mock_client),
+                pytest.raises(ConnectionError, match="Failed to connect"),
+            ):
+                await client.connect()
 
             assert client._connected is False
 

@@ -4,7 +4,6 @@ Memory Factory Unit Tests
 测试记忆工厂的创建方法
 """
 
-import pytest
 
 from loom.memory.core import LoomMemory
 from loom.memory.factory import MemoryFactory

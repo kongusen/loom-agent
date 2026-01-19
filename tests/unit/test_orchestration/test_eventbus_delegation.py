@@ -5,13 +5,13 @@ EventBus Delegation Handler Unit Tests
 """
 
 import asyncio
-from unittest.mock import AsyncMock, Mock
+import contextlib
 
 import pytest
 
 from loom.events.queryable_event_bus import QueryableEventBus
 from loom.orchestration.eventbus_delegation import EventBusDelegationHandler
-from loom.protocol import Task, TaskStatus
+from loom.protocol import Task
 
 
 class TestEventBusDelegationHandler:
@@ -152,9 +152,6 @@ class TestEventBusDelegationHandler:
 
         event_bus.register_handler("node.delegation_request", capture_handler)
 
-        # 执行委派（不等待响应）
-        request_id = f"{parent_task_id}:delegated:{target_agent_id}"
-
         # 启动委派任务（不等待完成）
         delegate_task = asyncio.create_task(
             handler.delegate_task(
@@ -179,15 +176,12 @@ class TestEventBusDelegationHandler:
 
         # 取消任务以避免超时
         delegate_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await delegate_task
-        except asyncio.CancelledError:
-            pass
 
     @pytest.mark.asyncio
     async def test_delegate_task_generic_exception(self, handler, monkeypatch):
         """测试委派任务通用异常处理"""
-        import unittest.mock
 
         source_agent_id = "agent1"
         target_agent_id = "agent2"

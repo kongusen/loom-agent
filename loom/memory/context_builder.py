@@ -271,7 +271,7 @@ class ContextBuilder:
         thinking_memory = collective_memory.get("node.thinking", {})
         if not isinstance(thinking_memory, dict):
             thinking_memory = {}
-        
+
         insights: dict[str, Any] = {
             "total_nodes": len(thinking_memory),
             "total_thoughts": 0,

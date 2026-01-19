@@ -4,14 +4,10 @@ Agent Unit Tests
 测试Agent类的核心功能
 """
 
-from unittest.mock import AsyncMock, Mock
 
-import pytest
 
 from loom.events.queryable_event_bus import QueryableEventBus
-from loom.memory.core import LoomMemory
 from loom.orchestration.agent import Agent
-from loom.protocol import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
 
 

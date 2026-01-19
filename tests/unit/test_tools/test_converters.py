@@ -4,7 +4,6 @@ Tests for Tool Converters
 测试将函数转换为MCP工具定义的功能
 """
 
-import pytest
 
 from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.converters import FunctionToMCP
@@ -177,15 +176,13 @@ class TestFunctionToMCPMapType:
 
     def test_map_generic_list(self):
         """测试映射泛型列表类型"""
-        from typing import List
 
-        assert FunctionToMCP._map_type(List[str]) == "array"
+        assert FunctionToMCP._map_type(list[str]) == "array"
 
     def test_map_generic_dict(self):
         """测试映射泛型字典类型"""
-        from typing import Dict
 
-        assert FunctionToMCP._map_type(Dict[str, int]) == "object"
+        assert FunctionToMCP._map_type(dict[str, int]) == "object"
 
 
 class TestFunctionToMCPIntegration:

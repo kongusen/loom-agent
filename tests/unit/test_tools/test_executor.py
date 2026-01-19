@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from loom.tools.executor import ToolExecutionResult, ToolExecutor
+from loom.tools.executor import ToolExecutor
 
 
 class TestToolExecutorInit:
@@ -158,7 +158,6 @@ class TestExecuteBatch:
     @pytest.mark.asyncio
     async def test_write_tools_sequential(self):
         """测试写入工具串行执行"""
-        import asyncio
 
         executor = ToolExecutor(parallel_execution=True)
 
@@ -181,7 +180,6 @@ class TestExecuteBatch:
     @pytest.mark.asyncio
     async def test_parallel_disabled(self):
         """测试禁用并行执行时所有工具串行执行"""
-        import asyncio
 
         executor = ToolExecutor(parallel_execution=False)
 
@@ -204,7 +202,6 @@ class TestExecuteBatch:
     @pytest.mark.asyncio
     async def test_read_then_write_tools(self):
         """测试读取工具后跟写入工具"""
-        import asyncio
 
         executor = ToolExecutor(parallel_execution=True)
 

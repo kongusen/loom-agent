@@ -14,6 +14,7 @@ import asyncio
 import json
 from typing import Any
 
+from loom.api import __version__
 from loom.protocol.mcp import MCPPrompt, MCPResource, MCPToolDefinition, MCPToolResult
 from loom.providers.mcp.interface import MCPProvider
 
@@ -74,7 +75,7 @@ class StdioMCPClient(MCPProvider):
                     "capabilities": {},
                     "clientInfo": {
                         "name": "loom-agent",
-                        "version": "0.3.9",
+                        "version": __version__,
                     },
                 },
             )
@@ -170,7 +171,11 @@ class StdioMCPClient(MCPProvider):
             return ""
 
         # 返回第一个内容项的文本
-        return contents[0].get("text", "")
+        first_content = contents[0]
+        if isinstance(first_content, dict):
+            text = first_content.get("text", "")
+            return str(text) if text is not None else ""
+        return ""
 
     async def list_prompts(self) -> list[MCPPrompt]:
         """列出所有可用提示模板"""
@@ -237,9 +242,16 @@ class StdioMCPClient(MCPProvider):
         # 检查错误
         if "error" in response:
             error = response["error"]
-            raise RuntimeError(f"MCP error: {error.get('message', 'Unknown error')}")
+            if isinstance(error, dict):
+                error_msg = error.get("message", "Unknown error")
+            else:
+                error_msg = str(error)
+            raise RuntimeError(f"MCP error: {error_msg}")
 
-        return response.get("result", {})
+        result = response.get("result", {})
+        if not isinstance(result, dict):
+            return {}
+        return result
 
     async def _send_notification(self, method: str, params: dict[str, Any]) -> None:
         """发送 JSON-RPC 通知（不需要响应）"""

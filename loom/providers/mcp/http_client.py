@@ -19,6 +19,7 @@ try:
 except ImportError:
     HTTPX_AVAILABLE = False
 
+from loom.api import __version__
 from loom.protocol.mcp import MCPPrompt, MCPResource, MCPToolDefinition, MCPToolResult
 from loom.providers.mcp.interface import MCPProvider
 
@@ -79,7 +80,7 @@ class HttpMCPClient(MCPProvider):
                     "capabilities": {},
                     "clientInfo": {
                         "name": "loom-agent",
-                        "version": "0.3.9",
+                        "version": __version__,
                     },
                 },
             )

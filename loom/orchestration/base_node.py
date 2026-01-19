@@ -209,11 +209,17 @@ class BaseNode:
         if not hasattr(self.event_bus, "query_recent"):
             return []
 
-        return self.event_bus.query_recent(
+        # 类型断言：query_recent 返回 list[Task]
+        # mypy 无法推断动态属性的返回类型，需要类型忽略
+        result = self.event_bus.query_recent(  # type: ignore[attr-defined]
             limit=limit,
             action_filter=action_filter,
             node_filter=node_filter,
         )
+        # 确保返回类型正确
+        if isinstance(result, list):
+            return result  # type: ignore[return-value]
+        return []
 
     def query_sibling_insights(
         self,

@@ -5,6 +5,7 @@ Sequential Workflow - 固定流程工作流
 """
 
 from collections.abc import Callable
+from typing import Any
 
 from loom.protocol import Task, TaskStatus
 
@@ -38,7 +39,7 @@ class SequentialWorkflow(Workflow):
 
     async def execute(self, task: Task) -> Task:
         """执行工作流"""
-        results = []
+        results: list[Any] = []
 
         for i, step in enumerate(self.steps):
             try:

@@ -7,7 +7,7 @@ Queryable Event Bus Unit Tests
 import pytest
 
 from loom.events.queryable_event_bus import QueryableEventBus
-from loom.protocol import Task, TaskStatus
+from loom.protocol import Task
 
 
 class TestQueryableEventBusInit:

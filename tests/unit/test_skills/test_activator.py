@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from loom.providers.llm.interface import LLMResponse
 from loom.skills.activator import SkillActivator
 
 

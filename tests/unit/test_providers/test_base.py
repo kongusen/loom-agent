@@ -2,7 +2,6 @@
 Tests for Provider Base
 """
 
-from unittest.mock import AsyncMock
 
 import pytest
 

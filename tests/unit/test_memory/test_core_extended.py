@@ -10,7 +10,7 @@ import pytest
 
 from loom.memory.core import LoomMemory
 from loom.memory.types import Fact, FactType, MemoryTier, TaskSummary
-from loom.protocol import Task, TaskStatus
+from loom.protocol import Task
 
 
 class TestLoomMemorySearch:

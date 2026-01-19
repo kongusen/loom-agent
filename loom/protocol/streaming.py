@@ -219,7 +219,7 @@ class StreamingMixin:
                 task_id=task_id,
             )
 
-        metadata = {"finish_reason": finish_reason}
+        metadata: dict[str, Any] = {"finish_reason": finish_reason}
         if token_usage:
             metadata["token_usage"] = token_usage
 

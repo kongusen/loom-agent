@@ -6,8 +6,6 @@ Base Configuration Unit Tests
 
 import json
 
-import pytest
-
 from loom.config.base import LoomBaseConfig
 
 

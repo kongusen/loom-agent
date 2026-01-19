@@ -12,7 +12,7 @@ skills/
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from .loader import SkillLoader
 from .models import SkillDefinition

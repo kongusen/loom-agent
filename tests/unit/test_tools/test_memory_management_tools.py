@@ -2,13 +2,11 @@
 Tests for Memory Management Tools
 """
 
-from unittest.mock import MagicMock
 
 import pytest
 
 from loom.memory.core import LoomMemory
-from loom.memory.types import TaskSummary
-from loom.protocol.task import Task, TaskStatus
+from loom.protocol.task import Task
 from loom.tools.memory_management_tools import (
     MemoryManagementToolExecutor,
     create_all_memory_management_tools,

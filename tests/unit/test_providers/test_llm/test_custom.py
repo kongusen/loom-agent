@@ -2,7 +2,6 @@
 Tests for Custom LLM Provider
 """
 
-import pytest
 
 from loom.providers.llm.custom import CustomProvider
 
