@@ -1,12 +1,13 @@
 """
 Sandbox - 沙箱环境管理
 
-提供安全的文件系统隔离，确保所有文件操作限制在指定的沙箱目录内。
+提供安全的文件系统隔离和 Python 代码执行隔离。
 
 核心功能：
 1. 路径验证 - 防止路径遍历攻击
 2. 边界检查 - 确保操作不越界
 3. 安全包装 - 提供安全的文件操作接口
+4. Python 代码执行 - 使用 RestrictedPython 安全执行代码
 
 设计原则：
 - 默认拒绝 - 只允许明确在沙箱内的操作
@@ -14,7 +15,15 @@ Sandbox - 沙箱环境管理
 - 清晰错误 - 提供明确的安全错误信息
 """
 
+import asyncio
 from pathlib import Path
+from typing import Any
+
+try:
+    from RestrictedPython import compile_restricted, safe_globals
+    RESTRICTED_PYTHON_AVAILABLE = True
+except ImportError:
+    RESTRICTED_PYTHON_AVAILABLE = False
 
 
 class SandboxViolation(Exception):
@@ -27,21 +36,35 @@ class Sandbox:
     """
     沙箱环境管理器
 
-    管理一个隔离的文件系统环境，确保所有操作都在指定目录内。
+    管理一个隔离的文件系统环境和 Python 代码执行环境。
+
+    功能：
+    - 文件系统隔离：确保所有文件操作都在指定目录内
+    - Python 代码执行：使用 RestrictedPython 安全执行用户代码
     """
 
-    def __init__(self, root_dir: str | Path, auto_create: bool = True):
+    def __init__(
+        self,
+        root_dir: str | Path,
+        auto_create: bool = True,
+        python_timeout: int = 30,
+        allowed_modules: list[str] | None = None
+    ):
         """
         初始化沙箱
 
         Args:
             root_dir: 沙箱根目录
             auto_create: 如果目录不存在，是否自动创建
+            python_timeout: Python 代码执行超时时间（秒）
+            allowed_modules: 允许导入的 Python 模块列表
 
         Raises:
             ValueError: 如果根目录无效
         """
         self.root_dir = Path(root_dir).resolve()
+        self.python_timeout = python_timeout
+        self.allowed_modules = allowed_modules or ['math', 'json', 'datetime']
 
         # 确保根目录存在
         if not self.root_dir.exists():
@@ -204,3 +227,86 @@ class Sandbox:
             SandboxViolation: 如果路径在沙箱外
         """
         return str(self.validate_path(path))
+
+    async def execute_python(
+        self,
+        code: str,
+        params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """
+        在沙箱中执行 Python 代码
+
+        Args:
+            code: Python 代码
+            params: 输入参数
+
+        Returns:
+            执行结果字典，包含 success, result, error 等字段
+
+        Raises:
+            SandboxViolation: 如果代码包含不安全操作
+        """
+        if not RESTRICTED_PYTHON_AVAILABLE:
+            return {
+                "success": False,
+                "error": "RestrictedPython not installed. Install with: pip install RestrictedPython"
+            }
+
+        try:
+            # 编译受限代码
+            byte_code = compile_restricted(code, '<sandbox>', 'exec')
+
+            if byte_code.errors:
+                raise SandboxViolation(f"Code compilation errors: {byte_code.errors}")
+
+            # 创建安全环境
+            safe_env = self._create_safe_environment(params or {})
+
+            # 执行代码（带超时）
+            loop = asyncio.get_event_loop()
+            await asyncio.wait_for(
+                loop.run_in_executor(None, exec, byte_code.code, safe_env),
+                timeout=self.python_timeout
+            )
+
+            # 提取结果
+            result = safe_env.get('result', None)
+
+            return {
+                "success": True,
+                "result": result
+            }
+
+        except TimeoutError:
+            return {
+                "success": False,
+                "error": f"Execution timeout after {self.python_timeout} seconds"
+            }
+        except SandboxViolation:
+            raise
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def _create_safe_environment(self, params: dict[str, Any]) -> dict[str, Any]:
+        """创建安全的执行环境"""
+        safe_env: dict[str, Any] = safe_globals.copy()
+
+        # 添加输入参数
+        safe_env.update(params)
+
+        # 添加允许的模块
+        for module_name in self.allowed_modules:
+            try:
+                module = __import__(module_name)
+                safe_env[module_name] = module
+            except ImportError:
+                pass
+
+        # 添加安全的内置函数
+        safe_env['_print_'] = lambda x: print(x)
+        safe_env['_getattr_'] = getattr
+
+        return safe_env
