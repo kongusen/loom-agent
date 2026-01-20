@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.4.1] - 2026-01-21
+
+### 🔧 Code Quality Improvements
+
+#### 沙盒工具更新
+- **修复 ruff 检查问题**：将 `asyncio.TimeoutError` 替换为 `TimeoutError`（UP041 规则）
+- **修复 mypy 类型检查**：为 `_create_safe_environment` 方法中的 `safe_env` 变量添加明确的类型注解
+- **代码质量提升**：通过 ruff 和 mypy 的所有检查，确保代码符合项目规范
+
+### 📝 Notes
+
+这是一个维护性发布，主要关注代码质量和工具链的完善。所有更改都向后兼容，不影响现有功能。
+
+---
+
 ## [0.4.0-alpha] - 2026-01-19
 
 ### 🎯 The "Axiomatic Framework" Release
