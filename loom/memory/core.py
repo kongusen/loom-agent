@@ -10,7 +10,6 @@
 - L4: 向量存储（语义检索）
 """
 
-from collections import deque
 from typing import TYPE_CHECKING, Any
 
 from .fact_extractor import FactExtractor
@@ -131,8 +130,8 @@ class LoomMemory:
         """
         # 收集活跃的Task ID
         active_task_ids: set[str] = set()
-        active_task_ids.update(t.task_id for t in self._l1_tasks)
-        active_task_ids.update(t.task_id for t in self._l2_tasks)
+        active_task_ids.update(t.task_id for t in self._l1_layer._buffer)
+        active_task_ids.update(item.item.task_id for item in self._l2_layer._heap)
         active_task_ids.update(s.task_id for s in self._l3_summaries)
 
         # 删除不活跃的Task
@@ -146,29 +145,12 @@ class LoomMemory:
         """
         添加到L2工作记忆
 
-        按重要性排序，超过容量时移除最不重要的
+        使用PriorityQueueLayer自动按重要性排序
         """
-        importance = task.metadata.get("importance", 0.5)
+        import asyncio
 
-        # 如果L2未满，直接添加
-        if len(self._l2_tasks) < self.max_l2_size:
-            self._l2_tasks.append(task)
-            # 按重要性排序（降序）
-            self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
-            return
-
-        # L2已满，检查是否应该替换
-        min_importance = min(t.metadata.get("importance", 0.5) for t in self._l2_tasks)
-
-        if importance > min_importance:
-            # 移除最不重要的
-            self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
-            removed = self._l2_tasks.pop()
-            self._task_index.pop(removed.task_id, None)
-
-            # 添加新Task
-            self._l2_tasks.append(task)
-            self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
+        # 使用新的layer API，自动处理优先级和容量
+        asyncio.create_task(self._l2_layer.add(task))
 
     def get_l2_tasks(self, limit: int | None = None) -> list["Task"]:
         """
@@ -180,15 +162,21 @@ class LoomMemory:
         Returns:
             L2中的Task（按重要性排序）
         """
+        # 直接访问layer的heap以保持同步API
+        sorted_items = sorted(self._l2_layer._heap)
+        tasks = [item.item for item in sorted_items]
+
         if limit is None:
-            return self._l2_tasks.copy()
-        return self._l2_tasks[:limit]
+            return tasks
+        return tasks[:limit]
 
     def clear_l2(self) -> None:
         """清空L2工作记忆（任务结束时调用）"""
-        for task in self._l2_tasks:
-            self._task_index.pop(task.task_id, None)
-        self._l2_tasks.clear()
+        # 清理索引
+        for item in self._l2_layer._heap:
+            self._task_index.pop(item.item.task_id, None)
+        # 清空layer
+        self._l2_layer.clear()
 
     # ==================== L3管理 ====================
 
@@ -294,7 +282,9 @@ class LoomMemory:
         matches = []
 
         # 搜索L1和L2中的Task
-        all_tasks = list(self._l1_tasks) + self._l2_tasks
+        l1_tasks = list(self._l1_layer._buffer)
+        l2_tasks = [item.item for item in self._l2_layer._heap]
+        all_tasks = l1_tasks + l2_tasks
 
         for task in all_tasks:
             # 检查action和parameters中是否包含查询字符串
@@ -413,7 +403,7 @@ class LoomMemory:
         self._promote_l1_to_l2()
 
         # L2 → L3: 当L2满时，将旧的Task压缩为摘要
-        if len(self._l2_tasks) >= self.max_l2_size * 0.9:  # 90%阈值
+        if len(self._l2_layer._heap) >= self.max_l2_size * 0.9:  # 90%阈值
             self._promote_l2_to_l3()
 
         # L3 → L4: 当L3满时，向量化摘要
@@ -434,7 +424,7 @@ class LoomMemory:
         self._promote_l1_to_l2()
 
         # L2 → L3: 当L2满时，将旧的Task压缩为摘要
-        if len(self._l2_tasks) >= self.max_l2_size * 0.9:
+        if len(self._l2_layer._heap) >= self.max_l2_size * 0.9:
             self._promote_l2_to_l3()
 
         # L3 → L4: 当L3满时，向量化摘要（真正实现）
@@ -449,11 +439,12 @@ class LoomMemory:
         - 重要性 > 0.6 的Task提升到L2
         - L2已满时，只保留最重要的
         """
-        for task in list(self._l1_tasks):
+        for task in list(self._l1_layer._buffer):
             importance = task.metadata.get("importance", 0.5)
 
             # 判断是否应该提升（重要性>0.6且不在L2中）
-            if importance > 0.6 and task.task_id not in [t.task_id for t in self._l2_tasks]:
+            l2_task_ids = [item.item.task_id for item in self._l2_layer._heap]
+            if importance > 0.6 and task.task_id not in l2_task_ids:
                 self._add_to_l2(task)
 
     def _promote_l2_to_l3(self) -> None:
@@ -462,16 +453,18 @@ class LoomMemory:
 
         当L2接近满时，将最不重要的Task压缩为摘要
         """
-        if len(self._l2_tasks) < self.max_l2_size * 0.9:
+        if len(self._l2_layer._heap) < self.max_l2_size * 0.9:
             return
 
-        # 按重要性排序
-        self._l2_tasks.sort(key=lambda t: t.metadata.get("importance", 0.5), reverse=True)
+        # 按重要性排序（从heap中提取）
+        sorted_items = sorted(self._l2_layer._heap, reverse=True)  # 最低优先级在后
 
         # 移除最不重要的20%
-        num_to_remove = max(1, int(len(self._l2_tasks) * 0.2))
-        tasks_to_summarize = self._l2_tasks[-num_to_remove:]
-        self._l2_tasks = self._l2_tasks[:-num_to_remove]
+        num_to_remove = max(1, int(len(sorted_items) * 0.2))
+        tasks_to_summarize = [item.item for item in sorted_items[-num_to_remove:]]
+
+        # 重建heap（保留高优先级的80%）
+        self._l2_layer._heap = sorted_items[:-num_to_remove]
 
         # 生成摘要并添加到L3
         for task in tasks_to_summarize:
@@ -554,8 +547,8 @@ class LoomMemory:
             统计信息字典
         """
         return {
-            "l1_size": len(self._l1_tasks),
-            "l2_size": len(self._l2_tasks),
+            "l1_size": len(self._l1_layer._buffer),
+            "l2_size": len(self._l2_layer._heap),
             "l3_size": len(self._l3_summaries),
             "total_tasks": len(self._task_index),
             "max_l1_size": self.max_l1_size,
@@ -565,7 +558,7 @@ class LoomMemory:
 
     def clear_all(self) -> None:
         """清空所有记忆（慎用）"""
-        self._l1_tasks.clear()
-        self._l2_tasks.clear()
+        self._l1_layer.clear()
+        self._l2_layer.clear()
         self._l3_summaries.clear()
         self._task_index.clear()
