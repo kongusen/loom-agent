@@ -103,11 +103,16 @@ class LoomMemory:
             self._add_to_l2(task)
 
     def _add_to_l1(self, task: "Task") -> None:
-        """添加到L1循环缓冲区"""
-        import asyncio
+        """添加到L1循环缓冲区（同步版本）"""
+        # 检查是否会发生驱逐
+        if len(self._l1_layer._buffer) == self._l1_layer._buffer.maxlen:
+            evicted = self._l1_layer._buffer[0]
+            # 触发驱逐回调
+            for callback in self._l1_layer._eviction_callbacks:
+                callback(evicted)
 
-        # 使用新的layer API，驱逐回调会自动清理索引
-        asyncio.create_task(self._l1_layer.add(task))
+        # 添加任务
+        self._l1_layer._buffer.append(task)
 
     def get_l1_tasks(self, limit: int = 10) -> list["Task"]:
         """
@@ -143,14 +148,24 @@ class LoomMemory:
 
     def _add_to_l2(self, task: "Task") -> None:
         """
-        添加到L2工作记忆
+        添加到L2工作记忆（同步版本）
 
         使用PriorityQueueLayer自动按重要性排序
         """
-        import asyncio
+        import heapq
 
-        # 使用新的layer API，自动处理优先级和容量
-        asyncio.create_task(self._l2_layer.add(task))
+        from loom.memory.layers.priority import PriorityItem
+
+        importance = task.metadata.get("importance", 0.5)
+        # 使用负数实现最大堆
+        priority_item = PriorityItem(-importance, task)
+
+        if len(self._l2_layer._heap) < self._l2_layer._max_size:
+            heapq.heappush(self._l2_layer._heap, priority_item)
+        else:
+            # 如果新任务优先级更高，替换最低优先级的任务
+            if priority_item < self._l2_layer._heap[0]:
+                heapq.heapreplace(self._l2_layer._heap, priority_item)
 
     def get_l2_tasks(self, limit: int | None = None) -> list["Task"]:
         """
