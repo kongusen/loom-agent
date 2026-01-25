@@ -3,6 +3,69 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.4.3] - 2026-01-25
+
+### ⚠️ BREAKING CHANGES
+
+这是一个破坏性变更版本，引入了全新的分形架构设计。
+
+### 🌟 分形架构重新设计
+
+#### 核心概念：有限时间距离下的无限思考
+
+**灵感来源：科赫雪花（Koch Snowflake）**
+- 通过递归分解实现"有限时间距离下的无限思考"
+- 空间换时间：多Agent并行实现时间压缩
+- 局部O(1)，全局无限：每个Agent认知负载恒定，但总思考深度无限
+- 自相似性：每层使用相同的Agent执行循环
+
+#### 架构整合
+
+**与现有设计深度整合**：
+- **autonomous-agent-design.md**: 使用meta-tools（delegate_task）实现自主委派
+- **context-manager-design.md**: 整合TaskContextManager进行智能上下文传递
+- **agent-improvements-summary.md**: 保持"Agent is just a for loop"哲学
+- **system-optimization-plan.md**: FractalMemory使用LoomMemory (L1-L4)作为底层存储
+
+#### 新增组件
+
+**分形记忆系统**：
+- `MemoryScope`: 四种记忆作用域（LOCAL, SHARED, INHERITED, GLOBAL）
+- `FractalMemory`: 分形记忆管理器，支持父子节点记忆共享
+- `SmartAllocationStrategy`: 智能记忆分配策略
+- `MemorySyncManager`: 记忆同步管理器，支持版本控制和冲突解决
+
+**自主委派机制**：
+- `delegate_task` meta-tool: LLM自主决策何时委派
+- `Agent._auto_delegate`: 自动委派实现
+- `Agent._create_child_node`: 创建子节点并智能分配上下文
+- `Agent._sync_memory_from_child`: 双向记忆流动
+
+### 📝 设计文档
+
+- **新增**: `docs/design/fractal-architecture-redesign.md` - 完整的分形架构设计
+- **更新**: `PLAN.md` - 详细的实施计划（Task 6-9）
+
+### 🎯 核心价值
+
+通过分形架构，实现：
+1. **真正的分形组合** - 支持无限递归委派
+2. **智能上下文管理** - 自动分配和共享上下文
+3. **双向记忆流动** - 父子节点间的记忆可以双向传播
+4. **O(1)复杂度保证** - 每个节点的认知负载保持恒定
+5. **无限思考能力** - 在有限时间内实现无限深度的思考
+
+### ⚠️ 迁移指南
+
+这是一个破坏性变更，需要：
+1. 更新Agent实现以支持meta-tools
+2. 迁移到新的FractalMemory系统
+3. 更新系统提示词以包含delegate_task描述
+
+详细迁移指南请参考 `docs/design/fractal-architecture-redesign.md`
+
+---
+
 ## [0.4.1] - 2026-01-21
 
 ### 🔧 Code Quality Improvements
