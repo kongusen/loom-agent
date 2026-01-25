@@ -224,6 +224,10 @@ class Agent(BaseNode):
             }
         )
 
+        # 添加分形委派元工具（自动创建子节点）
+        from loom.orchestration.meta_tools import create_delegate_task_tool
+        tools.append(create_delegate_task_tool())
+
         # 添加委派元工具（如果有可用的agents）
         if self.available_agents:
             agent_list = ", ".join(self.available_agents.keys())
@@ -375,14 +379,18 @@ class Agent(BaseNode):
                         await self._auto_plan(tool_args, task.task_id)
                         result = f"Plan created: {tool_args.get('goal', '')}"
                     elif tool_name == "delegate_task":
-                        # 发布委派事件（观测）
-                        await self._auto_delegate(tool_args, task.task_id)
-                        # 实际执行委派
-                        target_agent = tool_args.get("target_agent", "")
-                        subtask = tool_args.get("subtask", "")
-                        result = await self._execute_delegate_task(
-                            target_agent, subtask, task.task_id
-                        )
+                        # Check if this is fractal delegation or named agent delegation
+                        if "target_agent" in tool_args:
+                            # Old-style delegation to named agent
+                            target_agent = tool_args.get("target_agent", "")
+                            subtask = tool_args.get("subtask", "")
+                            result = await self._execute_delegate_task(
+                                target_agent, subtask, task.task_id
+                            )
+                        else:
+                            # New fractal-based delegation (auto-create child)
+                            from loom.orchestration.meta_tools import execute_delegate_task
+                            result = await execute_delegate_task(self, tool_args, task)
                     else:
                         # 普通工具 - 这里返回占位结果
                         # 实际执行应该由工具执行器处理
@@ -665,3 +673,155 @@ class Agent(BaseNode):
         # 找不到目标 agent
         else:
             return f"Error: Agent '{target_agent_id}' not found in available_agents"
+
+    async def _auto_delegate(
+        self,
+        args: dict[str, Any],
+        parent_task: Task,
+    ) -> str:
+        """
+        自动委派实现（框架内部）
+
+        整合点：
+        - 使用FractalMemory建立父子关系
+        - 使用SmartAllocationStrategy分配记忆
+        - 使用TaskContextManager构建子节点上下文
+
+        Args:
+            args: delegate_task工具参数
+            parent_task: 父任务
+
+        Returns:
+            子任务执行结果
+        """
+        from uuid import uuid4
+
+        # 1. 创建子任务
+        subtask = Task(
+            task_id=f"{parent_task.task_id}-child-{uuid4()}",
+            action="execute",
+            parameters={
+                "content": args["subtask_description"],
+                "parent_task_id": parent_task.task_id,
+            },
+        )
+
+        # 2. 创建子节点（使用_create_child_node）
+        child_node = await self._create_child_node(
+            subtask=subtask,
+            context_hints=args.get("context_hints", []),
+        )
+
+        # 3. 执行子任务
+        result = await child_node.execute_task(subtask)
+
+        # 4. 同步记忆（双向流动）
+        await self._sync_memory_from_child(child_node)
+
+        # 5. 返回结果
+        if result.status == TaskStatus.COMPLETED:
+            if isinstance(result.result, dict):
+                return str(result.result.get("content", str(result.result)))
+            else:
+                return str(result.result)
+        else:
+            return f"Delegation failed: {result.error or 'Unknown error'}"
+
+    async def _create_child_node(
+        self,
+        subtask: Task,
+        context_hints: list[str],
+    ) -> "Agent":
+        """
+        创建子节点并智能分配上下文
+
+        整合所有组件：
+        - FractalMemory（继承父节点）
+        - SmartAllocationStrategy（智能分配）
+        - TaskContextManager（上下文构建）
+
+        Args:
+            subtask: 子任务
+            context_hints: 上下文提示（记忆ID列表）
+
+        Returns:
+            配置好的子Agent实例
+        """
+        from loom.fractal.allocation import SmartAllocationStrategy
+        from loom.fractal.memory import FractalMemory
+
+        # 1. 创建FractalMemory（继承父节点记忆）
+        child_memory = FractalMemory(
+            node_id=subtask.task_id,
+            parent_memory=getattr(self, "fractal_memory", None),
+            base_memory=LoomMemory(node_id=subtask.task_id),
+        )
+
+        # 2. 使用SmartAllocationStrategy分配相关记忆
+        allocation_strategy = SmartAllocationStrategy(max_inherited_memories=10)
+        allocated_memories = await allocation_strategy.allocate(
+            parent_memory=child_memory.parent_memory or child_memory,
+            child_task=subtask,
+            context_hints=context_hints,
+        )
+
+        # 3. 将分配的记忆写入子节点
+        for scope, entries in allocated_memories.items():
+            for entry in entries:
+                await child_memory.write(entry.id, entry.content, scope=scope)
+
+        # 4. 创建TaskContextManager
+        child_context_manager = TaskContextManager(
+            token_counter=TiktokenCounter(model="gpt-4"),
+            sources=[MemoryContextSource(child_memory.base_memory)],
+            max_tokens=self.context_manager.max_tokens,
+            system_prompt=self.system_prompt,
+        )
+
+        # 5. 创建子Agent
+        child_agent = Agent(
+            node_id=subtask.task_id,
+            llm_provider=self.llm_provider,
+            system_prompt=self.system_prompt,
+            tools=self.tools,
+            event_bus=self.event_bus,
+            max_iterations=self.max_iterations,
+            require_done_tool=self.require_done_tool,
+        )
+
+        # 6. 设置子Agent的fractal_memory引用
+        child_agent.fractal_memory = child_memory
+
+        return child_agent
+
+    async def _sync_memory_from_child(self, child_agent: "Agent") -> None:
+        """
+        从子节点同步记忆（双向流动）
+
+        子节点完成任务后，将其SHARED记忆同步回父节点。
+
+        Args:
+            child_agent: 子Agent实例
+        """
+        from loom.fractal.memory import MemoryScope
+        from loom.fractal.sync import MemorySyncManager
+
+        # 获取子节点的fractal_memory
+        child_memory = getattr(child_agent, "fractal_memory", None)
+        if not child_memory:
+            return
+
+        # 获取父节点的fractal_memory
+        parent_memory = getattr(self, "fractal_memory", None)
+        if not parent_memory:
+            return
+
+        # 使用MemorySyncManager同步SHARED记忆
+        sync_manager = MemorySyncManager(parent_memory)
+
+        # 获取子节点的SHARED记忆
+        child_shared = await child_memory.list_by_scope(MemoryScope.SHARED)
+
+        # 同步到父节点
+        for entry in child_shared:
+            await parent_memory.write(entry.id, entry.content, MemoryScope.SHARED)
