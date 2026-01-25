@@ -19,7 +19,10 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from loom.memory.core import LoomMemory
 
 
 class MemoryScope(Enum):
@@ -104,3 +107,131 @@ class MemoryEntry:
         """初始化后处理：确保metadata不为None"""
         if self.metadata is None:
             self.metadata = {}
+
+
+class FractalMemory:
+    """
+    分形记忆管理器
+
+    职责：
+    - 管理不同作用域的记忆
+    - 处理父子节点间的记忆共享
+    - 提供统一的读写接口
+    - 使用LoomMemory作为底层存储
+    """
+
+    def __init__(
+        self,
+        node_id: str,
+        parent_memory: Optional["FractalMemory"] = None,
+        base_memory: Optional["LoomMemory"] = None,
+    ):
+        """
+        初始化分形记忆管理器
+
+        Args:
+            node_id: 节点唯一标识
+            parent_memory: 父节点的记忆管理器（用于建立父子关系）
+            base_memory: 底层LoomMemory存储（如果为None，将在需要时创建）
+        """
+        self.node_id = node_id
+        self.parent_memory = parent_memory
+        self.base_memory = base_memory
+
+        # 按作用域组织的记忆索引（轻量级，只存储元数据）
+        self._memory_by_scope: dict[MemoryScope, dict[str, MemoryEntry]] = {
+            scope: {} for scope in MemoryScope
+        }
+
+    async def write(
+        self, entry_id: str, content: Any, scope: MemoryScope = MemoryScope.LOCAL
+    ) -> MemoryEntry:
+        """
+        写入记忆
+
+        Args:
+            entry_id: 记忆ID
+            content: 记忆内容
+            scope: 作用域
+
+        Returns:
+            创建的记忆条目
+
+        Raises:
+            PermissionError: 如果作用域不可写
+        """
+        # 检查写权限
+        policy = ACCESS_POLICIES[scope]
+        if not policy.writable:
+            raise PermissionError(f"Scope {scope} is read-only")
+
+        # 创建记忆条目
+        entry = MemoryEntry(
+            id=entry_id,
+            content=content,
+            scope=scope,
+            created_by=self.node_id,
+            updated_by=self.node_id,
+        )
+
+        # 存储到对应作用域
+        self._memory_by_scope[scope][entry_id] = entry
+
+        return entry
+
+    async def read(
+        self,
+        entry_id: str,
+        search_scopes: Optional[list[MemoryScope]] = None,
+    ) -> Optional[MemoryEntry]:
+        """
+        读取记忆
+
+        Args:
+            entry_id: 记忆ID
+            search_scopes: 搜索的作用域列表（None表示搜索所有）
+
+        Returns:
+            记忆条目，如果不存在返回None
+        """
+        if search_scopes is None:
+            search_scopes = list(MemoryScope)
+
+        # 按优先级搜索：LOCAL > SHARED > INHERITED > GLOBAL
+        for scope in search_scopes:
+            if entry_id in self._memory_by_scope[scope]:
+                return self._memory_by_scope[scope][entry_id]
+
+        # 如果是INHERITED作用域，尝试从父节点读取
+        if MemoryScope.INHERITED in search_scopes and self.parent_memory:
+            parent_entry = await self.parent_memory.read(
+                entry_id, search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL]
+            )
+            if parent_entry:
+                # 创建只读副本
+                inherited_entry = MemoryEntry(
+                    id=parent_entry.id,
+                    content=parent_entry.content,
+                    scope=MemoryScope.INHERITED,
+                    version=parent_entry.version,
+                    created_by=parent_entry.created_by,
+                    updated_by=parent_entry.updated_by,
+                    parent_version=parent_entry.version,
+                )
+                # 缓存到本地
+                self._memory_by_scope[MemoryScope.INHERITED][entry_id] = inherited_entry
+                return inherited_entry
+
+        return None
+
+    async def list_by_scope(self, scope: MemoryScope) -> list[MemoryEntry]:
+        """
+        列出指定作用域的所有记忆
+
+        Args:
+            scope: 记忆作用域
+
+        Returns:
+            该作用域下的所有记忆条目列表
+        """
+        return list(self._memory_by_scope[scope].values())
