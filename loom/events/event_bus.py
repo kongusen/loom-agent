@@ -6,7 +6,7 @@ Event Bus - 事件总线
 
 设计原则：
 1. 异步优先 - 所有操作都是async
-2. 类型安全 - 使用Task模型
+2. 类型安全 - 使用Task模型和枚举路由
 3. 可扩展 - 支持中间件/拦截器
 4. 可插拔传输层 - 支持本地和分布式部署
 """
@@ -18,12 +18,14 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Optional
 
+from loom.events.actions import AgentAction, MemoryAction, TaskAction
 from loom.protocol.task import Task, TaskStatus
 
 if TYPE_CHECKING:
     from loom.events.transport import Transport
 
 TaskHandler = Callable[[Task], Awaitable[Task]]
+ActionType = TaskAction | MemoryAction | AgentAction | str
 
 
 class EventBus:
@@ -54,15 +56,17 @@ class EventBus:
             await self._transport.connect()
             self._transport_initialized = True
 
-    def register_handler(self, action: str, handler: TaskHandler) -> None:
+    def register_handler(self, action: ActionType, handler: TaskHandler) -> None:
         """
         注册任务处理器
 
         Args:
-            action: 任务动作类型
+            action: 任务动作类型（支持枚举或字符串）
             handler: 处理器函数
         """
-        self._handlers[action].append(handler)
+        # 将枚举转换为字符串值
+        action_key = action.value if isinstance(action, TaskAction | MemoryAction | AgentAction) else action
+        self._handlers[action_key].append(handler)
 
     async def publish(self, task: Task, wait_result: bool = True) -> Task:
         """
