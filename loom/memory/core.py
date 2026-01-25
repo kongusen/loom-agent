@@ -14,6 +14,7 @@ from collections import deque
 from typing import TYPE_CHECKING, Any
 
 from .fact_extractor import FactExtractor
+from .layers import CircularBufferLayer, PriorityQueueLayer
 from .types import Fact, MemoryTier, TaskSummary
 
 if TYPE_CHECKING:
@@ -50,11 +51,11 @@ class LoomMemory:
         self.max_task_index_size = max_task_index_size
         self.max_fact_index_size = max_fact_index_size
 
-        # L1: 完整Task（循环缓冲区）
-        self._l1_tasks: deque["Task"] = deque(maxlen=max_l1_size)
+        # L1: 完整Task（使用CircularBufferLayer）
+        self._l1_layer = CircularBufferLayer(max_size=max_l1_size)
 
-        # L2: 重要Task（按重要性排序）
-        self._l2_tasks: list["Task"] = []
+        # L2: 重要Task（使用PriorityQueueLayer）
+        self._l2_layer = PriorityQueueLayer(max_size=max_l2_size)
 
         # L3: Task摘要
         self._l3_summaries: list[TaskSummary] = []
@@ -72,7 +73,14 @@ class LoomMemory:
         # 事实提取器
         self.fact_extractor = FactExtractor()
 
+        # 设置L1驱逐回调（自动清理索引）
+        self._l1_layer.on_eviction(self._on_l1_eviction)
+
     # ==================== L1管理 ====================
+
+    def _on_l1_eviction(self, task: "Task") -> None:
+        """L1驱逐回调：自动清理索引"""
+        self._task_index.pop(task.task_id, None)
 
     def add_task(self, task: "Task", tier: MemoryTier = MemoryTier.L1_RAW_IO) -> None:
         """
@@ -97,16 +105,10 @@ class LoomMemory:
 
     def _add_to_l1(self, task: "Task") -> None:
         """添加到L1循环缓冲区"""
-        self._l1_tasks.append(task)
+        import asyncio
 
-        # deque会自动驱逐最旧的（maxlen限制）
-        # 但我们需要从索引中移除被驱逐的
-        if len(self._l1_tasks) == self.max_l1_size:
-            # 检查是否有Task被驱逐（通过检查索引）
-            current_ids = {t.task_id for t in self._l1_tasks}
-            evicted_ids = set(self._task_index.keys()) - current_ids
-            for evicted_id in evicted_ids:
-                self._task_index.pop(evicted_id, None)
+        # 使用新的layer API，驱逐回调会自动清理索引
+        asyncio.create_task(self._l1_layer.add(task))
 
     def get_l1_tasks(self, limit: int = 10) -> list["Task"]:
         """
@@ -118,7 +120,8 @@ class LoomMemory:
         Returns:
             最近的Task列表
         """
-        return list(self._l1_tasks)[-limit:]
+        # 直接访问layer的buffer以保持同步API
+        return list(self._l1_layer._buffer)[-limit:]
 
     def _cleanup_task_index(self) -> None:
         """
