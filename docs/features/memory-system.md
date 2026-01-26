@@ -2,409 +2,90 @@
 
 ## Overview
 
-Loom implements a **four-layer hierarchical memory system (L1-L4)** inspired by human cognitive architecture. This system enables agents to maintain context across conversations, learn from experience, and retrieve relevant information efficiently.
+Loom implements a dual-perspective memory system to handle both **Time** (Temporal Entropy) and **Space** (Complexity/Fractal Depth):
 
-The memory system solves **Temporal Entropy** (Coherence Decay) by metabolizing raw experience into structured knowledge, ensuring agents can operate indefinitely without context degradation.
+1.  **Metabolic Memory (L1-L4)**: Handles the *temporal* aspect. It metabolizes raw experience into structured knowledge over time.
+2.  **Fractal Memory Scopes**: Handles the *spatial* aspect. It manages how memory is shared or isolated between parent and child nodes in the fractal tree.
 
-## Core Concept: Metabolic Memory
+---
+
+## Part 1: Metabolic Memory (L1-L4)
 
 Just as biological organisms metabolize food into energy and waste, Loom metabolizes **Experience** into **Knowledge** and **Noise**.
 
-- **Experience**: Raw stream of interactions (messages, tool outputs, events)
-- **Knowledge**: Distilled facts, plans, and insights worth retaining
-- **Noise**: Transient information with no long-term value
+### The Hierarchy
 
-The system automatically moves information through a digestion process, retaining signal and excreting noise.
+| Layer | Name | Purpose | Retention | Capacity | Access |
+|-------|------|---------|-----------|----------|--------|
+| **L1** | Working Memory | Immediate context (RAM) | 1 hour | 10 items | Auto-included |
+| **L2** | Session Memory | Short-term workspace | 24 hours | 50 items | Tool search |
+| **L3** | Episodic Memory | Cross-session history | 7 days | 200 items | Tool search |
+| **L4** | Semantic Memory | Long-term knowledge base | Permanent | ∞ | Vector search |
 
-## Memory Hierarchy
+### The Metabolic Process
 
-### Architecture Overview
+1.  **Ingest (L1)**: Raw interactions entering the system.
+2.  **Digest (L2)**: Important items are promoted to L2 based on access frequency (≥3 accesses).
+3.  **Assimilate (L3)**: key sessions are summarized and stored as episodes.
+4.  **Sediment (L4)**: High-value insights are compressed, vectorized, and stored in the permanent knowledge base.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ L1: Working Memory (Recent Context)                     │
-│ • Capacity: 10 items                                     │
-│ • Retention: 1 hour                                      │
-│ • Auto-included in every LLM call                        │
-└─────────────────────────────────────────────────────────┘
-                         ↓ (promotion)
-┌─────────────────────────────────────────────────────────┐
-│ L2: Session Memory (Important Tasks)                    │
-│ • Capacity: 50 items                                     │
-│ • Retention: 24 hours                                    │
-│ • Accessible via search tools                            │
-└─────────────────────────────────────────────────────────┘
-                         ↓ (promotion)
-┌─────────────────────────────────────────────────────────┐
-│ L3: Episodic Memory (Cross-Session Events)              │
-│ • Capacity: 200 items                                    │
-│ • Retention: 7 days                                      │
-│ • Accessible via search tools                            │
-└─────────────────────────────────────────────────────────┘
-                         ↓ (promotion)
-┌─────────────────────────────────────────────────────────┐
-│ L4: Semantic Memory (Long-Term Knowledge)               │
-│ • Capacity: 1000 items                                   │
-│ • Retention: Permanent                                   │
-│ • Vector search enabled                                  │
-└─────────────────────────────────────────────────────────┘
-```
+---
 
-### Layer Comparison
+## Part 2: Fractal Memory Scopes
 
-| Layer | Name | Purpose | Retention | Capacity | Access Method |
-|-------|------|---------|-----------|----------|---------------|
-| **L1** | Working Memory | Current conversation context | 1 hour | 10 items | Auto-included |
-| **L2** | Session Memory | Important session events | 24 hours | 50 items | Tool search |
-| **L3** | Episodic Memory | Cross-session events | 7 days | 200 items | Tool search |
-| **L4** | Semantic Memory | Long-term knowledge | Permanent | 1000 items | Vector search |
+In a Fractal Architecture, thousands of nodes might exist simultaneously. If every node shared the same memory, context would explode. If every node was isolated, collaboration would be impossible.
 
-## Metabolic Process
+Loom solves this with **Scoped Memory** (`loom.fractal.memory`).
 
-The memory system follows a natural metabolic flow:
+### defined Scopes
 
-1. **Ingest (L1)**: New information enters L1 as raw, unprocessed tasks
-2. **Digest (L2)**: Frequently accessed items are promoted to L2 working memory
-3. **Assimilate (L3)**: Important events are consolidated into episodic memory
-4. **Sediment (L4)**: High-value insights are compressed and vectorized for long-term storage
+#### 1. LOCAL (`MemoryScope.LOCAL`)
+- **Visibility**: Private to the specific node.
+- **Use Case**: Temporary variables, internal chain-of-thought, intermediate calculations.
+- **Persistence**: Cleared when the node task updates.
 
-### Automatic Promotion
+#### 2. SHARED (`MemoryScope.SHARED`)
+- **Visibility**: Visible to the Node, its Parent, and its Children.
+- **Use Case**: Collaborative data, active sub-task requirements.
+- **Sync**: Changes propagate up and down one level.
 
-Tasks are automatically promoted between layers based on access patterns:
+#### 3. GLOBAL (`MemoryScope.GLOBAL`)
+- **Visibility**: Visible to every node in the organism.
+- **Use Case**: Core directives, immutable facts, world state.
+- **Cost**: Expensive (use sparingly).
+
+### FractalMemory Manager
+
+The `FractalMemory` class acts as the bridge. It manages the scopes and delegates storage to the underlying `LoomMemory` (L1-L4).
 
 ```python
-# Promotion thresholds (configurable)
-L1 → L2: access_count >= 3
-L2 → L3: access_count >= 5
-L3 → L4: access_count >= 10
+class FractalMemory:
+    async def read(self, entry_id, scopes=[MemoryScope.LOCAL, MemoryScope.SHARED]):
+        # Tries to find entry in LOCAL, then SHARED, then asks Parent
+        ...
 ```
 
-### Compression
+---
 
-When layers reach capacity, older items are compressed:
+## Configuration
 
-```python
-# Full task format (L1/L2)
-{
-    "task_id": "task_123",
-    "action": "file_read",
-    "parameters": {"path": "/data/file.txt"},
-    "result": "File content: ..."
-}
+You can configure the memory system via `AgentConfig`:
 
-# Compressed format (L3/L4)
-"Read file /data/file.txt successfully"
-```
-
-## Layer Details
-
-### L1: Working Memory
-
-**Purpose**: Maintains immediate conversation context.
-
-**Characteristics**:
-- **Circular buffer**: Automatically evicts oldest items when full
-- **Auto-included**: Always included in LLM context (no tool call needed)
-- **Fast access**: In-memory storage for instant retrieval
-- **Short retention**: 1 hour by default
-
-**Use Cases**:
-- Current conversation turns
-- Recent tool calls and results
-- Immediate context for decision-making
-
-**Configuration**:
 ```python
 from loom.config.memory import MemoryConfig, MemoryLayerConfig
 
-memory_config = MemoryConfig(
-    l1=MemoryLayerConfig(
-        capacity=10,
-        retention_hours=1,
-        auto_compress=True,
-        promote_threshold=3
-    )
-)
-```
-
-### L2: Session Memory
-
-**Purpose**: Stores important events from the current session.
-
-**Characteristics**:
-- **Priority-based**: Items promoted from L1 based on access frequency
-- **Tool-accessible**: LLM can search L2 using `search_l2_memory` tool
-- **Compressed format**: Stored as concise statements
-- **Medium retention**: 24 hours by default
-
-**Promotion Criteria**:
-- Access count ≥ 3 (configurable)
-- Marked as important by LLM
-- Contains critical information (errors, decisions)
-
-**Configuration**:
-```python
-memory_config = MemoryConfig(
-    l2=MemoryLayerConfig(
-        capacity=50,
-        retention_hours=24,
-        auto_compress=True,
-        promote_threshold=5
-    )
-)
-```
-
-### L3: Episodic Memory
-
-**Purpose**: Preserves significant events across multiple sessions.
-
-**Characteristics**:
-- **Cross-session**: Survives beyond single conversation
-- **Event-based**: Stores complete task records
-- **Searchable**: Full-text and semantic search
-- **Long retention**: 7 days by default
-
-**Configuration**:
-```python
-memory_config = MemoryConfig(
-    l3=MemoryLayerConfig(
-        capacity=200,
-        retention_hours=168,  # 7 days
-        auto_compress=True,
-        promote_threshold=10
-    )
-)
-```
-
-### L4: Semantic Memory
-
-**Purpose**: Long-term knowledge base with semantic search capabilities.
-
-**Characteristics**:
-- **Permanent storage**: No automatic eviction
-- **Vector search**: Embedding-based semantic retrieval
-- **Compressed knowledge**: Consolidated facts and learnings
-- **No promotion**: Terminal layer in hierarchy
-
-**Configuration**:
-```python
-memory_config = MemoryConfig(
-    l4=MemoryLayerConfig(
-        capacity=1000,
-        retention_hours=None,  # Permanent
-        auto_compress=False,
-        promote_threshold=0  # No promotion from L4
-    )
-)
-```
-
-## Memory Operations
-
-### Automatic Operations
-
-**L1 Auto-Inclusion**:
-```python
-# L1 is automatically included in every LLM call
-messages = context_manager.build_context(current_task)
-# L1 tasks are already in messages
-```
-
-### Tool-Based Access
-
-**Search L2 Memory**:
-```python
-{
-    "tool": "search_l2_memory",
-    "arguments": {
-        "query": "user preferences",
-        "limit": 5
-    }
-}
-```
-
-**Search L3 Memory**:
-```python
-{
-    "tool": "search_l3_memory",
-    "arguments": {
-        "query": "previous configurations",
-        "limit": 5
-    }
-}
-```
-
-**Search L4 Memory (Semantic)**:
-```python
-{
-    "tool": "search_l4_memory",
-    "arguments": {
-        "query": "how to authenticate API requests",
-        "limit": 5
-    }
-}
-```
-
-## Vector Search
-
-### Overview
-
-L4 memory supports **semantic search** using embeddings and vector similarity.
-
-**Architecture**:
-```
-Query → Embedding → Vector Search → Ranked Results
-```
-
-### Embedding Providers
-
-**OpenAI Embeddings (Default)**:
-```python
-from loom.providers.embedding.openai import OpenAIEmbeddingProvider
-
-embedding_provider = OpenAIEmbeddingProvider(
-    api_key="your-api-key",
-    model="text-embedding-3-small"
-)
-```
-
-### Vector Stores
-
-**In-Memory Store (Default)**:
-```python
-from loom.memory.vector_store import InMemoryVectorStore
-
-vector_store = InMemoryVectorStore()
-```
-
-## External Knowledge Base
-
-### Overview
-
-Loom supports **external knowledge bases** that integrate with the memory system.
-
-**Position in Context**:
-```
-System Prompt → L1 Memory → External Knowledge → Tools → User Question
-```
-
-### Built-in Implementations
-
-**In-Memory Knowledge Base**:
-```python
-from loom.providers.knowledge import InMemoryKnowledgeBase
-
-kb = InMemoryKnowledgeBase()
-kb.add_item(KnowledgeItem(
-    id="kb_1",
-    content="API authentication uses Bearer tokens",
-    source="API docs"
-))
-```
-
-**Vector Knowledge Base**:
-```python
-from loom.providers.knowledge import VectorKnowledgeBase
-
-kb = VectorKnowledgeBase(
-    embedding_provider=embedding_provider,
-    vector_store=vector_store
-)
-```
-
-**Graph Knowledge Base**:
-```python
-from loom.providers.knowledge import GraphKnowledgeBase
-
-kb = GraphKnowledgeBase(
-    graph_rag_service=graph_service,
-    search_mode="hybrid",  # vector, graph, or hybrid
-    max_hops=2
-)
-```
-
-### Configuration
-
-```python
-memory_config = MemoryConfig(
-    knowledge_base=kb,
-    enable_auto_migration=True,
-    enable_compression=True
-)
-```
-
-## Complete Example
-
-```python
-from loom.api import LoomApp, AgentConfig
-from loom.config.memory import MemoryConfig, MemoryLayerConfig, MemoryStrategyType
-from loom.providers.embedding.openai import OpenAIEmbeddingProvider
-from loom.memory.vector_store import InMemoryVectorStore
-from loom.providers.knowledge import VectorKnowledgeBase
-
-# 1. Create embedding provider
-embedding_provider = OpenAIEmbeddingProvider(
-    api_key="your-api-key",
-    model="text-embedding-3-small"
-)
-
-# 2. Create vector store
-vector_store = InMemoryVectorStore()
-
-# 3. Create knowledge base
-knowledge_base = VectorKnowledgeBase(
-    embedding_provider=embedding_provider,
-    vector_store=vector_store
-)
-
-# 4. Configure memory system
-memory_config = MemoryConfig(
-    strategy=MemoryStrategyType.SIMPLE,
-    l1=MemoryLayerConfig(capacity=10, retention_hours=1),
-    l2=MemoryLayerConfig(capacity=50, retention_hours=24),
-    l3=MemoryLayerConfig(capacity=200, retention_hours=168),
+config = MemoryConfig(
+    # Metabolic Configuration
+    l1=MemoryLayerConfig(capacity=20, retention_hours=1),
     l4=MemoryLayerConfig(capacity=1000, retention_hours=None),
-    knowledge_base=knowledge_base,
-    enable_auto_migration=True,
-    enable_compression=True
+    
+    # Fractal Features
+    enable_scopes=True
 )
-
-# 5. Create agent with memory
-agent_config = AgentConfig(
-    name="memory_agent",
-    system_prompt="You are an AI assistant with long-term memory",
-    memory=memory_config
-)
-
-app = LoomApp()
-agent = app.create_agent(agent_config)
 ```
 
 ## Best Practices
 
-### Memory Configuration
-
-1. **Start with defaults**: The default configuration works well for most use cases
-2. **Adjust capacity based on use case**: Increase L4 capacity for knowledge-intensive applications
-3. **Enable compression**: Keeps memory footprint manageable
-4. **Use appropriate strategy**: Simple for general use, importance-based for critical applications
-
-### Performance Optimization
-
-1. **L1 auto-inclusion**: Ensures fast context building without search overhead
-2. **Lazy L2/L3/L4 access**: Only search when needed via tools
-3. **Vector search for L4**: Use semantic search for large knowledge bases
-4. **Batch operations**: Add multiple items to L4 in batches when possible
-
-### Memory Hygiene
-
-1. **Regular cleanup**: Set appropriate retention times for each layer
-2. **Compression**: Enable auto-compression to prevent memory bloat
-3. **Promotion thresholds**: Adjust based on access patterns
-4. **Monitor capacity**: Track memory usage and adjust limits as needed
-
-## Related Documentation
-
-- [Context Management](../framework/context-management.md)
-- [Search & Retrieval](search-and-retrieval.md)
-- [External Knowledge Base](external-knowledge-base.md)
-- [API Reference](../usage/api-reference.md)
+1.  **Keep L1 lean**: L1 is auto-injected. If it's too big, it wastes tokens on every call.
+2.  **Promote aggressively**: If a piece of info is used twice, move it to L2.
+3.  **Default to LOCAL**: only use SHARED scope if extensive collaboration is required.

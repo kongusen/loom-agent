@@ -138,7 +138,23 @@ config = AgentConfig(
 agent = app.create_agent(config)
 ```
 
-## Next Steps
+## Building Fractal Agents
+
+Loom allows you to compose agents into hierarchical teams using `CompositeNode`. This enables you to build complex "Cognitive Organisms" that can handle tasks exceeding the context limit of a single model.
+
+See the [Fractal Tree Example](examples/fractal_tree.py) for a complete code sample.
+
+```python
+from loom.fractal.composite import CompositeNode
+from loom.fractal.strategies import ParallelStrategy
+
+team = CompositeNode(
+    node_id="team",
+    children=[agent_a, agent_b],
+    strategy=ParallelStrategy()
+)
+```
+
 
 *   Explore [Fractal Architecture](../framework/fractal-architecture.md) to understand how to build complex, nested agents
 *   Read about [Metabolic Memory](../features/memory-system.md) to see how your agent remembers

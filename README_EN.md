@@ -2,132 +2,136 @@
 
 <img src="loom.svg" alt="Loom Agent" width="300"/>
 
+# Loom
 
-**The Controlled Fractal AI Agent Framework**
-**Protocol-First • Metabolic Memory • Fractal Nodes**
+**The Controlled Fractal Agent Framework**
+
+Protocol-First • Metabolic Memory • Fractal Nodes
 
 [![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0 + Commons Clause](https://img.shields.io/badge/License-Apache_2.0_with_Commons_Clause-red.svg)](LICENSE)
 
 **English** | [中文](README.md)
 
-[📖 Documentation Index](docs/README.md) | [🧩 Axiomatic Framework](docs/concepts/axiomatic-framework.md) | [🚀 Getting Started](docs/usage/getting-started.md)
+[Documentation](docs/README.md) | [Axiomatic Framework](docs/concepts/axiomatic-framework.md) | [Getting Started](docs/usage/getting-started.md)
 
 </div>
 
 ---
 
-## 🎯 What is Loom?
+## Overview
 
-Loom is a **High-Assurance** AI Agent framework designed for building **Cognitive Organisms**. Unlike frameworks focused on "rapid prototyping," Loom starts from an **Axiomatic Framework** and uses **Fractal Architecture** and **Metabolic Memory** to counter cognitive entropy, achieving reliable operation at infinite complexity and infinite time.
+Loom is a **High-Assurance** AI Agent framework designed to solve the core challenges of building complex **Cognitive Organisms**.
 
-### Core Features (v0.4.0-alpha)
+Unlike experimental frameworks focused on rapid prototyping, Loom is built upon a strict **Axiomatic Framework**. It addresses the infinite growth of spatial complexity through **Fractal Architecture** and counters cognitive entropy over time via **Metabolic Memory**. Loom is not designed for creating simple demos, but for building intelligent systems capable of long-term stable operation and self-evolution in production environments.
 
-1.  **🧩 Axiomatic Framework**:
-    *   Built from 5 foundational axioms to create a formal theoretical framework.
-    *   **Axiom A1**: Uniform Interface - All nodes implement `NodeProtocol`.
-    *   **Axiom A2**: Event Sovereignty - All communication through standardized task models.
-    *   **Axiom A3**: Fractal Composition - Nodes can recursively compose, complexity remains O(1).
-    *   **Axiom A4**: Memory Metabolism - Information transforms into knowledge through metabolism.
-    *   **Axiom A5**: Cognitive Emergence - Cognition emerges from orchestration interactions.
+### Core Features (v0.4.2)
 
-2.  **🧬 Fractal Architecture**:
-    *   **Infinite Recursion**: Agent, Tool, Crew are all nodes, infinitely nestable.
-    *   **Complexity Conservation**: Local context complexity at any level remains constant at O(1).
-    *   **Unified Interface**: All nodes communicate through `NodeProtocol`, achieving interface transparency.
-    *   **Counter Spatial Entropy**: Achieve infinite semantic depth through recursive encapsulation.
+#### 1. Axiomatic System Design
+Built on a formal theoretical framework composed of 5 foundational axioms, ensuring logical consistency and predictability. From uniform interfaces to event sovereignty, every design decision is theoretically grounded.
 
-3.  **🧠 Metabolic Memory System**:
-    *   **L1-L4 Hierarchy**: Complete memory spectrum from ephemeral reaction to semantic knowledge.
-    *   **Memory Metabolism**: Automated `Ingest` -> `Digest` -> `Assimilate` consolidation loop.
-    *   **Smart Compression**: L4 knowledge base automatically clusters and compresses to maintain optimal size.
-    *   **Counter Temporal Entropy**: Transform flowing experience into fixed knowledge.
-    *   **Multiple Vector Stores**: Support for Qdrant, Chroma, PostgreSQL (pgvector).
+#### 2. Fractal Architecture & Infinite Composition
+Leveraging `CompositeNode` to enable true recursive composition. Whether a single Agent or a complex collaboration team, they are consistent nodes within Loom. This architecture guarantees that the cognitive load of any local part remains constant (O(1)), regardless of system complexity.
 
-4.  **🎯 FastAPI-Style API**:
-    *   **Type Safety**: Pydantic-based configuration models with automatic validation.
-    *   **Simple & Elegant**: `LoomApp` + `AgentConfig` for quick agent creation.
-    *   **Unified Management**: Centralized management of event bus, dispatcher, and LLM providers.
+#### 3. Metabolic Memory System
+Mimicking biological cognitive mechanisms, Loom establishes a complete memory spectrum from L1 (Working Memory) to L4 (Semantic Knowledge Base). The system automatically handles the ingestion, digestion, and assimilation of information, combined with pgvector/Qdrant vector retrieval, allowing Agents to become smarter over time.
 
-5.  **🛡️ Protocol-First**:
-    *   **Standard Contracts**: Based on Google A2A protocol and SSE transport.
-    *   **Event-Driven**: All communication through standardized task models.
-    *   **Observability**: Support for full-stack tracing and auditing.
+#### 4. Type-Safe Event Bus
+Rejecting "magic strings" and unreliable implicit calls. Loom employs strict CloudEvents standards, Protocol-based handler definitions, and type-safe Action enums, providing industrial-grade observability and stability for distributed Agent systems.
 
-6.  **🌐 Multi-LLM Support**:
-    *   **10+ Providers**: OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Kimi, Doubao, and more.
-    *   **Unified Interface**: Consistent API design for easy model switching.
-    *   **Streaming Output**: Native support for streaming responses and structured output.
+#### 5. Modern Developer Experience
+Featuring a FastAPI-style declarative API with integrated Pydantic full-link data validation. Native support for mainstream models like OpenAI, Anthropic, Gemini, DeepSeek, etc., with out-of-the-box SSE streaming output and structured responses.
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```bash
 pip install loom-agent
 ```
 
-## 🚀 Quickstart
+## Quick Start
+
+### Create Your First Agent
+
+Loom provides a minimal declarative API:
 
 ```python
-import asyncio
-from loom.api.main import LoomApp
-from loom.node.agent import AgentNode
+from loom.api import LoomApp, AgentConfig
+from loom.providers.llm import OpenAIProvider
 
-async def main():
-    app = LoomApp()
-    
-    # 1. Create Agent
-    agent = AgentNode(
-        node_id="helper",
-        dispatcher=app.dispatcher,
-        role="Assistant",
-        system_prompt="You are a helpful AI."
-    )
-    app.add_node(agent)
-    
-    # 2. Run
-    response = await app.run("Hello Loom!", target="helper")
-    print(response['response'])
+# 1. Initialize App
+app = LoomApp()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# 2. Configure Model Service
+llm = OpenAIProvider(api_key="your-api-key")
+app.set_llm_provider(llm)
+
+# 3. Define Agent
+config = AgentConfig(
+    agent_id="assistant",
+    name="Smart Assistant",
+    system_prompt="You are a professional, rigorous AI assistant.",
+    capabilities=["tool_use", "reflection"],
+)
+
+agent = app.create_agent(config)
+print(f"Agent Ready: {agent.node_id}")
 ```
 
-> **Note**: To connect to real LLMs (like OpenAI/Claude), see [Getting Started](docs/usage/getting-started.md).
+### Build a Fractal Team
 
-## 📚 Documentation
+Using the composition pattern to encapsulate multiple Agents into a single logical node:
 
-Complete documentation system from theory to practice:
+```python
+from loom.fractal.composite import CompositeNode
+from loom.fractal.strategies import ParallelStrategy
 
-### Core Concepts
-*   **[Documentation Home](docs/README.md)**: Documentation navigation
-*   **[Axiomatic Framework](docs/concepts/axiomatic-framework.md)**: 5 foundational axioms and theoretical foundation
+# Combine a researcher and a writer into a "Research Team"
+team_node = CompositeNode(
+    node_id="research_team",
+    children=[researcher_agent, writer_agent],
+    strategy=ParallelStrategy() # Execute in parallel
+)
 
-### Getting Started
-*   **[Getting Started](docs/usage/getting-started.md)**: 5-minute quickstart guide
-*   **[API Reference](docs/usage/api-reference.md)**: Complete API documentation
+# To the caller, this team behaves just like a regular Agent
+await team_node.execute_task(task)
+```
 
-### Framework Architecture
-*   **[Fractal Architecture](docs/framework/fractal-architecture.md)**: Core design for countering spatial entropy
-*   **[Context Management](docs/framework/context-management.md)**: Intelligent context building and optimization
-*   **[Event Bus](docs/framework/event-bus.md)**: Event-driven nervous system
+> For more examples, please refer to the [Getting Started Guide](docs/usage/getting-started.md).
 
-### Core Features
-*   **[Memory System](docs/features/memory-system.md)**: L1-L4 metabolic memory mechanism
-*   **[Tool System](docs/features/tool-system.md)**: Tool integration and execution
-*   **[Orchestration](docs/features/orchestration.md)**: Multi-agent collaboration patterns
-*   **[Search & Retrieval](docs/features/search-and-retrieval.md)**: Semantic search and knowledge retrieval
+---
 
-### Design Patterns
-*   **[Solving Complexity](docs/patterns/solving-complexity.md)**: How to break down "impossible tasks"
+## Documentation
 
-## 🤝 Contributing
+We provide comprehensive documentation ranging from theoretical foundations to engineering practices:
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md).
+**Theory**
+*   [Axiomatic Framework](docs/concepts/axiomatic-framework.md) - Understanding the 5 core laws behind Loom
+*   [Fractal Architecture](docs/framework/fractal-architecture.md) - Countering spatial entropy
 
-## 📄 License
+**Core Mechanisms**
+*   [Context Management](docs/framework/context-management.md) - Intelligent Token optimization strategies
+*   [Event Bus](docs/framework/event-bus.md) - The nervous system of the framework
+*   [Memory System](docs/features/memory-system.md) - Detailed guide to L1-L4 metabolic memory
+
+**Features & Patterns**
+*   [Orchestration Patterns](docs/features/orchestration.md) - Serial, Parallel, and Conditional routing
+*   [Tool System](docs/features/tool-system.md) - Safe tool execution mechanisms
+*   [Search & Retrieval](docs/features/search-and-retrieval.md) - Semantic knowledge base integration
+
+---
+
+## Community & Contact
+
+Join the Loom developer community to discuss the next generation of Agent architecture.
+
+<img src="QRcode.jpg" width="200" alt="Loom Community WeChat"/>
+
+---
+
+## License
 
 **Apache License 2.0 with Commons Clause**.
 

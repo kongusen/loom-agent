@@ -1,42 +1,82 @@
 # Fractal Architecture
 
-Loom employs a **Fractal Architecture** to solve the problem of **Spatial Entropy** (Complexity). By enabling infinite recursion, the system allows for **Infinite Semantic Depth** while maintaining a constant O(1) cognitive load on any single node.
+> **"Infinite Semantic Depth in Finite Cognitive Space"**
 
-## The Core Concept: Native Recursion
+Loom employs a **Fractal Architecture** to solve the problem of **Spatial Entropy** (Complexity). Inspired by the **Koch Snowflake**, the system implements a recursive composition pattern that allows for infinite task decomposition while ensuring that the cognitive load on any single node remains constant (O(1)).
 
-Unlike early designs that relied on complex, heavy-weight "Orchestrators" to manage task decomposition, Loom v0.4 embraces **Native Recursion**.
+## The Core Concept: Recursive Composition
 
-In this model, "recursion" is not a special engine class, but a natural result of an Agent having access to tools that can spawn children. If an Agent can call a function `delegate(task)`, and that function creates a new Agent, you have a fractal system.
+In Loom's fractal model, every component—whether a simple Agent or a complex team—is a **Node**. Nodes can contain other Nodes, forming a tree structure of arbitrary depth.
 
-### Solving the Complexity Wall
-Traditional agents hit a "Complexity Wall" when context fills up. Loom avoids this by ensuring that **no single node ever sees the full complexity**. A node only sees its immediate layer.
+### The Koch Snowflake Analogy
+
+Just as a Koch curve increases its perimeter infinitely within a finite area by recursively splitting line segments, Loom agents increase their "thought perimeter" (complexity handling) by recursively delegating sub-tasks.
+
+```mermaid
+graph TD
+    Root[Root Agent<br>O(1) Context] -->|Delegate| Child1[Child Agent 1<br>O(1) Context]
+    Root -->|Delegate| Child2[Child Agent 2<br>O(1) Context]
+    Child1 -->|Delegate| GrandChild1[GrandChild A<br>O(1) Context]
+    Child1 -->|Delegate| GrandChild2[GrandChild B<br>O(1) Context]
+```
+
+- **Self-Similarity**: Every level of the hierarchy looks and behaves the same.
+- **Complexity Conservation**: No matter how deep the tree goes, each node only manages its immediate children.
 
 ## Components
 
-### 1. NodeContainer (The Holon)
-The `NodeContainer` (`loom.fractal.container`) is simple. It is a lightweight wrapper that holds a collection of child nodes. It provides the mechanism for parent nodes to "own" and manage the lifecycle of children.
+### 1. NodeProtocol (The Uniform Interface)
+The foundation of the architecture is the `NodeProtocol`. All entities in the system must strictly adhere to this interface (Axiom 1).
 
-### 2. Task Tools (The Interface)
-Recursion happens via the **Tool System** (Axiom 6).
-*   **Decomposition**: The LLM naturally breaks down a prompt.
-*   **Delegation**: The Agent calls a `create_subtask` tool.
-*   **Execution**: Loom instantiates a new child node to handle that call.
+```python
+class NodeProtocol(Protocol):
+    node_id: str
+    agent_card: AgentCard
 
-### 3. Result Synthesizer
-The `ResultSynthesizer` (`loom.fractal.synthesizer`) acts as the "Sense-Making" layer. Once child nodes complete their work, the synthesizer aggregates their results.
+    async def execute_task(self, task: Task) -> Task:
+        """Standard execution entry point"""
+        ...
+```
 
-It supports:
-1.  **Structured**: JSON aggregation.
-2.  **LLM-based**: Narrative weaving.
-3.  **Concatenate**: Simple joining.
+This transparency means a parent node doesn't need to know if it's delegating to a single LLM Agent or a massive sub-system of 100 agents; it just calls `execute_task`.
 
-## How it Works
+### 2. CompositeNode (The Container)
+The `CompositeNode` replaces the legacy `NodeContainer`. It implements the **Composite Pattern**, allowing it to treat individual objects and compositions of objects uniformly.
 
-1.  **Receive Task**: Agent A receives "Build a Mobile App".
-2.  **Reason**: Agent A thinks "This is too big. I need a UI designer and a Backend dev."
-3.  **Tool Call**: Agent A calls `delegate(role="UI Designer", task="Design Login Screen")`.
-4.  **Fractal Step**: Loom creates Agent B (UI Designer).
-5.  **Recursion**: Agent B receives the task. If it's still too complex, Agent B calls `delegate` again (creating Agent C).
-6.  **Return**: Results bubble back up the stack.
+- **Recursive**: A `CompositeNode` implements `NodeProtocol`.
+- **Flexible strategies**: How children are executed is determined by a `CompositionStrategy`.
 
-This process enables **Infinite Semantic Depth** without complex code paths. The "Intelligence" of the recursion comes from the Model, not the Python framework.
+```python
+# Example: Creating a fractal tree
+team = CompositeNode(
+    children=[agent_a, agent_b],
+    strategy=ParallelStrategy()
+)
+```
+
+### 3. Composition Strategies
+The `CompositeNode` delegates the actual flow control to a strategy:
+
+- **`SequentialStrategy`**: Executes children one by one (Chain of Thought).
+- **`ParallelStrategy`**: Executes children concurrently (Map-Reduce).
+- **`ConditionalStrategy`**: Dynamically selects children based on task state (Router).
+
+## Data Flow: Memory & Context
+
+Fractal architecture creates challenges for context management. Loom solves this with **Scoped Memory** and **Context Injection**.
+
+- **Scope-based Memory**:
+  - `LOCAL`: Private to the node.
+  - `SHARED`: Accessible by parent and children.
+  - `GLOBAL`: Accessible by the entire organism.
+
+- **Minimal Context**: A parent node selectively injects only the necessary context into the sub-task, preventing the child from triggering a context overflow.
+
+## Execution Flow
+
+1.  **Receipt**: A `CompositeNode` receives a `Task`.
+2.  **Strategy**: The configured Strategy determines the execution order.
+3.  **Delegation**: The Strategy calls `execute_task` on Child Nodes.
+4.  **Synthesis**: Results from children bubble up and are synthesized into the parent's result.
+
+This architecture proves that **"Intelligence is an emergent property of the orchestration,"** not just the raw power of the underlying LLM.
