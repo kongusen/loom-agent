@@ -8,8 +8,8 @@ Memory Integration Tests
 4. 记忆层级转换
 """
 
+
 import pytest
-from datetime import datetime
 
 from loom.memory.core import LoomMemory, MemoryTier
 from loom.protocol import Task, TaskStatus
@@ -224,7 +224,7 @@ class TestMemoryRetrieval:
         # 3. 验证返回None
         assert retrieved_task is None, "Expected None for nonexistent task"
 
-        print(f"\n[SUCCESS] Correctly returned None for nonexistent task")
+        print("\n[SUCCESS] Correctly returned None for nonexistent task")
 
     @pytest.mark.asyncio
     async def test_retrieve_from_different_tiers(self):
@@ -260,7 +260,7 @@ class TestMemoryRetrieval:
         assert retrieved_l2 is not None, "Expected to retrieve L2 task"
         assert retrieved_l2.task_id == "l2-task"
 
-        print(f"\n[SUCCESS] Retrieved tasks from different tiers: L1 and L2")
+        print("\n[SUCCESS] Retrieved tasks from different tiers: L1 and L2")
 
 
 class TestFractalMemory:
@@ -339,10 +339,10 @@ class TestFractalMemory:
     @pytest.mark.asyncio
     async def test_child_node_inherits_parent_memory(self):
         """测试子节点继承父节点的记忆"""
+        from loom.fractal.memory import FractalMemory
         from loom.orchestration.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
-        from loom.fractal.memory import FractalMemory
 
         # 1. 创建父Agent
         tool_registry = ToolRegistry()
@@ -394,15 +394,15 @@ class TestFractalMemory:
         # 7. 验证子节点的fractal_memory有parent_memory引用
         assert child_agent.fractal_memory.parent_memory is not None, "Expected child to have parent_memory reference"
 
-        print(f"\n[SUCCESS] Child node inherited parent memory structure")
+        print("\n[SUCCESS] Child node inherited parent memory structure")
 
     @pytest.mark.asyncio
     async def test_child_memory_syncs_back_to_parent(self):
         """测试子节点记忆同步回父节点"""
+        from loom.fractal.memory import FractalMemory, MemoryScope
         from loom.orchestration.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
-        from loom.fractal.memory import FractalMemory, MemoryScope
 
         # 1. 创建父Agent
         tool_registry = ToolRegistry()

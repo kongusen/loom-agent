@@ -5,7 +5,8 @@ Fixed-capacity circular buffer with FIFO eviction strategy.
 """
 
 from collections import deque
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from loom.memory.layers.base import MemoryLayer
 from loom.protocol import Task
@@ -36,7 +37,7 @@ class CircularBufferLayer(MemoryLayer[Task]):
 
         self._buffer.append(item)
 
-    async def retrieve(self, query: Any, limit: int = 10) -> list[Task]:
+    async def retrieve(self, _query: Any, limit: int = 10) -> list[Task]:
         """Get most recent N tasks"""
         return list(self._buffer)[-limit:]
 

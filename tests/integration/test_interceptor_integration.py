@@ -11,7 +11,6 @@ from loom.protocol import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
 from loom.runtime import (
     Interceptor,
-    LoggingInterceptor,
     MetricsInterceptor,
     TimingInterceptor,
 )

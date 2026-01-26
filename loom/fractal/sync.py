@@ -11,7 +11,7 @@
 - MergeResolver: 智能合并策略
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from loom.fractal.memory import FractalMemory, MemoryEntry, MemoryScope
@@ -40,7 +40,7 @@ class MemorySyncManager:
 
     async def write_with_version_check(
         self, entry: "MemoryEntry", expected_version: int
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         带版本检查的写入（乐观锁）
 

@@ -10,7 +10,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from loom.fractal.memory import MemoryEntry
@@ -40,7 +40,7 @@ class ParentWinsResolver(ConflictResolver):
     """父节点优先策略"""
 
     async def resolve(
-        self, parent_entry: "MemoryEntry", child_entry: "MemoryEntry"
+        self, parent_entry: "MemoryEntry", _child_entry: "MemoryEntry"
     ) -> "MemoryEntry":
         """父节点的版本覆盖子节点"""
         return parent_entry
@@ -50,7 +50,7 @@ class ChildWinsResolver(ConflictResolver):
     """子节点优先策略"""
 
     async def resolve(
-        self, parent_entry: "MemoryEntry", child_entry: "MemoryEntry"
+        self, _parent_entry: "MemoryEntry", child_entry: "MemoryEntry"
     ) -> "MemoryEntry":
         """子节点的版本覆盖父节点"""
         return child_entry

@@ -6,9 +6,10 @@ We will create a 'Research Team' composed of a 'Supervisor', a 'Researcher', and
 """
 
 import asyncio
-from loom.api import LoomApp, AgentConfig
+
+from loom.api import AgentConfig, LoomApp
 from loom.fractal.composite import CompositeNode
-from loom.fractal.strategies import SequentialStrategy, ParallelStrategy
+from loom.fractal.strategies import ParallelStrategy
 from loom.providers.llm import OpenAIProvider
 from loom.types.core import Task
 

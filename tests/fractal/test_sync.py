@@ -7,7 +7,7 @@ Tests for MemorySyncManager and conflict resolvers.
 import pytest
 
 from loom.fractal.memory import FractalMemory, MemoryEntry, MemoryScope
-from loom.fractal.resolvers import ChildWinsResolver, MergeResolver, ParentWinsResolver
+from loom.fractal.resolvers import ChildWinsResolver, ParentWinsResolver
 from loom.fractal.sync import MemorySyncManager
 
 

@@ -13,7 +13,6 @@ import pytest
 from loom.fractal.memory import (
     ACCESS_POLICIES,
     FractalMemory,
-    MemoryAccessPolicy,
     MemoryEntry,
     MemoryScope,
 )

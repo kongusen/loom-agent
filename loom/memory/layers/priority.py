@@ -47,7 +47,7 @@ class PriorityQueueLayer(MemoryLayer[Task]):
             if priority_item < self._heap[0]:
                 heapq.heapreplace(self._heap, priority_item)
 
-    async def retrieve(self, query: Any, limit: int = 10) -> list[Task]:
+    async def retrieve(self, _query: Any, limit: int = 10) -> list[Task]:
         """Get top N highest priority tasks"""
         sorted_items = sorted(self._heap)[:limit]
         return [item.item for item in sorted_items]

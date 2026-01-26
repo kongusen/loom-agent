@@ -13,7 +13,6 @@ import pytest
 from loom.fractal.memory import FractalMemory, MemoryEntry, MemoryScope
 from loom.fractal.resolvers import (
     ChildWinsResolver,
-    ConflictResolver,
     MergeResolver,
     ParentWinsResolver,
 )

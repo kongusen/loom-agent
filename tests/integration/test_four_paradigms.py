@@ -180,7 +180,7 @@ class TestPlanningParadigm:
         # 验证done工具被调用
         if isinstance(result_data, dict):
             assert result_data.get("completed_explicitly") is True, "Expected explicit completion via done tool"
-            print(f"[SUCCESS] Planning paradigm verified - create_plan created real child nodes and executed")
+            print("[SUCCESS] Planning paradigm verified - create_plan created real child nodes and executed")
         else:
             print(f"[WARNING] Unexpected result format: {result_data}")
 

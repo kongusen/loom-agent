@@ -11,7 +11,7 @@
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Set
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from loom.fractal.memory import FractalMemory, MemoryEntry, MemoryScope
@@ -28,10 +28,10 @@ class TaskFeatures:
     从任务中提取的关键特征，用于智能记忆分配。
     """
 
-    keywords: Set[str]  # 关键词集合
+    keywords: set[str]  # 关键词集合
     action_type: str  # 动作类型
     complexity: float  # 复杂度评分 (0-1)
-    required_context: Set[str]  # 需要的上下文类型
+    required_context: set[str]  # 需要的上下文类型
 
 
 class TaskAnalyzer:
@@ -70,7 +70,7 @@ class TaskAnalyzer:
             required_context=required_context,
         )
 
-    def _extract_keywords(self, text: str) -> Set[str]:
+    def _extract_keywords(self, text: str) -> set[str]:
         """提取关键词"""
         # 简单实现：分词 + 停用词过滤
         words = re.findall(r"\w+", text.lower())
@@ -103,7 +103,7 @@ class TaskAnalyzer:
 
         return sum(factors) / len(factors) if factors else 0.5
 
-    def _infer_required_context(self, task: "Task", keywords: Set[str]) -> Set[str]:
+    def _infer_required_context(self, _task: "Task", keywords: set[str]) -> set[str]:
         """推断需要的上下文"""
         context_types = set()
 
@@ -126,7 +126,7 @@ class SmartAllocationStrategy:
     """
 
     def __init__(
-        self, max_inherited_memories: int = 10, analyzer: Optional[TaskAnalyzer] = None
+        self, max_inherited_memories: int = 10, analyzer: TaskAnalyzer | None = None
     ):
         """
         初始化智能分配策略
@@ -142,7 +142,7 @@ class SmartAllocationStrategy:
         self,
         parent_memory: "FractalMemory",
         child_task: "Task",
-        context_hints: Optional[list[str]] = None,
+        context_hints: list[str] | None = None,
     ) -> dict["MemoryScope", list["MemoryEntry"]]:
         """
         为子节点分配记忆

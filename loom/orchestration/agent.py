@@ -284,7 +284,7 @@ class Agent(BaseNode):
 
         # 获取工具的可调用对象
         if self.tool_registry is None:
-            return f"错误：工具注册表未初始化"
+            return "错误：工具注册表未初始化"
         tool_func = self.tool_registry.get_callable(tool_name)
 
         if tool_func is None:
@@ -856,14 +856,8 @@ class Agent(BaseNode):
                 for entry in entries:
                     await child_memory.write(entry.id, entry.content, scope=scope)
 
-        # 4. 创建TaskContextManager
-        assert child_memory.base_memory is not None, "child_memory.base_memory should not be None"
-        child_context_manager = TaskContextManager(
-            token_counter=TiktokenCounter(model="gpt-4"),
-            sources=[MemoryContextSource(child_memory.base_memory)],
-            max_tokens=self.context_manager.max_tokens,
-            system_prompt=self.system_prompt,
-        )
+        # 4. 创建TaskContextManager (暂时不使用，保留用于将来扩展)
+        # child_context_manager = TaskContextManager(...)
 
         # 5. 创建子Agent
         child_agent = Agent(
@@ -891,7 +885,6 @@ class Agent(BaseNode):
             child_agent: 子Agent实例
         """
         from loom.fractal.memory import MemoryScope
-        from loom.fractal.sync import MemorySyncManager
 
         # 获取子节点的fractal_memory
         child_memory = getattr(child_agent, "fractal_memory", None)
@@ -903,8 +896,8 @@ class Agent(BaseNode):
         if not parent_memory:
             return
 
-        # 使用MemorySyncManager同步SHARED记忆
-        sync_manager = MemorySyncManager(parent_memory)
+        # 使用MemorySyncManager同步SHARED记忆 (暂时直接写入，不使用sync_manager)
+        # sync_manager = MemorySyncManager(parent_memory)
 
         # 获取子节点的SHARED记忆
         child_shared = await child_memory.list_by_scope(MemoryScope.SHARED)

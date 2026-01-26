@@ -100,7 +100,7 @@ class MemoryEntry:
     version: int = 1  # 版本号（用于冲突检测）
     created_by: str = ""  # 创建者节点ID
     updated_by: str = ""  # 最后更新者节点ID
-    parent_version: Optional[int] = None  # 父版本号（用于追踪）
+    parent_version: int | None = None  # 父版本号（用于追踪）
     metadata: dict[str, Any] = field(default_factory=dict)  # 元数据
 
     def __post_init__(self):
@@ -182,8 +182,8 @@ class FractalMemory:
     async def read(
         self,
         entry_id: str,
-        search_scopes: Optional[list[MemoryScope]] = None,
-    ) -> Optional[MemoryEntry]:
+        search_scopes: list[MemoryScope] | None = None,
+    ) -> MemoryEntry | None:
         """
         读取记忆
 
