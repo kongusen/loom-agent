@@ -2,8 +2,6 @@
 
 <img src="loom.svg" alt="Loom Agent" width="300"/>
 
-# Loom
-
 **The Controlled Fractal Agent Framework**
 
 Protocol-First • Metabolic Memory • Fractal Nodes

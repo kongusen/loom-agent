@@ -2,8 +2,6 @@
 
 <img src="loom.svg" alt="Loom Agent" width="300"/>
 
-# Loom
-
 **The Controlled Fractal Agent Framework**
 
 Protocol-First • Metabolic Memory • Fractal Nodes
@@ -29,18 +27,23 @@ Unlike experimental frameworks focused on rapid prototyping, Loom is built upon 
 ### Core Features (v0.4.2)
 
 #### 1. Axiomatic System Design
+
 Built on a formal theoretical framework composed of 5 foundational axioms, ensuring logical consistency and predictability. From uniform interfaces to event sovereignty, every design decision is theoretically grounded.
 
 #### 2. Fractal Architecture & Infinite Composition
+
 Leveraging `CompositeNode` to enable true recursive composition. Whether a single Agent or a complex collaboration team, they are consistent nodes within Loom. This architecture guarantees that the cognitive load of any local part remains constant (O(1)), regardless of system complexity.
 
 #### 3. Metabolic Memory System
+
 Mimicking biological cognitive mechanisms, Loom establishes a complete memory spectrum from L1 (Working Memory) to L4 (Semantic Knowledge Base). The system automatically handles the ingestion, digestion, and assimilation of information, combined with pgvector/Qdrant vector retrieval, allowing Agents to become smarter over time.
 
 #### 4. Type-Safe Event Bus
+
 Rejecting "magic strings" and unreliable implicit calls. Loom employs strict CloudEvents standards, Protocol-based handler definitions, and type-safe Action enums, providing industrial-grade observability and stability for distributed Agent systems.
 
 #### 5. Modern Developer Experience
+
 Featuring a FastAPI-style declarative API with integrated Pydantic full-link data validation. Native support for mainstream models like OpenAI, Anthropic, Gemini, DeepSeek, etc., with out-of-the-box SSE streaming output and structured responses.
 
 ---
