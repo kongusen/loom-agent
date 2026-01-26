@@ -77,6 +77,11 @@ class LoomMemory:
 
     # ==================== L1管理 ====================
 
+    @property
+    def _l1_tasks(self) -> list["Task"]:
+        """向后兼容：返回L1中的所有Task"""
+        return list(self._l1_layer._buffer)
+
     def _on_l1_eviction(self, task: "Task") -> None:
         """L1驱逐回调：自动清理索引"""
         self._task_index.pop(task.task_id, None)
@@ -146,6 +151,11 @@ class LoomMemory:
 
     # ==================== L2管理 ====================
 
+    @property
+    def _l2_tasks(self) -> list["Task"]:
+        """向后兼容：返回L2中的所有Task（按重要性排序）"""
+        return [item.item for item in sorted(self._l2_layer._heap)]
+
     def _add_to_l2(self, task: "Task") -> None:
         """
         添加到L2工作记忆（同步版本）
@@ -163,9 +173,13 @@ class LoomMemory:
         if len(self._l2_layer._heap) < self._l2_layer._max_size:
             heapq.heappush(self._l2_layer._heap, priority_item)
         else:
-            # 如果新任务优先级更高，替换最低优先级的任务
-            if priority_item < self._l2_layer._heap[0]:
-                heapq.heapreplace(self._l2_layer._heap, priority_item)
+            # 找到堆中重要性最低的任务（负数最大的）
+            max_item = max(self._l2_layer._heap)
+            # 如果新任务重要性更高（负数更小），替换最低重要性的任务
+            if priority_item < max_item:
+                self._l2_layer._heap.remove(max_item)
+                heapq.heapify(self._l2_layer._heap)
+                heapq.heappush(self._l2_layer._heap, priority_item)
 
     def get_l2_tasks(self, limit: int | None = None) -> list["Task"]:
         """

@@ -56,7 +56,7 @@ async def execute_delegate_task(
     agent: Any,  # Agent instance
     args: dict[str, Any],
     parent_task: Any,  # Task instance
-) -> str:
+) -> Any:
     """
     Execute the delegate_task meta-tool
 

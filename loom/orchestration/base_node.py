@@ -100,6 +100,10 @@ class BaseNode:
             "last_execution": None,
         }
 
+        # 拦截器链
+        from loom.runtime.interceptor import InterceptorChain
+        self.interceptor_chain = InterceptorChain()
+
     # ==================== 事件发布（观测能力）====================
 
     async def _publish_event(
@@ -367,35 +371,6 @@ class BaseNode:
         )
         return True
 
-    async def on_approval_required(
-        self,
-        task: Task,
-        approval_type: str,
-        content: dict[str, Any],
-    ) -> bool:
-        """
-        需要用户审批的钩子
-
-        Args:
-            task: 任务
-            approval_type: 审批类型（planning, tool_call, delegation, etc.）
-            content: 需要审批的内容
-
-        Returns:
-            是否批准（True=批准，False=拒绝）
-        """
-        # 发布审批请求事件
-        await self._publish_event(
-            action="node.approval_required",
-            parameters={
-                "approval_type": approval_type,
-                "content": content,
-            },
-            task_id=task.task_id,
-        )
-        # 默认自动批准，子类可以覆盖此方法实现真正的用户审批
-        return True
-
     async def on_complete(self, task: Task) -> None:
         """
         任务成功完成后的钩子
@@ -453,6 +428,19 @@ class BaseNode:
         return {"status": "processed", "node_id": self.node_id}
 
     async def execute_task(self, task: Task) -> Task:
+        """
+        执行任务（带拦截器支持）
+
+        Args:
+            task: 要执行的任务
+
+        Returns:
+            更新后的任务
+        """
+        # 使用拦截器链包装执行
+        return await self.interceptor_chain.execute(task, self._execute_task_with_lifecycle)
+
+    async def _execute_task_with_lifecycle(self, task: Task) -> Task:
         """
         执行任务（带生命周期管理）
 

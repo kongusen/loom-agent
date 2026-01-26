@@ -165,6 +165,11 @@ class SmartAllocationStrategy:
         if len(selected) < self.max_inherited_memories:
             features = self.analyzer.analyze(child_task)
             additional = await self._retrieve_relevant_memories(parent_memory, features)
+
+            # 去重：排除已选择的记忆
+            selected_ids = {entry.id for entry in selected}
+            additional = [entry for entry in additional if entry.id not in selected_ids]
+
             selected.extend(additional)
 
         return {MemoryScope.INHERITED: selected[: self.max_inherited_memories]}

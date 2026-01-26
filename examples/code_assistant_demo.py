@@ -203,10 +203,8 @@ class CodeAssistantAgent(Agent):
 
                     # 处理元工具
                     if tool_name == "create_plan":
-                        await self._auto_plan(tool_args, task.task_id)
                         result = f"Plan created: {tool_args.get('goal', '')}"
                     elif tool_name == "delegate_task":
-                        await self._auto_delegate(tool_args, task.task_id)
                         target_agent = tool_args.get("target_agent", "")
                         subtask = tool_args.get("subtask", "")
                         result = await self._execute_delegate_task(

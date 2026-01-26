@@ -57,28 +57,31 @@ async def execute_get_memory_stats_tool(_args: dict, memory: "LoomMemory") -> di
     Returns:
         记忆统计信息
     """
+    # 使用公共API获取统计信息
+    stats = memory.get_stats()
+
     return {
         "l1": {
-            "current": len(memory._l1_tasks),
-            "max": memory.max_l1_size,
-            "usage_percent": (len(memory._l1_tasks) / memory.max_l1_size * 100)
-            if memory.max_l1_size > 0
+            "current": stats["l1_size"],
+            "max": stats["max_l1_size"],
+            "usage_percent": (stats["l1_size"] / stats["max_l1_size"] * 100)
+            if stats["max_l1_size"] > 0
             else 0,
             "description": "Recent tasks (circular buffer)",
         },
         "l2": {
-            "current": len(memory._l2_tasks),
-            "max": memory.max_l2_size,
-            "usage_percent": (len(memory._l2_tasks) / memory.max_l2_size * 100)
-            if memory.max_l2_size > 0
+            "current": stats["l2_size"],
+            "max": stats["max_l2_size"],
+            "usage_percent": (stats["l2_size"] / stats["max_l2_size"] * 100)
+            if stats["max_l2_size"] > 0
             else 0,
             "description": "Important tasks (sorted by importance)",
         },
         "l3": {
-            "current": len(memory._l3_summaries),
-            "max": memory.max_l3_size,
-            "usage_percent": (len(memory._l3_summaries) / memory.max_l3_size * 100)
-            if memory.max_l3_size > 0
+            "current": stats["l3_size"],
+            "max": stats["max_l3_size"],
+            "usage_percent": (stats["l3_size"] / stats["max_l3_size"] * 100)
+            if stats["max_l3_size"] > 0
             else 0,
             "description": "Task summaries (compressed)",
         },
@@ -138,29 +141,34 @@ async def execute_promote_task_to_l2_tool(args: dict, memory: "LoomMemory") -> d
     task_id = args.get("task_id", "")
     reason = args.get("reason", "LLM decision")
 
-    # 查找任务
-    task = memory._task_index.get(task_id)
+    # 使用公共API查找任务
+    task = memory.get_task(task_id)
     if not task:
         return {
             "success": False,
             "error": f"Task {task_id} not found in memory",
         }
 
-    # 检查是否已在L2
-    if task_id in [t.task_id for t in memory._l2_tasks]:
+    # 使用公共API检查是否已在L2
+    l2_tasks = memory.get_l2_tasks()
+    if any(t.task_id == task_id for t in l2_tasks):
         return {
             "success": False,
             "error": f"Task {task_id} is already in L2",
         }
 
-    # 提升到L2
-    memory._add_to_l2(task)
+    # 使用公共API提升到L2
+    from loom.memory.core import MemoryTier
+    memory.add_task(task, tier=MemoryTier.L2_WORKING)
+
+    # 获取更新后的L2大小
+    stats = memory.get_stats()
 
     return {
         "success": True,
         "task_id": task_id,
         "reason": reason,
-        "l2_size": len(memory._l2_tasks),
+        "l2_size": stats["l2_size"],
     }
 
 

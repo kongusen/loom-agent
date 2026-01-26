@@ -68,6 +68,7 @@ class Agent(BaseNode):
         max_iterations: int = 10,
         require_done_tool: bool = True,
         skill_registry: Any | None = None,  # SkillRegistry
+        tool_registry: Any | None = None,  # ToolRegistry
         memory_config: dict[str, Any] | None = None,
         **kwargs,
     ):
@@ -86,6 +87,7 @@ class Agent(BaseNode):
             max_iterations: 最大迭代次数
             require_done_tool: 是否要求显式调用done工具完成任务
             skill_registry: Skill注册表（可选，用于加载Skills）
+            tool_registry: 工具注册表（可选，用于执行工具调用）
             memory_config: 记忆系统配置（可选，默认使用标准配置）
             **kwargs: 其他参数传递给BaseNode
         """
@@ -105,6 +107,7 @@ class Agent(BaseNode):
         self.max_iterations = max_iterations
         self.require_done_tool = require_done_tool
         self.skill_registry = skill_registry
+        self.tool_registry = tool_registry
 
         # 如果启用 done tool，添加到工具列表
         if self.require_done_tool:
@@ -259,6 +262,41 @@ class Agent(BaseNode):
 
         return tools
 
+    async def _execute_single_tool(self, tool_name: str, tool_args: dict | str) -> str:
+        """
+        执行单个工具
+
+        Args:
+            tool_name: 工具名称
+            tool_args: 工具参数（可能是dict或JSON字符串）
+
+        Returns:
+            工具执行结果
+        """
+        import json
+
+        # 如果tool_args是字符串，解析为字典
+        if isinstance(tool_args, str):
+            try:
+                tool_args = json.loads(tool_args)
+            except json.JSONDecodeError:
+                return f"错误：无法解析工具参数 - {tool_args}"
+
+        # 获取工具的可调用对象
+        if self.tool_registry is None:
+            return f"错误：工具注册表未初始化"
+        tool_func = self.tool_registry.get_callable(tool_name)
+
+        if tool_func is None:
+            return f"错误：工具 '{tool_name}' 未找到"
+
+        try:
+            # 执行工具
+            result = await tool_func(**tool_args)
+            return str(result)
+        except Exception as e:
+            return f"错误：工具执行失败 - {str(e)}"
+
     async def _execute_impl(self, task: Task) -> Task:
         """
         执行任务 - Agent 核心循环
@@ -376,8 +414,7 @@ class Agent(BaseNode):
 
                     # 处理元工具
                     if tool_name == "create_plan":
-                        await self._auto_plan(tool_args, task.task_id)
-                        result = f"Plan created: {tool_args.get('goal', '')}"
+                        result = await self._execute_plan(tool_args, task)
                     elif tool_name == "delegate_task":
                         # Check if this is fractal delegation or named agent delegation
                         if "target_agent" in tool_args:
@@ -392,9 +429,11 @@ class Agent(BaseNode):
                             from loom.orchestration.meta_tools import execute_delegate_task
                             result = await execute_delegate_task(self, tool_args, task)
                     else:
-                        # 普通工具 - 这里返回占位结果
-                        # 实际执行应该由工具执行器处理
-                        result = f"Tool {tool_name} executed"
+                        # 执行普通工具
+                        if self.tool_registry:
+                            result = await self._execute_single_tool(tool_name, tool_args)
+                        else:
+                            result = f"错误：未配置工具注册表，无法执行工具 '{tool_name}'"
 
                     # 累积消息（标记工具名称用于 ephemeral 过滤）
                     accumulated_messages.append(
@@ -409,6 +448,23 @@ class Agent(BaseNode):
                             "content": result,
                             "tool_call_id": tool_call.get("id", ""),
                             "tool_name": tool_name,  # 标记工具名称
+                        }
+                    )
+
+                # 5. 自动反思（Reflection范式）
+                # 在每次迭代后自动评估输出质量
+                if iteration < self.max_iterations - 1 and full_content:
+                    # 添加反思提示，让LLM自我评估
+                    reflection_prompt = (
+                        "Please reflect on your current response:\n"
+                        "1. Is the response complete and accurate?\n"
+                        "2. Are there any issues or improvements needed?\n"
+                        "3. If satisfied, call the 'done' tool. If improvements needed, continue working."
+                    )
+                    accumulated_messages.append(
+                        {
+                            "role": "system",
+                            "content": reflection_prompt,
                         }
                     )
 
@@ -506,67 +562,6 @@ class Agent(BaseNode):
         return filtered
 
     # ==================== 自动能力（内部方法）====================
-
-    async def _auto_plan(self, plan_args: dict[str, Any], task_id: str) -> None:
-        """
-        自动规划能力 - LLM调用create_plan元工具时触发
-
-        Args:
-            plan_args: 规划参数（goal, steps, reasoning）
-            task_id: 关联的任务ID
-        """
-        goal = plan_args.get("goal", "")
-        steps = plan_args.get("steps", [])
-        reasoning = plan_args.get("reasoning", "")
-
-        # 发布规划事件
-        await self._publish_event(
-            action="node.auto_planning",
-            parameters={
-                "goal": goal,
-                "steps": steps,
-                "reasoning": reasoning,
-                "step_count": len(steps),
-            },
-            task_id=task_id,
-        )
-
-        # 发布思考过程
-        await self.publish_thinking(
-            content=f"📋 Creating plan for: {goal}\nSteps: {len(steps)}\nReasoning: {reasoning}",
-            task_id=task_id,
-            metadata={"phase": "auto_planning"},
-        )
-
-    async def _auto_delegate(self, delegate_args: dict[str, Any], task_id: str) -> None:
-        """
-        自动委派能力 - LLM调用delegate_task元工具时触发
-
-        Args:
-            delegate_args: 委派参数（target_agent, subtask, reasoning）
-            task_id: 关联的任务ID
-        """
-        target_agent = delegate_args.get("target_agent", "")
-        subtask = delegate_args.get("subtask", "")
-        reasoning = delegate_args.get("reasoning", "")
-
-        # 发布委派事件
-        await self._publish_event(
-            action="node.auto_delegation",
-            parameters={
-                "target_agent": target_agent,
-                "subtask": subtask,
-                "reasoning": reasoning,
-            },
-            task_id=task_id,
-        )
-
-        # 发布思考过程
-        await self.publish_thinking(
-            content=f"🤝 Delegating to {target_agent}: {subtask}\nReasoning: {reasoning}",
-            task_id=task_id,
-            metadata={"phase": "auto_delegation"},
-        )
 
     async def _load_relevant_skills(self, task_description: str) -> list[Any]:
         """
@@ -674,6 +669,81 @@ class Agent(BaseNode):
         else:
             return f"Error: Agent '{target_agent_id}' not found in available_agents"
 
+    async def _execute_plan(
+        self,
+        plan_args: dict[str, Any],
+        parent_task: Task,
+    ) -> str:
+        """
+        执行规划 - 实现Planning范式
+
+        将复杂任务分解为多个子任务，使用分形架构并行/顺序执行
+
+        Args:
+            plan_args: 规划参数 {goal, steps, reasoning}
+            parent_task: 父任务
+
+        Returns:
+            执行结果摘要
+        """
+        from uuid import uuid4
+
+        goal = plan_args.get("goal", "")
+        steps = plan_args.get("steps", [])
+        reasoning = plan_args.get("reasoning", "")
+
+        if not steps:
+            return "Error: No steps provided in plan"
+
+        # 发布规划事件
+        await self._publish_event(
+            action="node.planning",
+            parameters={
+                "goal": goal,
+                "steps": steps,
+                "reasoning": reasoning,
+                "step_count": len(steps),
+            },
+            task_id=parent_task.task_id,
+        )
+
+        # 执行每个步骤（分形执行）
+        results = []
+        for idx, step in enumerate(steps):
+            # 创建子任务
+            subtask = Task(
+                task_id=f"{parent_task.task_id}-step-{idx+1}-{uuid4()}",
+                action="execute",
+                parameters={
+                    "content": step,
+                    "parent_task_id": parent_task.task_id,
+                    "step_index": idx + 1,
+                    "total_steps": len(steps),
+                },
+            )
+
+            # 创建子节点并执行
+            child_node = await self._create_child_node(
+                subtask=subtask,
+                context_hints=[],
+            )
+
+            result = await child_node.execute_task(subtask)
+
+            # 同步记忆
+            await self._sync_memory_from_child(child_node)
+
+            # 收集结果
+            if result.status == TaskStatus.COMPLETED:
+                step_result = result.result.get("content", str(result.result)) if isinstance(result.result, dict) else str(result.result)
+                results.append(f"Step {idx+1}: {step_result}")
+            else:
+                results.append(f"Step {idx+1}: Failed - {result.error or 'Unknown error'}")
+
+        # 聚合结果
+        summary = f"Plan '{goal}' completed with {len(steps)} steps:\n" + "\n".join(results)
+        return summary
+
     async def _auto_delegate(
         self,
         args: dict[str, Any],
@@ -748,12 +818,12 @@ class Agent(BaseNode):
             配置好的子Agent实例
         """
         from loom.fractal.allocation import SmartAllocationStrategy
-        from loom.fractal.memory import FractalMemory
+        from loom.fractal.memory import FractalMemory, MemoryScope
 
         # 1. 创建FractalMemory（继承父节点记忆）
         child_memory = FractalMemory(
             node_id=subtask.task_id,
-            parent_memory=getattr(self, "fractal_memory", None),
+            parent_memory=getattr(self, "fractal_memory", None),  # type: ignore[attr-defined]
             base_memory=LoomMemory(node_id=subtask.task_id),
         )
 
@@ -766,11 +836,28 @@ class Agent(BaseNode):
         )
 
         # 3. 将分配的记忆写入子节点
+        # 注意：INHERITED scope是只读的，需要直接缓存而不是通过write方法
         for scope, entries in allocated_memories.items():
-            for entry in entries:
-                await child_memory.write(entry.id, entry.content, scope=scope)
+            if scope == MemoryScope.INHERITED:
+                # 直接缓存到INHERITED scope（不通过write方法，因为它是只读的）
+                for entry in entries:
+                    from loom.fractal.memory import MemoryEntry
+                    inherited_entry = MemoryEntry(
+                        id=entry.id,
+                        content=entry.content,
+                        scope=MemoryScope.INHERITED,
+                        version=entry.version if hasattr(entry, 'version') else 1,
+                        created_by=entry.created_by if hasattr(entry, 'created_by') else child_memory.node_id,
+                        updated_by=entry.updated_by if hasattr(entry, 'updated_by') else child_memory.node_id,
+                        parent_version=entry.version if hasattr(entry, 'version') else None,
+                    )
+                    child_memory._memory_by_scope[MemoryScope.INHERITED][entry.id] = inherited_entry
+            else:
+                for entry in entries:
+                    await child_memory.write(entry.id, entry.content, scope=scope)
 
         # 4. 创建TaskContextManager
+        assert child_memory.base_memory is not None, "child_memory.base_memory should not be None"
         child_context_manager = TaskContextManager(
             token_counter=TiktokenCounter(model="gpt-4"),
             sources=[MemoryContextSource(child_memory.base_memory)],
@@ -790,7 +877,7 @@ class Agent(BaseNode):
         )
 
         # 6. 设置子Agent的fractal_memory引用
-        child_agent.fractal_memory = child_memory
+        child_agent.fractal_memory = child_memory  # type: ignore[attr-defined]
 
         return child_agent
 
