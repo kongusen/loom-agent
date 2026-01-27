@@ -1,0 +1,76 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wiki/**'
+      - '.github/workflows/sync-wiki.yml'
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+        with:
+          path: main_repo
+
+      - name: Checkout wiki repo
+        uses: actions/checkout@v4
+        with:
+          repository: kongusen/loom-agent.wiki
+          path: wiki_repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy Wiki files
+        run: |
+          # 复制所有 Wiki 文件
+          cp -r main_repo/wiki/* wiki_repo/
+
+          # 列出复制的文件
+          echo "📄 复制的文件:"
+          ls -la wiki_repo/
+
+      - name: Configure Git
+        run: |
+          cd wiki_repo
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          cd wiki_repo
+          if git diff --quiet; then
+            echo "📝 没有检测到更改"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ 检测到更改"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          cd wiki_repo
+          git add .
+          git commit -m "docs: sync Wiki from main repo
+
+          自动从主仓库同步 Wiki 文档
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+
+          🤖 由 GitHub Actions 自动生成"
+          git push
+
+      - name: Summary
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          echo "✅ Wiki 同步成功！"
+          echo "🌐 访问: https://github.com/kongusen/loom-agent/wiki"
