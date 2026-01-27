@@ -2,7 +2,6 @@
 Tests for Sequential Workflow
 """
 
-
 import pytest
 
 from loom.orchestration.sequential_workflow import SequentialWorkflow
@@ -42,6 +41,7 @@ class TestSequentialWorkflow:
 
     def test_init(self):
         """Test initialization"""
+
         async def dummy_step(task, results):
             return "result"
 
@@ -57,6 +57,7 @@ class TestSequentialWorkflow:
 
     def test_init_empty_description(self):
         """Test initialization with empty description"""
+
         async def dummy_step(task, results):
             return "result"
 
@@ -73,6 +74,7 @@ class TestSequentialWorkflow:
 
     def test_get_description_empty(self):
         """Test getting description when empty"""
+
         async def dummy_step(task, results):
             return "result"
 
@@ -86,6 +88,7 @@ class TestSequentialWorkflow:
 
     def test_get_description_multiple_steps(self):
         """Test getting description with multiple steps"""
+
         async def step1(task, results):
             return "result"
 
@@ -330,6 +333,4 @@ class TestSequentialWorkflow:
         result = await workflow.execute(task)
 
         assert result.status == TaskStatus.COMPLETED
-        assert result.result == {
-            "steps_results": [{"key": "value", "number": 42}, [1, 2, 3, 4, 5]]
-        }
+        assert result.result == {"steps_results": [{"key": "value", "number": 42}, [1, 2, 3, 4, 5]]}

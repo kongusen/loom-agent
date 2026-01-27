@@ -200,8 +200,12 @@ class TestAgentWorkflow:
         task1 = Task(task_id="task1", action="action1", parameters={})
         task2 = Task(task_id="task2", action="action2", parameters={})
 
-        result1 = Task(task_id="task1", action="action1", parameters={}, status=TaskStatus.COMPLETED)
-        result2 = Task(task_id="task2", action="action2", parameters={}, status=TaskStatus.COMPLETED)
+        result1 = Task(
+            task_id="task1", action="action1", parameters={}, status=TaskStatus.COMPLETED
+        )
+        result2 = Task(
+            task_id="task2", action="action2", parameters={}, status=TaskStatus.COMPLETED
+        )
 
         mock_coordinator.execute_task = AsyncMock(side_effect=[result1, result2])
 

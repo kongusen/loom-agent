@@ -408,7 +408,10 @@ class TestTaskContextManager:
         )
 
         messages = [
-            {"role": "system", "content": "This is a very long system prompt that exceeds the token limit"},
+            {
+                "role": "system",
+                "content": "This is a very long system prompt that exceeds the token limit",
+            },
         ]
 
         result = manager._fit_to_token_limit(messages)

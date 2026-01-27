@@ -56,15 +56,11 @@ class TestMCPAdapter:
         """Create sample tool definitions"""
         return [
             MCPToolDefinition(
-                name="test_tool",
-                description="A test tool",
-                inputSchema={"type": "object"}
+                name="test_tool", description="A test tool", inputSchema={"type": "object"}
             ),
             MCPToolDefinition(
-                name="another_tool",
-                description="Another test tool",
-                inputSchema={"type": "object"}
-            )
+                name="another_tool", description="Another test tool", inputSchema={"type": "object"}
+            ),
         ]
 
     def test_init_without_event_bus(self):
@@ -132,9 +128,7 @@ class TestMCPAdapter:
     async def test_call_tool_success(self, adapter, mock_event_bus):
         """Test successfully calling a tool"""
         tool_def = MCPToolDefinition(
-            name="test_tool",
-            description="A test tool",
-            inputSchema={"type": "object"}
+            name="test_tool", description="A test tool", inputSchema={"type": "object"}
         )
         server = MockMCPServer(tools=[tool_def])
         await adapter.register_server("test_server", server)
@@ -163,17 +157,12 @@ class TestMCPAdapter:
     async def test_call_tool_with_error(self, adapter, mock_event_bus):
         """Test calling a tool that returns an error"""
         tool_def = MCPToolDefinition(
-            name="error_tool",
-            description="An error tool",
-            inputSchema={"type": "object"}
+            name="error_tool", description="An error tool", inputSchema={"type": "object"}
         )
 
         class ErrorServer(MockMCPServer):
             async def call_tool(self, name: str, arguments: dict) -> MCPToolResult:
-                return MCPToolResult(
-                    content=[{"error": "something went wrong"}],
-                    is_error=True
-                )
+                return MCPToolResult(content=[{"error": "something went wrong"}], is_error=True)
 
         server = ErrorServer(tools=[tool_def])
         await adapter.register_server("error_server", server)
@@ -185,9 +174,7 @@ class TestMCPAdapter:
     async def test_call_tool_sends_event(self, adapter, mock_event_bus):
         """Test that tool call sends an event"""
         tool_def = MCPToolDefinition(
-            name="test_tool",
-            description="A test tool",
-            inputSchema={"type": "object"}
+            name="test_tool", description="A test tool", inputSchema={"type": "object"}
         )
         server = MockMCPServer(tools=[tool_def])
         await adapter.register_server("test_server", server)
@@ -215,9 +202,7 @@ class TestMCPAdapter:
     def test_get_tool_definition(self, adapter):
         """Test getting a tool definition"""
         tool_def = MCPToolDefinition(
-            name="test_tool",
-            description="A test tool",
-            inputSchema={"type": "object"}
+            name="test_tool", description="A test tool", inputSchema={"type": "object"}
         )
         adapter.tools["test_tool"] = ("server1", tool_def)
 
@@ -250,9 +235,7 @@ class TestMCPAdapter:
         """Test calling a tool without event bus"""
         adapter = MCPAdapter(event_bus=None)
         tool_def = MCPToolDefinition(
-            name="test_tool",
-            description="A test tool",
-            inputSchema={"type": "object"}
+            name="test_tool", description="A test tool", inputSchema={"type": "object"}
         )
         server = MockMCPServer(tools=[tool_def])
         await adapter.register_server("test_server", server)
@@ -266,9 +249,7 @@ class TestMCPAdapter:
         """Test registering a server without event bus"""
         adapter = MCPAdapter(event_bus=None)
         tool_def = MCPToolDefinition(
-            name="test_tool",
-            description="A test tool",
-            inputSchema={"type": "object"}
+            name="test_tool", description="A test tool", inputSchema={"type": "object"}
         )
         server = MockMCPServer(tools=[tool_def])
 

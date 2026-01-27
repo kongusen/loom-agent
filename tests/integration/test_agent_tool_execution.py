@@ -102,9 +102,9 @@ class TestAgentToolExecution:
 
         # 验证没有返回占位符
         result_str = str(result.result)
-        assert "Tool" not in result_str or "executed" not in result_str.lower(), (
-            f"Result contains placeholder text: {result_str}"
-        )
+        assert (
+            "Tool" not in result_str or "executed" not in result_str.lower()
+        ), f"Result contains placeholder text: {result_str}"
 
     @pytest.mark.asyncio
     async def test_agent_executes_multiple_tools(self):
@@ -199,18 +199,30 @@ class TestAgentToolExecution:
         print(f"\n[DEBUG] Execution log: {execution_log}")
 
         # 验证至少有两次工具调用
-        assert len(execution_log) >= 2, f"Expected at least 2 tool executions, got {len(execution_log)}"
+        assert (
+            len(execution_log) >= 2
+        ), f"Expected at least 2 tool executions, got {len(execution_log)}"
 
         # 验证add工具被调用
         add_calls = [log for log in execution_log if log["tool"] == "add"]
         assert len(add_calls) >= 1, "Expected add tool to be called at least once"
-        assert add_calls[0]["args"] == {"a": 2, "b": 3}, f"Expected add(2, 3), got {add_calls[0]['args']}"
+        assert add_calls[0]["args"] == {
+            "a": 2,
+            "b": 3,
+        }, f"Expected add(2, 3), got {add_calls[0]['args']}"
         assert add_calls[0]["result"] == 5, f"Expected add result 5, got {add_calls[0]['result']}"
 
         # 验证multiply工具被调用
         multiply_calls = [log for log in execution_log if log["tool"] == "multiply"]
         assert len(multiply_calls) >= 1, "Expected multiply tool to be called at least once"
-        assert multiply_calls[0]["args"] == {"a": 4, "b": 5}, f"Expected multiply(4, 5), got {multiply_calls[0]['args']}"
-        assert multiply_calls[0]["result"] == 20, f"Expected multiply result 20, got {multiply_calls[0]['result']}"
+        assert multiply_calls[0]["args"] == {
+            "a": 4,
+            "b": 5,
+        }, f"Expected multiply(4, 5), got {multiply_calls[0]['args']}"
+        assert (
+            multiply_calls[0]["result"] == 20
+        ), f"Expected multiply result 20, got {multiply_calls[0]['result']}"
 
-        print(f"[SUCCESS] Both tools were executed correctly: {len(execution_log)} total executions")
+        print(
+            f"[SUCCESS] Both tools were executed correctly: {len(execution_log)} total executions"
+        )

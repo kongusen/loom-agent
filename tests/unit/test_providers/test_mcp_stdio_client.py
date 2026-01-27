@@ -137,7 +137,6 @@ class TestStdioMCPClientDisconnect:
         assert client._connected is False
 
 
-
 class TestStdioMCPClientListTools:
     """测试列出工具功能"""
 
@@ -358,7 +357,9 @@ class TestStdioMCPClientSendRequest:
         mock_process.stdin.write = Mock()
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout.readline = AsyncMock(
-            return_value=json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"key": "value"}}).encode()
+            return_value=json.dumps(
+                {"jsonrpc": "2.0", "id": 1, "result": {"key": "value"}}
+            ).encode()
             + b"\n"
         )
         client._process = mock_process

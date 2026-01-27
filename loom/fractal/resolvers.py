@@ -66,9 +66,7 @@ class MergeResolver(ConflictResolver):
         from loom.fractal.memory import MemoryEntry
 
         # 如果内容是字典，进行深度合并
-        if isinstance(parent_entry.content, dict) and isinstance(
-            child_entry.content, dict
-        ):
+        if isinstance(parent_entry.content, dict) and isinstance(child_entry.content, dict):
             merged_content = self._merge_dicts(parent_entry.content, child_entry.content)
         else:
             # 其他类型，使用子节点版本
@@ -90,13 +88,8 @@ class MergeResolver(ConflictResolver):
         """深度合并字典"""
         result = parent_dict.copy()
         for key, value in child_dict.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._merge_dicts(result[key], value)
             else:
                 result[key] = value
         return result
-

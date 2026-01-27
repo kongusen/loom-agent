@@ -2,7 +2,6 @@
 Tests for Toolset
 """
 
-
 import pytest
 
 from loom.tools.toolset import (
@@ -88,9 +87,7 @@ class TestCreateSandboxToolset:
 
     def test_create_toolset_with_custom_timeouts(self, sandbox_dir):
         """Test creating toolset with custom timeouts"""
-        tools = create_sandbox_toolset(
-            sandbox_dir, bash_timeout=60.0, http_timeout=120.0
-        )
+        tools = create_sandbox_toolset(sandbox_dir, bash_timeout=60.0, http_timeout=120.0)
 
         # Should create without errors
         assert len(tools) > 0

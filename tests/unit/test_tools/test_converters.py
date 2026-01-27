@@ -4,7 +4,6 @@ Tests for Tool Converters
 测试将函数转换为MCP工具定义的功能
 """
 
-
 from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.converters import FunctionToMCP
 
@@ -14,6 +13,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_simple_function(self):
         """测试转换简单函数"""
+
         def my_tool(name: str, count: int) -> str:
             """A simple test tool"""
             return f"{name}: {count}"
@@ -33,6 +33,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_with_custom_name(self):
         """测试使用自定义名称转换"""
+
         def my_tool(value: str) -> str:
             """A tool"""
             return value
@@ -43,6 +44,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_function_with_self_parameter(self):
         """测试转换带self参数的函数（实例方法）"""
+
         class MyClass:
             def my_method(self, name: str, count: int) -> str:
                 """An instance method tool"""
@@ -60,6 +62,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_function_with_cls_parameter(self):
         """测试转换带cls参数的函数（类方法）"""
+
         class MyClass:
             @classmethod
             def my_class_method(cls, name: str, value: int) -> str:
@@ -77,6 +80,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_function_with_default_parameters(self):
         """测试转换带默认参数的函数"""
+
         def my_tool(name: str, count: int = 10) -> str:
             """A tool with defaults"""
             return f"{name}: {count}"
@@ -89,6 +93,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_function_with_no_docstring(self):
         """测试转换没有文档字符串的函数"""
+
         def my_tool(value: str) -> str:
             return value
 
@@ -98,6 +103,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_function_with_all_types(self):
         """测试转换包含所有类型的函数"""
+
         def my_tool(
             name: str,
             count: int,
@@ -120,6 +126,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_function_with_optional_only(self):
         """测试转换只有可选参数的函数"""
+
         def my_tool(name: str = "default", count: int = 0) -> str:
             """A tool with only optional params"""
             return f"{name}: {count}"
@@ -130,6 +137,7 @@ class TestFunctionToMCPConvert:
 
     def test_convert_function_no_parameters(self):
         """测试转换无参数函数"""
+
         def my_tool() -> str:
             """A tool with no parameters"""
             return "done"
@@ -169,6 +177,7 @@ class TestFunctionToMCPMapType:
 
     def test_map_unknown_type_defaults_to_string(self):
         """测试未知类型默认映射为字符串"""
+
         class CustomType:
             pass
 
@@ -190,6 +199,7 @@ class TestFunctionToMCPIntegration:
 
     def test_convert_class_instance_method_full_workflow(self):
         """测试完整的类实例方法转换流程"""
+
         class ToolClass:
             def __init__(self, prefix: str):
                 self.prefix = prefix
@@ -213,6 +223,7 @@ class TestFunctionToMCPIntegration:
 
     def test_convert_class_method_full_workflow(self):
         """测试完整的类方法转换流程"""
+
         class ToolClass:
             @classmethod
             def create(cls, name: str, value: int) -> str:

@@ -8,7 +8,6 @@ Memory Integration Tests
 4. 记忆层级转换
 """
 
-
 import pytest
 
 from loom.memory.core import LoomMemory, MemoryTier
@@ -78,7 +77,9 @@ class TestL1Memory:
         assert "task-0" not in task_ids, "Expected task-0 to be removed from L1"
         assert "task-1" not in task_ids, "Expected task-1 to be removed from L1"
 
-        print(f"\n[SUCCESS] L1 circular buffer works correctly - keeps latest {len(l1_tasks)} tasks")
+        print(
+            f"\n[SUCCESS] L1 circular buffer works correctly - keeps latest {len(l1_tasks)} tasks"
+        )
 
 
 class TestL2Memory:
@@ -180,7 +181,9 @@ class TestMemoryStats:
         assert stats["max_l1_size"] == 5, f"Expected max_l1_size=5, got {stats['max_l1_size']}"
         assert stats["max_l2_size"] == 3, f"Expected max_l2_size=3, got {stats['max_l2_size']}"
 
-        print(f"\n[SUCCESS] Memory stats: L1={stats['l1_size']}/{stats['max_l1_size']}, L2={stats['l2_size']}/{stats['max_l2_size']}")
+        print(
+            f"\n[SUCCESS] Memory stats: L1={stats['l1_size']}/{stats['max_l1_size']}, L2={stats['l2_size']}/{stats['max_l2_size']}"
+        )
 
 
 class TestMemoryRetrieval:
@@ -392,7 +395,9 @@ class TestFractalMemory:
         assert child_agent.fractal_memory is not None
 
         # 7. 验证子节点的fractal_memory有parent_memory引用
-        assert child_agent.fractal_memory.parent_memory is not None, "Expected child to have parent_memory reference"
+        assert (
+            child_agent.fractal_memory.parent_memory is not None
+        ), "Expected child to have parent_memory reference"
 
         print("\n[SUCCESS] Child node inherited parent memory structure")
 
@@ -468,6 +473,10 @@ class TestFractalMemory:
 
             # 验证包含子节点写入的信息
             shared_ids = [entry.id for entry in parent_shared]
-            assert "child-shared-info" in shared_ids, "Expected child's shared info in parent memory"
+            assert (
+                "child-shared-info" in shared_ids
+            ), "Expected child's shared info in parent memory"
 
-        print(f"\n[SUCCESS] Child memory synced back to parent - {len(parent_shared)} shared entries")
+        print(
+            f"\n[SUCCESS] Child memory synced back to parent - {len(parent_shared)} shared entries"
+        )

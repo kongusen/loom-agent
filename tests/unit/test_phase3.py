@@ -277,5 +277,3 @@ class TestPipelineBuilder:
 
         # 验证执行成功
         assert result.status == TaskStatus.COMPLETED
-
-

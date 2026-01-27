@@ -213,9 +213,7 @@ class TestShouldUseFractal:
         """Test same task with different triggers"""
         task = "first do this and then that"
 
-        config_always = FractalConfig(
-            enabled=True, growth_trigger=GrowthTrigger.ALWAYS
-        )
+        config_always = FractalConfig(enabled=True, growth_trigger=GrowthTrigger.ALWAYS)
         config_never = FractalConfig(enabled=True, growth_trigger=GrowthTrigger.NEVER)
         config_complexity = FractalConfig(
             enabled=True, growth_trigger=GrowthTrigger.COMPLEXITY, complexity_threshold=0.1

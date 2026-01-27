@@ -265,20 +265,20 @@ async def execute_select_memory_by_index_tool(args: dict, memory: "LoomMemory") 
                     )
             elif layer == "L3" and isinstance(item, TaskSummary):
                 # L3: 返回高度压缩陈述句
-                    result_brief = (
-                        item.result_summary[:50] + "..."
-                        if len(item.result_summary) > 50
-                        else item.result_summary
-                    )
-                    statement = f"{item.action}: {result_brief}"
+                result_brief = (
+                    item.result_summary[:50] + "..."
+                    if len(item.result_summary) > 50
+                    else item.result_summary
+                )
+                statement = f"{item.action}: {result_brief}"
 
-                    selected.append(
-                        {
-                            "index": idx,
-                            "task_id": item.task_id,
-                            "statement": statement,
-                        }
-                    )
+                selected.append(
+                    {
+                        "index": idx,
+                        "task_id": item.task_id,
+                        "statement": statement,
+                    }
+                )
 
     return {
         "layer": layer,

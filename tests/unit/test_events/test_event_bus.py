@@ -221,4 +221,3 @@ class TestEventBusFireAndForgetError:
 
         # 任务应该立即返回RUNNING状态（尽管handler会失败）
         assert result.status == TaskStatus.RUNNING
-

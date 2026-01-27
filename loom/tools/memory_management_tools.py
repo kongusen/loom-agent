@@ -159,6 +159,7 @@ async def execute_promote_task_to_l2_tool(args: dict, memory: "LoomMemory") -> d
 
     # 使用公共API提升到L2
     from loom.memory.core import MemoryTier
+
     memory.add_task(task, tier=MemoryTier.L2_WORKING)
 
     # 获取更新后的L2大小

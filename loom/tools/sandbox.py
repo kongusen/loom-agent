@@ -21,6 +21,7 @@ from typing import Any
 
 try:
     from RestrictedPython import compile_restricted, safe_globals
+
     RESTRICTED_PYTHON_AVAILABLE = True
 except ImportError:
     RESTRICTED_PYTHON_AVAILABLE = False
@@ -48,7 +49,7 @@ class Sandbox:
         root_dir: str | Path,
         auto_create: bool = True,
         python_timeout: int = 30,
-        allowed_modules: list[str] | None = None
+        allowed_modules: list[str] | None = None,
     ):
         """
         初始化沙箱
@@ -64,7 +65,7 @@ class Sandbox:
         """
         self.root_dir = Path(root_dir).resolve()
         self.python_timeout = python_timeout
-        self.allowed_modules = allowed_modules or ['math', 'json', 'datetime']
+        self.allowed_modules = allowed_modules or ["math", "json", "datetime"]
 
         # 确保根目录存在
         if not self.root_dir.exists():
@@ -229,9 +230,7 @@ class Sandbox:
         return str(self.validate_path(path))
 
     async def execute_python(
-        self,
-        code: str,
-        params: dict[str, Any] | None = None
+        self, code: str, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
         在沙箱中执行 Python 代码
@@ -249,12 +248,12 @@ class Sandbox:
         if not RESTRICTED_PYTHON_AVAILABLE:
             return {
                 "success": False,
-                "error": "RestrictedPython not installed. Install with: pip install RestrictedPython"
+                "error": "RestrictedPython not installed. Install with: pip install RestrictedPython",
             }
 
         try:
             # 编译受限代码
-            byte_code = compile_restricted(code, '<sandbox>', 'exec')
+            byte_code = compile_restricted(code, "<sandbox>", "exec")
 
             if byte_code.errors:
                 raise SandboxViolation(f"Code compilation errors: {byte_code.errors}")
@@ -266,29 +265,23 @@ class Sandbox:
             loop = asyncio.get_event_loop()
             await asyncio.wait_for(
                 loop.run_in_executor(None, exec, byte_code.code, safe_env),
-                timeout=self.python_timeout
+                timeout=self.python_timeout,
             )
 
             # 提取结果
-            result = safe_env.get('result', None)
+            result = safe_env.get("result", None)
 
-            return {
-                "success": True,
-                "result": result
-            }
+            return {"success": True, "result": result}
 
         except TimeoutError:
             return {
                 "success": False,
-                "error": f"Execution timeout after {self.python_timeout} seconds"
+                "error": f"Execution timeout after {self.python_timeout} seconds",
             }
         except SandboxViolation:
             raise
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _create_safe_environment(self, params: dict[str, Any]) -> dict[str, Any]:
         """创建安全的执行环境"""
@@ -306,7 +299,7 @@ class Sandbox:
                 pass
 
         # 添加安全的内置函数
-        safe_env['_print_'] = lambda x: print(x)
-        safe_env['_getattr_'] = getattr
+        safe_env["_print_"] = lambda x: print(x)
+        safe_env["_getattr_"] = getattr
 
         return safe_env

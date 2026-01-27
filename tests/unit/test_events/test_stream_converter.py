@@ -46,4 +46,3 @@ class TestConvertTaskToSSE:
 
         assert result == "formatted_sse"
         mock_formatter.format_sse_message.assert_called_once()
-

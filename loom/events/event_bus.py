@@ -65,7 +65,9 @@ class EventBus:
             handler: 处理器函数
         """
         # 将枚举转换为字符串值
-        action_key = action.value if isinstance(action, TaskAction | MemoryAction | AgentAction) else action
+        action_key = (
+            action.value if isinstance(action, TaskAction | MemoryAction | AgentAction) else action
+        )
         self._handlers[action_key].append(handler)
 
     async def publish(self, task: Task, wait_result: bool = True) -> Task:

@@ -545,9 +545,7 @@ class TestLoomMemoryL4Management:
 
         # 模拟 vector store
         mock_vector_store = Mock()
-        mock_vector_store.search = AsyncMock(
-            return_value=[{"id": "task-1"}, {"id": "task-2"}]
-        )
+        mock_vector_store.search = AsyncMock(return_value=[{"id": "task-1"}, {"id": "task-2"}])
 
         memory.embedding_provider = mock_embedding
         memory._l4_vector_store = mock_vector_store
@@ -594,9 +592,7 @@ class TestLoomMemoryL4Management:
 
         # 模拟 vector store
         mock_vector_store = Mock()
-        mock_vector_store.search = AsyncMock(
-            return_value=[{"id": "fact_1"}, {"id": "fact_2"}]
-        )
+        mock_vector_store.search = AsyncMock(return_value=[{"id": "fact_1"}, {"id": "fact_2"}])
 
         memory.embedding_provider = mock_embedding
         memory._l4_vector_store = mock_vector_store

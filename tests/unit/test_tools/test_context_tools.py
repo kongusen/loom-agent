@@ -232,7 +232,6 @@ class TestCreateEventQueryTools:
         assert "node_id" in tool["function"]["parameters"]["properties"]
 
 
-
 class TestExecuteQueryEventsByActionTool:
     """测试执行按动作查询事件工具"""
 
@@ -439,7 +438,9 @@ class TestContextToolExecutor:
         )
         await executor.event_bus.publish(task)
 
-        result = await executor.execute("query_events_by_action", {"action": "node.thinking", "limit": 10})
+        result = await executor.execute(
+            "query_events_by_action", {"action": "node.thinking", "limit": 10}
+        )
 
         assert result["query_type"] == "by_action"
         assert result["count"] > 0

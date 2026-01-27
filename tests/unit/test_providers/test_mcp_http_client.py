@@ -310,9 +310,7 @@ class TestHttpMCPClientReadResource:
 
             mock_response = Mock()
             mock_response.json.return_value = {
-                "result": {
-                    "contents": [{"text": "Resource content"}]
-                }
+                "result": {"contents": [{"text": "Resource content"}]}
             }
             mock_response.raise_for_status = Mock()
 
@@ -538,9 +536,7 @@ class TestHttpMCPClientSendRequest:
             )
 
             mock_response = Mock()
-            mock_response.json.return_value = {
-                "error": {"message": "Test error", "code": -1}
-            }
+            mock_response.json.return_value = {"error": {"message": "Test error", "code": -1}}
             mock_response.raise_for_status = Mock()
 
             mock_client = AsyncMock()

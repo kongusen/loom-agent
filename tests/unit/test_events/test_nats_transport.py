@@ -147,6 +147,7 @@ class TestNATSTransport:
     @pytest.mark.asyncio
     async def test_subscribe_not_connected(self, transport):
         """Test subscribing when not connected raises error"""
+
         async def handler(msg):
             pass
 
@@ -156,6 +157,7 @@ class TestNATSTransport:
     @pytest.mark.asyncio
     async def test_unsubscribe(self, connected_transport, mock_client):
         """Test unsubscribing from a topic"""
+
         async def handler(msg):
             pass
 

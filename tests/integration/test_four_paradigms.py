@@ -130,7 +130,11 @@ class TestPlanningParadigm:
                 {"type": "tool_call", "name": "done", "arguments": {"message": "Action complete"}},
                 # 父节点：完成
                 {"type": "text", "content": "Plan executed successfully!"},
-                {"type": "tool_call", "name": "done", "arguments": {"message": "Planning complete"}},
+                {
+                    "type": "tool_call",
+                    "name": "done",
+                    "arguments": {"message": "Planning complete"},
+                },
             ]
         )
 
@@ -179,8 +183,12 @@ class TestPlanningParadigm:
 
         # 验证done工具被调用
         if isinstance(result_data, dict):
-            assert result_data.get("completed_explicitly") is True, "Expected explicit completion via done tool"
-            print("[SUCCESS] Planning paradigm verified - create_plan created real child nodes and executed")
+            assert (
+                result_data.get("completed_explicitly") is True
+            ), "Expected explicit completion via done tool"
+            print(
+                "[SUCCESS] Planning paradigm verified - create_plan created real child nodes and executed"
+            )
         else:
             print(f"[WARNING] Unexpected result format: {result_data}")
 
@@ -211,7 +219,11 @@ class TestReflectionParadigm:
                 {"type": "text", "content": "Let me analyze this..."},
                 {"type": "tool_call", "name": "analyze", "arguments": {"data": "sample data"}},
                 {"type": "text", "content": "Analysis complete. Finishing..."},
-                {"type": "tool_call", "name": "done", "arguments": {"message": "Reflection complete"}},
+                {
+                    "type": "tool_call",
+                    "name": "done",
+                    "arguments": {"message": "Reflection complete"},
+                },
             ]
         )
 
@@ -263,9 +275,13 @@ class TestReflectionParadigm:
         print(f"[DEBUG] Iteration count: {len(iteration_count)}")
 
         if isinstance(result_data, dict):
-            assert result_data.get("completed_explicitly") is True, "Expected explicit completion via done tool"
+            assert (
+                result_data.get("completed_explicitly") is True
+            ), "Expected explicit completion via done tool"
 
-        print(f"[SUCCESS] Reflection paradigm verified - agent completed with {len(iteration_count)} tool call(s)")
+        print(
+            f"[SUCCESS] Reflection paradigm verified - agent completed with {len(iteration_count)} tool call(s)"
+        )
 
 
 class TestMultiAgentParadigm:
@@ -296,9 +312,17 @@ class TestMultiAgentParadigm:
         specialist_llm = MockLLMProvider(
             responses=[
                 {"type": "text", "content": "Processing the data..."},
-                {"type": "tool_call", "name": "specialist_action", "arguments": {"data": "test data"}},
+                {
+                    "type": "tool_call",
+                    "name": "specialist_action",
+                    "arguments": {"data": "test data"},
+                },
                 {"type": "text", "content": "Processing complete!"},
-                {"type": "tool_call", "name": "done", "arguments": {"message": "Specialist task complete"}},
+                {
+                    "type": "tool_call",
+                    "name": "done",
+                    "arguments": {"message": "Specialist task complete"},
+                },
             ]
         )
 
@@ -342,7 +366,11 @@ class TestMultiAgentParadigm:
                     },
                 },
                 {"type": "text", "content": "Delegation complete. Finishing..."},
-                {"type": "tool_call", "name": "done", "arguments": {"message": "Multi-agent collaboration complete"}},
+                {
+                    "type": "tool_call",
+                    "name": "done",
+                    "arguments": {"message": "Multi-agent collaboration complete"},
+                },
             ]
         )
 
@@ -395,6 +423,10 @@ class TestMultiAgentParadigm:
         print(f"[DEBUG] Multi-agent result: {result_data}")
 
         if isinstance(result_data, dict):
-            assert result_data.get("completed_explicitly") is True, "Expected explicit completion via done tool"
+            assert (
+                result_data.get("completed_explicitly") is True
+            ), "Expected explicit completion via done tool"
 
-        print(f"[SUCCESS] Multi-Agent paradigm verified - real specialist agent executed task, delegation occurred {len(delegation_log)} time(s)")
+        print(
+            f"[SUCCESS] Multi-Agent paradigm verified - real specialist agent executed task, delegation occurred {len(delegation_log)} time(s)"
+        )

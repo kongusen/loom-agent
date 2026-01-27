@@ -53,9 +53,7 @@ class TestSkillActivator:
         mock_response.content = "NONE"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         assert result == []
 
@@ -68,9 +66,7 @@ class TestSkillActivator:
         mock_response.content = "1"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "write code", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("write code", sample_skill_metadata)
 
         assert result == ["skill1"]
 
@@ -83,9 +79,7 @@ class TestSkillActivator:
         mock_response.content = "1, 3, 5"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "complex task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("complex task", sample_skill_metadata)
 
         assert result == ["skill1", "skill3", "skill5"]
 
@@ -115,9 +109,7 @@ class TestSkillActivator:
         mock_response.content = " 1 ,  3  , 5 "
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         assert result == ["skill1", "skill3", "skill5"]
 
@@ -130,9 +122,7 @@ class TestSkillActivator:
         mock_response.content = "1, invalid, 3, 999"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         # Should only include valid indices
         assert result == ["skill1", "skill3"]
@@ -146,9 +136,7 @@ class TestSkillActivator:
         mock_response.content = "0, 1, 10"  # 0 is invalid (1-based), 10 is out of range
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         # Only valid index should be included
         assert result == ["skill1"]
@@ -168,9 +156,7 @@ class TestSkillActivator:
         assert result == ["skill1", "skill2", "skill3"]
 
     @pytest.mark.asyncio
-    async def test_find_relevant_skills_none_metadata(
-        self, activator, mock_llm_provider
-    ):
+    async def test_find_relevant_skills_none_metadata(self, activator, mock_llm_provider):
         """Test with None as skill metadata"""
         result = await activator.find_relevant_skills("test task", None)
         assert result == []
@@ -184,9 +170,7 @@ class TestSkillActivator:
         mock_response.content = "1, 1, 3, 3"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         # Should return unique skills
         assert result == ["skill1", "skill1", "skill3", "skill3"]
@@ -225,9 +209,7 @@ class TestSkillActivator:
         mock_response.content = "1, 2, 3, 4, 5"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         assert result == ["skill1", "skill2", "skill3", "skill4", "skill5"]
 
@@ -240,9 +222,7 @@ class TestSkillActivator:
         mock_response.content = "none"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         assert result == []
 
@@ -255,9 +235,7 @@ class TestSkillActivator:
         mock_response.content = "1\n,\n3"
         mock_llm_provider.chat = AsyncMock(return_value=mock_response)
 
-        result = await activator.find_relevant_skills(
-            "test task", sample_skill_metadata
-        )
+        result = await activator.find_relevant_skills("test task", sample_skill_metadata)
 
         # Should parse correctly despite newlines
         assert result == ["skill1", "skill3"]

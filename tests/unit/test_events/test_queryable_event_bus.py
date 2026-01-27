@@ -263,9 +263,7 @@ class TestQueryableEventBusQueryByTask:
         events = bus.query_by_task(parent_task_id)
 
         assert len(events) == 3
-        assert all(
-            e.parameters.get("parent_task_id") == parent_task_id for e in events
-        )
+        assert all(e.parameters.get("parent_task_id") == parent_task_id for e in events)
 
     @pytest.mark.asyncio
     async def test_query_by_task_with_action_filter(self):
@@ -414,7 +412,11 @@ class TestQueryableEventBusQueryThinkingProcess:
             task = Task(
                 task_id=f"task-{i}",
                 action="node.thinking",
-                parameters={"node_id": "node-1", "content": f"思考{i}", "parent_task_id": parent_task_id},
+                parameters={
+                    "node_id": "node-1",
+                    "content": f"思考{i}",
+                    "parent_task_id": parent_task_id,
+                },
                 parent_task_id=parent_task_id,
             )
             await bus.publish(task)

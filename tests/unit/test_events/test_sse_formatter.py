@@ -2,7 +2,6 @@
 Tests for SSE Formatter
 """
 
-
 from loom.events.sse_formatter import SSEFormatter
 
 

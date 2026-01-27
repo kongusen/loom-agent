@@ -2,7 +2,6 @@
 Tests for NodeProtocol
 """
 
-
 import pytest
 
 from loom.protocol.agent_card import AgentCapability, AgentCard

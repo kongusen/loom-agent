@@ -2,7 +2,6 @@
 Tests for Transport Abstract Interface
 """
 
-
 import pytest
 
 from loom.events.transport import MessageHandler, Transport

@@ -125,9 +125,7 @@ class SmartAllocationStrategy:
     根据任务特征自动选择最相关的记忆分配给子节点。
     """
 
-    def __init__(
-        self, max_inherited_memories: int = 10, analyzer: TaskAnalyzer | None = None
-    ):
+    def __init__(self, max_inherited_memories: int = 10, analyzer: TaskAnalyzer | None = None):
         """
         初始化智能分配策略
 
@@ -231,9 +229,7 @@ class SmartAllocationStrategy:
 
         return [entry for _, entry in scored_entries]
 
-    def _calculate_relevance_score(
-        self, entry: "MemoryEntry", features: TaskFeatures
-    ) -> float:
+    def _calculate_relevance_score(self, entry: "MemoryEntry", features: TaskFeatures) -> float:
         """计算相关性分数"""
         score = 0.0
 

@@ -36,38 +36,25 @@ class TestOpenAIEmbeddingProvider:
 
     def test_init_with_custom_model(self, mock_openai_client):
         """Test initialization with custom model"""
-        provider = OpenAIEmbeddingProvider(
-            api_key="test-key",
-            model="text-embedding-3-large"
-        )
+        provider = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-large")
         assert provider.model == "text-embedding-3-large"
 
     def test_init_with_base_url(self, mock_openai_client):
         """Test initialization with custom base URL"""
         with patch("loom.providers.embedding.openai.AsyncOpenAI") as mock:
-            OpenAIEmbeddingProvider(
-                api_key="test-key",
-                base_url="https://custom.example.com"
-            )
+            OpenAIEmbeddingProvider(api_key="test-key", base_url="https://custom.example.com")
             mock.assert_called_once()
 
     def test_init_with_timeout(self, mock_openai_client):
         """Test initialization with custom timeout"""
         with patch("loom.providers.embedding.openai.AsyncOpenAI") as mock:
-            OpenAIEmbeddingProvider(
-                api_key="test-key",
-                timeout=120.0
-            )
+            OpenAIEmbeddingProvider(api_key="test-key", timeout=120.0)
             mock.assert_called_once()
 
     def test_init_with_extra_kwargs(self, mock_openai_client):
         """Test initialization with extra kwargs"""
         with patch("loom.providers.embedding.openai.AsyncOpenAI") as mock:
-            OpenAIEmbeddingProvider(
-                api_key="test-key",
-                max_retries=3,
-                http_client="custom"
-            )
+            OpenAIEmbeddingProvider(api_key="test-key", max_retries=3, http_client="custom")
             mock.assert_called_once()
 
     def test_init_reads_api_key_from_env(self, monkeypatch):
@@ -89,17 +76,13 @@ class TestOpenAIEmbeddingProvider:
 
         assert result == [0.1, 0.2, 0.3]
         mock_openai_client.embeddings.create.assert_called_once_with(
-            model="text-embedding-3-small",
-            input="Hello, world!"
+            model="text-embedding-3-small", input="Hello, world!"
         )
 
     @pytest.mark.asyncio
     async def test_embed_with_custom_model(self, mock_openai_client):
         """Test embedding with custom model"""
-        provider = OpenAIEmbeddingProvider(
-            api_key="test-key",
-            model="text-embedding-3-large"
-        )
+        provider = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-large")
 
         mock_response = MagicMock()
         mock_response.data = [MagicMock(embedding=[0.4, 0.5, 0.6])]
@@ -109,8 +92,7 @@ class TestOpenAIEmbeddingProvider:
 
         assert result == [0.4, 0.5, 0.6]
         mock_openai_client.embeddings.create.assert_called_once_with(
-            model="text-embedding-3-large",
-            input="Test text"
+            model="text-embedding-3-large", input="Test text"
         )
 
     @pytest.mark.asyncio
@@ -128,8 +110,7 @@ class TestOpenAIEmbeddingProvider:
 
         assert result == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
         mock_openai_client.embeddings.create.assert_called_once_with(
-            model="text-embedding-3-small",
-            input=texts
+            model="text-embedding-3-small", input=texts
         )
 
     @pytest.mark.asyncio

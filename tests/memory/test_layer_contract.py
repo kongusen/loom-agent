@@ -36,7 +36,7 @@ class TestLayerContract:
         assert layer.size() == 3
 
         # Test retrieve method
-        retrieved = await layer.retrieve(query=None, limit=2)
+        retrieved = await layer.retrieve(None, limit=2)
         assert len(retrieved) == 2
 
         # Test evict method
@@ -61,7 +61,7 @@ class TestLayerContract:
         assert layer.size() == 3
 
         # Test retrieve method
-        retrieved = await layer.retrieve(query=None, limit=2)
+        retrieved = await layer.retrieve(None, limit=2)
         assert len(retrieved) == 2
 
         # Test evict method

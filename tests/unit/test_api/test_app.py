@@ -190,4 +190,3 @@ class TestCreateAgentWithTools:
         assert len(agent_tools) == 2
         assert global_tools[0] in agent_tools
         assert param_tools[0] in agent_tools
-

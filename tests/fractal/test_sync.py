@@ -32,9 +32,7 @@ class TestMemorySyncManager:
         assert sync_manager.memory == memory
 
     @pytest.mark.asyncio
-    async def test_write_with_version_check_success(
-        self, sync_manager: MemorySyncManager
-    ) -> None:
+    async def test_write_with_version_check_success(self, sync_manager: MemorySyncManager) -> None:
         """Test successful write with version check"""
         entry = MemoryEntry(
             id="test-1",
@@ -94,4 +92,3 @@ class TestConflictResolvers:
 
         result = await resolver.resolve(parent_entry, child_entry)
         assert result.content == {"value": "child"}
-

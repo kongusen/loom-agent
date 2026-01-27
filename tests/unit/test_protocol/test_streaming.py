@@ -216,4 +216,3 @@ class TestStreamingMixinWithEventBus:
         mixin._publish_event.assert_called_once()
         call_args = mixin._publish_event.call_args
         assert call_args.kwargs.get("action") == "node.token_usage"
-

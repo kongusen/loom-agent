@@ -4,7 +4,6 @@ Skill Registry Unit Tests
 测试技能注册表功能
 """
 
-
 from loom.skills.skill_registry import SkillRegistry
 
 

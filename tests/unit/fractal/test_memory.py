@@ -342,4 +342,3 @@ class TestFractalMemoryInheritance:
         assert entry is not None
         assert entry.content == "child_value"
         assert entry.scope == MemoryScope.LOCAL
-

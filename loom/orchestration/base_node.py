@@ -102,6 +102,7 @@ class BaseNode:
 
         # 拦截器链
         from loom.runtime.interceptor import InterceptorChain
+
         self.interceptor_chain = InterceptorChain()
 
     # ==================== 事件发布（观测能力）====================

@@ -66,9 +66,7 @@ class TimingInterceptor(Interceptor):
             duration = time.time() - start_time
             task.metadata["execution_duration"] = duration
 
-            logger.debug(
-                f"[{task.task_id}] Execution time: {duration:.3f}s"
-            )
+            logger.debug(f"[{task.task_id}] Execution time: {duration:.3f}s")
 
         return task
 
@@ -99,6 +97,7 @@ class MetricsInterceptor(Interceptor):
         """任务执行后更新指标"""
         # 更新完成/失败计数
         from loom.protocol import TaskStatus
+
         if task.status == TaskStatus.COMPLETED:
             self.metrics["completed_tasks"] += 1
         elif task.status == TaskStatus.FAILED:

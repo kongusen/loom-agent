@@ -229,6 +229,7 @@ class Agent(BaseNode):
 
         # 添加分形委派元工具（自动创建子节点）
         from loom.orchestration.meta_tools import create_delegate_task_tool
+
         tools.append(create_delegate_task_tool())
 
         # 添加委派元工具（如果有可用的agents）
@@ -347,7 +348,9 @@ class Agent(BaseNode):
                     messages, tools=self.all_tools if self.all_tools else None
                 ):
                     if chunk.type == "text":
-                        content_str = str(chunk.content) if isinstance(chunk.content, dict) else chunk.content
+                        content_str = (
+                            str(chunk.content) if isinstance(chunk.content, dict) else chunk.content
+                        )
                         full_content += content_str
                         await self.publish_thinking(
                             content=content_str,
@@ -361,10 +364,13 @@ class Agent(BaseNode):
                         else:
                             # 如果不是dict，尝试解析
                             import json
+
                             try:
                                 tool_calls.append(json.loads(str(chunk.content)))
                             except (json.JSONDecodeError, TypeError):
-                                tool_calls.append({"name": "", "arguments": {}, "content": str(chunk.content)})
+                                tool_calls.append(
+                                    {"name": "", "arguments": {}, "content": str(chunk.content)}
+                                )
 
                     elif chunk.type == "error":
                         await self._publish_event(
@@ -427,6 +433,7 @@ class Agent(BaseNode):
                         else:
                             # New fractal-based delegation (auto-create child)
                             from loom.orchestration.meta_tools import execute_delegate_task
+
                             result = await execute_delegate_task(self, tool_args, task)
                     else:
                         # 执行普通工具
@@ -735,7 +742,11 @@ class Agent(BaseNode):
 
             # 收集结果
             if result.status == TaskStatus.COMPLETED:
-                step_result = result.result.get("content", str(result.result)) if isinstance(result.result, dict) else str(result.result)
+                step_result = (
+                    result.result.get("content", str(result.result))
+                    if isinstance(result.result, dict)
+                    else str(result.result)
+                )
                 results.append(f"Step {idx+1}: {step_result}")
             else:
                 results.append(f"Step {idx+1}: Failed - {result.error or 'Unknown error'}")
@@ -842,14 +853,19 @@ class Agent(BaseNode):
                 # 直接缓存到INHERITED scope（不通过write方法，因为它是只读的）
                 for entry in entries:
                     from loom.fractal.memory import MemoryEntry
+
                     inherited_entry = MemoryEntry(
                         id=entry.id,
                         content=entry.content,
                         scope=MemoryScope.INHERITED,
-                        version=entry.version if hasattr(entry, 'version') else 1,
-                        created_by=entry.created_by if hasattr(entry, 'created_by') else child_memory.node_id,
-                        updated_by=entry.updated_by if hasattr(entry, 'updated_by') else child_memory.node_id,
-                        parent_version=entry.version if hasattr(entry, 'version') else None,
+                        version=entry.version if hasattr(entry, "version") else 1,
+                        created_by=entry.created_by
+                        if hasattr(entry, "created_by")
+                        else child_memory.node_id,
+                        updated_by=entry.updated_by
+                        if hasattr(entry, "updated_by")
+                        else child_memory.node_id,
+                        parent_version=entry.version if hasattr(entry, "version") else None,
                     )
                     child_memory._memory_by_scope[MemoryScope.INHERITED][entry.id] = inherited_entry
             else:

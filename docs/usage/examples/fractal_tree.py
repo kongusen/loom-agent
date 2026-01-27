@@ -22,9 +22,7 @@ async def main():
 
     # 2. Create Leaf Agents
     researcher = app.create_agent(
-        AgentConfig(
-            agent_id="researcher", name="Researcher", system_prompt="You find facts."
-        )
+        AgentConfig(agent_id="researcher", name="Researcher", system_prompt="You find facts.")
     )
 
     writer = app.create_agent(

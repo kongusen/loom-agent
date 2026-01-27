@@ -2,7 +2,6 @@
 Tests for Provider Base
 """
 
-
 import pytest
 
 from loom.providers.base import Provider

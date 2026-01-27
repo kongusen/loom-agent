@@ -204,4 +204,3 @@ class TestConflictResolvers:
         # For non-dict content, child version wins
         assert result.content == "child_value"
         assert result.version == 3  # max(2, 1) + 1
-

@@ -266,9 +266,7 @@ class TestExecuteSelectMemoryByIndexTool:
         """测试没有提供索引"""
         memory = LoomMemory(node_id="test-node")
 
-        result = await execute_select_memory_by_index_tool(
-            {"layer": "L2", "indices": []}, memory
-        )
+        result = await execute_select_memory_by_index_tool({"layer": "L2", "indices": []}, memory)
 
         assert "error" in result
         assert result["selected"] == []
@@ -278,9 +276,7 @@ class TestExecuteSelectMemoryByIndexTool:
         """测试无效层级"""
         memory = LoomMemory(node_id="test-node")
 
-        result = await execute_select_memory_by_index_tool(
-            {"layer": "L4", "indices": [1]}, memory
-        )
+        result = await execute_select_memory_by_index_tool({"layer": "L4", "indices": [1]}, memory)
 
         assert "error" in result
         assert "Invalid layer" in result["error"]
@@ -320,9 +316,7 @@ class TestExecuteSelectMemoryByIndexTool:
         task.status = TaskStatus.COMPLETED
         memory.add_task(task, tier=MemoryTier.L2_WORKING)
 
-        result = await execute_select_memory_by_index_tool(
-            {"layer": "L2", "indices": [1]}, memory
-        )
+        result = await execute_select_memory_by_index_tool({"layer": "L2", "indices": [1]}, memory)
 
         assert len(result["selected"]) == 1
         assert result["selected"][0]["index"] == 1
@@ -423,9 +417,7 @@ class TestIndexContextToolExecutor:
         task.status = TaskStatus.COMPLETED
         memory.add_task(task, tier=MemoryTier.L2_WORKING)
 
-        result = await executor.execute(
-            "select_memory_by_index", {"layer": "L2", "indices": [1]}
-        )
+        result = await executor.execute("select_memory_by_index", {"layer": "L2", "indices": [1]})
 
         assert result["layer"] == "L2"
         assert "selected" in result

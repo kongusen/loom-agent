@@ -82,7 +82,9 @@ class ContextBuilder:
 
         # 2. 兄弟节点的洞察（如果需要）
         if include_siblings:
-            sibling_insights: list[dict[str, Any]] = self._get_sibling_insights(node_id, task_id, max_events)
+            sibling_insights: list[dict[str, Any]] = self._get_sibling_insights(
+                node_id, task_id, max_events
+            )
             context["sibling_insights"] = sibling_insights  # type: ignore[assignment]
 
         # 3. 父节点的上下文（如果需要）

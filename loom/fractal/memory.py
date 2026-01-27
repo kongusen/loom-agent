@@ -205,7 +205,8 @@ class FractalMemory:
         # 如果是INHERITED作用域，尝试从父节点读取
         if MemoryScope.INHERITED in search_scopes and self.parent_memory:
             parent_entry = await self.parent_memory.read(
-                entry_id, search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED]
+                entry_id,
+                search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED],
             )
             if parent_entry:
                 # 创建只读副本

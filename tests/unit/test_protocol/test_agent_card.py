@@ -2,7 +2,6 @@
 Tests for Agent Card Protocol
 """
 
-
 from loom.protocol.agent_card import AgentCapability, AgentCard
 
 

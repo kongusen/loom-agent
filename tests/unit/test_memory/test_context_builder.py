@@ -245,7 +245,11 @@ class TestContextBuilder:
         parent_task = Task(
             task_id="parent-thinking",
             action="node.thinking",
-            parameters={"node_id": "parent-node", "content": "父节点的思考", "parent_task_id": task_id},
+            parameters={
+                "node_id": "parent-node",
+                "content": "父节点的思考",
+                "parent_task_id": task_id,
+            },
             parent_task_id=task_id,
         )
         await event_bus.publish(parent_task)
@@ -269,7 +273,11 @@ class TestContextBuilder:
         parent_task = Task(
             task_id="parent-thinking",
             action="node.thinking",
-            parameters={"node_id": "parent-node", "content": "父节点的思考", "parent_task_id": task_id},
+            parameters={
+                "node_id": "parent-node",
+                "content": "父节点的思考",
+                "parent_task_id": task_id,
+            },
             parent_task_id=task_id,
         )
         await event_bus.publish(parent_task)
