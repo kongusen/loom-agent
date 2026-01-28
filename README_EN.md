@@ -2,9 +2,10 @@
 
 <img src="loom.svg" alt="Loom Agent" width="300"/>
 
-**The Controlled Fractal Agent Framework**
+# 🧶 loom-agent
 
-Protocol-First • Metabolic Memory • Fractal Nodes
+**Long Horizon Agents Framework**
+*Agents that don't collapse when problems get long.*
 
 [![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -12,39 +13,141 @@ Protocol-First • Metabolic Memory • Fractal Nodes
 
 **English** | [中文](README.md)
 
-[Documentation](docs/README.md) | [Axiomatic Framework](docs/concepts/axiomatic-framework.md) | [Getting Started](docs/usage/getting-started.md)
+[Manifesto](MANIFESTO.md) | [Documentation](docs/README.md) | [Getting Started](docs/usage/getting-started.md)
 
 </div>
 
 ---
 
-## Overview
+## A short story
 
-Loom is a **High-Assurance** AI Agent framework designed to solve the core challenges of building complex **Cognitive Organisms**.
+We built many agents.
 
-Unlike experimental frameworks focused on rapid prototyping, Loom is built upon a strict **Axiomatic Framework**. It addresses the infinite growth of spatial complexity through **Fractal Architecture** and counters cognitive entropy over time via **Metabolic Memory**. Loom is not designed for creating simple demos, but for building intelligent systems capable of long-term stable operation and self-evolution in production environments.
+They could write code.
+They could plan tasks.
+They could use tools.
 
-### Core Features (v0.4.2)
+And they all failed the same way.
 
-#### 1. Axiomatic System Design
+Not at step one.
+Not at step five.
 
-Built on a formal theoretical framework composed of 5 foundational axioms, ensuring logical consistency and predictability. From uniform interfaces to event sovereignty, every design decision is theoretically grounded.
+They failed quietly —
+around step twenty.
 
-#### 2. Fractal Architecture & Infinite Composition
+The plan was still there.
+The tools were still available.
 
-Leveraging `CompositeNode` to enable true recursive composition. Whether a single Agent or a complex collaboration team, they are consistent nodes within Loom. This architecture guarantees that the cognitive load of any local part remains constant (O(1)), regardless of system complexity.
+But no one remembered:
 
-#### 3. Metabolic Memory System
+* why this task was started
+* what had already been tried
+* which decisions mattered
+* or who was supposed to act next
 
-Mimicking biological cognitive mechanisms, Loom establishes a complete memory spectrum from L1 (Working Memory) to L4 (Semantic Knowledge Base). The system automatically handles the ingestion, digestion, and assimilation of information, combined with pgvector/Qdrant vector retrieval, allowing Agents to become smarter over time.
+The agent didn't crash.
 
-#### 4. Type-Safe Event Bus
+It simply **forgot who it was**.
 
-Rejecting "magic strings" and unreliable implicit calls. Loom employs strict CloudEvents standards, Protocol-based handler definitions, and type-safe Action enums, providing industrial-grade observability and stability for distributed Agent systems.
+That was the moment we realized:
 
-#### 5. Modern Developer Experience
+> The problem wasn't intelligence.
+> It was time.
 
-Featuring a FastAPI-style declarative API with integrated Pydantic full-link data validation. Native support for mainstream models like OpenAI, Anthropic, Gemini, DeepSeek, etc., with out-of-the-box SSE streaming output and structured responses.
+---
+
+## The Long Horizon Collapse
+
+Real-world tasks are not prompts.
+
+They span dozens of steps, days of time, constantly changing goals.
+Plans expire, context explodes, memory fragments.
+
+This is the **Long Horizon Problem**.
+
+Most agent frameworks assume tasks are short, goals are stable, failures are one-time events.
+They rely on single planners, global memory, linear execution flows.
+
+This looks great in demos.
+
+But after step 20, agents start endlessly re-planning, contradicting themselves, repeating failed actions.
+Adding more tools only accelerates the collapse.
+
+**The problem is not reasoning capability.**
+
+Most agents fail because they lack structure that can remain stable over time.
+
+> More tokens won't fix this.
+> Better prompts won't fix this.
+> **Only structure can.**
+
+---
+
+## loom-agent: The Answer Through Structural Recursion
+
+Humans never solved complexity by being smarter.
+
+We use **repeating structure**: teams resemble departments, departments resemble companies, companies resemble ecosystems.
+Even as scale grows, structure remains stable. This is fractal organization.
+
+**loom-agent makes agents work the same way.**
+
+Instead of building "super agents", we build **self-similar agents**.
+Each agent contains the same core structure:
+
+```
+Observe → Decide → Act → Reflect → Evolve
+```
+
+An agent can create sub-agents, and sub-agents behave exactly the same way.
+Tasks become worlds, worlds contain smaller worlds.
+
+**Complexity grows, structure doesn't.**
+
+This means systems can scale infinitely — without redesigning architecture, without prompt inflation, without centralized planners.
+
+---
+
+## The Loom Metaphor
+
+A loom doesn't create fabric through intelligence.
+
+It creates fabric through **structure**.
+
+* threads interweave
+* patterns repeat
+* tension stays balanced
+
+Agents in loom-agent are threads.
+
+The framework is the loom.
+
+What emerges is not a workflow —
+but a living structure that persists over time.
+
+---
+
+## Core Principles
+
+loom-agent's design revolves around four core beliefs:
+
+**Structure over intelligence** — Smarter reasoning doesn't prevent collapse, stable structure does.
+
+**Built for long horizons** — Designed for tasks that last hours or days, require retries and recovery, involve evolving goals.
+
+**Fractal by default** — Every agent can become a system, every system behaves like an agent. Scale without rewriting architecture.
+
+**Identity before memory** — Agents must always know who they are, what role they serve, which phase they belong to, what they're responsible for. Without identity, memory is noise.
+
+---
+
+## Use Cases
+
+loom-agent is not a prompt collection, not a tool orchestration wrapper, not a workflow engine.
+
+It's designed for systems that need to **remain stable over time**:
+
+Long-running autonomous workflows • Research agents • Multi-day task execution • Complex RAG systems • Agent-based SaaS backends • AI operators and copilots
 
 ---
 
@@ -106,6 +209,22 @@ await team_node.execute_task(task)
 
 ---
 
+## Core Features
+
+### Fractal Architecture
+Leveraging `CompositeNode` for true recursive composition. Whether a single agent or a complex collaboration team, they are consistent nodes within Loom.
+
+### Metabolic Memory System
+Complete memory spectrum from L1 (Working Memory) to L4 (Semantic Knowledge Base). The system automatically handles information ingestion, digestion, and assimilation.
+
+### Type-Safe Event Bus
+Strict CloudEvents standards and Protocol-based handler definitions provide industrial-grade observability for distributed agent systems.
+
+### Axiomatic Framework
+Built on 5 foundational axioms ensuring logical consistency and predictability of the system.
+
+---
+
 ## Documentation
 
 We provide comprehensive documentation ranging from theoretical foundations to engineering practices:
@@ -126,6 +245,31 @@ We provide comprehensive documentation ranging from theoretical foundations to e
 
 ---
 
+## Project Status
+
+loom-agent is under active development.
+
+The framework focuses on:
+
+* Agent identity modeling
+* Fractal agent composition
+* Long-horizon execution loops
+* Structured memory layering
+* Failure-aware task evolution
+
+APIs may evolve rapidly.
+
+Structure will not.
+
+---
+
+## Philosophy
+
+> Intelligence solves problems.
+> Structure survives time.
+
+---
+
 ## Community & Contact
 
 Join the Loom developer community to discuss the next generation of Agent architecture.
@@ -141,3 +285,7 @@ Join the Loom developer community to discuss the next generation of Agent archit
 Free for academic research, personal use, and internal commercial use.
 **Commercial sale is strictly prohibited** (including but not limited to paid packaging, hosting services, etc.) without authorization.
 See [LICENSE](LICENSE) for details.
+
+---
+
+**Welcome to Long Horizon Agents.**

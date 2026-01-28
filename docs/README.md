@@ -2,16 +2,26 @@
 
 Welcome to Loom.
 
-Loom is a framework for building **Cognitive Organisms**—AI agents that can scale to infinite complexity and duration.
+## The Long Horizon Challenge
 
-This documentation is structured to take you from the "Why" to the "How".
+Most agents fail not because they lack intelligence, but because they lack **structure that survives time**.
+
+Loom is a **Long Horizon Agents Framework**—designed for AI agents that must remain coherent across dozens of steps, changing goals, and extended execution periods. When tasks span hours or days, intelligence alone isn't enough. You need structure.
+
+> Intelligence solves problems. Structure survives time.
+
+Read our [Manifesto](../MANIFESTO.md) to understand the philosophy behind Loom.
+
+---
+
+This documentation takes you from the "Why" to the "How".
 
 ## 1. The Goal (Why?)
 
 Before writing a line of code, understand why Loom exists.
 
-*   **[Context](concepts/axiomatic-framework.md#part-0-teleological-goal)**: We are hitting the "Cognitive Entropy" wall.
-*   **[The Solution](README.md#)**: Fractal Architecture (for Complexity) and Metabolic Memory (for Time).
+*   **[The Long Horizon Problem](concepts/axiomatic-framework.md#part-0-teleological-goal)**: Agents collapse when tasks get long. Plans expire, context explodes, memory fragments.
+*   **[The Solution](README.md#)**: Fractal Architecture (structure that scales) and Metabolic Memory (identity that persists).
 
 ## 2. The Laws (Axioms)
 
