@@ -452,3 +452,58 @@ class TestTaskContextManager:
         # 应该只返回系统消息
         assert len(result) == 1
         assert result[0]["role"] == "system"
+
+    def test_extract_keywords_chinese_fallback(self, token_counter, memory):
+        """测试中文关键词提取回退"""
+        sources = [MemoryContextSource(memory)]
+        manager = TaskContextManager(
+            token_counter=token_counter,
+            sources=sources,
+            max_tokens=1000,
+        )
+
+        keywords = manager._extract_keywords("我们需要处理记忆迭代机制")
+
+        assert "记忆" in keywords
+
+    @pytest.mark.asyncio
+    async def test_embedding_relevance_score(self, token_counter, memory):
+        """测试embedding相关性评分"""
+        sources = [MemoryContextSource(memory)]
+        manager = TaskContextManager(
+            token_counter=token_counter,
+            sources=sources,
+            max_tokens=1000,
+        )
+
+        class DummyProvider:
+            async def embed_batch(self, texts):
+                # query, event1, event2
+                return [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
+
+        events = [
+            Task(task_id="e1", action="node.thinking", parameters={"content": "foo"}),
+            Task(task_id="e2", action="node.thinking", parameters={"content": "bar"}),
+        ]
+
+        ok = await manager._compute_embedding_relevance(events, "query text", DummyProvider())
+
+        assert ok is True
+        assert events[0].metadata.get("_relevance_score") == 1.0
+        assert events[1].metadata.get("_relevance_score") == 0.5
+
+    def test_calc_relevance_score_prefers_embedding(self, token_counter, memory):
+        """测试相关性评分优先使用embedding结果"""
+        sources = [MemoryContextSource(memory)]
+        manager = TaskContextManager(
+            token_counter=token_counter,
+            sources=sources,
+            max_tokens=1000,
+        )
+
+        event = Task(task_id="e1", action="node.thinking", parameters={"content": "x"})
+        event.metadata["_relevance_score"] = 0.9
+
+        score = manager.budgeter._calc_relevance_score(event, keywords=["x"])
+
+        assert score == 0.9

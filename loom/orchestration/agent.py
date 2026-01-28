@@ -674,7 +674,8 @@ class Agent(BaseNode):
             # 解析响应
             import json
             import re
-            json_match = re.search(r'\{[^}]+\}', response.content)
+
+            json_match = re.search(r"\{[^}]+\}", response.content)
             if json_match:
                 metrics = json.loads(json_match.group())
                 task.result["quality_metrics"] = {
@@ -964,9 +965,7 @@ class Agent(BaseNode):
             current_depth=self._recursive_depth,
         )
         if violation:
-            raise RuntimeError(
-                f"预算违规: {violation.message}. 建议: {violation.suggestion}"
-            )
+            raise RuntimeError(f"预算违规: {violation.message}. 建议: {violation.suggestion}")
 
         # 记录子节点创建和深度
         self._budget_tracker.record_child_created(self.node_id)

@@ -130,9 +130,7 @@ class QualityMetrics:
         if not self.success:
             return 0.0
         # 加权平均：置信度40%，覆盖度40%，新颖度20%
-        base_score = (
-            self.confidence * 0.4 + self.coverage * 0.4 + self.novelty * 0.2
-        )
+        base_score = self.confidence * 0.4 + self.coverage * 0.4 + self.novelty * 0.2
         # 错误和重试惩罚
         penalty = min(0.3, (self.error_count * 0.1 + self.retry_count * 0.05))
         return max(0.0, base_score - penalty)
@@ -229,9 +227,7 @@ class BudgetTracker:
         Args:
             parent_node_id: 父节点ID
         """
-        self._children_by_node[parent_node_id] = (
-            self._children_by_node.get(parent_node_id, 0) + 1
-        )
+        self._children_by_node[parent_node_id] = self._children_by_node.get(parent_node_id, 0) + 1
         self._usage.total_children += 1
 
     def record_depth(self, depth: int) -> None:
@@ -327,9 +323,7 @@ class QualityEvaluator:
 
         # 有provider则使用LLM评估
         if self._provider:
-            return await self._evaluate_with_llm(
-                task_description, result, parent_context, metrics
-            )
+            return await self._evaluate_with_llm(task_description, result, parent_context, metrics)
 
         # 无provider则使用默认值
         metrics.confidence = 0.6
@@ -405,7 +399,7 @@ class QualityEvaluator:
 
     def _parse_llm_response(self, response: str) -> dict[str, float]:
         """解析LLM响应"""
-        json_match = re.search(r'\{[^}]+\}', response)
+        json_match = re.search(r"\{[^}]+\}", response)
         if json_match:
             try:
                 data = json.loads(json_match.group())
@@ -419,7 +413,7 @@ class QualityEvaluator:
 
         defaults = {"confidence": 0.5, "coverage": 0.5, "novelty": 0.5}
         for key in defaults:
-            pattern = rf'{key}[:\s]+([0-9.]+)'
+            pattern = rf"{key}[:\s]+([0-9.]+)"
             match = re.search(pattern, response, re.IGNORECASE)
             if match:
                 with contextlib.suppress(ValueError):

@@ -246,19 +246,19 @@ class ResultSynthesizer:
             result["_quality_metrics"] = metrics
 
         # 2. 执行合成
-        synthesized = await self.synthesize(
-            task, subtask_results, strategy, provider, max_tokens
-        )
+        synthesized = await self.synthesize(task, subtask_results, strategy, provider, max_tokens)
 
         # 3. 记录质量统计
-        avg_score = sum(m.overall_score for m in quality_metrics) / len(quality_metrics) if quality_metrics else 0
+        avg_score = (
+            sum(m.overall_score for m in quality_metrics) / len(quality_metrics)
+            if quality_metrics
+            else 0
+        )
         logger.info(f"合成完成，平均质量分数: {avg_score:.2f}")
 
         return synthesized, quality_metrics
 
-    def _structured_with_quality(
-        self, subtask_results: list[dict[str, Any]]
-    ) -> str:
+    def _structured_with_quality(self, subtask_results: list[dict[str, Any]]) -> str:
         """带质量指标的结构化输出"""
         lines = ["# 任务执行结果\n"]
 
@@ -301,7 +301,7 @@ class ResultSynthesizer:
         lines.insert(
             1,
             f"**总计**: {total} 个子任务 | ✅ {success_count} 成功 | "
-            f"❌ {failure_count} 失败 | 平均质量: {avg_score:.2f}\n"
+            f"❌ {failure_count} 失败 | 平均质量: {avg_score:.2f}\n",
         )
 
         return "\n".join(lines)

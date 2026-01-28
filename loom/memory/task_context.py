@@ -246,9 +246,7 @@ class ContextBudgeter:
             candidate.relevance_score = self._calc_relevance_score(event, keywords)
 
             # 4. 节点权重分数（15%权重）
-            candidate.node_score = self._calc_node_score(
-                event, current_node_id, parent_node_id
-            )
+            candidate.node_score = self._calc_node_score(event, current_node_id, parent_node_id)
 
             # 综合评分
             candidate.score = (
@@ -280,9 +278,7 @@ class ContextBudgeter:
         """计算动作权重分数"""
         return self._action_weights.get(event.action, 0.5)
 
-    def _calc_relevance_score(
-        self, event: Task, keywords: list[str] | None
-    ) -> float:
+    def _calc_relevance_score(self, event: Task, keywords: list[str] | None) -> float:
         """计算相关性分数（基于关键词匹配）"""
         embedded_score = event.metadata.get("_relevance_score")
         if isinstance(embedded_score, int | float):
@@ -593,9 +589,7 @@ class TaskContextManager:
             config = budget_config
             if isinstance(config, dict):
                 config = BudgetConfig(**cast(dict[str, Any], config))
-            self.budgeter = ContextBudgeter(
-                token_counter, max_tokens=max_tokens, config=config
-            )
+            self.budgeter = ContextBudgeter(token_counter, max_tokens=max_tokens, config=config)
 
     def _get_event_bus(self) -> "EventBus | None":
         """从sources中获取EventBus实例（如果存在）"""
@@ -636,8 +630,8 @@ class TaskContextManager:
             norm_b += b * b
         if norm_a == 0.0 or norm_b == 0.0:
             return 0.0
-        similarity = dot / ((norm_a ** 0.5) * (norm_b ** 0.5))
-        return max(0.0, min(1.0, (similarity + 1.0) / 2.0))
+        similarity = dot / ((norm_a**0.5) * (norm_b**0.5))
+        return float(max(0.0, min(1.0, (similarity + 1.0) / 2.0)))
 
     async def _compute_embedding_relevance(
         self, events: list[Task], content: str, provider: Any
@@ -711,7 +705,9 @@ class TaskContextManager:
             except ImportError:
                 pass
 
-        words = re.findall(r"\w+", text.lower())
+        has_cjk = bool(re.search(r"[\u4e00-\u9fff]", text))
+        has_space = bool(re.search(r"\s", text))
+        words = [] if has_cjk and not has_space else re.findall(r"\w+", text.lower())
         stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
         keywords = [w for w in words if w not in stopwords and len(w) > 2]
 
@@ -803,7 +799,9 @@ class TaskContextManager:
         bus_messages: list[dict[str, str]] = []
         if event_bus and hasattr(event_bus, "query_by_task"):
             # 收集候选事件
-            parent_task_id = current_task.parameters.get("parent_task_id") or current_task.parent_task_id
+            parent_task_id = (
+                current_task.parameters.get("parent_task_id") or current_task.parent_task_id
+            )
             candidates = []
             candidates.extend(event_bus.query_by_task(current_task.task_id))
             if parent_task_id:

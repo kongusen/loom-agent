@@ -362,9 +362,7 @@ def create_query_events_by_action_tool() -> dict:
     }
 
 
-async def execute_query_events_by_action_tool(
-    args: dict, event_bus: "EventBus"
-) -> dict[str, Any]:
+async def execute_query_events_by_action_tool(args: dict, event_bus: "EventBus") -> dict[str, Any]:
     """
     执行按动作类型查询事件
 
@@ -435,9 +433,7 @@ def create_query_events_by_node_tool() -> dict:
     }
 
 
-async def execute_query_events_by_node_tool(
-    args: dict, event_bus: "EventBus"
-) -> dict[str, Any]:
+async def execute_query_events_by_node_tool(args: dict, event_bus: "EventBus") -> dict[str, Any]:
     """
     执行按节点查询事件
 
@@ -512,9 +508,7 @@ def create_query_events_by_target_tool() -> dict:
     }
 
 
-async def execute_query_events_by_target_tool(
-    args: dict, event_bus: "EventBus"
-) -> dict[str, Any]:
+async def execute_query_events_by_target_tool(args: dict, event_bus: "EventBus") -> dict[str, Any]:
     """
     执行按目标查询事件
 
@@ -598,9 +592,7 @@ def create_query_recent_events_tool() -> dict:
     }
 
 
-async def execute_query_recent_events_tool(
-    args: dict, event_bus: "EventBus"
-) -> dict[str, Any]:
+async def execute_query_recent_events_tool(args: dict, event_bus: "EventBus") -> dict[str, Any]:
     """
     执行查询最近事件
 
@@ -673,9 +665,7 @@ def create_query_thinking_process_tool() -> dict:
     }
 
 
-async def execute_query_thinking_process_tool(
-    args: dict, event_bus: "EventBus"
-) -> dict[str, Any]:
+async def execute_query_thinking_process_tool(args: dict, event_bus: "EventBus") -> dict[str, Any]:
     """
     执行查询思考过程
 

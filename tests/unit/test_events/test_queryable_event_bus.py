@@ -4,6 +4,8 @@ Queryable Event Bus Unit Tests
 测试可查询事件总线的查询功能
 """
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from loom.events.event_bus import EventBus
@@ -343,6 +345,50 @@ class TestEventBusQueryByTarget:
 
         assert len(events) == 1
         assert events[0].task_id == "task-1"
+
+    @pytest.mark.asyncio
+    async def test_query_by_target_respects_ttl(self):
+        """测试TTL过滤"""
+        bus = EventBus()
+        expired_time = datetime.now(UTC) - timedelta(seconds=10)
+
+        task = Task(
+            task_id="task-ttl",
+            action="node.thinking",
+            target_agent="agent-1",
+            parameters={"content": "expired", "ttl_seconds": 1},
+            created_at=expired_time,
+        )
+        await bus.publish(task)
+
+        events = bus.query_by_target(target_agent="agent-1")
+
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_query_by_target_priority_order(self):
+        """测试按优先级排序"""
+        bus = EventBus()
+
+        low = Task(
+            task_id="task-low",
+            action="node.thinking",
+            target_agent="agent-1",
+            parameters={"content": "low", "priority": 0.1},
+        )
+        high = Task(
+            task_id="task-high",
+            action="node.thinking",
+            target_agent="agent-1",
+            parameters={"content": "high", "priority": 0.9},
+        )
+        await bus.publish(low)
+        await bus.publish(high)
+
+        events = bus.query_by_target(target_agent="agent-1", limit=2)
+
+        assert len(events) == 2
+        assert events[0].task_id == "task-high"
 
 
 class TestEventBusQueryRecent:

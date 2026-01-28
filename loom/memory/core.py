@@ -185,9 +185,7 @@ class LoomMemory:
                 heapq.heapify(self._l2_layer._heap)
                 heapq.heappush(self._l2_layer._heap, priority_item)
 
-    def get_l2_tasks(
-        self, limit: int | None = None, session_id: str | None = None
-    ) -> list["Task"]:
+    def get_l2_tasks(self, limit: int | None = None, session_id: str | None = None) -> list["Task"]:
         """
         获取L2工作记忆Task
 
