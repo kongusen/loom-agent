@@ -65,8 +65,8 @@ class MemorySyncManager:
         entry.version = expected_version + 1
         entry.updated_by = self.memory.node_id
 
-        # 写入
-        await self.memory.write(entry.id, entry.content, entry.scope)
+        # 写入（保留版本信息）
+        await self.memory.write_entry(entry)
 
         return True, None
 
@@ -92,12 +92,12 @@ class MemorySyncManager:
             )
 
             if not local_entry:
-                # 本地没有，直接复制
-                await self.memory.write(parent_entry.id, parent_entry.content, MemoryScope.SHARED)
+                # 本地没有，直接复制（保留版本信息）
+                await self.memory.write_entry(parent_entry)
                 synced_count += 1
             elif local_entry.version < parent_entry.version:
-                # 本地版本较旧，需要合并
-                # TODO: 使用冲突解决策略
+                # 本地版本较旧，暂时以父节点为准（后续接入冲突解决器）
+                await self.memory.write_entry(parent_entry)
                 synced_count += 1
 
         return synced_count

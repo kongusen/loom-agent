@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 from loom.memory.context_builder import ContextBuilder
 from loom.protocol import Task
 
@@ -19,8 +19,8 @@ class TestContextBuilder:
 
     @pytest.fixture
     def event_bus(self):
-        """创建 QueryableEventBus 实例"""
-        return QueryableEventBus()
+        """创建 EventBus 实例"""
+        return EventBus()
 
     @pytest.fixture
     def builder(self, event_bus):

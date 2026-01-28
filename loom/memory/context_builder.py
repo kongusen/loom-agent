@@ -17,7 +17,7 @@ Context Builder - 上下文构建器
 
 from typing import Any
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 
 
 class ContextBuilder:
@@ -27,7 +27,7 @@ class ContextBuilder:
     从EventBus的集体记忆中构建节点的上下文。
     """
 
-    def __init__(self, event_bus: QueryableEventBus):
+    def __init__(self, event_bus: EventBus):
         """
         初始化上下文构建器
 

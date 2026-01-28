@@ -4,7 +4,7 @@ Agent Unit Tests
 测试Agent类的核心功能
 """
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 from loom.orchestration.agent import Agent
 from loom.providers.llm.mock import MockLLMProvider
 
@@ -15,7 +15,7 @@ class TestAgentInit:
     def test_agent_init_basic(self):
         """测试基本初始化"""
         llm = MockLLMProvider()
-        event_bus = QueryableEventBus()
+        event_bus = EventBus()
 
         agent = Agent(
             node_id="test-agent",
@@ -30,7 +30,7 @@ class TestAgentInit:
     def test_agent_init_with_system_prompt(self):
         """测试带系统提示的初始化"""
         llm = MockLLMProvider()
-        event_bus = QueryableEventBus()
+        event_bus = EventBus()
 
         agent = Agent(
             node_id="test-agent",
@@ -44,7 +44,7 @@ class TestAgentInit:
     def test_agent_init_with_tools(self):
         """测试带工具的初始化"""
         llm = MockLLMProvider()
-        event_bus = QueryableEventBus()
+        event_bus = EventBus()
 
         def test_tool(arg1: str) -> str:
             """Test tool"""
@@ -66,7 +66,7 @@ class TestAgentBuildToolList:
     def test_build_tool_list_basic(self):
         """测试基本工具列表构建"""
         llm = MockLLMProvider()
-        event_bus = QueryableEventBus()
+        event_bus = EventBus()
 
         agent = Agent(
             node_id="test-agent",
@@ -83,7 +83,7 @@ class TestAgentBuildToolList:
     def test_build_tool_list_with_custom_tools(self):
         """测试带自定义工具的工具列表构建"""
         llm = MockLLMProvider()
-        event_bus = QueryableEventBus()
+        event_bus = EventBus()
 
         def custom_tool(arg: str) -> str:
             """Custom tool"""

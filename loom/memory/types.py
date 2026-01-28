@@ -20,8 +20,8 @@ class MemoryTier(Enum):
 
     L1_RAW_IO = 1  # 原始IO（循环缓冲区）
     L2_WORKING = 2  # 工作记忆（任务相关）
-    L3_SESSION = 3  # 会话记忆（对话历史）
-    L4_GLOBAL = 4  # 全局知识库（持久化）
+    L3_SESSION = 3  # 会话记忆（会话摘要）
+    L4_GLOBAL = 4  # 跨会话记忆（持久化）
 
 
 class MemoryType(Enum):
@@ -71,6 +71,7 @@ class MemoryUnit:
     # 溯源追踪
     source_node: str | None = None  # 生成此记忆的节点ID
     parent_id: str | None = None  # 父记忆ID（用于因果链）
+    session_id: str | None = None  # 会话ID（由上层定义）
 
     # 时间戳
     created_at: datetime = field(default_factory=datetime.now)
@@ -144,6 +145,7 @@ class TaskSummary:
     tags: list[str] = field(default_factory=list)
     importance: float = 0.5
     created_at: datetime = field(default_factory=datetime.now)
+    session_id: str | None = None
 
 
 class FactType(Enum):
@@ -179,6 +181,7 @@ class Fact:
     created_at: datetime = field(default_factory=datetime.now)
     last_accessed: datetime = field(default_factory=datetime.now)
     access_count: int = 0  # 访问次数（用于重要性评估）
+    session_id: str | None = None
 
     def update_access(self) -> None:
         """更新访问信息"""

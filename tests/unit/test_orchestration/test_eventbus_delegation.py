@@ -9,7 +9,7 @@ import contextlib
 
 import pytest
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 from loom.orchestration.eventbus_delegation import EventBusDelegationHandler
 from loom.protocol import Task
 
@@ -19,8 +19,8 @@ class TestEventBusDelegationHandler:
 
     @pytest.fixture
     def event_bus(self):
-        """创建 QueryableEventBus 实例"""
-        return QueryableEventBus()
+        """创建 EventBus 实例"""
+        return EventBus()
 
     @pytest.fixture
     def handler(self, event_bus):

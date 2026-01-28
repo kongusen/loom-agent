@@ -127,6 +127,11 @@ class AgentConfig(BaseModel):
         description="记忆系统配置",
     )
 
+    context_budget_config: dict[str, float | int] | None = Field(
+        default=None,
+        description="上下文预算比例配置（可选）",
+    )
+
     @field_validator("capabilities")
     @classmethod
     def validate_capabilities(cls, v: list[str]) -> list[str]:

@@ -57,7 +57,7 @@ class BaseNode:
         node_id: str,
         node_type: str = "base",
         agent_card: AgentCard | None = None,
-        event_bus: Any | None = None,  # QueryableEventBus
+        event_bus: Any | None = None,  # EventBus
         enable_observation: bool = True,
         enable_collective_memory: bool = True,
     ):
@@ -112,6 +112,7 @@ class BaseNode:
         action: str,
         parameters: dict[str, Any],
         task_id: str,
+        session_id: str | None = None,
     ) -> None:
         """
         发布节点事件（观测能力）
@@ -137,6 +138,8 @@ class BaseNode:
                 **parameters,
             },
             status=TaskStatus.COMPLETED,
+            session_id=session_id,
+            parent_task_id=task_id,
         )
 
         # 发布事件（fire-and-forget）
@@ -147,6 +150,7 @@ class BaseNode:
         content: str,
         task_id: str,
         metadata: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> None:
         """
         发布思考过程事件
@@ -163,6 +167,7 @@ class BaseNode:
                 "metadata": metadata or {},
             },
             task_id=task_id,
+            session_id=session_id,
         )
 
     async def publish_tool_call(
@@ -170,6 +175,7 @@ class BaseNode:
         tool_name: str,
         tool_args: dict[str, Any],
         task_id: str,
+        session_id: str | None = None,
     ) -> None:
         """
         发布工具调用事件
@@ -186,7 +192,54 @@ class BaseNode:
                 "tool_args": tool_args,
             },
             task_id=task_id,
+            session_id=session_id,
         )
+
+    async def publish_message(
+        self,
+        content: str,
+        task_id: str,
+        target_agent: str,
+        target_node_id: str | None = None,
+        priority: float = 0.5,
+        ttl_seconds: float | None = None,
+        metadata: dict[str, Any] | None = None,
+        session_id: str | None = None,
+    ) -> None:
+        """
+        发布点对点消息（Direct Message）
+
+        Args:
+            content: 消息内容
+            task_id: 关联的任务ID
+            target_agent: 目标Agent ID
+            target_node_id: 目标节点ID（可选）
+            priority: 优先级（0-1）
+            ttl_seconds: 生存时间（秒，可选）
+            metadata: 额外元数据
+        """
+        if not self.enable_observation or not self.event_bus:
+            return
+
+        event_task = Task(
+            task_id=f"{task_id}:event:node.message",
+            source_agent=self.node_id,
+            target_agent=target_agent,
+            action="node.message",
+            parameters={
+                "content": content,
+                "priority": priority,
+                "ttl_seconds": ttl_seconds,
+                "target_node_id": target_node_id,
+                "parent_task_id": task_id,
+                "metadata": metadata or {},
+            },
+            status=TaskStatus.COMPLETED,
+            session_id=session_id,
+            parent_task_id=task_id,
+        )
+
+        await self.event_bus.publish(event_task, wait_result=False)
 
     # ==================== 事件查询（集体记忆能力）====================
 

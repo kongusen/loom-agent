@@ -15,7 +15,7 @@ Collective Unconscious Demo - 集体潜意识演示
 import asyncio
 
 from loom.events.memory_transport import MemoryTransport
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.EventBusevent_bus import EventBus
 from loom.memory.context_builder import ContextBuilder
 from loom.orchestration.agent import Agent
 from loom.protocol import Task
@@ -34,7 +34,7 @@ async def main():
     # ==================== 1. 初始化可查询事件总线 ====================
     print("📡 Step 1: 初始化可查询事件总线")
     transport = MemoryTransport()
-    event_bus = QueryableEventBus(transport=transport, max_history=100)
+    event_bus = EventBus(transport=transport, max_history=100)
     print("✓ 可查询事件总线已创建")
     print("  - 支持事件查询")
     print("  - 支持集体记忆")

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 from loom.memory.core import LoomMemory
 from loom.memory.task_context import (
     EventBusContextSource,
@@ -84,6 +84,39 @@ class TestMessageConverter:
         assert message is not None
         assert message["role"] == "user"
         assert message["content"] == "执行任务"
+
+    def test_convert_node_message_task(self):
+        """测试转换节点消息"""
+        converter = MessageConverter()
+
+        task = Task(
+            task_id="task-1",
+            action="node.message",
+            parameters={"content": "直接消息"},
+        )
+
+        message = converter.convert_task_to_message(task)
+
+        assert message is not None
+        assert message["role"] == "assistant"
+        assert "直接消息" in message["content"]
+
+    def test_convert_delegation_request_task(self):
+        """测试转换委派请求"""
+        converter = MessageConverter()
+
+        task = Task(
+            task_id="task-1",
+            action="node.delegation_request",
+            parameters={"subtask": "处理子任务"},
+            source_agent="agent-1",
+        )
+
+        message = converter.convert_task_to_message(task)
+
+        assert message is not None
+        assert message["role"] == "assistant"
+        assert "处理子任务" in message["content"]
 
     def test_convert_unknown_action(self):
         """测试转换未知动作"""
@@ -190,7 +223,7 @@ class TestEventBusContextSource:
     @pytest.mark.asyncio
     async def test_get_context(self):
         """测试获取上下文"""
-        event_bus = QueryableEventBus()
+        event_bus = EventBus()
 
         # 添加一些事件
         task1 = Task(
@@ -223,7 +256,7 @@ class TestEventBusContextSource:
     @pytest.mark.asyncio
     async def test_get_context_without_node_id(self):
         """测试没有 node_id 时获取上下文"""
-        event_bus = QueryableEventBus()
+        event_bus = EventBus()
 
         source = EventBusContextSource(event_bus)
         current_task = Task(task_id="task-1", action="test")

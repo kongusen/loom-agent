@@ -117,7 +117,7 @@ memory_source = MemoryContextSource(memory=loom_memory)
 ```python
 from loom.memory.task_context import EventBusContextSource
 
-event_source = EventBusContextSource(event_bus=queryable_event_bus)
+event_source = EventBusContextSource(event_bus=event_bus)
 # Retrieves thinking events and tool calls
 ```
 
@@ -139,6 +139,48 @@ Task(action="execute", parameters={"content": "Read file X"})
 Task(action="node.tool_call", parameters={"tool_name": "read_file"})
 → {"role": "assistant", "content": "[Calling read_file(...)]"}
 ```
+
+### Direct Message Protocol (Point-to-Point)
+
+To avoid schema drift between modules, all point-to-point (direct) messages must follow a unified Task schema. Direct messages are indexed by `target_agent` / `target_node_id` and are prioritized in L1 context.
+
+**Action**: `node.message`
+
+**Required Fields**:
+- `task.source_agent`: sender agent ID
+- `task.target_agent`: target agent ID
+- `task.parameters.content`: message content
+
+**Optional Fields**:
+- `task.parameters.target_node_id`: target node ID (if different from agent ID)
+- `task.parameters.priority`: float 0.0–1.0 (default 0.5)
+- `task.parameters.ttl_seconds`: time-to-live in seconds (if expired, message is ignored)
+- `task.parameters.parent_task_id`: parent task ID for traceability
+- `task.parameters.metadata`: free-form metadata
+
+**Example**:
+```python
+from loom.protocol import Task
+
+direct_msg = Task(
+    task_id="task-123:event:node.message",
+    source_agent="agent-a",
+    target_agent="agent-b",
+    action="node.message",
+    parameters={
+        "content": "Please focus on the database migration plan.",
+        "priority": 0.8,
+        "ttl_seconds": 600,
+        "target_node_id": "agent-b",
+        "parent_task_id": "task-123",
+        "metadata": {"reason": "handoff"},
+    },
+)
+```
+
+**Notes**:
+- Direct messages are treated as L1 context and should remain concise.
+- If `ttl_seconds` is set, expired messages will not be returned by `query_by_target`.
 
 ## Token Management
 
@@ -192,6 +234,35 @@ messages = await context_manager.build_context(current_task)
 response = await llm.chat(messages, tools=available_tools)
 ```
 
+### With Session ID
+
+Loom does not define what a "session" is. The upper layer decides when to start or switch a session.  
+When a `session_id` is present:
+- L1/L2/L3 queries default to the same session
+- EventBus direct/bus events are filtered by session
+- L4 remains cross-session (no default filter)
+
+```python
+from loom.protocol import Task
+
+current_task = Task(
+    task_id="task_123",
+    action="execute",
+    parameters={"content": "Refactor the memory layer"},
+    session_id="session-2026-01-28",
+)
+```
+
+### Query Memory by Session
+
+```python
+# L2 session working memory
+await executor.execute("query_l2_memory", {"limit": 10, "session_id": "session-2026-01-28"})
+
+# L3 session summaries
+await executor.execute("query_l3_memory", {"limit": 20, "session_id": "session-2026-01-28"})
+```
+
 ### With External Knowledge
 
 ```python
@@ -233,4 +304,3 @@ messages = await context_manager.build_context(current_task)
 - [Memory System](../features/memory-system.md)
 - [External Knowledge Base](../features/external-knowledge-base.md)
 - [Search & Retrieval](../features/search-and-retrieval.md)
-

@@ -42,6 +42,7 @@ class Task:
         error: 错误信息（如果失败）
         metadata: 元数据（重要性、摘要、标签等）
         parent_task_id: 父任务ID（分形架构）
+        session_id: 会话ID（由上层定义）
     """
 
     task_id: str = field(default_factory=lambda: str(uuid4()))
@@ -56,6 +57,7 @@ class Task:
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     parent_task_id: str | None = None
+    session_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """转换为A2A协议JSON格式"""
@@ -72,4 +74,5 @@ class Task:
             "error": self.error,
             "metadata": self.metadata,
             "parentTaskId": self.parent_task_id,
+            "sessionId": self.session_id,
         }

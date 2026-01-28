@@ -139,6 +139,7 @@ class LoomApp:
             max_iterations=config.max_iterations,
             require_done_tool=config.require_done_tool,
             memory_config=config.memory_config.model_dump(),
+            context_budget_config=config.context_budget_config,
         )
 
         # 存储 Agent

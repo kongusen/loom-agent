@@ -131,23 +131,22 @@ async def track_performance(event):
 
 ## 查询能力
 
-`QueryableEventBus` 提供事件查询功能：
+EventBus 提供事件查询功能：
 
 ```python
-from loom.events import QueryableEventBus
+from loom.events import EventBus
 
-# 查询特定节点的所有思考事件
-events = await event_bus.query(
-    type="node.thinking",
-    source="/node/researcher",
+event_bus = EventBus()
+
+# 查询特定节点的思考事件
+events = event_bus.query_by_node(
+    node_id="researcher",
+    action_filter="node.thinking",
     limit=100
 )
 
-# 查询特定时间范围的事件
-events = await event_bus.query(
-    start_time="2024-01-27T00:00:00Z",
-    end_time="2024-01-27T23:59:59Z"
-)
+# 查询最近事件
+events = event_bus.query_recent(limit=50)
 ```
 
 ## 事件拦截器
@@ -186,7 +185,7 @@ event_bus.register_interceptor(LoggingInterceptor())
 ## 代码位置
 
 - 事件总线: `loom/events/event_bus.py`
-- 可查询总线: `loom/events/queryable_event_bus.py`
+- 可查询总线: `loom/events/event_bus.py`
 - 协议定义: `loom/protocol/events.py`
 
 ## 反向链接

@@ -123,7 +123,7 @@ Cognition = Orchestration(N1, N2, ..., Nk)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    QueryableEventBus                         │
+│                         EventBus                              │
 │                   (可查询事件总线)                            │
 │                                                               │
 │  - 事件历史记录                                               │
@@ -146,12 +146,11 @@ Cognition = Orchestration(N1, N2, ..., Nk)
 
 ### 核心组件
 
-#### 1. QueryableEventBus
+#### 1. EventBus
 
-**文件**: `loom/events/queryable_event_bus.py`
+**文件**: `loom/events/event_bus.py`
 
 **功能**：
-- 继承自EventBus
 - 记录所有事件到历史
 - 提供多维度查询接口
 - 实现集体记忆API
@@ -308,11 +307,11 @@ context = {
 ### 1. 创建可查询事件总线
 
 ```python
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events import EventBus
 from loom.events.memory_transport import MemoryTransport
 
 transport = MemoryTransport()
-event_bus = QueryableEventBus(
+event_bus = EventBus(
     transport=transport,
     max_history=1000,  # 最大历史事件数
 )
@@ -420,7 +419,7 @@ events = builder.search_relevant_events("analysis", limit=10)
 
 **策略**：循环缓冲区
 ```python
-event_bus = QueryableEventBus(max_history=1000)
+event_bus = EventBus(max_history=1000)
 ```
 
 **效果**：

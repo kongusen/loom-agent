@@ -7,7 +7,7 @@ EventBus Delegation Handler - EventBus委派处理器
 import asyncio
 from typing import Any
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 from loom.protocol import Task
 
 
@@ -18,7 +18,7 @@ class EventBusDelegationHandler:
     负责通过EventBus发送委派请求并等待响应。
     """
 
-    def __init__(self, event_bus: QueryableEventBus, timeout: float = 30.0):
+    def __init__(self, event_bus: EventBus, timeout: float = 30.0):
         """
         初始化处理器
 
@@ -36,6 +36,7 @@ class EventBusDelegationHandler:
         target_agent_id: str,
         subtask: str,
         parent_task_id: str,
+        session_id: str | None = None,
     ) -> str:
         """
         通过EventBus委派任务
@@ -58,6 +59,8 @@ class EventBusDelegationHandler:
         # 发布委派请求事件
         delegation_task = Task(
             task_id=request_id,
+            source_agent=source_agent_id,
+            target_agent=target_agent_id,
             action="node.delegation_request",
             parameters={
                 "source_agent": source_agent_id,
@@ -65,7 +68,9 @@ class EventBusDelegationHandler:
                 "request_id": request_id,
                 "subtask": subtask,
                 "parent_task_id": parent_task_id,
+                "content": subtask,
             },
+            session_id=session_id,
         )
         await self.event_bus.publish(delegation_task)
 

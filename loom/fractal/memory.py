@@ -165,6 +165,15 @@ class FractalMemory:
         if not policy.writable:
             raise PermissionError(f"Scope {scope} is read-only")
 
+        # 如果已存在，更新并递增版本
+        existing = self._memory_by_scope[scope].get(entry_id)
+        if existing:
+            existing.parent_version = existing.version
+            existing.version += 1
+            existing.content = content
+            existing.updated_by = self.node_id
+            return existing
+
         # 创建记忆条目
         entry = MemoryEntry(
             id=entry_id,
@@ -177,6 +186,25 @@ class FractalMemory:
         # 存储到对应作用域
         self._memory_by_scope[scope][entry_id] = entry
 
+        return entry
+
+    async def write_entry(self, entry: MemoryEntry) -> MemoryEntry:
+        """
+        写入完整记忆条目（保留版本/元数据）
+
+        Args:
+            entry: MemoryEntry对象
+
+        Returns:
+            写入后的记忆条目
+        """
+        # 检查写权限
+        policy = ACCESS_POLICIES[entry.scope]
+        if not policy.writable:
+            raise PermissionError(f"Scope {entry.scope} is read-only")
+
+        # 直接写入（覆盖）
+        self._memory_by_scope[entry.scope][entry.id] = entry
         return entry
 
     async def read(

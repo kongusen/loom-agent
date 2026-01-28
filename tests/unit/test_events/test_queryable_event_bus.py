@@ -6,37 +6,39 @@ Queryable Event Bus Unit Tests
 
 import pytest
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 from loom.protocol import Task
 
 
-class TestQueryableEventBusInit:
-    """测试 QueryableEventBus 初始化"""
+class TestEventBusInit:
+    """测试 EventBus 初始化"""
 
     def test_init_default(self):
         """测试默认初始化"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         assert bus._event_history == []
         assert bus._events_by_node == {}
         assert bus._events_by_action == {}
         assert bus._events_by_task == {}
+        assert bus._events_by_target_agent == {}
+        assert bus._events_by_target_node == {}
         assert bus._max_history == 1000
 
     def test_init_with_max_history(self):
         """测试带 max_history 初始化"""
-        bus = QueryableEventBus(max_history=500)
+        bus = EventBus(max_history=500)
 
         assert bus._max_history == 500
 
 
-class TestQueryableEventBusPublish:
+class TestEventBusPublish:
     """测试发布事件并记录到历史"""
 
     @pytest.mark.asyncio
     async def test_publish_records_event(self):
         """测试发布事件会记录到历史"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         task = Task(
             task_id="task-1",
@@ -56,7 +58,7 @@ class TestQueryableEventBusPublish:
     @pytest.mark.asyncio
     async def test_publish_records_with_parent_task_id(self):
         """测试发布带 parent_task_id 的事件"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         task = Task(
             task_id="task-1",
@@ -73,7 +75,7 @@ class TestQueryableEventBusPublish:
     @pytest.mark.asyncio
     async def test_publish_respects_max_history(self):
         """测试发布事件时限制历史大小"""
-        bus = QueryableEventBus(max_history=3)
+        bus = EventBus(max_history=3)
 
         # 发布超过限制的事件
         for i in range(5):
@@ -90,13 +92,13 @@ class TestQueryableEventBusPublish:
         assert bus._event_history[-1].task_id == "task-4"
 
 
-class TestQueryableEventBusQueryByNode:
+class TestEventBusQueryByNode:
     """测试按节点查询"""
 
     @pytest.mark.asyncio
     async def test_query_by_node(self):
         """测试查询特定节点的事件"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布多个节点的事件
         for i in range(3):
@@ -116,7 +118,7 @@ class TestQueryableEventBusQueryByNode:
     @pytest.mark.asyncio
     async def test_query_by_node_with_action_filter(self):
         """测试带动作过滤的节点查询"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布不同类型的事件
         task1 = Task(
@@ -142,7 +144,7 @@ class TestQueryableEventBusQueryByNode:
     @pytest.mark.asyncio
     async def test_query_by_node_with_limit(self):
         """测试带数量限制的节点查询"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布多个事件
         for i in range(5):
@@ -163,20 +165,20 @@ class TestQueryableEventBusQueryByNode:
     @pytest.mark.asyncio
     async def test_query_by_node_not_found(self):
         """测试查询不存在的节点"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         events = bus.query_by_node("nonexistent-node")
 
         assert len(events) == 0
 
 
-class TestQueryableEventBusQueryByAction:
+class TestEventBusQueryByAction:
     """测试按动作查询"""
 
     @pytest.mark.asyncio
     async def test_query_by_action(self):
         """测试查询特定动作的事件"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布多个动作的事件
         for i in range(3):
@@ -196,7 +198,7 @@ class TestQueryableEventBusQueryByAction:
     @pytest.mark.asyncio
     async def test_query_by_action_with_node_filter(self):
         """测试带节点过滤的动作查询"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布不同节点的事件
         task1 = Task(
@@ -222,7 +224,7 @@ class TestQueryableEventBusQueryByAction:
     @pytest.mark.asyncio
     async def test_query_by_action_with_limit(self):
         """测试带数量限制的动作查询"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布多个事件
         for i in range(5):
@@ -239,13 +241,13 @@ class TestQueryableEventBusQueryByAction:
         assert len(events) == 2
 
 
-class TestQueryableEventBusQueryByTask:
+class TestEventBusQueryByTask:
     """测试按任务查询"""
 
     @pytest.mark.asyncio
     async def test_query_by_task(self):
         """测试查询特定任务的事件"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         parent_task_id = "parent-task"
 
@@ -268,7 +270,7 @@ class TestQueryableEventBusQueryByTask:
     @pytest.mark.asyncio
     async def test_query_by_task_with_action_filter(self):
         """测试带动作过滤的任务查询"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         parent_task_id = "parent-task"
 
@@ -296,13 +298,60 @@ class TestQueryableEventBusQueryByTask:
         assert events[0].action == "node.thinking"
 
 
-class TestQueryableEventBusQueryRecent:
+class TestEventBusQueryByTarget:
+    """测试按目标查询"""
+
+    @pytest.mark.asyncio
+    async def test_query_by_target_agent(self):
+        """测试按目标agent查询事件"""
+        bus = EventBus()
+
+        task1 = Task(
+            task_id="task-1",
+            action="node.thinking",
+            target_agent="agent-1",
+            parameters={"content": "direct-1"},
+        )
+        await bus.publish(task1)
+
+        task2 = Task(
+            task_id="task-2",
+            action="node.thinking",
+            target_agent="agent-2",
+            parameters={"content": "direct-2"},
+        )
+        await bus.publish(task2)
+
+        events = bus.query_by_target(target_agent="agent-1")
+
+        assert len(events) == 1
+        assert events[0].task_id == "task-1"
+
+    @pytest.mark.asyncio
+    async def test_query_by_target_node(self):
+        """测试按目标node查询事件"""
+        bus = EventBus()
+
+        task = Task(
+            task_id="task-1",
+            action="node.thinking",
+            parameters={"content": "direct", "target_node_id": "node-1"},
+        )
+        await bus.publish(task)
+
+        events = bus.query_by_target(target_node_id="node-1")
+
+        assert len(events) == 1
+        assert events[0].task_id == "task-1"
+
+
+class TestEventBusQueryRecent:
     """测试查询最近事件"""
 
     @pytest.mark.asyncio
     async def test_query_recent(self):
         """测试查询最近的事件"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布多个事件
         for i in range(5):
@@ -323,7 +372,7 @@ class TestQueryableEventBusQueryRecent:
     @pytest.mark.asyncio
     async def test_query_recent_with_action_filter(self):
         """测试带动作过滤的最近事件查询"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布不同类型的事件
         for i in range(3):
@@ -350,7 +399,7 @@ class TestQueryableEventBusQueryRecent:
     @pytest.mark.asyncio
     async def test_query_recent_with_node_filter(self):
         """测试带节点过滤的最近事件查询"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布不同节点的事件
         for i in range(3):
@@ -375,13 +424,13 @@ class TestQueryableEventBusQueryRecent:
         assert all(e.parameters.get("node_id") == "node-1" for e in events)
 
 
-class TestQueryableEventBusQueryThinkingProcess:
+class TestEventBusQueryThinkingProcess:
     """测试查询思考过程"""
 
     @pytest.mark.asyncio
     async def test_query_thinking_process_by_node(self):
         """测试按节点查询思考过程"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布思考事件
         for i in range(3):
@@ -403,7 +452,7 @@ class TestQueryableEventBusQueryThinkingProcess:
     @pytest.mark.asyncio
     async def test_query_thinking_process_by_task(self):
         """测试按任务查询思考过程"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         parent_task_id = "parent-task"
 
@@ -429,7 +478,7 @@ class TestQueryableEventBusQueryThinkingProcess:
     @pytest.mark.asyncio
     async def test_query_thinking_process_all(self):
         """测试查询所有思考过程"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布多个节点的思考事件
         for node_id in ["node-1", "node-2"]:
@@ -447,13 +496,13 @@ class TestQueryableEventBusQueryThinkingProcess:
         assert len(thoughts) == 4
 
 
-class TestQueryableEventBusCollectiveMemory:
+class TestEventBusCollectiveMemory:
     """测试集体记忆"""
 
     @pytest.mark.asyncio
     async def test_get_collective_memory(self):
         """测试获取集体记忆"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布多个节点的思考事件
         for node_id in ["node-1", "node-2"]:
@@ -476,7 +525,7 @@ class TestQueryableEventBusCollectiveMemory:
     @pytest.mark.asyncio
     async def test_get_collective_memory_with_custom_actions(self):
         """测试获取指定动作类型的集体记忆"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布不同类型的事件
         task1 = Task(
@@ -500,13 +549,13 @@ class TestQueryableEventBusCollectiveMemory:
         assert "node.thinking" not in memory
 
 
-class TestQueryableEventBusClearHistory:
+class TestEventBusClearHistory:
     """测试清空历史"""
 
     @pytest.mark.asyncio
     async def test_clear_history(self):
         """测试清空历史记录"""
-        bus = QueryableEventBus()
+        bus = EventBus()
 
         # 发布一些事件
         for i in range(3):
@@ -524,3 +573,5 @@ class TestQueryableEventBusClearHistory:
         assert len(bus._events_by_node) == 0
         assert len(bus._events_by_action) == 0
         assert len(bus._events_by_task) == 0
+        assert len(bus._events_by_target_agent) == 0
+        assert len(bus._events_by_target_node) == 0

@@ -27,9 +27,9 @@ class LoomMemory:
     基于Task的分层记忆系统
 
     L1: 完整Task对象（循环缓冲区，最近50个）
-    L2: 重要Task对象（按重要性排序，最多100个）
-    L3: Task摘要（最多500个）
-    L4: 向量存储（无限）
+    L2: 会话工作记忆（按重要性排序，最多100个）
+    L3: 会话摘要（最多500个）
+    L4: 跨会话向量记忆（无限）
     """
 
     def __init__(
@@ -119,18 +119,22 @@ class LoomMemory:
         # 添加任务
         self._l1_layer._buffer.append(task)
 
-    def get_l1_tasks(self, limit: int = 10) -> list["Task"]:
+    def get_l1_tasks(self, limit: int = 10, session_id: str | None = None) -> list["Task"]:
         """
         获取L1最近的Task
 
         Args:
             limit: 返回数量限制
+            session_id: 可选的会话过滤
 
         Returns:
             最近的Task列表
         """
         # 直接访问layer的buffer以保持同步API
-        return list(self._l1_layer._buffer)[-limit:]
+        tasks = list(self._l1_layer._buffer)
+        if session_id:
+            tasks = [t for t in tasks if t.session_id == session_id]
+        return tasks[-limit:]
 
     def _cleanup_task_index(self) -> None:
         """
@@ -181,12 +185,15 @@ class LoomMemory:
                 heapq.heapify(self._l2_layer._heap)
                 heapq.heappush(self._l2_layer._heap, priority_item)
 
-    def get_l2_tasks(self, limit: int | None = None) -> list["Task"]:
+    def get_l2_tasks(
+        self, limit: int | None = None, session_id: str | None = None
+    ) -> list["Task"]:
         """
         获取L2工作记忆Task
 
         Args:
             limit: 返回数量限制，None表示返回全部
+            session_id: 可选的会话过滤
 
         Returns:
             L2中的Task（按重要性排序）
@@ -194,6 +201,8 @@ class LoomMemory:
         # 直接访问layer的heap以保持同步API
         sorted_items = sorted(self._l2_layer._heap)
         tasks = [item.item for item in sorted_items]
+        if session_id:
+            tasks = [t for t in tasks if t.session_id == session_id]
 
         if limit is None:
             return tasks
@@ -221,19 +230,25 @@ class LoomMemory:
         if len(self._l3_summaries) > self.max_l3_size:
             self._l3_summaries.pop(0)
 
-    def get_l3_summaries(self, limit: int | None = None) -> list[TaskSummary]:
+    def get_l3_summaries(
+        self, limit: int | None = None, session_id: str | None = None
+    ) -> list[TaskSummary]:
         """
         获取L3 Task摘要
 
         Args:
             limit: 返回数量限制
+            session_id: 可选的会话过滤
 
         Returns:
             Task摘要列表
         """
+        summaries = self._l3_summaries
+        if session_id:
+            summaries = [s for s in summaries if s.session_id == session_id]
         if limit is None:
-            return self._l3_summaries.copy()
-        return self._l3_summaries[-limit:]
+            return summaries.copy()
+        return summaries[-limit:]
 
     # ==================== L4管理 ====================
 
@@ -263,23 +278,27 @@ class LoomMemory:
                     "tags": summary.tags,
                     "importance": summary.importance,
                     "created_at": summary.created_at.isoformat(),
+                    "session_id": summary.session_id,
                 },
             )
 
-    async def search_tasks(self, query: str, limit: int = 5) -> list["Task"]:
+    async def search_tasks(
+        self, query: str, limit: int = 5, session_id: str | None = None
+    ) -> list["Task"]:
         """
         从L4语义检索相关Task
 
         Args:
             query: 查询字符串
             limit: 返回数量限制
+            session_id: 可选的会话过滤（仅在降级搜索时生效）
 
         Returns:
             相关Task列表
         """
         if not self._l4_vector_store or not self.embedding_provider:
             # 降级到简单搜索
-            return self._simple_search_tasks(query, limit)
+            return self._simple_search_tasks(query, limit, session_id=session_id)
 
         # 向量化查询
         query_embedding = await self.embedding_provider.embed(query)
@@ -292,17 +311,23 @@ class LoomMemory:
         for result in results:
             task_id = result.get("id")
             if task_id and task_id in self._task_index:
-                tasks.append(self._task_index[task_id])
+                task = self._task_index[task_id]
+                if session_id and task.session_id != session_id:
+                    continue
+                tasks.append(task)
 
         return tasks
 
-    def _simple_search_tasks(self, query: str, limit: int) -> list["Task"]:
+    def _simple_search_tasks(
+        self, query: str, limit: int, session_id: str | None = None
+    ) -> list["Task"]:
         """
         简单的文本匹配搜索（降级方案）
 
         Args:
             query: 查询字符串
             limit: 返回数量限制
+            session_id: 可选的会话过滤
 
         Returns:
             匹配的Task列表
@@ -316,6 +341,8 @@ class LoomMemory:
         all_tasks = l1_tasks + l2_tasks
 
         for task in all_tasks:
+            if session_id and task.session_id != session_id:
+                continue
             # 检查action和parameters中是否包含查询字符串
             if query_lower in task.action.lower() or query_lower in str(task.parameters).lower():
                 matches.append(task)
@@ -534,6 +561,7 @@ class LoomMemory:
             tags=tags,
             importance=task.metadata.get("importance", 0.5),
             created_at=task.created_at,
+            session_id=task.session_id,
         )
 
     async def _promote_l3_to_l4(self) -> None:

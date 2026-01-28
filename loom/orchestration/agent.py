@@ -26,8 +26,9 @@ Agent - 自主智能体基类
 from collections import defaultdict, deque
 from typing import Any
 
-from loom.events.queryable_event_bus import QueryableEventBus
+from loom.events.event_bus import EventBus
 from loom.exceptions import TaskComplete
+from loom.fractal.budget import BudgetTracker, QualityMetrics, RecursiveBudget
 from loom.memory.core import LoomMemory
 from loom.memory.task_context import (
     EventBusContextSource,
@@ -38,6 +39,7 @@ from loom.memory.tokenizer import TiktokenCounter
 from loom.orchestration.base_node import BaseNode
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
+from loom.tools.context_tools import ContextToolExecutor, create_all_context_tools
 from loom.tools.done_tool import create_done_tool, execute_done_tool
 
 
@@ -62,14 +64,18 @@ class Agent(BaseNode):
         system_prompt: str = "",
         tools: list[dict[str, Any]] | None = None,
         available_agents: dict[str, Any] | None = None,
-        event_bus: Any | None = None,  # QueryableEventBus
+        event_bus: Any | None = None,  # EventBus
         enable_observation: bool = True,
         max_context_tokens: int = 4000,
         max_iterations: int = 10,
         require_done_tool: bool = True,
+        enable_context_tools: bool = True,  # 是否启用上下文查询工具
+        budget_tracker: BudgetTracker | None = None,  # 递归预算跟踪器
+        recursive_depth: int = 0,  # 当前递归深度
         skill_registry: Any | None = None,  # SkillRegistry
         tool_registry: Any | None = None,  # ToolRegistry
         memory_config: dict[str, Any] | None = None,
+        context_budget_config: dict[str, float | int] | None = None,
         **kwargs,
     ):
         """
@@ -86,9 +92,13 @@ class Agent(BaseNode):
             max_context_tokens: 最大上下文token数
             max_iterations: 最大迭代次数
             require_done_tool: 是否要求显式调用done工具完成任务
+            enable_context_tools: 是否启用上下文查询工具（默认True）
+            budget_tracker: 递归预算跟踪器（可选，用于控制递归深度和资源）
+            recursive_depth: 当前递归深度（内部使用）
             skill_registry: Skill注册表（可选，用于加载Skills）
             tool_registry: 工具注册表（可选，用于执行工具调用）
             memory_config: 记忆系统配置（可选，默认使用标准配置）
+            context_budget_config: 上下文预算配置（可选，动态调整比例）
             **kwargs: 其他参数传递给BaseNode
         """
         super().__init__(
@@ -106,8 +116,13 @@ class Agent(BaseNode):
         self.available_agents = available_agents or {}
         self.max_iterations = max_iterations
         self.require_done_tool = require_done_tool
+        self.enable_context_tools = enable_context_tools
         self.skill_registry = skill_registry
         self.tool_registry = tool_registry
+
+        # 递归预算控制
+        self._budget_tracker = budget_tracker or BudgetTracker()
+        self._recursive_depth = recursive_depth
 
         # 如果启用 done tool，添加到工具列表
         if self.require_done_tool:
@@ -116,12 +131,17 @@ class Agent(BaseNode):
         # 创建 LoomMemory（使用配置）
         self.memory = LoomMemory(node_id=node_id, **(memory_config or {}))
 
+        # 创建上下文工具执行器（如果启用）
+        self._context_tool_executor: ContextToolExecutor | None = None
+        if self.enable_context_tools and event_bus:
+            self._context_tool_executor = ContextToolExecutor(self.memory, event_bus)
+
         # 创建 TaskContextManager
         from loom.memory.task_context import ContextSource
 
         sources: list[ContextSource] = []
         sources.append(MemoryContextSource(self.memory))
-        if event_bus and isinstance(event_bus, QueryableEventBus):
+        if event_bus and hasattr(event_bus, "query_by_task"):
             sources.append(EventBusContextSource(event_bus))
 
         self.context_manager = TaskContextManager(
@@ -129,6 +149,8 @@ class Agent(BaseNode):
             sources=sources,
             max_tokens=max_context_tokens,
             system_prompt=self.system_prompt,
+            node_id=self.node_id,
+            budget_config=context_budget_config,
         )
 
         # 构建完整工具列表（普通工具 + 元工具）
@@ -139,7 +161,7 @@ class Agent(BaseNode):
 
         # EventBus委派处理器（用于异步委派）
         self._delegation_handler = None
-        if event_bus and isinstance(event_bus, QueryableEventBus):
+        if event_bus and hasattr(event_bus, "query_by_task"):
             from .eventbus_delegation import EventBusDelegationHandler
 
             self._delegation_handler = EventBusDelegationHandler(event_bus)
@@ -182,11 +204,20 @@ class Agent(BaseNode):
    - 自主判断何时需要协作
    - 整合多个agent的结果
 
+5. **上下文查询能力（Context Query）**：
+   - 当需要回顾历史信息时，主动使用上下文查询工具
+   - query_l1_memory: 查询最近的完整任务记录
+   - query_l2_memory: 查询重要任务的压缩摘要
+   - query_events_by_action: 按动作类型查询事件
+   - query_thinking_process: 查询思考过程
+   - 建议：在开始复杂任务前，先查询相关上下文
+
 **工作原则**：
 - 始终保持反思，展现你的思考过程
 - 根据任务复杂度自主决定使用哪些能力
 - 不要询问是否可以使用某个能力，直接使用
 - 追求高效完成任务
+- 主动查询上下文以获取相关历史信息
 """
 
         if base_prompt:
@@ -261,6 +292,10 @@ class Agent(BaseNode):
                 }
             )
 
+        # 添加上下文查询工具（如果启用）
+        if self.enable_context_tools and self._context_tool_executor:
+            tools.extend(create_all_context_tools())
+
         return tools
 
     async def _execute_single_tool(self, tool_name: str, tool_args: dict | str) -> str:
@@ -282,6 +317,25 @@ class Agent(BaseNode):
                 tool_args = json.loads(tool_args)
             except json.JSONDecodeError:
                 return f"错误：无法解析工具参数 - {tool_args}"
+
+        # 检查是否是上下文查询工具
+        context_tool_names = {
+            "query_l1_memory",
+            "query_l2_memory",
+            "query_l3_memory",
+            "query_l4_memory",
+            "query_events_by_action",
+            "query_events_by_node",
+            "query_events_by_target",
+            "query_recent_events",
+            "query_thinking_process",
+        }
+        if tool_name in context_tool_names and self._context_tool_executor:
+            try:
+                result = await self._context_tool_executor.execute(tool_name, tool_args)
+                return json.dumps(result, ensure_ascii=False, default=str)
+            except Exception as e:
+                return f"错误：上下文工具执行失败 - {str(e)}"
 
         # 获取工具的可调用对象
         if self.tool_registry is None:
@@ -356,6 +410,7 @@ class Agent(BaseNode):
                             content=content_str,
                             task_id=task.task_id,
                             metadata={"iteration": iteration},
+                            session_id=task.session_id,
                         )
 
                     elif chunk.type == "tool_call_complete":
@@ -411,6 +466,7 @@ class Agent(BaseNode):
                         tool_name=tool_name,
                         tool_args=tool_args,
                         task_id=task.task_id,
+                        session_id=task.session_id,
                     )
 
                     # 检查是否是 done tool
@@ -428,7 +484,7 @@ class Agent(BaseNode):
                             target_agent = tool_args.get("target_agent", "")
                             subtask = tool_args.get("subtask", "")
                             result = await self._execute_delegate_task(
-                                target_agent, subtask, task.task_id
+                                target_agent, subtask, task.task_id, session_id=task.session_id
                             )
                         else:
                             # New fractal-based delegation (auto-create child)
@@ -482,6 +538,8 @@ class Agent(BaseNode):
                 "content": e.message,
                 "completed_explicitly": True,
             }
+            # 自我评估
+            await self._self_evaluate(task)
             self.memory.add_task(task)
             return task
 
@@ -492,6 +550,9 @@ class Agent(BaseNode):
             "completed_explicitly": False,
             "iterations": iteration + 1,
         }
+
+        # 自我评估
+        await self._self_evaluate(task)
 
         # 存储完成的任务到记忆
         self.memory.add_task(task)
@@ -568,6 +629,60 @@ class Agent(BaseNode):
         filtered.reverse()
         return filtered
 
+    # ==================== 自我评估 ====================
+
+    async def _self_evaluate(self, task: Task) -> None:
+        """
+        自我评估任务执行结果
+
+        Agent完成任务后，用自己的LLM评估结果质量，
+        将质量指标附加到task.result中。
+
+        Args:
+            task: 已完成的任务
+        """
+        if not isinstance(task.result, dict):
+            return
+
+        task_content = task.parameters.get("content", "")
+        result_content = task.result.get("content", "")
+
+        if not task_content or not result_content:
+            return
+
+        prompt = f"""请评估以下任务执行结果的质量。
+
+任务：{task_content}
+
+结果：{result_content[:1000]}
+
+请从三个维度评估（0-1分）：
+1. confidence: 结果是否准确完整
+2. coverage: 是否完整回答任务要求
+3. novelty: 提供了多少有价值的信息
+
+返回JSON：{{"confidence": 0.X, "coverage": 0.X, "novelty": 0.X}}"""
+
+        try:
+            response = await self.llm_provider.chat(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200,
+            )
+            # 解析响应
+            import json
+            import re
+            json_match = re.search(r'\{[^}]+\}', response.content)
+            if json_match:
+                metrics = json.loads(json_match.group())
+                task.result["quality_metrics"] = {
+                    "confidence": float(metrics.get("confidence", 0.5)),
+                    "coverage": float(metrics.get("coverage", 0.5)),
+                    "novelty": float(metrics.get("novelty", 0.5)),
+                }
+        except Exception:
+            # 评估失败不影响任务结果
+            pass
+
     # ==================== 自动能力（内部方法）====================
 
     async def _load_relevant_skills(self, task_description: str) -> list[Any]:
@@ -614,6 +729,7 @@ class Agent(BaseNode):
         target_agent_id: str,
         subtask: str,
         parent_task_id: str,
+        session_id: str | None = None,
     ) -> str:
         """
         执行委派任务 - 最小连接机制
@@ -642,6 +758,7 @@ class Agent(BaseNode):
                 action="execute",
                 parameters={"content": subtask},
                 parent_task_id=parent_task_id,
+                session_id=session_id,
             )
 
             # 直接调用目标 agent
@@ -669,6 +786,7 @@ class Agent(BaseNode):
                 target_agent_id=target_agent_id,
                 subtask=subtask,
                 parent_task_id=parent_task_id,
+                session_id=session_id,
             )
             return result
 
@@ -712,6 +830,7 @@ class Agent(BaseNode):
                 "step_count": len(steps),
             },
             task_id=parent_task.task_id,
+            session_id=parent_task.session_id,
         )
 
         # 执行每个步骤（分形执行）
@@ -727,6 +846,7 @@ class Agent(BaseNode):
                     "step_index": idx + 1,
                     "total_steps": len(steps),
                 },
+                session_id=parent_task.session_id,
             )
 
             # 创建子节点并执行
@@ -785,6 +905,7 @@ class Agent(BaseNode):
                 "content": args["subtask_description"],
                 "parent_task_id": parent_task.task_id,
             },
+            session_id=parent_task.session_id,
         )
 
         # 2. 创建子节点（使用_create_child_node）
@@ -827,9 +948,26 @@ class Agent(BaseNode):
 
         Returns:
             配置好的子Agent实例
+
+        Raises:
+            RuntimeError: 如果超出预算限制
         """
         from loom.fractal.allocation import SmartAllocationStrategy
         from loom.fractal.memory import FractalMemory, MemoryScope
+
+        # 0. 预算检查（在创建子节点前强制执行）
+        violation = self._budget_tracker.check_can_create_child(
+            parent_node_id=self.node_id,
+            current_depth=self._recursive_depth,
+        )
+        if violation:
+            raise RuntimeError(
+                f"预算违规: {violation.message}. 建议: {violation.suggestion}"
+            )
+
+        # 记录子节点创建和深度
+        self._budget_tracker.record_child_created(self.node_id)
+        self._budget_tracker.record_depth(self._recursive_depth + 1)
 
         # 1. 创建FractalMemory（继承父节点记忆）
         child_memory = FractalMemory(
@@ -875,7 +1013,7 @@ class Agent(BaseNode):
         # 4. 创建TaskContextManager (暂时不使用，保留用于将来扩展)
         # child_context_manager = TaskContextManager(...)
 
-        # 5. 创建子Agent
+        # 5. 创建子Agent（传递预算跟踪器和递增的深度）
         child_agent = Agent(
             node_id=subtask.task_id,
             llm_provider=self.llm_provider,
@@ -884,6 +1022,8 @@ class Agent(BaseNode):
             event_bus=self.event_bus,
             max_iterations=self.max_iterations,
             require_done_tool=self.require_done_tool,
+            budget_tracker=self._budget_tracker,  # 共享预算跟踪器
+            recursive_depth=self._recursive_depth + 1,  # 递增深度
         )
 
         # 6. 设置子Agent的fractal_memory引用

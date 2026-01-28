@@ -66,6 +66,7 @@ class FactExtractor:
                 confidence=0.9,
                 tags=["api", endpoint, method],
                 created_at=task.created_at,
+                session_id=task.session_id,
             )
             facts.append(fact)
 
@@ -85,6 +86,7 @@ class FactExtractor:
                 confidence=0.8,
                 tags=["preference", str(choice)],
                 created_at=task.created_at,
+                session_id=task.session_id,
             )
             facts.append(fact)
 
@@ -104,6 +106,7 @@ class FactExtractor:
                 confidence=0.7,
                 tags=["tool", tool_name],
                 created_at=task.created_at,
+                session_id=task.session_id,
             )
             facts.append(fact)
 
@@ -123,6 +126,7 @@ class FactExtractor:
                 confidence=0.7,
                 tags=["error", task.action],
                 created_at=task.created_at,
+                session_id=task.session_id,
             )
             facts.append(fact)
 

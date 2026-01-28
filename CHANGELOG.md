@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.4] - 2026-01-28
+
+### ✅ Context & Memory升级（会话显式化）
+
+- **session_id** 显式化：Task/MemoryUnit/TaskSummary/Fact 统一携带 `session_id`，上层决定会话边界  
+- **L3/L4 语义升级**：L3=会话摘要，L4=跨会话长期记忆  
+- **记忆检索**：L1/L2/L3 支持按 `session_id` 过滤，L4 默认跨会话  
+
+### 🧠 上下文管理（Direct/Bus分离）
+
+- **L1 = Direct + 近期**，**L2 = Bus相关**，比例可配置  
+- **Direct/BUS 保底条数**：避免关键消息被 token 压制  
+- **EventBus 点对点**：新增 `query_by_target`，支持 TTL/priority  
+- **统一直连协议字段**：`node.message` + `content/priority/ttl/session`  
+
+### 🔧 工具与框架
+
+- 上下文工具支持 `session_id` 查询  
+- EventBusDelegation / Agent 事件传递 session  
+
+### ✅ 测试
+
+- `pytest tests/unit/test_memory tests/unit/test_events tests/unit/test_tools tests/unit/test_orchestration -q`  
+
 All notable changes to this project will be documented in this file.
 
 

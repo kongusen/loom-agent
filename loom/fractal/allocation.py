@@ -51,8 +51,10 @@ class TaskAnalyzer:
         Returns:
             任务特征
         """
-        # 提取关键词
-        keywords = self._extract_keywords(task.action)
+        # 提取关键词（优先使用任务内容）
+        content = task.parameters.get("content", "") if hasattr(task, "parameters") else ""
+        text = content or task.action
+        keywords = self._extract_keywords(text)
 
         # 判断动作类型
         action_type = self._classify_action(task.action)
@@ -93,8 +95,9 @@ class TaskAnalyzer:
         """评估任务复杂度"""
         factors = []
 
-        # 描述长度
-        desc_length = len(task.action)
+        # 描述长度（优先内容）
+        content = task.parameters.get("content", "") if hasattr(task, "parameters") else ""
+        desc_length = len(content or task.action)
         factors.append(min(desc_length / 200, 1.0))
 
         # 参数数量

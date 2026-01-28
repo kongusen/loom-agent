@@ -19,7 +19,7 @@ Context Query Tools - LLM主动查询上下文
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from loom.events.queryable_event_bus import QueryableEventBus
+    from loom.events.event_bus import EventBus
     from loom.memory.core import LoomMemory
 
 
@@ -47,7 +47,11 @@ def create_query_l1_memory_tool() -> dict:
                         "type": "integer",
                         "description": "Maximum number of tasks to retrieve (default: 10)",
                         "default": 10,
-                    }
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional session ID filter",
+                    },
                 },
                 "required": [],
             },
@@ -67,7 +71,8 @@ async def execute_query_l1_memory_tool(args: dict, memory: "LoomMemory") -> dict
         查询结果
     """
     limit = args.get("limit", 10)
-    tasks = memory.get_l1_tasks(limit=limit)
+    session_id = args.get("session_id")
+    tasks = memory.get_l1_tasks(limit=limit, session_id=session_id)
 
     return {
         "layer": "L1",
@@ -91,7 +96,7 @@ def create_query_l2_memory_tool() -> dict:
     """
     创建L2记忆查询工具定义
 
-    L2: 重要的Task对象（按重要性排序，以压缩陈述句形式返回）
+    L2: 会话工作记忆（按重要性排序，以压缩陈述句形式返回）
 
     Returns:
         OpenAI格式的工具定义字典
@@ -100,7 +105,7 @@ def create_query_l2_memory_tool() -> dict:
         "type": "function",
         "function": {
             "name": "query_l2_memory",
-            "description": "Query L2 memory (important tasks). L2 contains important tasks in compressed statement form. Use this to get high-priority task history without full details.",
+            "description": "Query L2 memory (session working memory). L2 contains important tasks in compressed statement form. Use this to get high-priority task history without full details.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -108,7 +113,11 @@ def create_query_l2_memory_tool() -> dict:
                         "type": "integer",
                         "description": "Maximum number of tasks to retrieve (default: 10)",
                         "default": 10,
-                    }
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional session ID filter",
+                    },
                 },
                 "required": [],
             },
@@ -128,7 +137,8 @@ async def execute_query_l2_memory_tool(args: dict, memory: "LoomMemory") -> dict
         查询结果（压缩陈述句格式）
     """
     limit = args.get("limit", 10)
-    tasks = memory.get_l2_tasks(limit=limit)
+    session_id = args.get("session_id")
+    tasks = memory.get_l2_tasks(limit=limit, session_id=session_id)
 
     # 转换为压缩陈述句（L2级别压缩）
     statements = []
@@ -166,7 +176,7 @@ def create_query_l3_memory_tool() -> dict:
     """
     创建L3记忆查询工具定义
 
-    L3: Task摘要（高度压缩的陈述句）
+    L3: 会话摘要（高度压缩的陈述句）
 
     Returns:
         OpenAI格式的工具定义字典
@@ -175,7 +185,7 @@ def create_query_l3_memory_tool() -> dict:
         "type": "function",
         "function": {
             "name": "query_l3_memory",
-            "description": "Query L3 memory (highly compressed summaries). L3 contains highly compressed task summaries in statement form. Use this to get a broad overview of historical tasks.",
+            "description": "Query L3 memory (session summaries). L3 contains highly compressed task summaries in statement form. Use this to get a broad overview of session history.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -183,7 +193,11 @@ def create_query_l3_memory_tool() -> dict:
                         "type": "integer",
                         "description": "Maximum number of summaries to retrieve (default: 20)",
                         "default": 20,
-                    }
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional session ID filter",
+                    },
                 },
                 "required": [],
             },
@@ -203,7 +217,8 @@ async def execute_query_l3_memory_tool(args: dict, memory: "LoomMemory") -> dict
         查询结果（高度压缩陈述句格式）
     """
     limit = args.get("limit", 20)
-    summaries = memory.get_l3_summaries(limit=limit)
+    session_id = args.get("session_id")
+    summaries = memory.get_l3_summaries(limit=limit, session_id=session_id)
 
     # 转换为高度压缩陈述句（L3级别压缩）
     statements = []
@@ -258,6 +273,10 @@ def create_query_l4_memory_tool() -> dict:
                         "description": "Maximum number of results to retrieve (default: 5)",
                         "default": 5,
                     },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional session ID filter (applies to fallback search)",
+                    },
                 },
                 "required": ["query"],
             },
@@ -278,8 +297,9 @@ async def execute_query_l4_memory_tool(args: dict, memory: "LoomMemory") -> dict
     """
     query = args.get("query", "")
     limit = args.get("limit", 5)
+    session_id = args.get("session_id")
 
-    tasks = await memory.search_tasks(query=query, limit=limit)
+    tasks = await memory.search_tasks(query=query, limit=limit, session_id=session_id)
 
     # 转换为极简陈述句（L4级别压缩 - 最高压缩）
     statements = []
@@ -343,14 +363,14 @@ def create_query_events_by_action_tool() -> dict:
 
 
 async def execute_query_events_by_action_tool(
-    args: dict, event_bus: "QueryableEventBus"
+    args: dict, event_bus: "EventBus"
 ) -> dict[str, Any]:
     """
     执行按动作类型查询事件
 
     Args:
         args: 工具参数 {"action": "...", "node_filter": "...", "limit": 10}
-        event_bus: QueryableEventBus实例
+        event_bus: EventBus实例
 
     Returns:
         查询结果
@@ -416,14 +436,14 @@ def create_query_events_by_node_tool() -> dict:
 
 
 async def execute_query_events_by_node_tool(
-    args: dict, event_bus: "QueryableEventBus"
+    args: dict, event_bus: "EventBus"
 ) -> dict[str, Any]:
     """
     执行按节点查询事件
 
     Args:
         args: 工具参数 {"node_id": "...", "action_filter": "...", "limit": 10}
-        event_bus: QueryableEventBus实例
+        event_bus: EventBus实例
 
     Returns:
         查询结果
@@ -445,6 +465,96 @@ async def execute_query_events_by_node_tool(
                 "action": event.action,
                 "parameters": event.parameters,
                 "result": event.result,
+                "status": event.status.value if event.status else None,
+                "created_at": event.created_at.isoformat() if event.created_at else None,
+            }
+            for event in events
+        ],
+    }
+
+
+def create_query_events_by_target_tool() -> dict:
+    """
+    创建按目标查询事件工具（点对点）
+
+    Returns:
+        OpenAI格式的工具定义字典
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": "query_events_by_target",
+            "description": "Query events by target agent or target node (direct messages). Use this to retrieve point-to-point messages sent to a specific agent or node.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_agent": {
+                        "type": "string",
+                        "description": "Target agent ID",
+                    },
+                    "target_node_id": {
+                        "type": "string",
+                        "description": "Target node ID (optional)",
+                    },
+                    "action_filter": {
+                        "type": "string",
+                        "description": "Optional action filter",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of events to retrieve (default: 10)",
+                        "default": 10,
+                    },
+                },
+                "required": [],
+            },
+        },
+    }
+
+
+async def execute_query_events_by_target_tool(
+    args: dict, event_bus: "EventBus"
+) -> dict[str, Any]:
+    """
+    执行按目标查询事件
+
+    Args:
+        args: 工具参数
+        event_bus: EventBus实例
+
+    Returns:
+        查询结果
+    """
+    target_agent = args.get("target_agent")
+    target_node_id = args.get("target_node_id")
+    action_filter = args.get("action_filter")
+    limit = args.get("limit", 10)
+
+    if not target_agent and not target_node_id:
+        return {
+            "query_type": "by_target",
+            "error": "target_agent or target_node_id is required",
+            "count": 0,
+            "events": [],
+        }
+
+    events = event_bus.query_by_target(
+        target_agent=target_agent,
+        target_node_id=target_node_id,
+        action_filter=action_filter,
+        limit=limit,
+    )
+
+    return {
+        "query_type": "by_target",
+        "target_agent": target_agent,
+        "target_node_id": target_node_id,
+        "count": len(events),
+        "events": [
+            {
+                "task_id": event.task_id,
+                "action": event.action,
+                "parameters": event.parameters,
                 "status": event.status.value if event.status else None,
                 "created_at": event.created_at.isoformat() if event.created_at else None,
             }
@@ -489,14 +599,14 @@ def create_query_recent_events_tool() -> dict:
 
 
 async def execute_query_recent_events_tool(
-    args: dict, event_bus: "QueryableEventBus"
+    args: dict, event_bus: "EventBus"
 ) -> dict[str, Any]:
     """
     执行查询最近事件
 
     Args:
         args: 工具参数 {"limit": 10, "action_filter": "...", "node_filter": "..."}
-        event_bus: QueryableEventBus实例
+        event_bus: EventBus实例
 
     Returns:
         查询结果
@@ -564,14 +674,14 @@ def create_query_thinking_process_tool() -> dict:
 
 
 async def execute_query_thinking_process_tool(
-    args: dict, event_bus: "QueryableEventBus"
+    args: dict, event_bus: "EventBus"
 ) -> dict[str, Any]:
     """
     执行查询思考过程
 
     Args:
         args: 工具参数 {"node_id": "...", "task_id": "...", "limit": 10}
-        event_bus: QueryableEventBus实例
+        event_bus: EventBus实例
 
     Returns:
         查询结果
@@ -610,6 +720,7 @@ def create_all_context_tools() -> list[dict]:
         # Event tools
         create_query_events_by_action_tool(),
         create_query_events_by_node_tool(),
+        create_query_events_by_target_tool(),
         create_query_recent_events_tool(),
         create_query_thinking_process_tool(),
     ]
@@ -622,13 +733,13 @@ class ContextToolExecutor:
     负责路由工具调用到对应的执行函数
     """
 
-    def __init__(self, memory: "LoomMemory", event_bus: "QueryableEventBus"):
+    def __init__(self, memory: "LoomMemory", event_bus: "EventBus"):
         """
         初始化执行器
 
         Args:
             memory: LoomMemory实例
-            event_bus: QueryableEventBus实例
+            event_bus: EventBus实例
         """
         self.memory = memory
         self.event_bus = event_bus
@@ -641,6 +752,7 @@ class ContextToolExecutor:
             "query_l4_memory": self._execute_query_l4_memory,
             "query_events_by_action": self._execute_query_events_by_action,
             "query_events_by_node": self._execute_query_events_by_node,
+            "query_events_by_target": self._execute_query_events_by_target,
             "query_recent_events": self._execute_query_recent_events,
             "query_thinking_process": self._execute_query_thinking_process,
         }
@@ -684,6 +796,9 @@ class ContextToolExecutor:
 
     async def _execute_query_events_by_node(self, args: dict) -> dict[str, Any]:
         return await execute_query_events_by_node_tool(args, self.event_bus)
+
+    async def _execute_query_events_by_target(self, args: dict) -> dict[str, Any]:
+        return await execute_query_events_by_target_tool(args, self.event_bus)
 
     async def _execute_query_recent_events(self, args: dict) -> dict[str, Any]:
         return await execute_query_recent_events_tool(args, self.event_bus)

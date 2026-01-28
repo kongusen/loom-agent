@@ -8,6 +8,7 @@ Task-based Context Management
 2. 将 Task 转换为 LLM 消息格式
 3. 智能压缩和总结
 4. 精确的 token 控制
+5. 上下文预算分配（Context Budgeter）
 
 设计理念：
 - 防止上下文腐化
@@ -16,6 +17,8 @@ Task-based Context Management
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from loom.memory.tokenizer import TokenCounter
@@ -23,8 +26,295 @@ from loom.protocol import Task
 
 if TYPE_CHECKING:
     from loom.config.knowledge import KnowledgeBaseProvider
-    from loom.events.queryable_event_bus import QueryableEventBus
+    from loom.events.event_bus import EventBus
     from loom.memory.core import LoomMemory
+
+
+# ==================== 上下文预算分配器 ====================
+
+
+@dataclass
+class BudgetAllocation:
+    """
+    上下文预算分配结果
+
+    Attributes:
+        l1_tokens: L1层（最近任务）分配的token数
+        l2_tokens: L2层（重要任务）分配的token数
+        l3_l4_tokens: L3/L4层（摘要/向量）分配的token数
+        eventbus_tokens: EventBus事件分配的token数
+        system_tokens: 系统提示词预留的token数
+    """
+
+    l1_tokens: int = 0
+    l2_tokens: int = 0
+    l3_l4_tokens: int = 0
+    eventbus_tokens: int = 0
+    system_tokens: int = 0
+
+    @property
+    def total(self) -> int:
+        """总分配token数"""
+        return self.l1_tokens + self.l2_tokens + self.l3_l4_tokens + self.eventbus_tokens
+
+
+@dataclass
+class BudgetConfig:
+    """
+    上下文预算配置
+
+    Attributes:
+        l1_ratio: L1层分配比例（默认30%）
+        l2_ratio: L2层分配比例（默认25%，用于Bus相关上下文）
+        l3_l4_ratio: L3/L4层分配比例（默认20%）
+        direct_min_items: Direct最小保留条数（默认1）
+        bus_min_items: Bus最小保留条数（默认2）
+        system_reserve: 系统提示词预留比例（默认15%）
+    """
+
+    l1_ratio: float = 0.30
+    l2_ratio: float = 0.25
+    l3_l4_ratio: float = 0.20
+    direct_min_items: int = 1
+    bus_min_items: int = 2
+    system_reserve: float = 0.15
+
+
+@dataclass
+class EventCandidate:
+    """
+    事件候选项（用于排序）
+
+    Attributes:
+        task: 事件Task对象
+        score: 综合评分
+        time_score: 时间衰减分数
+        action_score: 动作权重分数
+        relevance_score: 相关性分数
+        node_score: 节点权重分数
+    """
+
+    task: Task
+    score: float = 0.0
+    time_score: float = 0.0
+    action_score: float = 0.0
+    relevance_score: float = 0.0
+    node_score: float = 0.0
+
+
+class ContextBudgeter:
+    """
+    上下文预算分配器
+
+    负责智能分配上下文token预算到不同层级，并对事件候选进行排序。
+
+    预算分配策略：
+    - L1（最近任务 + Direct）: 30% - 保证直连与最近上下文的完整性
+    - L2（Bus相关）: 25% - 保留跨节点相关信息
+    - L3/L4（摘要/向量）: 20% - 长期记忆检索
+
+    事件排序策略：
+    - 时间衰减（40%）: 越近的事件权重越高
+    - 动作权重（25%）: thinking > tool_call > other
+    - 相关性（20%）: 关键词/embedding匹配
+    - 节点权重（15%）: 父节点 > 兄弟节点 > 其他
+    """
+
+    def __init__(
+        self,
+        token_counter: TokenCounter,
+        max_tokens: int = 4000,
+        config: BudgetConfig | None = None,
+    ):
+        """
+        初始化上下文预算分配器
+
+        Args:
+            token_counter: Token计数器
+            max_tokens: 最大token数
+            config: 预算配置（可选）
+        """
+        self.token_counter = token_counter
+        self.max_tokens = max_tokens
+        self.config = self._normalize_config(config or BudgetConfig())
+
+        # 动作类型权重
+        self._action_weights = {
+            "node.thinking": 1.0,
+            "node.tool_call": 0.8,
+            "node.planning": 0.9,
+            "node.error": 0.7,
+            "execute": 0.6,
+        }
+
+    def _normalize_config(self, config: BudgetConfig) -> BudgetConfig:
+        """归一化比例配置，避免错误配置导致预算失真"""
+        l1 = max(0.0, config.l1_ratio)
+        l2 = max(0.0, config.l2_ratio)
+        l3 = max(0.0, config.l3_l4_ratio)
+
+        total = l1 + l2 + l3
+        if total <= 0:
+            return BudgetConfig()
+
+        l1 /= total
+        l2 /= total
+        l3 /= total
+        direct_min_items = int(max(0, config.direct_min_items))
+        bus_min_items = int(max(0, config.bus_min_items))
+
+        return BudgetConfig(
+            l1_ratio=l1,
+            l2_ratio=l2,
+            l3_l4_ratio=l3,
+            direct_min_items=direct_min_items,
+            bus_min_items=bus_min_items,
+            system_reserve=config.system_reserve,
+        )
+
+    def allocate_budget(self, system_prompt_tokens: int = 0) -> BudgetAllocation:
+        """
+        分配上下文预算
+
+        Args:
+            system_prompt_tokens: 系统提示词占用的token数
+
+        Returns:
+            预算分配结果
+        """
+        # 计算可用token（扣除系统提示词）
+        available = self.max_tokens - system_prompt_tokens
+
+        if available <= 0:
+            return BudgetAllocation(system_tokens=system_prompt_tokens)
+
+        # 按比例分配
+        return BudgetAllocation(
+            l1_tokens=int(available * self.config.l1_ratio),
+            l2_tokens=int(available * self.config.l2_ratio),
+            l3_l4_tokens=int(available * self.config.l3_l4_ratio),
+            system_tokens=system_prompt_tokens,
+        )
+
+    def rank_events(
+        self,
+        events: list[Task],
+        current_task: Task,
+        current_node_id: str | None = None,
+        parent_node_id: str | None = None,
+        keywords: list[str] | None = None,
+    ) -> list[EventCandidate]:
+        """
+        对事件候选进行排序
+
+        排序策略：
+        - 时间衰减（40%）: 越近的事件权重越高
+        - 动作权重（25%）: thinking > tool_call > other
+        - 相关性（20%）: 关键词匹配
+        - 节点权重（15%）: 父节点 > 兄弟节点 > 其他
+
+        Args:
+            events: 事件列表
+            current_task: 当前任务
+            current_node_id: 当前节点ID
+            parent_node_id: 父节点ID
+            keywords: 相关关键词列表
+
+        Returns:
+            排序后的事件候选列表
+        """
+        if not events:
+            return []
+
+        candidates = []
+        now = datetime.now(timezone.utc)
+
+        for event in events:
+            candidate = EventCandidate(task=event)
+
+            # 1. 时间衰减分数（40%权重）
+            candidate.time_score = self._calc_time_score(event, now)
+
+            # 2. 动作权重分数（25%权重）
+            candidate.action_score = self._calc_action_score(event)
+
+            # 3. 相关性分数（20%权重）
+            candidate.relevance_score = self._calc_relevance_score(event, keywords)
+
+            # 4. 节点权重分数（15%权重）
+            candidate.node_score = self._calc_node_score(
+                event, current_node_id, parent_node_id
+            )
+
+            # 综合评分
+            candidate.score = (
+                candidate.time_score * 0.40
+                + candidate.action_score * 0.25
+                + candidate.relevance_score * 0.20
+                + candidate.node_score * 0.15
+            )
+
+            candidates.append(candidate)
+
+        # 按分数降序排序
+        candidates.sort(key=lambda c: c.score, reverse=True)
+        return candidates
+
+    def _calc_time_score(self, event: Task, now: datetime) -> float:
+        """计算时间衰减分数"""
+        if not event.created_at:
+            return 0.5  # 无时间戳，给中等分数
+
+        # 计算时间差（秒）
+        delta = (now - event.created_at).total_seconds()
+
+        # 指数衰减：半衰期为1小时（3600秒）
+        half_life = 3600
+        return 2 ** (-delta / half_life)
+
+    def _calc_action_score(self, event: Task) -> float:
+        """计算动作权重分数"""
+        return self._action_weights.get(event.action, 0.5)
+
+    def _calc_relevance_score(
+        self, event: Task, keywords: list[str] | None
+    ) -> float:
+        """计算相关性分数（基于关键词匹配）"""
+        if not keywords:
+            return 0.5  # 无关键词，给中等分数
+
+        # 从事件内容中提取文本
+        content = event.parameters.get("content", "")
+        if not content:
+            return 0.3
+
+        # 计算关键词匹配率
+        content_lower = content.lower()
+        matches = sum(1 for kw in keywords if kw.lower() in content_lower)
+        return min(1.0, matches / len(keywords))
+
+    def _calc_node_score(
+        self,
+        event: Task,
+        current_node_id: str | None,
+        parent_node_id: str | None,
+    ) -> float:
+        """计算节点权重分数"""
+        event_node_id = event.parameters.get("node_id")
+
+        if not event_node_id:
+            return 0.3
+
+        # 父节点事件权重最高
+        if parent_node_id and event_node_id == parent_node_id:
+            return 1.0
+
+        # 当前节点事件次之
+        if current_node_id and event_node_id == current_node_id:
+            return 0.8
+
+        # 其他节点
+        return 0.5
 
 
 # ==================== 接口定义 ====================
@@ -92,6 +382,36 @@ class MessageConverter:
             tool_args = params.get("tool_args", {})
             return {"role": "assistant", "content": f"[Calling {tool_name}({tool_args})]"}
 
+        elif action == "node.message":
+            # 节点消息 → assistant 消息
+            content = params.get("content") or params.get("message", "")
+            if content:
+                return {"role": "assistant", "content": f"[Direct message] {content}"}
+
+        elif action == "node.delegation_request":
+            # 委派请求 → assistant 消息（避免混淆为用户指令）
+            subtask = (
+                params.get("subtask")
+                or params.get("subtask_description")
+                or params.get("content", "")
+            )
+            source = task.source_agent or params.get("source_agent") or "unknown"
+            if subtask:
+                return {
+                    "role": "assistant",
+                    "content": f"[Delegation request from {source}] {subtask}",
+                }
+
+        elif action == "node.delegation_response":
+            # 委派响应 → assistant 消息
+            result = params.get("result") or params.get("content", "")
+            source = task.source_agent or params.get("source_agent") or "unknown"
+            if result:
+                return {
+                    "role": "assistant",
+                    "content": f"[Delegation response from {source}] {result}",
+                }
+
         elif action == "execute":
             # 任务执行 → user 消息
             content = params.get("content", "")
@@ -137,15 +457,19 @@ class MemoryContextSource(ContextSource):
 
     async def get_context(
         self,
-        _current_task: Task,
+        current_task: Task,
         max_items: int = 10,
     ) -> list[Task]:
         """获取记忆中的相关任务"""
         # 1. 优先从 L2 获取（重要任务）
-        l2_tasks = self.memory.get_l2_tasks(limit=max_items // 2)
+        l2_tasks = self.memory.get_l2_tasks(
+            limit=max_items // 2, session_id=current_task.session_id
+        )
 
         # 2. 从 L1 获取最近任务
-        l1_tasks = self.memory.get_l1_tasks(limit=max_items // 2)
+        l1_tasks = self.memory.get_l1_tasks(
+            limit=max_items // 2, session_id=current_task.session_id
+        )
 
         # 3. 合并去重
         seen_ids = set()
@@ -166,7 +490,7 @@ class EventBusContextSource(ContextSource):
     获取思考过程、工具调用等事件。
     """
 
-    def __init__(self, event_bus: "QueryableEventBus"):
+    def __init__(self, event_bus: "EventBus"):
         self.event_bus = event_bus
 
     async def get_context(
@@ -220,6 +544,9 @@ class TaskContextManager:
         max_tokens: int = 4000,
         system_prompt: str = "",
         knowledge_base: "KnowledgeBaseProvider | None" = None,
+        node_id: str | None = None,
+        budgeter: ContextBudgeter | None = None,
+        budget_config: BudgetConfig | dict[str, float | int] | None = None,
     ):
         """初始化上下文管理器"""
         self.token_counter = token_counter
@@ -228,6 +555,52 @@ class TaskContextManager:
         self.max_tokens = max_tokens
         self.system_prompt = system_prompt
         self.knowledge_base = knowledge_base
+        self.node_id = node_id
+        if budgeter:
+            self.budgeter = budgeter
+        else:
+            config = budget_config
+            if isinstance(config, dict):
+                config = BudgetConfig(**config)
+            self.budgeter = ContextBudgeter(
+                token_counter, max_tokens=max_tokens, config=config
+            )
+
+    def _get_event_bus(self) -> "EventBus | None":
+        """从sources中获取EventBus实例（如果存在）"""
+        for source in self.sources:
+            if hasattr(source, "event_bus"):
+                return source.event_bus  # type: ignore[return-value]
+        return None
+
+    def _extract_keywords(self, text: str) -> list[str]:
+        """从文本中提取简单关键词"""
+        import re
+
+        if not text:
+            return []
+        words = re.findall(r"\w+", text.lower())
+        stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
+        keywords = [w for w in words if w not in stopwords and len(w) > 2]
+        return list(dict.fromkeys(keywords))  # 去重保序
+
+    def _trim_messages_to_budget(
+        self, messages: list[dict[str, str]], max_tokens: int, min_items: int = 0
+    ) -> list[dict[str, str]]:
+        """按预算裁剪消息列表"""
+        if max_tokens <= 0 or not messages:
+            return messages[:min_items] if min_items > 0 else []
+        selected: list[dict[str, str]] = []
+        total = 0
+        for msg in messages:
+            msg_tokens = self.token_counter.count_messages([msg])
+            if total + msg_tokens > max_tokens:
+                break
+            selected.append(msg)
+            total += msg_tokens
+        if min_items > 0 and len(selected) < min_items:
+            return messages[:min_items]
+        return selected
 
     async def build_context(
         self,
@@ -240,6 +613,7 @@ class TaskContextManager:
         - L1（最近任务）自动包含在上下文中（保证速度）
         - 当前任务直接包含
         - L2/L3/L4通过工具按需查询（以压缩陈述句形式）
+        - Direct归入L1预算，Bus归入L2预算
 
         Args:
             current_task: 当前正在处理的任务
@@ -247,46 +621,124 @@ class TaskContextManager:
         Returns:
             OpenAI 格式的消息列表
         """
-        # 1. 收集L1最近任务（自动包含，保证速度）
-        l1_tasks = []
+        # 1. 计算预算分配
+        system_tokens = (
+            self.token_counter.count_messages([{"role": "system", "content": self.system_prompt}])
+            if self.system_prompt
+            else 0
+        )
+        allocation = self.budgeter.allocate_budget(system_prompt_tokens=system_tokens)
+
+        # 2. 收集L1最近任务（自动包含）
+        l1_tasks: list[Task] = []
         for source in self.sources:
-            # 只从MemoryContextSource获取L1任务
             if hasattr(source, "memory") and hasattr(source.memory, "get_l1_tasks"):
-                l1_tasks = source.memory.get_l1_tasks(limit=10)  # 最近10个任务
+                l1_tasks = source.memory.get_l1_tasks(limit=10)
                 break
 
-        # 2. 转换L1任务为消息
-        context_messages = []
-        if l1_tasks:
-            context_messages = self.converter.convert_tasks_to_messages(l1_tasks)
+        l1_messages = self.converter.convert_tasks_to_messages(l1_tasks) if l1_tasks else []
+        l1_messages = self._trim_messages_to_budget(l1_messages, allocation.l1_tokens)
 
-        # 3. 外部知识库查询（自动包含相关知识）
+        # 3. EventBus点对点消息（direct）
+        direct_messages: list[dict[str, str]] = []
+        event_bus = self._get_event_bus()
+        if event_bus and self.node_id and hasattr(event_bus, "query_by_target"):
+            direct_events = event_bus.query_by_target(  # type: ignore[attr-defined]
+                target_agent=self.node_id,
+                target_node_id=self.node_id,
+                limit=50,
+            )
+            if current_task.session_id:
+                direct_events = [
+                    e for e in direct_events if e.session_id == current_task.session_id
+                ]
+            direct_messages = self.converter.convert_tasks_to_messages(direct_events)
+
+        # 4. EventBus集体消息（bus），基于评分筛选
+        bus_messages: list[dict[str, str]] = []
+        if event_bus and hasattr(event_bus, "query_by_task"):
+            # 收集候选事件
+            parent_task_id = current_task.parameters.get("parent_task_id") or current_task.parent_task_id
+            candidates = []
+            candidates.extend(event_bus.query_by_task(current_task.task_id))
+            if parent_task_id:
+                candidates.extend(event_bus.query_by_task(parent_task_id))
+            candidates.extend(event_bus.query_recent(limit=50))
+
+            # 去重
+            seen_ids: set[str] = set()
+            unique_candidates: list[Task] = []
+            for event in candidates:
+                if event.task_id in seen_ids:
+                    continue
+                unique_candidates.append(event)
+                seen_ids.add(event.task_id)
+
+            # 会话过滤（如果有session_id）
+            if current_task.session_id:
+                unique_candidates = [
+                    e for e in unique_candidates if e.session_id == current_task.session_id
+                ]
+
+            # 排序与筛选
+            keywords = self._extract_keywords(current_task.parameters.get("content", ""))
+            ranked = self.budgeter.rank_events(
+                unique_candidates,
+                current_task=current_task,
+                current_node_id=self.node_id,
+                parent_node_id=parent_task_id,
+                keywords=keywords,
+            )
+            ranked_tasks = [c.task for c in ranked]
+            bus_messages = self.converter.convert_tasks_to_messages(ranked_tasks)
+
+        # 5. 预算分配给 direct（归入L1）/bus（归入L2）
+        direct_budget = allocation.l1_tokens
+        bus_budget = allocation.l2_tokens
+
+        direct_messages = self._trim_messages_to_budget(
+            direct_messages,
+            direct_budget,
+            min_items=self.budgeter.config.direct_min_items,
+        )
+
+        # L1剩余预算给本地L1记忆
+        direct_tokens = self.token_counter.count_messages(direct_messages)
+        l1_remaining = max(0, allocation.l1_tokens - direct_tokens)
+        l1_messages = self._trim_messages_to_budget(l1_messages, l1_remaining)
+
+        bus_messages = self._trim_messages_to_budget(
+            bus_messages, bus_budget, min_items=self.budgeter.config.bus_min_items
+        )
+
+        # 6. 外部知识库查询（自动包含相关知识）
+        knowledge_messages: list[dict[str, str]] = []
         if self.knowledge_base:
-            # 使用当前任务的action作为查询
             query = current_task.action
             knowledge_items = await self.knowledge_base.query(query, limit=3)
-
-            # 转换知识条目为消息格式
             for item in knowledge_items:
-                context_messages.append(
+                knowledge_messages.append(
                     {
                         "role": "system",
                         "content": f"📚 Knowledge: {item.content}\n(Source: {item.source})",
                     }
                 )
 
-        # 4. 添加当前任务
+        # 7. 添加当前任务
         current_task_messages = self.converter.convert_tasks_to_messages([current_task])
-        context_messages.extend(current_task_messages)
 
-        # 5. 添加系统提示词
-        final_messages = []
+        # 8. 合并消息（direct靠近末尾优先保留）
+        final_messages: list[dict[str, str]] = []
         if self.system_prompt:
             final_messages.append({"role": "system", "content": self.system_prompt})
 
-        final_messages.extend(context_messages)
+        final_messages.extend(l1_messages)
+        final_messages.extend(knowledge_messages)
+        final_messages.extend(bus_messages)
+        final_messages.extend(direct_messages)
+        final_messages.extend(current_task_messages)
 
-        # 5. Token 限制处理（硬限制，由框架强制执行）
+        # 9. Token 限制处理（硬限制，由框架强制执行）
         return self._fit_to_token_limit(final_messages)
 
     def _fit_to_token_limit(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
