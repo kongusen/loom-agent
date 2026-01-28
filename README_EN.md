@@ -2,7 +2,7 @@
 
 <img src="loom.svg" alt="Loom Agent" width="300"/>
 
-# 🧶 loom-agent
+# loom-agent
 
 **Long Horizon Agents Framework**
 *Agents that don't collapse when problems get long.*
