@@ -14,9 +14,9 @@ Event Bus - 事件总线
 import asyncio
 import contextlib
 import json
-from datetime import datetime, timezone
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 from loom.events.actions import AgentAction, MemoryAction, TaskAction
@@ -340,7 +340,7 @@ class EventBus:
             seen_ids.add(event.task_id)
 
         # TTL过滤
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         filtered: list[Task] = []
         for event in unique:
             ttl_seconds = event.parameters.get("ttl_seconds")

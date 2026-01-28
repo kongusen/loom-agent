@@ -16,6 +16,7 @@ Recursive Budget Control - 递归预算控制
 - 质量评估由LLM自我判断，而非启发式规则
 """
 
+import contextlib
 import json
 import logging
 import re
@@ -421,8 +422,6 @@ class QualityEvaluator:
             pattern = rf'{key}[:\s]+([0-9.]+)'
             match = re.search(pattern, response, re.IGNORECASE)
             if match:
-                try:
+                with contextlib.suppress(ValueError):
                     defaults[key] = min(1.0, max(0.0, float(match.group(1))))
-                except ValueError:
-                    pass
         return defaults

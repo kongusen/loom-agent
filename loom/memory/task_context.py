@@ -18,7 +18,7 @@ Task-based Context Management
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from loom.memory.tokenizer import TokenCounter
@@ -226,8 +226,12 @@ class ContextBudgeter:
         if not events:
             return []
 
+        if keywords is None:
+            content = current_task.parameters.get("content", "")
+            keywords = self._fallback_keywords(content)
+
         candidates = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for event in events:
             candidate = EventCandidate(task=event)
@@ -280,6 +284,9 @@ class ContextBudgeter:
         self, event: Task, keywords: list[str] | None
     ) -> float:
         """计算相关性分数（基于关键词匹配）"""
+        embedded_score = event.metadata.get("_relevance_score")
+        if isinstance(embedded_score, int | float):
+            return float(embedded_score)
         if not keywords:
             return 0.5  # 无关键词，给中等分数
 
@@ -292,6 +299,30 @@ class ContextBudgeter:
         content_lower = content.lower()
         matches = sum(1 for kw in keywords if kw.lower() in content_lower)
         return min(1.0, matches / len(keywords))
+
+    def _fallback_keywords(self, text: str) -> list[str]:
+        """无外部分词器时的简单关键词提取（含中文二/三元组）"""
+        import re
+
+        if not text:
+            return []
+        words = re.findall(r"\w+", text.lower())
+        stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
+        keywords = [w for w in words if w not in stopwords and len(w) > 2]
+
+        if not keywords:
+            cjk_sequences = re.findall(r"[\u4e00-\u9fff]+", text)
+            cjk_terms: list[str] = []
+            for seq in cjk_sequences:
+                if len(seq) <= 1:
+                    continue
+                for i in range(len(seq) - 1):
+                    cjk_terms.append(seq[i : i + 2])
+                for i in range(len(seq) - 2):
+                    cjk_terms.append(seq[i : i + 3])
+            keywords = list(dict.fromkeys(cjk_terms))[:20]
+
+        return list(dict.fromkeys(keywords))
 
     def _calc_node_score(
         self,
@@ -579,15 +610,123 @@ class TaskContextManager:
                     return event_bus
         return None
 
-    def _extract_keywords(self, text: str) -> list[str]:
-        """从文本中提取简单关键词"""
+    def _get_embedding_provider(self) -> Any | None:
+        """尝试获取可用的 embedding provider"""
+        for source in self.sources:
+            if hasattr(source, "memory"):
+                provider = getattr(source.memory, "embedding_provider", None)
+                if provider:
+                    return provider
+        if self.knowledge_base and hasattr(self.knowledge_base, "embedding_provider"):
+            provider = getattr(self.knowledge_base, "embedding_provider", None)
+            if provider:
+                return provider
+        return None
+
+    def _cosine_similarity(self, vec_a: list[float], vec_b: list[float]) -> float:
+        """计算余弦相似度（0-1 映射）"""
+        if not vec_a or not vec_b or len(vec_a) != len(vec_b):
+            return 0.0
+        dot = 0.0
+        norm_a = 0.0
+        norm_b = 0.0
+        for a, b in zip(vec_a, vec_b, strict=True):
+            dot += a * b
+            norm_a += a * a
+            norm_b += b * b
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 0.0
+        similarity = dot / ((norm_a ** 0.5) * (norm_b ** 0.5))
+        return max(0.0, min(1.0, (similarity + 1.0) / 2.0))
+
+    async def _compute_embedding_relevance(
+        self, events: list[Task], content: str, provider: Any
+    ) -> bool:
+        """用 embedding 计算事件相关性，写入 event.metadata"""
+        if not content:
+            return False
+
+        event_texts: list[str] = []
+        event_indices: list[int] = []
+        for idx, event in enumerate(events):
+            text = event.parameters.get("content", "")
+            if text:
+                event_texts.append(text)
+                event_indices.append(idx)
+
+        if not event_texts:
+            return False
+
+        try:
+            if hasattr(provider, "embed_batch"):
+                vectors = await provider.embed_batch([content] + event_texts)
+            else:
+                vectors = [await provider.embed(content)]
+                for text in event_texts:
+                    vectors.append(await provider.embed(text))
+        except Exception:
+            return False
+
+        if len(vectors) < 2:
+            return False
+
+        query_vec = vectors[0]
+        for idx, vec in zip(event_indices, vectors[1:], strict=True):
+            score = self._cosine_similarity(query_vec, vec)
+            events[idx].metadata["_relevance_score"] = score
+
+        return True
+
+    def _extract_keywords(
+        self,
+        text: str,
+        *,
+        prefer_jieba: bool = False,
+        prefer_pkuseg: bool = False,
+    ) -> list[str]:
+        """从文本中提取关键词（embedding失败时的回退策略）"""
         import re
 
         if not text:
             return []
+
+        if prefer_jieba:
+            try:
+                import jieba
+
+                tokens = [t.strip() for t in jieba.lcut(text) if len(t.strip()) > 1]
+                if tokens:
+                    return list(dict.fromkeys(tokens))
+            except ImportError:
+                pass
+
+        if prefer_pkuseg:
+            try:
+                import pkuseg
+
+                seg = pkuseg.pkuseg()
+                tokens = [t.strip() for t in seg.cut(text) if len(t.strip()) > 1]
+                if tokens:
+                    return list(dict.fromkeys(tokens))
+            except ImportError:
+                pass
+
         words = re.findall(r"\w+", text.lower())
         stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
         keywords = [w for w in words if w not in stopwords and len(w) > 2]
+
+        if not keywords:
+            cjk_sequences = re.findall(r"[\u4e00-\u9fff]+", text)
+            cjk_terms: list[str] = []
+            for seq in cjk_sequences:
+                if len(seq) <= 1:
+                    continue
+                for i in range(len(seq) - 1):
+                    cjk_terms.append(seq[i : i + 2])
+                for i in range(len(seq) - 2):
+                    cjk_terms.append(seq[i : i + 3])
+            keywords = list(dict.fromkeys(cjk_terms))[:20]
+
         return list(dict.fromkeys(keywords))  # 去重保序
 
     def _trim_messages_to_budget(
@@ -687,7 +826,16 @@ class TaskContextManager:
                 ]
 
             # 排序与筛选
-            keywords = self._extract_keywords(current_task.parameters.get("content", ""))
+            content = current_task.parameters.get("content", "")
+            keywords: list[str] | None = None
+            provider = self._get_embedding_provider()
+            if provider:
+                embedded_ok = await self._compute_embedding_relevance(
+                    unique_candidates, content, provider
+                )
+                keywords = [] if embedded_ok else self._extract_keywords(content, prefer_jieba=True)
+            else:
+                keywords = self._extract_keywords(content, prefer_pkuseg=True)
             ranked = self.budgeter.rank_events(
                 unique_candidates,
                 current_task=current_task,

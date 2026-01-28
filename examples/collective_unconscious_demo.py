@@ -14,8 +14,8 @@ Collective Unconscious Demo - 集体潜意识演示
 
 import asyncio
 
+from loom.events.event_bus import EventBus
 from loom.events.memory_transport import MemoryTransport
-from loom.events.EventBusevent_bus import EventBus
 from loom.memory.context_builder import ContextBuilder
 from loom.orchestration.agent import Agent
 from loom.protocol import Task

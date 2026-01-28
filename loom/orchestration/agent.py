@@ -26,9 +26,8 @@ Agent - 自主智能体基类
 from collections import defaultdict, deque
 from typing import Any
 
-from loom.events.event_bus import EventBus
 from loom.exceptions import TaskComplete
-from loom.fractal.budget import BudgetTracker, QualityMetrics, RecursiveBudget
+from loom.fractal.budget import BudgetTracker
 from loom.memory.core import LoomMemory
 from loom.memory.task_context import (
     EventBusContextSource,
