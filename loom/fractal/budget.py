@@ -344,10 +344,16 @@ class QualityEvaluator:
         metrics: QualityMetrics,
     ) -> QualityMetrics:
         """使用LLM进行评估"""
+        provider = self._provider
+        if provider is None:
+            metrics.confidence = 0.5
+            metrics.coverage = 0.5
+            metrics.novelty = 0.5
+            return metrics
         prompt = self._build_evaluation_prompt(task_description, result, parent_context)
 
         try:
-            response = await self._provider.chat(
+            response = await provider.chat(
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=500,
             )

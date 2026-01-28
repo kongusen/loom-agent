@@ -19,7 +19,7 @@ Task-based Context Management
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from loom.memory.tokenizer import TokenCounter
 from loom.protocol import Task
@@ -561,7 +561,7 @@ class TaskContextManager:
         else:
             config = budget_config
             if isinstance(config, dict):
-                config = BudgetConfig(**config)
+                config = BudgetConfig(**cast(dict[str, Any], config))
             self.budgeter = ContextBudgeter(
                 token_counter, max_tokens=max_tokens, config=config
             )
@@ -570,7 +570,13 @@ class TaskContextManager:
         """从sources中获取EventBus实例（如果存在）"""
         for source in self.sources:
             if hasattr(source, "event_bus"):
-                return source.event_bus  # type: ignore[return-value]
+                event_bus = getattr(source, "event_bus", None)
+                if event_bus is None:
+                    continue
+                from loom.events.event_bus import EventBus
+
+                if isinstance(event_bus, EventBus):
+                    return event_bus
         return None
 
     def _extract_keywords(self, text: str) -> list[str]:

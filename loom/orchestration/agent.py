@@ -314,9 +314,13 @@ class Agent(BaseNode):
         # 如果tool_args是字符串，解析为字典
         if isinstance(tool_args, str):
             try:
-                tool_args = json.loads(tool_args)
+                parsed_args: dict[str, Any] = json.loads(tool_args)
             except json.JSONDecodeError:
                 return f"错误：无法解析工具参数 - {tool_args}"
+        elif isinstance(tool_args, dict):
+            parsed_args = tool_args
+        else:
+            parsed_args = {}
 
         # 检查是否是上下文查询工具
         context_tool_names = {
@@ -332,7 +336,7 @@ class Agent(BaseNode):
         }
         if tool_name in context_tool_names and self._context_tool_executor:
             try:
-                result = await self._context_tool_executor.execute(tool_name, tool_args)
+                result = await self._context_tool_executor.execute(tool_name, parsed_args)
                 return json.dumps(result, ensure_ascii=False, default=str)
             except Exception as e:
                 return f"错误：上下文工具执行失败 - {str(e)}"
@@ -347,7 +351,7 @@ class Agent(BaseNode):
 
         try:
             # 执行工具
-            result = await tool_func(**tool_args)
+            result = await tool_func(**parsed_args)
             return str(result)
         except Exception as e:
             return f"错误：工具执行失败 - {str(e)}"
