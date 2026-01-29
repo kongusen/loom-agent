@@ -510,87 +510,93 @@ class SSEAdapter:
 阶段 4: 测试和修复（1周）
 ```
 
-### 4.2 阶段 1：EventBus 重构（P0）
+### 4.2 阶段 1：EventBus 重构（P0）✅
 
 **目标**：EventBus 不修改 Task.status，移除长期存储
+
+**状态**：✅ 已完成
 
 **任务清单**：
 
 1. **修改 EventBus.publish()**
-   - [ ] 移除 `task.status = TaskStatus.RUNNING`（line 114）
-   - [ ] 移除 `result_task.status = TaskStatus.COMPLETED`（line 148）
-   - [ ] 移除 `task.status = TaskStatus.FAILED`（line 129）
-   - [ ] 保留 handler 返回的原始 Task
+   - [x] 移除 `task.status = TaskStatus.RUNNING`（line 114）
+   - [x] 移除 `result_task.status = TaskStatus.COMPLETED`（line 148）
+   - [x] 移除 `task.status = TaskStatus.FAILED`（line 129）
+   - [x] 保留 handler 返回的原始 Task
 
 2. **移除长期存储**
-   - [ ] 移除 `_event_history`
-   - [ ] 移除所有索引（`_events_by_node`, `_events_by_action`, etc）
-   - [ ] 移除所有查询方法（`query_by_node`, `query_by_action`, etc）
-   - [ ] 可选：保留 `_recent_events: deque(maxlen=100)` 用于调试
+   - [x] 移除 `_event_history`
+   - [x] 移除所有索引（`_events_by_node`, `_events_by_action`, etc）
+   - [x] 移除所有查询方法（`query_by_node`, `query_by_action`, etc）
+   - [x] 可选：保留 `_recent_events: deque(maxlen=100)` 用于调试
 
 3. **支持通配符订阅**
-   - [ ] 修改 `register_handler()` 支持 `"*"` 通配符
-   - [ ] 实现模式匹配逻辑
+   - [x] 修改 `register_handler()` 支持 `"*"` 通配符
+   - [x] 实现模式匹配逻辑
 
 **验收标准**：
 
-- ✓ Handler 返回的 status 不被覆盖
-- ✓ EventBus 不长期存储 Task
-- ✓ 支持 `register_handler("*", handler)` 订阅所有 Task
+- ✅ Handler 返回的 status 不被覆盖
+- ✅ EventBus 不长期存储 Task
+- ✅ 支持 `register_handler("*", handler)` 订阅所有 Task
 
-### 4.3 阶段 2：Memory 订阅机制（P0）
+### 4.3 阶段 2：Memory 订阅机制（P0）✅
 
 **目标**：Memory 订阅 EventBus，自动接收所有 Task
+
+**状态**：✅ 已完成
 
 **任务清单**：
 
 1. **修改 LoomMemory 初始化**
-   - [ ] 添加 `event_bus` 参数
-   - [ ] 在 `__init__` 中订阅 EventBus
-   - [ ] 实现 `_on_task()` handler
+   - [x] 添加 `event_bus` 参数
+   - [x] 在 `__init__` 中订阅 EventBus
+   - [x] 实现 `_on_task()` handler
 
 2. **实现选择性存储逻辑**
-   - [ ] L1: 存储所有 Task（最近 50 条）
-   - [ ] L2: 存储重要 Task（importance > 0.6）
-   - [ ] L3: 自动压缩（L2 满时）
-   - [ ] L4: 自动向量化（L3 满时）
+   - [x] L1: 存储所有 Task（最近 50 条）
+   - [x] L2: 存储重要 Task（importance > 0.6）
+   - [x] L3: 自动压缩（L2 满时）
+   - [x] L4: 自动向量化（L3 满时）
 
 3. **移除手动添加接口**
-   - [ ] 保留 `add_task()` 方法（用于测试）
-   - [ ] 主要通过订阅自动添加
+   - [x] 保留 `add_task()` 方法（用于测试）
+   - [x] 主要通过订阅自动添加
 
 **验收标准**：
 
-- ✓ Memory 自动接收所有 Task
-- ✓ L1/L2/L3/L4 自动管理
-- ✓ 不需要手动调用 `add_task()`
+- ✅ Memory 自动接收所有 Task
+- ✅ L1/L2/L3/L4 自动管理
+- ✅ 不需要手动调用 `add_task()`
 
-### 4.4 阶段 3：Context 简化（P1）
+### 4.4 阶段 3：Context 简化（P1）✅
 
 **目标**：Context 只从 Memory 获取数据，简化查询逻辑
+
+**状态**：✅ 已完成
 
 **任务清单**：
 
 1. **修改 TaskContextManager**
-   - [ ] 移除 `EventBusContextSource`
-   - [ ] 移除直接查询 EventBus 的代码
-   - [ ] 只保留 `MemoryContextSource`
+   - [x] 移除 `EventBusContextSource`
+   - [x] 移除直接查询 EventBus 的代码
+   - [x] 只保留 `MemoryContextSource`
 
 2. **简化 build_context()**
-   - [ ] 移除复杂的排序和筛选逻辑
-   - [ ] 简化为：查询 Memory → 过滤 session → 转换消息 → Token 控制
-   - [ ] 目标：从 149 行简化到 50 行
+   - [x] 移除复杂的排序和筛选逻辑
+   - [x] 简化为：查询 Memory → 过滤 session → 转换消息 → Token 控制
+   - [x] 目标：从 149 行简化到 50 行
 
 3. **移除 ContextBudgeter 的复杂逻辑**
-   - [ ] 简化 token 预算分配
-   - [ ] 移除 embedding 相关性计算（可选）
-   - [ ] 保留基本的 token 控制
+   - [x] 简化 token 预算分配
+   - [x] 移除 embedding 相关性计算（可选）
+   - [x] 保留基本的 token 控制
 
 **验收标准**：
 
-- ✓ Context 只从 Memory 获取数据
-- ✓ build_context() 代码行数减少 70%
-- ✓ 所有测试通过
+- ✅ Context 只从 Memory 获取数据
+- ✅ build_context() 代码行数减少 70%
+- ✅ 所有测试通过
 
 ### 4.5 阶段 4：测试和修复（P1）✅
 
