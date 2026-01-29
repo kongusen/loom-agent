@@ -558,7 +558,7 @@ class LoomAgentApp(App):
     async def process_agent_task(self, user_input: str) -> None:
         """Process agent task and update chat in real-time"""
         chat_log = self.query_one("#chat_log", RichLog)
-        
+
         # Create task
         task = Task(
             task_id=f"chat-{uuid4()}",
@@ -574,28 +574,29 @@ class LoomAgentApp(App):
         agent_task = asyncio.create_task(self.agent.execute_task(task))
 
         # Periodically update sidebar while agent is running
+        result = None
         try:
             while not agent_task.done():
                 await query_memory_layers(self.agent, self.state)
                 self.update_sidebar()
                 await asyncio.sleep(0.25)
 
-            # Get result
+            # Get result but don't display yet
             result = await agent_task
-
-            # Display final result
-            if result.result:
-                content = result.result.get("content", "") if isinstance(result.result, dict) else str(result.result)
-                if content:
-                    chat_log.write(f"\n[bold blue]Assistant>[/bold blue] {content}\n")
 
         except Exception as e:
             chat_log.write(f"[bold red]Error:[/bold red] {str(e)}\n")
 
         finally:
-            # Stop event processor
+            # Stop event processor and wait for all events to be displayed
             await self.event_queue.put(None)
             await event_processor_task
+
+            # NOW display final result after all thinking is shown
+            if result and result.result:
+                content = result.result.get("content", "") if isinstance(result.result, dict) else str(result.result)
+                if content:
+                    chat_log.write(f"\n[bold blue]Assistant>[/bold blue] {content}\n")
 
             # Final update
             await query_memory_layers(self.agent, self.state)
