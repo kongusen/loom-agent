@@ -27,8 +27,7 @@ from typing import Any
 from uuid import uuid4
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
-from textual.reactive import reactive
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Header, Input, RichLog, Static
 
 from loom.config.llm import LLMConfig
@@ -132,7 +131,9 @@ class EventProcessor:
         current = task_id
         while current in self.state.parent_map and self.state.parent_map[current] is not None:
             depth += 1
-            current = self.state.parent_map[current]
+            parent = self.state.parent_map[current]
+            assert parent is not None  # Type narrowing for mypy
+            current = parent
             if depth > 10:  # Prevent infinite loops
                 break
         return depth
@@ -391,7 +392,7 @@ class MemoryPanel(Static):
             lines.append(f"  • {self.state.l4_stats}")
         else:
             lines.append("  (empty)")
-        
+
         content = "\n".join(lines)
         memory_widget = self.query_one("#memory_content", Static)
         memory_widget.update(content)
@@ -443,36 +444,36 @@ class LoomAgentApp(App):
     Screen {
         layout: horizontal;
     }
-    
+
     #main_container {
         width: 70%;
         height: 100%;
     }
-    
+
     #sidebar {
         width: 30%;
         height: 100%;
         border-left: solid $primary;
     }
-    
+
     #chat_log {
         height: 1fr;
         border: solid $primary;
         padding: 1;
     }
-    
+
     #input_box {
         height: 3;
         dock: bottom;
     }
-    
+
     StatusPanel {
         height: auto;
         padding: 1;
         border: solid $accent;
         margin-bottom: 1;
     }
-    
+
     MemoryPanel {
         height: 1fr;
         padding: 1;
@@ -504,19 +505,19 @@ class LoomAgentApp(App):
     def compose(self) -> ComposeResult:
         """Create child widgets"""
         yield Header()
-        
+
         with Horizontal():
             # Main chat area (left)
             with Vertical(id="main_container"):
                 yield RichLog(id="chat_log", highlight=True, markup=True)
                 yield Input(placeholder="Type your message...", id="input_box")
-            
+
             # Sidebar (right)
             with Vertical(id="sidebar"):
                 yield StatusPanel(self.state)
                 yield MemoryPanel(self.state)
                 yield FractalTreePanel(self.state)
-        
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -527,7 +528,8 @@ class LoomAgentApp(App):
             return event_task
 
         for action in ("node.thinking", "node.tool_call", "node.tool_result", "node.planning", "node.start", "node.complete"):
-            self.agent.event_bus.register_handler(action, handle_event)
+            if self.agent.event_bus:  # Type guard for mypy
+                self.agent.event_bus.register_handler(action, handle_event)
 
         chat_log = self.query_one("#chat_log", RichLog)
         chat_log.write("[bold cyan]🚀 Loom Agent - Interactive TUI[/bold cyan]")
@@ -541,17 +543,17 @@ class LoomAgentApp(App):
         user_input = event.value.strip()
         if not user_input:
             return
-        
+
         # Clear input
         event.input.value = ""
-        
+
         # Display user message in chat
         chat_log = self.query_one("#chat_log", RichLog)
         chat_log.write(f"[bold green]You>[/bold green] {user_input}\n")
-        
+
         # Mark as processing
         self.state.is_processing = True
-        
+
         # Process in background
         asyncio.create_task(self.process_agent_task(user_input))
 
@@ -629,7 +631,7 @@ class LoomAgentApp(App):
                 # Process new chunks
                 if len(self.state.pending_sentences) > displayed_chunks:
                     new_chunks = self.state.pending_sentences[displayed_chunks:]
-                    for base_task_id, node_id, chunk in new_chunks:
+                    for base_task_id, _, chunk in new_chunks:
                         # Accumulate chunks for this node
                         if base_task_id not in current_node_buffer:
                             current_node_buffer[base_task_id] = ""
@@ -702,7 +704,7 @@ class LoomAgentApp(App):
                             chat_log.write(line)
                     displayed_tool_results = len(self.state.tool_results)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
         # Display any remaining incomplete thinking at the end
@@ -888,7 +890,7 @@ async def main() -> None:
         from loom.providers.embedding.openai import OpenAIEmbeddingProvider
 
         embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
-        agent.memory.embedding_provider = OpenAIEmbeddingProvider(
+        agent.memory.embedding_provider = OpenAIEmbeddingProvider(  # type: ignore[assignment]
             api_key=api_key,
             base_url=os.getenv("OPENAI_BASE_URL"),
             model=embedding_model,
