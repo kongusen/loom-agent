@@ -27,6 +27,8 @@ from loom.protocol import Task
 if TYPE_CHECKING:
     from loom.config.knowledge import KnowledgeBaseProvider
     from loom.events.event_bus import EventBus
+    from loom.fractal.memory import FractalMemory
+    from loom.fractal.memory import MemoryScope
     from loom.memory.core import LoomMemory
 
 
@@ -413,6 +415,9 @@ class MessageConverter:
             # 节点消息 → assistant 消息
             content = params.get("content") or params.get("message", "")
             if content:
+                role = params.get("context_role")
+                if role in {"system", "assistant", "user"}:
+                    return {"role": role, "content": content}
                 return {"role": "assistant", "content": f"[Direct message] {content}"}
 
         elif action == "node.delegation_request":
@@ -438,6 +443,25 @@ class MessageConverter:
                     "role": "assistant",
                     "content": f"[Delegation response from {source}] {result}",
                 }
+
+        elif action == "node.planning":
+            # 规划事件 → system 消息（作为上下文，让子节点看到父节点的计划）
+            goal = params.get("goal", "")
+            steps = params.get("steps", [])
+            reasoning = params.get("reasoning", "")
+            step_count = params.get("step_count", len(steps))
+
+            if not goal and not steps:
+                return None
+
+            content = f"[Parent Plan] Goal: {goal}\n"
+            if reasoning:
+                content += f"Reasoning: {reasoning}\n"
+            content += f"Steps ({step_count}):\n"
+            for idx, step in enumerate(steps, 1):
+                content += f"  {idx}. {step}\n"
+
+            return {"role": "system", "content": content}
 
         elif action == "execute":
             # 任务执行 → user 消息
@@ -508,6 +532,192 @@ class MemoryContextSource(ContextSource):
                 seen_ids.add(task.task_id)
 
         return context_tasks[:max_items]
+
+
+class FractalMemoryContextSource(ContextSource):
+    """
+    从 FractalMemory 获取跨节点共享上下文
+
+    读取 INHERITED / SHARED / GLOBAL 作用域，注入为系统消息。
+    """
+
+    def __init__(
+        self,
+        fractal_memory: "FractalMemory",
+        scopes: list["MemoryScope"] | None = None,
+        max_items: int = 6,
+        include_additional: bool = True,
+        max_additional: int = 4,
+    ):
+        self.fractal_memory = fractal_memory
+        self.scopes = scopes or []
+        self.max_items = max_items
+        self.include_additional = include_additional
+        self.max_additional = max_additional
+
+        if not self.scopes:
+            from loom.fractal.memory import MemoryScope
+
+            self.scopes = [MemoryScope.INHERITED, MemoryScope.SHARED, MemoryScope.GLOBAL]
+
+    async def get_context(
+        self,
+        current_task: Task,
+        max_items: int = 10,
+    ) -> list[Task]:
+        limit = min(max_items, self.max_items)
+        entries: list[tuple[str, str]] = []  # (label, entry_id)
+
+        root_context_id = current_task.parameters.get("root_context_id")
+        root_content = ""
+        if root_context_id:
+            entries.append(("ROOT GOAL", root_context_id))
+            root_entry = await self.fractal_memory.read(root_context_id)
+            if root_entry and root_entry.content:
+                root_content = str(root_entry.content)
+
+        parent_task_id = current_task.parameters.get("parent_task_id")
+        parent_content = ""
+        if parent_task_id:
+            entries.append(("PARENT TASK", f"task:{parent_task_id}:content"))
+            parent_entry = await self.fractal_memory.read(f"task:{parent_task_id}:content")
+            if parent_entry and parent_entry.content:
+                parent_content = str(parent_entry.content)
+
+        tasks: list[Task] = []
+        seen_ids: set[str] = set()
+
+        async def _append_entry(label: str, entry_id: str) -> None:
+            if entry_id in seen_ids:
+                return
+            entry = await self.fractal_memory.read(entry_id)
+            if not entry:
+                return
+            content = entry.content
+            if content is None or content == "":
+                return
+            seen_ids.add(entry_id)
+            scope_label = entry.scope.value if hasattr(entry, "scope") else "shared"
+            if label == "ROOT GOAL":
+                message = f"[ROOT GOAL - MUST FOLLOW] {content}"
+            elif label == "PARENT TASK":
+                message = f"[PARENT TASK - MUST ALIGN] {content}"
+            else:
+                message = f"[{label}] {content}"
+            tasks.append(
+                Task(
+                    task_id=f"fractal:{entry_id}",
+                    action="node.message",
+                    parameters={
+                        "content": message,
+                        "context_role": "system",
+                        "memory_id": entry_id,
+                        "scope": scope_label,
+                        "label": label,
+                    },
+                    session_id=current_task.session_id,
+                )
+            )
+
+        # High priority: root goal + parent task
+        for label, entry_id in entries:
+            if len(tasks) >= limit:
+                break
+            await _append_entry(label, entry_id)
+
+        # Optional: include additional shared/inherited/global context (ranked)
+        if self.include_additional and len(tasks) < limit:
+            content = current_task.parameters.get("content", "") or current_task.action
+            query_text = " ".join(part for part in [root_content, parent_content, str(content)] if part)
+            keywords = self._extract_keywords(query_text)
+            candidates: list[tuple[float, Any]] = []
+
+            for scope in self.scopes:
+                scope_entries = await self.fractal_memory.list_by_scope(scope)
+                for entry in scope_entries:
+                    if entry.id in seen_ids:
+                        continue
+                    entry_content = str(entry.content or "")
+                    if not entry_content:
+                        continue
+                    score = self._score_entry(entry_content, keywords, entry.scope)
+                    candidates.append((score, entry))
+
+            # Rank within scopes
+            by_scope: dict[str, list[tuple[float, Any]]] = {"shared": [], "inherited": [], "global": []}
+            for score, entry in candidates:
+                scope_key = entry.scope.value if hasattr(entry, "scope") else "shared"
+                by_scope.setdefault(scope_key, []).append((score, entry))
+
+            for scope_key in by_scope:
+                by_scope[scope_key].sort(key=lambda x: x[0], reverse=True)
+
+            remaining = min(limit - len(tasks), self.max_additional)
+            if remaining > 0:
+                # Per-scope caps to balance signal vs. noise
+                weights = [("shared", 0.5), ("inherited", 0.3), ("global", 0.2)]
+                caps: dict[str, int] = {}
+                used = 0
+                for scope_key, weight in weights:
+                    cap = int(remaining * weight)
+                    cap = min(cap, len(by_scope.get(scope_key, [])))
+                    caps[scope_key] = cap
+                    used += cap
+
+                # Distribute leftover slots by priority
+                leftover = remaining - used
+                if leftover > 0:
+                    for scope_key, _ in weights:
+                        if leftover <= 0:
+                            break
+                        available = len(by_scope.get(scope_key, [])) - caps.get(scope_key, 0)
+                        if available <= 0:
+                            continue
+                        take = min(available, leftover)
+                        caps[scope_key] = caps.get(scope_key, 0) + take
+                        leftover -= take
+
+                for scope_key, _ in weights:
+                    for _, entry in by_scope.get(scope_key, [])[: caps.get(scope_key, 0)]:
+                        await _append_entry(entry.scope.value.upper(), entry.id)
+
+        return tasks
+
+    def _extract_keywords(self, text: str) -> set[str]:
+        import re
+
+        if not text:
+            return set()
+        words = re.findall(r"\w+", text.lower())
+        stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
+        return {w for w in words if w not in stopwords and len(w) > 2}
+
+    def _score_entry(
+        self,
+        content: str,
+        keywords: set[str],
+        scope: "MemoryScope",
+    ) -> float:
+        scope_weights = {
+            "shared": 1.0,
+            "inherited": 0.9,
+            "global": 0.7,
+        }
+        scope_weight = scope_weights.get(scope.value, 0.8)
+
+        if not keywords:
+            return scope_weight
+
+        content_lower = content.lower()
+        hits = sum(1 for kw in keywords if kw in content_lower)
+        overlap = hits / max(len(keywords), 1)
+
+        # Penalize overly long entries to avoid bloating context
+        length_penalty = 0.0
+        if len(content) > 400:
+            length_penalty = min(0.2, (len(content) - 400) / 2000)
+
+        return (0.7 * overlap) + (0.3 * scope_weight) - length_penalty
 
 
 
@@ -636,7 +846,7 @@ class TaskContextManager:
         确保消息列表不超过 token 限制
 
         策略：
-        1. 始终保留 System Message
+        1. 始终保留所有开头的 System Messages
         2. 始终保留最后 N 条消息 (Recent)
         3. 如果超出，丢弃中间的消息
         """
@@ -644,23 +854,21 @@ class TaskContextManager:
         if current_tokens <= self.max_tokens:
             return messages
 
-        # 分离 System 消息
-        system_msg = None
-        other_messages = []
-
-        if messages and messages[0]["role"] == "system":
-            system_msg = messages[0]
-            other_messages = messages[1:]
-        else:
-            other_messages = messages
+        # 分离开头的 System 消息
+        system_messages: list[dict[str, str]] = []
+        idx = 0
+        while idx < len(messages) and messages[idx].get("role") == "system":
+            system_messages.append(messages[idx])
+            idx += 1
+        other_messages = messages[idx:]
 
         # 计算 System token
-        system_tokens = self.token_counter.count_messages([system_msg]) if system_msg else 0
+        system_tokens = self.token_counter.count_messages(system_messages) if system_messages else 0
         available_tokens = self.max_tokens - system_tokens
 
         if available_tokens <= 0:
             # 极端情况：系统提示词都放不下，只返回 System Message
-            return [system_msg] if system_msg else []
+            return system_messages if system_messages else []
 
         # 从后往前添加，直到填满
         kept_messages: list[dict[str, str]] = []
@@ -673,6 +881,6 @@ class TaskContextManager:
             kept_messages.insert(0, msg)
             current_count += msg_tokens
 
-        if system_msg:
-            return [system_msg] + kept_messages
+        if system_messages:
+            return system_messages + kept_messages
         return kept_messages

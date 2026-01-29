@@ -126,12 +126,13 @@ EventBus ←─────┼─── 父节点（直接发布）
 **功能**：
 - 继承自 `BaseNode`
 - 在生命周期钩子中发布事件
-- 提供 `publish_thinking()` 和 `publish_tool_call()` 方法
+- 提供 `publish_thinking()`、`publish_tool_call()` 和 `publish_tool_result()` 方法
 
 **事件类型**：
 - `node.start` - 节点开始执行
 - `node.thinking` - 节点思考过程
 - `node.tool_call` - 工具调用
+- `node.tool_result` - 工具执行结果
 - `node.complete` - 节点执行完成
 - `node.error` - 节点执行错误
 

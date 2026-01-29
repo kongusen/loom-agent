@@ -64,6 +64,7 @@ class LoomMemory:
         # L4: 向量存储（延迟初始化）
         self._l4_vector_store: "VectorStoreProvider | None" = None
         self.embedding_provider = None
+        self._l4_count = 0
 
         # Task索引（用于快速查找）
         self._task_index: dict[str, "Task"] = {}
@@ -97,6 +98,9 @@ class LoomMemory:
         Returns:
             原始Task（不修改）
         """
+        # 0. 确保有默认的重要性（用于L2提升）
+        self._ensure_importance(task)
+
         # 1. 添加到L1（所有Task）
         self._add_to_l1(task)
 
@@ -105,7 +109,10 @@ class LoomMemory:
         if importance > 0.6:
             self._add_to_l2(task)
 
-        # 3. 返回原始Task（不修改）
+        # 3. 触发提升（L1->L2->L3->L4）
+        self.promote_tasks()
+
+        # 4. 返回原始Task（不修改）
         return task
 
     # ==================== L1管理 ====================
@@ -127,6 +134,9 @@ class LoomMemory:
             task: Task对象
             tier: 目标层级（默认L1）
         """
+        # 确保有默认的重要性（用于L2提升）
+        self._ensure_importance(task)
+
         # 添加到索引
         self._task_index[task.task_id] = task
 
@@ -139,6 +149,33 @@ class LoomMemory:
             self._add_to_l1(task)
         elif tier == MemoryTier.L2_WORKING:
             self._add_to_l2(task)
+
+        # 触发提升（L1->L2->L3->L4）
+        self.promote_tasks()
+
+    def _ensure_importance(self, task: "Task") -> None:
+        """为任务设置默认重要性（若未显式提供）"""
+        if "importance" not in task.metadata:
+            task.metadata["importance"] = self._infer_importance(task)
+
+    def _infer_importance(self, task: "Task") -> float:
+        """基于动作类型的轻量默认重要性估计"""
+        action = task.action
+        if action == "node.error":
+            return 0.9
+        if action == "node.planning":
+            return 0.8
+        if action == "node.tool_result":
+            return 0.75
+        if action == "node.tool_call":
+            return 0.7
+        if action == "execute":
+            return 0.65
+        if action == "node.complete":
+            return 0.6
+        if action == "node.thinking":
+            return 0.55
+        return 0.5
 
     def _add_to_l1(self, task: "Task") -> None:
         """添加到L1循环缓冲区（同步版本）"""
@@ -301,9 +338,9 @@ class LoomMemory:
 
         # 存储到向量数据库
         if self._l4_vector_store:
-            await self._l4_vector_store.add(
+            added = await self._l4_vector_store.add(
                 id=summary.task_id,
-                vector=embedding,
+                embedding=embedding,
                 metadata={
                     "action": summary.action,
                     "tags": summary.tags,
@@ -312,6 +349,8 @@ class LoomMemory:
                     "session_id": summary.session_id,
                 },
             )
+            if added:
+                self._l4_count += 1
 
     async def search_tasks(
         self, query: str, limit: int = 5, session_id: str | None = None
@@ -340,7 +379,7 @@ class LoomMemory:
         # 返回Task（如果还在索引中）
         tasks = []
         for result in results:
-            task_id = result.get("id")
+            task_id = result.id if hasattr(result, "id") else result.get("id")
             if task_id and task_id in self._task_index:
                 task = self._task_index[task_id]
                 if session_id and task.session_id != session_id:
@@ -407,7 +446,7 @@ class LoomMemory:
         # 返回Fact对象
         facts = []
         for result in results:
-            fact_id = result.get("id")
+            fact_id = result.id if hasattr(result, "id") else result.get("id")
             if fact_id and fact_id.startswith("fact_") and fact_id in self._fact_index:
                 fact = self._fact_index[fact_id]
                 fact.update_access()  # 更新访问信息
@@ -544,7 +583,8 @@ class LoomMemory:
             return
 
         # 按重要性排序（从heap中提取）
-        sorted_items = sorted(self._l2_layer._heap, reverse=True)  # 最低优先级在后
+        # PriorityItem.priority = -importance, ascending gives highest importance first.
+        sorted_items = sorted(self._l2_layer._heap)
 
         # 移除最不重要的20%
         num_to_remove = max(1, int(len(sorted_items) * 0.2))
@@ -638,6 +678,7 @@ class LoomMemory:
             "l1_size": len(self._l1_layer._buffer),
             "l2_size": len(self._l2_layer._heap),
             "l3_size": len(self._l3_summaries),
+            "l4_size": self._l4_count,
             "total_tasks": len(self._task_index),
             "max_l1_size": self.max_l1_size,
             "max_l2_size": self.max_l2_size,
@@ -650,3 +691,4 @@ class LoomMemory:
         self._l2_layer.clear()
         self._l3_summaries.clear()
         self._task_index.clear()
+        self._l4_count = 0

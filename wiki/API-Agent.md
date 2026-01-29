@@ -78,6 +78,10 @@ async def on_thinking(event):
 @agent.event_bus.subscribe("node.tool_call")
 async def on_tool_call(event):
     print(f"Tool: {event.data['tool_name']}")
+
+@agent.event_bus.subscribe("node.tool_result")
+async def on_tool_result(event):
+    print(f"Result: {event.data['tool_name']} -> {event.data['result']}")
 ```
 
 ## 添加工具

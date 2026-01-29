@@ -163,6 +163,8 @@ for event in events:
         print(f"Thinking: {event.data['content']}")
     elif event.type == "node.tool_call":
         print(f"Tool: {event.data['tool_name']}")
+    elif event.type == "node.tool_result":
+        print(f"Result: {event.data['tool_name']} -> {event.data['result']}")
 ```
 
 ## 相关概念

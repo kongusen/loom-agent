@@ -96,6 +96,7 @@ Loom 是一个**高可靠 (High-Assurance)** 的 AI Agent 框架，基于严格�
 **核心事件**:
 - `node.thinking` - Agent 思考过程
 - `node.tool_call` - 工具调用
+- `node.tool_result` - 工具执行结果
 - `node.done` - 任务完成
 
 **文档**: [Event-Bus](Event-Bus) | [Interceptor](Interceptor) | [Observability](Observability)

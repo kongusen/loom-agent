@@ -345,6 +345,7 @@ graph TB
 **Node-Specific Actions** (节点特定动作):
 - `node.thinking` - 思考过程事件
 - `node.tool_call` - 工具调用事件
+- `node.tool_result` - 工具执行结果
 - `node.message` - 点对点消息
 - `node.start` - 任务开始事件
 - `node.complete` - 任务完成事件
@@ -401,9 +402,9 @@ messages = event_bus.query_by_target(
 #### 查询集体记忆
 
 ```python
-# 查询所有节点的思考过程和工具调用
+# 查询所有节点的思考过程和工具调用/结果
 collective_memory = event_bus.get_collective_memory(
-    action_types=["node.thinking", "node.tool_call"],
+    action_types=["node.thinking", "node.tool_call", "node.tool_result"],
     limit=100
 )
 

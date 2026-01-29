@@ -182,7 +182,7 @@ class SmartAllocationStrategy:
         selected = []
         for hint in hints:
             entry = await parent_memory.read(
-                hint, search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL]
+                hint, search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED]
             )
             if entry:
                 selected.append(entry)
@@ -192,11 +192,12 @@ class SmartAllocationStrategy:
         self, parent_memory: "FractalMemory", features: TaskFeatures
     ) -> list["MemoryEntry"]:
         """检索相关记忆"""
-        # 获取父节点的SHARED和GLOBAL记忆
+        # 获取父节点的SHARED、INHERITED和GLOBAL记忆
         shared_memories = await parent_memory.list_by_scope(MemoryScope.SHARED)
+        inherited_memories = await parent_memory.list_by_scope(MemoryScope.INHERITED)
         global_memories = await parent_memory.list_by_scope(MemoryScope.GLOBAL)
 
-        all_memories = shared_memories + global_memories
+        all_memories = shared_memories + inherited_memories + global_memories
 
         # 过滤相关记忆
         relevant = [entry for entry in all_memories if self._is_relevant(entry, features)]

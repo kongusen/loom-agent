@@ -138,6 +138,9 @@ Task(action="execute", parameters={"content": "Read file X"})
 # Task with action="node.tool_call" → assistant message
 Task(action="node.tool_call", parameters={"tool_name": "read_file"})
 → {"role": "assistant", "content": "[Calling read_file(...)]"}
+
+# Task with action="node.tool_result" → omitted
+# Tool results are not injected into LLM context by default to avoid echoing large outputs.
 ```
 
 ### Direct Message Protocol (Point-to-Point)

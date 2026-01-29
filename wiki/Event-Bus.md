@@ -51,6 +51,7 @@ Loom 使用 [CloudEvents](https://cloudevents.io/) 规范，确保互操作性�
 |---------|---------|------|
 | `node.thinking` | LLM 生成思考 | 实时流式输出 |
 | `node.tool_call` | 调用工具 | 工具使用追踪 |
+| `node.tool_result` | 工具执行结果 | 结果追踪与可观测 |
 | `node.done` | 任务完成 | 结果确认 |
 
 ### 记忆事件
@@ -113,6 +114,8 @@ async for event in event_bus.stream():
     if event.type == "node.tool_call":
         print(f"Tool: {event.data['tool_name']}")
         print(f"Args: {event.data['tool_args']}")
+    elif event.type == "node.tool_result":
+        print(f"Result: {event.data['tool_name']} -> {event.data['result']}")
 ```
 
 ### 3. 性能分析

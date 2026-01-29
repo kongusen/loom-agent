@@ -195,6 +195,31 @@ class BaseNode:
             session_id=session_id,
         )
 
+    async def publish_tool_result(
+        self,
+        tool_name: str,
+        result: str,
+        task_id: str,
+        session_id: str | None = None,
+    ) -> None:
+        """
+        发布工具执行结果事件
+
+        Args:
+            tool_name: 工具名称
+            result: 工具执行结果
+            task_id: 关联的任务ID
+        """
+        await self._publish_event(
+            action="node.tool_result",
+            parameters={
+                "tool_name": tool_name,
+                "result": result,
+            },
+            task_id=task_id,
+            session_id=session_id,
+        )
+
     async def publish_message(
         self,
         content: str,

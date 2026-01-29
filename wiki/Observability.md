@@ -61,10 +61,14 @@ async for chunk in agent.stream_thinking():
 ### 工具调用追踪
 
 ```python
-@event_bus.subscribe("tool.called")
+@event_bus.subscribe("node.tool_call")
 async def track_tool_call(event):
     print(f"Tool: {event.data['tool_name']}")
-    print(f"Args: {event.data['args']}")
+    print(f"Args: {event.data['tool_args']}")
+
+@event_bus.subscribe("node.tool_result")
+async def track_tool_result(event):
+    print(f"Result: {event.data['tool_name']} -> {event.data['result']}")
 ```
 
 ## 相关概念
