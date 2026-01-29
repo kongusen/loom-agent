@@ -11,7 +11,6 @@ import pytest
 from loom.events.event_bus import EventBus
 from loom.memory.core import LoomMemory
 from loom.memory.task_context import (
-    EventBusContextSource,
     MemoryContextSource,
     MessageConverter,
     TaskContextManager,
@@ -217,56 +216,6 @@ class TestMemoryContextSource:
         assert len(context) <= 5
 
 
-class TestEventBusContextSource:
-    """测试 EventBusContextSource"""
-
-    @pytest.mark.asyncio
-    async def test_get_context(self):
-        """测试获取上下文"""
-        event_bus = EventBus()
-
-        # 添加一些事件
-        task1 = Task(
-            task_id="task-1",
-            action="node.thinking",
-            parameters={"node_id": "node-1", "content": "思考1", "parent_task_id": "parent-1"},
-            parent_task_id="parent-1",
-        )
-        await event_bus.publish(task1)
-
-        task2 = Task(
-            task_id="task-2",
-            action="node.thinking",
-            parameters={"node_id": "node-1", "content": "思考2", "parent_task_id": "parent-1"},
-            parent_task_id="parent-1",
-        )
-        await event_bus.publish(task2)
-
-        source = EventBusContextSource(event_bus)
-        current_task = Task(
-            task_id="parent-1",
-            action="test",
-            parameters={"node_id": "node-1"},
-        )
-
-        context = await source.get_context(current_task, max_items=10)
-
-        assert len(context) > 0
-
-    @pytest.mark.asyncio
-    async def test_get_context_without_node_id(self):
-        """测试没有 node_id 时获取上下文"""
-        event_bus = EventBus()
-
-        source = EventBusContextSource(event_bus)
-        current_task = Task(task_id="task-1", action="test")
-
-        context = await source.get_context(current_task, max_items=10)
-
-        # 应该只返回任务相关的事件
-        assert isinstance(context, list)
-
-
 class TestTaskContextManager:
     """测试 TaskContextManager"""
 
@@ -452,58 +401,3 @@ class TestTaskContextManager:
         # 应该只返回系统消息
         assert len(result) == 1
         assert result[0]["role"] == "system"
-
-    def test_extract_keywords_chinese_fallback(self, token_counter, memory):
-        """测试中文关键词提取回退"""
-        sources = [MemoryContextSource(memory)]
-        manager = TaskContextManager(
-            token_counter=token_counter,
-            sources=sources,
-            max_tokens=1000,
-        )
-
-        keywords = manager._extract_keywords("我们需要处理记忆迭代机制")
-
-        assert "记忆" in keywords
-
-    @pytest.mark.asyncio
-    async def test_embedding_relevance_score(self, token_counter, memory):
-        """测试embedding相关性评分"""
-        sources = [MemoryContextSource(memory)]
-        manager = TaskContextManager(
-            token_counter=token_counter,
-            sources=sources,
-            max_tokens=1000,
-        )
-
-        class DummyProvider:
-            async def embed_batch(self, texts):
-                # query, event1, event2
-                return [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
-
-        events = [
-            Task(task_id="e1", action="node.thinking", parameters={"content": "foo"}),
-            Task(task_id="e2", action="node.thinking", parameters={"content": "bar"}),
-        ]
-
-        ok = await manager._compute_embedding_relevance(events, "query text", DummyProvider())
-
-        assert ok is True
-        assert events[0].metadata.get("_relevance_score") == 1.0
-        assert events[1].metadata.get("_relevance_score") == 0.5
-
-    def test_calc_relevance_score_prefers_embedding(self, token_counter, memory):
-        """测试相关性评分优先使用embedding结果"""
-        sources = [MemoryContextSource(memory)]
-        manager = TaskContextManager(
-            token_counter=token_counter,
-            sources=sources,
-            max_tokens=1000,
-        )
-
-        event = Task(task_id="e1", action="node.thinking", parameters={"content": "x"})
-        event.metadata["_relevance_score"] = 0.9
-
-        score = manager.budgeter._calc_relevance_score(event, keywords=["x"])
-
-        assert score == 0.9

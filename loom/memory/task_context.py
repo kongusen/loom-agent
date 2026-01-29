@@ -510,47 +510,6 @@ class MemoryContextSource(ContextSource):
         return context_tasks[:max_items]
 
 
-class EventBusContextSource(ContextSource):
-    """
-    从 EventBus 获取上下文
-
-    获取思考过程、工具调用等事件。
-    """
-
-    def __init__(self, event_bus: "EventBus"):
-        self.event_bus = event_bus
-
-    async def get_context(
-        self,
-        current_task: Task,
-        max_items: int = 10,
-    ) -> list[Task]:
-        """获取相关事件"""
-        context_tasks = []
-
-        # 1. 获取当前任务的所有事件
-        task_events = self.event_bus.query_by_task(current_task.task_id)
-        context_tasks.extend(task_events)
-
-        # 2. 获取当前节点的最近思考
-        node_id = current_task.parameters.get("node_id")
-        if node_id:
-            thinking_events = self.event_bus.query_by_node(
-                node_id,
-                action_filter="node.thinking",
-                limit=max_items // 2,
-            )
-            context_tasks.extend(thinking_events)
-
-        # 3. 去重并限制数量
-        seen_ids = set()
-        unique_tasks = []
-        for task in context_tasks:
-            if task.task_id not in seen_ids:
-                unique_tasks.append(task)
-                seen_ids.add(task.task_id)
-
-        return unique_tasks[:max_items]
 
 
 # ==================== 核心管理器 ====================
@@ -591,170 +550,23 @@ class TaskContextManager:
                 config = BudgetConfig(**cast(dict[str, Any], config))
             self.budgeter = ContextBudgeter(token_counter, max_tokens=max_tokens, config=config)
 
-    def _get_event_bus(self) -> "EventBus | None":
-        """从sources中获取EventBus实例（如果存在）"""
-        for source in self.sources:
-            if hasattr(source, "event_bus"):
-                event_bus = getattr(source, "event_bus", None)
-                if event_bus is None:
-                    continue
-                from loom.events.event_bus import EventBus
 
-                if isinstance(event_bus, EventBus):
-                    return event_bus
-        return None
 
-    def _get_embedding_provider(self) -> Any | None:
-        """尝试获取可用的 embedding provider"""
-        for source in self.sources:
-            if hasattr(source, "memory"):
-                provider = getattr(source.memory, "embedding_provider", None)
-                if provider:
-                    return provider
-        if self.knowledge_base and hasattr(self.knowledge_base, "embedding_provider"):
-            provider = getattr(self.knowledge_base, "embedding_provider", None)
-            if provider:
-                return provider
-        return None
 
-    def _cosine_similarity(self, vec_a: list[float], vec_b: list[float]) -> float:
-        """计算余弦相似度（0-1 映射）"""
-        if not vec_a or not vec_b or len(vec_a) != len(vec_b):
-            return 0.0
-        dot = 0.0
-        norm_a = 0.0
-        norm_b = 0.0
-        for a, b in zip(vec_a, vec_b, strict=True):
-            dot += a * b
-            norm_a += a * a
-            norm_b += b * b
-        if norm_a == 0.0 or norm_b == 0.0:
-            return 0.0
-        similarity = dot / ((norm_a**0.5) * (norm_b**0.5))
-        return float(max(0.0, min(1.0, (similarity + 1.0) / 2.0)))
 
-    async def _compute_embedding_relevance(
-        self, events: list[Task], content: str, provider: Any
-    ) -> bool:
-        """用 embedding 计算事件相关性，写入 event.metadata"""
-        if not content:
-            return False
-
-        event_texts: list[str] = []
-        event_indices: list[int] = []
-        for idx, event in enumerate(events):
-            text = event.parameters.get("content", "")
-            if text:
-                event_texts.append(text)
-                event_indices.append(idx)
-
-        if not event_texts:
-            return False
-
-        try:
-            if hasattr(provider, "embed_batch"):
-                vectors = await provider.embed_batch([content] + event_texts)
-            else:
-                vectors = [await provider.embed(content)]
-                for text in event_texts:
-                    vectors.append(await provider.embed(text))
-        except Exception:
-            return False
-
-        if len(vectors) < 2:
-            return False
-
-        query_vec = vectors[0]
-        for idx, vec in zip(event_indices, vectors[1:], strict=True):
-            score = self._cosine_similarity(query_vec, vec)
-            events[idx].metadata["_relevance_score"] = score
-
-        return True
-
-    def _extract_keywords(
-        self,
-        text: str,
-        *,
-        prefer_jieba: bool = False,
-        prefer_pkuseg: bool = False,
-    ) -> list[str]:
-        """从文本中提取关键词（embedding失败时的回退策略）"""
-        import re
-
-        if not text:
-            return []
-
-        if prefer_jieba:
-            try:
-                import jieba
-
-                tokens = [t.strip() for t in jieba.lcut(text) if len(t.strip()) > 1]
-                if tokens:
-                    return list(dict.fromkeys(tokens))
-            except ImportError:
-                pass
-
-        if prefer_pkuseg:
-            try:
-                import pkuseg
-
-                seg = pkuseg.pkuseg()
-                tokens = [t.strip() for t in seg.cut(text) if len(t.strip()) > 1]
-                if tokens:
-                    return list(dict.fromkeys(tokens))
-            except ImportError:
-                pass
-
-        has_cjk = bool(re.search(r"[\u4e00-\u9fff]", text))
-        has_space = bool(re.search(r"\s", text))
-        words = [] if has_cjk and not has_space else re.findall(r"\w+", text.lower())
-        stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
-        keywords = [w for w in words if w not in stopwords and len(w) > 2]
-
-        if not keywords:
-            cjk_sequences = re.findall(r"[\u4e00-\u9fff]+", text)
-            cjk_terms: list[str] = []
-            for seq in cjk_sequences:
-                if len(seq) <= 1:
-                    continue
-                for i in range(len(seq) - 1):
-                    cjk_terms.append(seq[i : i + 2])
-                for i in range(len(seq) - 2):
-                    cjk_terms.append(seq[i : i + 3])
-            keywords = list(dict.fromkeys(cjk_terms))[:20]
-
-        return list(dict.fromkeys(keywords))  # 去重保序
-
-    def _trim_messages_to_budget(
-        self, messages: list[dict[str, str]], max_tokens: int, min_items: int = 0
-    ) -> list[dict[str, str]]:
-        """按预算裁剪消息列表"""
-        if max_tokens <= 0 or not messages:
-            return messages[:min_items] if min_items > 0 else []
-        selected: list[dict[str, str]] = []
-        total = 0
-        for msg in messages:
-            msg_tokens = self.token_counter.count_messages([msg])
-            if total + msg_tokens > max_tokens:
-                break
-            selected.append(msg)
-            total += msg_tokens
-        if min_items > 0 and len(selected) < min_items:
-            return messages[:min_items]
-        return selected
 
     async def build_context(
         self,
         current_task: Task,
     ) -> list[dict[str, str]]:
         """
-        构建 LLM 上下文（优化版 - L1自动包含 + LLM主动查询L2/L3/L4）
+        构建 LLM 上下文（简化版 - 只从 Memory 获取）
 
-        性能优化策略：
-        - L1（最近任务）自动包含在上下文中（保证速度）
-        - 当前任务直接包含
-        - L2/L3/L4通过工具按需查询（以压缩陈述句形式）
-        - Direct归入L1预算，Bus归入L2预算
+        基于 A4 公理（记忆层次公理）：
+        - 只从 Memory 的 L1/L2 获取数据
+        - 按 session_id 过滤
+        - 转换为 LLM 消息
+        - Token 预算控制
 
         Args:
             current_task: 当前正在处理的任务
@@ -770,100 +582,28 @@ class TaskContextManager:
         )
         allocation = self.budgeter.allocate_budget(system_prompt_tokens=system_tokens)
 
-        # 2. 收集L1最近任务（自动包含）
-        l1_tasks: list[Task] = []
+        # 2. 从 Memory 获取上下文（只查询 Memory，不查询 EventBus）
+        context_tasks: list[Task] = []
         for source in self.sources:
-            if hasattr(source, "memory") and hasattr(source.memory, "get_l1_tasks"):
-                l1_tasks = source.memory.get_l1_tasks(limit=10)
-                break
+            tasks = await source.get_context(current_task, max_items=20)
+            context_tasks.extend(tasks)
 
-        l1_messages = self.converter.convert_tasks_to_messages(l1_tasks) if l1_tasks else []
-        l1_messages = self._trim_messages_to_budget(l1_messages, allocation.l1_tokens)
+        # 3. 按 session_id 过滤
+        if current_task.session_id:
+            context_tasks = [t for t in context_tasks if t.session_id == current_task.session_id]
 
-        # 3. EventBus点对点消息（direct）
-        direct_messages: list[dict[str, str]] = []
-        event_bus = self._get_event_bus()
-        if event_bus and self.node_id and hasattr(event_bus, "query_by_target"):
-            direct_events = event_bus.query_by_target(  # type: ignore[attr-defined]
-                target_agent=self.node_id,
-                target_node_id=self.node_id,
-                limit=50,
-            )
-            if current_task.session_id:
-                direct_events = [
-                    e for e in direct_events if e.session_id == current_task.session_id
-                ]
-            direct_messages = self.converter.convert_tasks_to_messages(direct_events)
+        # 4. 去重
+        seen_ids = set()
+        unique_tasks = []
+        for task in context_tasks:
+            if task.task_id not in seen_ids:
+                unique_tasks.append(task)
+                seen_ids.add(task.task_id)
 
-        # 4. EventBus集体消息（bus），基于评分筛选
-        bus_messages: list[dict[str, str]] = []
-        if event_bus and hasattr(event_bus, "query_by_task"):
-            # 收集候选事件
-            parent_task_id = (
-                current_task.parameters.get("parent_task_id") or current_task.parent_task_id
-            )
-            candidates = []
-            candidates.extend(event_bus.query_by_task(current_task.task_id))
-            if parent_task_id:
-                candidates.extend(event_bus.query_by_task(parent_task_id))
-            candidates.extend(event_bus.query_recent(limit=50))
+        # 5. 转换为 LLM 消息
+        context_messages = self.converter.convert_tasks_to_messages(unique_tasks)
 
-            # 去重
-            seen_ids: set[str] = set()
-            unique_candidates: list[Task] = []
-            for event in candidates:
-                if event.task_id in seen_ids:
-                    continue
-                unique_candidates.append(event)
-                seen_ids.add(event.task_id)
-
-            # 会话过滤（如果有session_id）
-            if current_task.session_id:
-                unique_candidates = [
-                    e for e in unique_candidates if e.session_id == current_task.session_id
-                ]
-
-            # 排序与筛选
-            content = current_task.parameters.get("content", "")
-            keywords: list[str] | None = None
-            provider = self._get_embedding_provider()
-            if provider:
-                embedded_ok = await self._compute_embedding_relevance(
-                    unique_candidates, content, provider
-                )
-                keywords = [] if embedded_ok else self._extract_keywords(content, prefer_jieba=True)
-            else:
-                keywords = self._extract_keywords(content, prefer_pkuseg=True)
-            ranked = self.budgeter.rank_events(
-                unique_candidates,
-                current_task=current_task,
-                current_node_id=self.node_id,
-                parent_node_id=parent_task_id,
-                keywords=keywords,
-            )
-            ranked_tasks = [c.task for c in ranked]
-            bus_messages = self.converter.convert_tasks_to_messages(ranked_tasks)
-
-        # 5. 预算分配给 direct（归入L1）/bus（归入L2）
-        direct_budget = allocation.l1_tokens
-        bus_budget = allocation.l2_tokens
-
-        direct_messages = self._trim_messages_to_budget(
-            direct_messages,
-            direct_budget,
-            min_items=self.budgeter.config.direct_min_items,
-        )
-
-        # L1剩余预算给本地L1记忆
-        direct_tokens = self.token_counter.count_messages(direct_messages)
-        l1_remaining = max(0, allocation.l1_tokens - direct_tokens)
-        l1_messages = self._trim_messages_to_budget(l1_messages, l1_remaining)
-
-        bus_messages = self._trim_messages_to_budget(
-            bus_messages, bus_budget, min_items=self.budgeter.config.bus_min_items
-        )
-
-        # 6. 外部知识库查询（自动包含相关知识）
+        # 6. 外部知识库查询（可选）
         knowledge_messages: list[dict[str, str]] = []
         if self.knowledge_base:
             query = current_task.action
@@ -879,18 +619,16 @@ class TaskContextManager:
         # 7. 添加当前任务
         current_task_messages = self.converter.convert_tasks_to_messages([current_task])
 
-        # 8. 合并消息（direct靠近末尾优先保留）
+        # 8. 合并消息
         final_messages: list[dict[str, str]] = []
         if self.system_prompt:
             final_messages.append({"role": "system", "content": self.system_prompt})
 
-        final_messages.extend(l1_messages)
+        final_messages.extend(context_messages)
         final_messages.extend(knowledge_messages)
-        final_messages.extend(bus_messages)
-        final_messages.extend(direct_messages)
         final_messages.extend(current_task_messages)
 
-        # 9. Token 限制处理（硬限制，由框架强制执行）
+        # 9. Token 限制处理
         return self._fit_to_token_limit(final_messages)
 
     def _fit_to_token_limit(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
