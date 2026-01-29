@@ -30,7 +30,6 @@ from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
 from loom.memory.core import LoomMemory
 from loom.memory.task_context import (
-    EventBusContextSource,
     MemoryContextSource,
     TaskContextManager,
 )
@@ -127,8 +126,9 @@ class Agent(BaseNode):
         if self.require_done_tool:
             self.tools.append(create_done_tool())
 
-        # 创建 LoomMemory（使用配置）
-        self.memory = LoomMemory(node_id=node_id, **(memory_config or {}))
+        # 创建 LoomMemory（使用配置，并连接到 EventBus）
+        # Phase 2: Memory 订阅 EventBus，自动接收所有 Task
+        self.memory = LoomMemory(node_id=node_id, event_bus=event_bus, **(memory_config or {}))
 
         # 创建上下文工具执行器（如果启用）
         self._context_tool_executor: ContextToolExecutor | None = None
@@ -140,8 +140,8 @@ class Agent(BaseNode):
 
         sources: list[ContextSource] = []
         sources.append(MemoryContextSource(self.memory))
-        if event_bus and hasattr(event_bus, "query_by_task"):
-            sources.append(EventBusContextSource(event_bus))
+        # Note: EventBusContextSource removed in Phase 3 refactoring
+        # Context now only queries Memory, which automatically receives Tasks from EventBus
 
         self.context_manager = TaskContextManager(
             token_counter=TiktokenCounter(model="gpt-4"),

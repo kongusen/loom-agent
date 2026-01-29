@@ -13,24 +13,14 @@ from loom.protocol import Task, TaskStatus
 from loom.tools.context_tools import (
     ContextToolExecutor,
     create_all_context_tools,
-    create_query_events_by_action_tool,
-    create_query_events_by_node_tool,
-    create_query_events_by_target_tool,
     create_query_l1_memory_tool,
     create_query_l2_memory_tool,
     create_query_l3_memory_tool,
     create_query_l4_memory_tool,
-    create_query_recent_events_tool,
-    create_query_thinking_process_tool,
-    execute_query_events_by_action_tool,
-    execute_query_events_by_node_tool,
-    execute_query_events_by_target_tool,
     execute_query_l1_memory_tool,
     execute_query_l2_memory_tool,
     execute_query_l3_memory_tool,
     execute_query_l4_memory_tool,
-    execute_query_recent_events_tool,
-    execute_query_thinking_process_tool,
 )
 
 
@@ -214,217 +204,6 @@ class TestExecuteQueryL4MemoryTool:
         assert "statements" in result
 
 
-class TestCreateEventQueryTools:
-    """测试创建事件查询工具"""
-
-    def test_create_query_events_by_action_tool(self):
-        """测试创建按动作查询事件工具"""
-        tool = create_query_events_by_action_tool()
-
-        assert tool["type"] == "function"
-        assert tool["function"]["name"] == "query_events_by_action"
-        assert "action" in tool["function"]["parameters"]["properties"]
-
-    def test_create_query_events_by_node_tool(self):
-        """测试创建按节点查询事件工具"""
-        tool = create_query_events_by_node_tool()
-
-        assert tool["type"] == "function"
-        assert tool["function"]["name"] == "query_events_by_node"
-        assert "node_id" in tool["function"]["parameters"]["properties"]
-
-    def test_create_query_events_by_target_tool(self):
-        """测试创建按目标查询事件工具"""
-        tool = create_query_events_by_target_tool()
-
-        assert tool["type"] == "function"
-        assert tool["function"]["name"] == "query_events_by_target"
-        assert "target_agent" in tool["function"]["parameters"]["properties"]
-
-
-class TestExecuteQueryEventsByActionTool:
-    """测试执行按动作查询事件工具"""
-
-    @pytest.mark.asyncio
-    async def test_execute_query_events_by_action_tool(self):
-        """测试执行按动作查询事件"""
-        event_bus = EventBus()
-
-        # 添加事件
-        task1 = Task(
-            task_id="task-1",
-            action="node.thinking",
-            parameters={"node_id": "node-1", "content": "思考1"},
-        )
-        await event_bus.publish(task1)
-
-        task2 = Task(
-            task_id="task-2",
-            action="node.thinking",
-            parameters={"node_id": "node-1", "content": "思考2"},
-        )
-        await event_bus.publish(task2)
-
-        result = await execute_query_events_by_action_tool(
-            {"action": "node.thinking", "limit": 10}, event_bus
-        )
-
-        assert result["query_type"] == "by_action"
-        assert result["action"] == "node.thinking"
-        assert result["count"] == 2
-        assert "events" in result
-
-    @pytest.mark.asyncio
-    async def test_execute_query_events_by_action_tool_with_node_filter(self):
-        """测试带节点过滤的按动作查询"""
-        event_bus = EventBus()
-
-        # 添加不同节点的事件
-        task1 = Task(
-            task_id="task-1",
-            action="node.thinking",
-            parameters={"node_id": "node-1", "content": "思考1"},
-        )
-        await event_bus.publish(task1)
-
-        task2 = Task(
-            task_id="task-2",
-            action="node.thinking",
-            parameters={"node_id": "node-2", "content": "思考2"},
-        )
-        await event_bus.publish(task2)
-
-        result = await execute_query_events_by_action_tool(
-            {"action": "node.thinking", "node_filter": "node-1", "limit": 10}, event_bus
-        )
-
-        assert result["count"] == 1
-        assert result["events"][0]["parameters"].get("node_id") == "node-1"
-
-
-class TestExecuteQueryEventsByNodeTool:
-    """测试执行按节点查询事件工具"""
-
-    @pytest.mark.asyncio
-    async def test_execute_query_events_by_node_tool(self):
-        """测试执行按节点查询事件"""
-        event_bus = EventBus()
-
-        # 添加事件
-        task1 = Task(
-            task_id="task-1",
-            action="node.thinking",
-            parameters={"node_id": "node-1", "content": "思考1"},
-        )
-        await event_bus.publish(task1)
-
-        result = await execute_query_events_by_node_tool(
-            {"node_id": "node-1", "limit": 10}, event_bus
-        )
-
-        assert result["query_type"] == "by_node"
-        assert result["node_id"] == "node-1"
-        assert result["count"] > 0
-        assert "events" in result
-
-
-class TestExecuteQueryEventsByTargetTool:
-    """测试执行按目标查询事件工具"""
-
-    @pytest.mark.asyncio
-    async def test_execute_query_events_by_target_tool(self):
-        """测试执行按目标查询事件"""
-        event_bus = EventBus()
-
-        task = Task(
-            task_id="task-1",
-            action="node.thinking",
-            target_agent="agent-1",
-            parameters={"content": "direct message"},
-        )
-        await event_bus.publish(task)
-
-        result = await execute_query_events_by_target_tool(
-            {"target_agent": "agent-1", "limit": 10}, event_bus
-        )
-
-        assert result["query_type"] == "by_target"
-        assert result["target_agent"] == "agent-1"
-        assert result["count"] == 1
-        assert "events" in result
-
-
-class TestCreateQueryRecentEventsTool:
-    """测试创建查询最近事件工具"""
-
-    def test_create_query_recent_events_tool(self):
-        """测试创建查询最近事件工具"""
-        tool = create_query_recent_events_tool()
-
-        assert tool["type"] == "function"
-        assert tool["function"]["name"] == "query_recent_events"
-        assert "limit" in tool["function"]["parameters"]["properties"]
-
-
-class TestExecuteQueryRecentEventsTool:
-    """测试执行查询最近事件工具"""
-
-    @pytest.mark.asyncio
-    async def test_execute_query_recent_events_tool(self):
-        """测试执行查询最近事件"""
-        event_bus = EventBus()
-
-        # 添加事件
-        for i in range(3):
-            task = Task(
-                task_id=f"task-{i}",
-                action="test_action",
-                parameters={"index": i},
-            )
-            await event_bus.publish(task)
-
-        result = await execute_query_recent_events_tool({"limit": 10}, event_bus)
-
-        assert result["query_type"] == "recent"
-        assert result["count"] == 3
-        assert "events" in result
-
-
-class TestCreateQueryThinkingProcessTool:
-    """测试创建查询思考过程工具"""
-
-    def test_create_query_thinking_process_tool(self):
-        """测试创建查询思考过程工具"""
-        tool = create_query_thinking_process_tool()
-
-        assert tool["type"] == "function"
-        assert tool["function"]["name"] == "query_thinking_process"
-        assert "node_id" in tool["function"]["parameters"]["properties"]
-
-
-class TestExecuteQueryThinkingProcessTool:
-    """测试执行查询思考过程工具"""
-
-    @pytest.mark.asyncio
-    async def test_execute_query_thinking_process_tool(self):
-        """测试执行查询思考过程"""
-        event_bus = EventBus()
-
-        # 添加思考事件
-        task = Task(
-            task_id="task-1",
-            action="node.thinking",
-            parameters={"node_id": "node-1", "content": "思考内容"},
-        )
-        await event_bus.publish(task)
-
-        result = await execute_query_thinking_process_tool({"limit": 10}, event_bus)
-
-        assert result["query_type"] == "thinking_process"
-        assert "thoughts" in result
-        assert isinstance(result["thoughts"], list)
-
-
 class TestCreateAllContextTools:
     """测试创建所有上下文工具"""
 
@@ -433,13 +212,14 @@ class TestCreateAllContextTools:
         tools = create_all_context_tools()
 
         assert isinstance(tools, list)
-        assert len(tools) > 0
-        # 检查是否包含主要工具
+        # Phase 3: Only Memory tools, not EventBus tools
+        assert len(tools) == 4
+        # 检查是否包含所有Memory工具
         tool_names = [t["function"]["name"] for t in tools]
         assert "query_l1_memory" in tool_names
         assert "query_l2_memory" in tool_names
-        assert "query_events_by_action" in tool_names
-        assert "query_events_by_target" in tool_names
+        assert "query_l3_memory" in tool_names
+        assert "query_l4_memory" in tool_names
 
 
 class TestContextToolExecutor:
@@ -463,42 +243,6 @@ class TestContextToolExecutor:
 
         assert result["layer"] == "L1"
         assert result["count"] > 0
-
-    @pytest.mark.asyncio
-    async def test_execute_query_events_by_action(self, executor):
-        """测试执行按动作查询事件"""
-        # 添加事件
-        task = Task(
-            task_id="task-1",
-            action="node.thinking",
-            parameters={"content": "思考"},
-        )
-        await executor.event_bus.publish(task)
-
-        result = await executor.execute(
-            "query_events_by_action", {"action": "node.thinking", "limit": 10}
-        )
-
-        assert result["query_type"] == "by_action"
-        assert result["count"] > 0
-
-    @pytest.mark.asyncio
-    async def test_execute_query_events_by_target(self, executor):
-        """测试执行按目标查询事件"""
-        task = Task(
-            task_id="task-1",
-            action="node.thinking",
-            target_agent="agent-1",
-            parameters={"content": "direct"},
-        )
-        await executor.event_bus.publish(task)
-
-        result = await executor.execute(
-            "query_events_by_target", {"target_agent": "agent-1", "limit": 10}
-        )
-
-        assert result["query_type"] == "by_target"
-        assert result["count"] == 1
 
     @pytest.mark.asyncio
     async def test_execute_unknown_tool(self, executor):

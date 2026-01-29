@@ -702,17 +702,11 @@ def create_all_context_tools() -> list[dict]:
         所有工具定义的列表
     """
     return [
-        # Memory tools
+        # Memory tools (Phase 3: Only query Memory, not EventBus)
         create_query_l1_memory_tool(),
         create_query_l2_memory_tool(),
         create_query_l3_memory_tool(),
         create_query_l4_memory_tool(),
-        # Event tools
-        create_query_events_by_action_tool(),
-        create_query_events_by_node_tool(),
-        create_query_events_by_target_tool(),
-        create_query_recent_events_tool(),
-        create_query_thinking_process_tool(),
     ]
 
 
@@ -721,30 +715,26 @@ class ContextToolExecutor:
     上下文工具执行器
 
     负责路由工具调用到对应的执行函数
+    Phase 3: Only executes Memory query tools, not EventBus query tools
     """
 
-    def __init__(self, memory: "LoomMemory", event_bus: "EventBus"):
+    def __init__(self, memory: "LoomMemory", event_bus: "EventBus | None" = None):
         """
         初始化执行器
 
         Args:
             memory: LoomMemory实例
-            event_bus: EventBus实例
+            event_bus: EventBus实例（保留参数以保持向后兼容，但不再使用）
         """
         self.memory = memory
-        self.event_bus = event_bus
+        self.event_bus = event_bus  # Kept for backward compatibility, but not used
 
-        # 工具名称到执行函数的映射
+        # 工具名称到执行函数的映射（Phase 3: Only Memory tools）
         self._executors = {
             "query_l1_memory": self._execute_query_l1_memory,
             "query_l2_memory": self._execute_query_l2_memory,
             "query_l3_memory": self._execute_query_l3_memory,
             "query_l4_memory": self._execute_query_l4_memory,
-            "query_events_by_action": self._execute_query_events_by_action,
-            "query_events_by_node": self._execute_query_events_by_node,
-            "query_events_by_target": self._execute_query_events_by_target,
-            "query_recent_events": self._execute_query_recent_events,
-            "query_thinking_process": self._execute_query_thinking_process,
         }
 
     async def execute(self, tool_name: str, args: dict) -> dict[str, Any]:
@@ -780,18 +770,3 @@ class ContextToolExecutor:
     async def _execute_query_l4_memory(self, args: dict) -> dict[str, Any]:
         return await execute_query_l4_memory_tool(args, self.memory)
 
-    # Event tool executors
-    async def _execute_query_events_by_action(self, args: dict) -> dict[str, Any]:
-        return await execute_query_events_by_action_tool(args, self.event_bus)
-
-    async def _execute_query_events_by_node(self, args: dict) -> dict[str, Any]:
-        return await execute_query_events_by_node_tool(args, self.event_bus)
-
-    async def _execute_query_events_by_target(self, args: dict) -> dict[str, Any]:
-        return await execute_query_events_by_target_tool(args, self.event_bus)
-
-    async def _execute_query_recent_events(self, args: dict) -> dict[str, Any]:
-        return await execute_query_recent_events_tool(args, self.event_bus)
-
-    async def _execute_query_thinking_process(self, args: dict) -> dict[str, Any]:
-        return await execute_query_thinking_process_tool(args, self.event_bus)
