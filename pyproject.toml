@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.4.4"
+version = "0.4.5"
 description = "Enterprise-grade recursive state machine agent framework with event sourcing, multi-agent collaboration, hierarchical memory, and RAG integration"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
