@@ -41,6 +41,7 @@ class LoomMemory:
         enable_l4_vectorization: bool = True,
         max_task_index_size: int = 1000,
         max_fact_index_size: int = 5000,
+        event_bus: "Any | None" = None,
     ):
         self.node_id = node_id
         self.max_l1_size = max_l1_size
@@ -49,6 +50,7 @@ class LoomMemory:
         self.enable_l4_vectorization = enable_l4_vectorization
         self.max_task_index_size = max_task_index_size
         self.max_fact_index_size = max_fact_index_size
+        self._event_bus = event_bus
 
         # L1: 完整Task（使用CircularBufferLayer）
         self._l1_layer = CircularBufferLayer(max_size=max_l1_size)
@@ -74,6 +76,37 @@ class LoomMemory:
 
         # 设置L1驱逐回调（自动清理索引）
         self._l1_layer.on_eviction(self._on_l1_eviction)
+
+        # 订阅EventBus（如果提供）
+        if self._event_bus is not None:
+            self._event_bus.register_handler("*", self._on_task)
+
+    # ==================== EventBus订阅 ====================
+
+    async def _on_task(self, task: "Task") -> "Task":
+        """
+        EventBus订阅处理器 - 自动接收所有Task
+
+        根据A4公理（记忆层次公理）：
+        - L1: 存储所有Task（最近的）
+        - L2: 存储重要Task（importance > 0.6）
+
+        Args:
+            task: 从EventBus接收的Task
+
+        Returns:
+            原始Task（不修改）
+        """
+        # 1. 添加到L1（所有Task）
+        self._add_to_l1(task)
+
+        # 2. 根据重要性决定是否添加到L2
+        importance = task.metadata.get("importance", 0.5)
+        if importance > 0.6:
+            self._add_to_l2(task)
+
+        # 3. 返回原始Task（不修改）
+        return task
 
     # ==================== L1管理 ====================
 

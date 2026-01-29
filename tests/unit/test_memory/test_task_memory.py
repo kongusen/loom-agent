@@ -4,6 +4,8 @@ Task-Based Memory System Unit Tests
 测试基于Task的记忆系统核心功能
 """
 
+import pytest
+
 from loom.memory import LoomMemory, MemoryTier
 from loom.protocol import Task
 
@@ -452,3 +454,152 @@ class TestGeneralOperations:
         assert len(memory._l2_tasks) == 0
         assert len(memory._l3_summaries) == 0
         assert len(memory._task_index) == 0
+
+
+class TestEventBusSubscription:
+    """测试 EventBus 订阅机制"""
+
+    def test_init_with_event_bus(self):
+        """测试带EventBus的初始化"""
+        from unittest.mock import Mock
+
+        mock_event_bus = Mock()
+        memory = LoomMemory(node_id="test_node", event_bus=mock_event_bus)
+
+        # 应该订阅EventBus的通配符handler
+        mock_event_bus.register_handler.assert_called_once_with("*", memory._on_task)
+        assert memory._event_bus == mock_event_bus
+
+    def test_init_without_event_bus(self):
+        """测试不带EventBus的初始化（向后兼容）"""
+        memory = LoomMemory(node_id="test_node")
+
+        assert memory._event_bus is None
+
+    @pytest.mark.asyncio
+    async def test_on_task_adds_to_l1(self):
+        """测试_on_task自动添加Task到L1"""
+        memory = LoomMemory(node_id="test_node", max_l1_size=5)
+
+        task = Task(task_id="task1", action="test_action", parameters={"key": "value"})
+
+        # 调用_on_task handler
+        result = await memory._on_task(task)
+
+        # 应该添加到L1
+        assert len(memory._l1_tasks) == 1
+        assert memory._l1_tasks[0].task_id == "task1"
+
+        # 应该返回原始Task
+        assert result.task_id == "task1"
+
+    @pytest.mark.asyncio
+    async def test_on_task_selective_l2_storage(self):
+        """测试_on_task根据重要性选择性添加到L2"""
+        memory = LoomMemory(node_id="test_node", max_l2_size=10)
+
+        # 低重要性任务（不应该添加到L2）
+        task1 = Task(task_id="task1", action="test")
+        task1.metadata["importance"] = 0.5
+        await memory._on_task(task1)
+
+        # 高重要性任务（应该添加到L2）
+        task2 = Task(task_id="task2", action="test")
+        task2.metadata["importance"] = 0.8
+        await memory._on_task(task2)
+
+        # L1应该有两个任务
+        assert len(memory._l1_tasks) == 2
+
+        # L2应该只有高重要性任务
+        assert len(memory._l2_tasks) == 1
+        assert memory._l2_tasks[0].task_id == "task2"
+
+    @pytest.mark.asyncio
+    async def test_on_task_importance_threshold(self):
+        """测试_on_task的重要性阈值（0.6）"""
+        memory = LoomMemory(node_id="test_node", max_l2_size=10)
+
+        # 测试边界值
+        test_cases = [
+            (0.5, False),  # 低于阈值
+            (0.6, False),  # 等于阈值（不包含）
+            (0.61, True),  # 高于阈值
+            (0.8, True),   # 明显高于阈值
+        ]
+
+        for i, (importance, should_be_in_l2) in enumerate(test_cases):
+            task = Task(task_id=f"task{i}", action="test")
+            task.metadata["importance"] = importance
+            await memory._on_task(task)
+
+        # 检查L2中的任务
+        l2_task_ids = [t.task_id for t in memory._l2_tasks]
+        assert "task0" not in l2_task_ids  # 0.5
+        assert "task1" not in l2_task_ids  # 0.6
+        assert "task2" in l2_task_ids      # 0.61
+        assert "task3" in l2_task_ids      # 0.8
+
+    @pytest.mark.asyncio
+    async def test_on_task_default_importance(self):
+        """测试_on_task处理没有importance的Task"""
+        memory = LoomMemory(node_id="test_node", max_l2_size=10)
+
+        # 没有设置importance的任务（默认0.5）
+        task = Task(task_id="task1", action="test")
+        await memory._on_task(task)
+
+        # 应该添加到L1
+        assert len(memory._l1_tasks) == 1
+
+        # 不应该添加到L2（默认0.5 <= 0.6）
+        assert len(memory._l2_tasks) == 0
+
+    @pytest.mark.asyncio
+    async def test_on_task_returns_original_task(self):
+        """测试_on_task返回原始Task不修改"""
+        memory = LoomMemory(node_id="test_node")
+
+        task = Task(task_id="task1", action="test_action", parameters={"key": "value"})
+        task.metadata["importance"] = 0.8
+
+        result = await memory._on_task(task)
+
+        # 应该返回相同的Task对象
+        assert result is task
+        assert result.task_id == "task1"
+        assert result.action == "test_action"
+
+    @pytest.mark.asyncio
+    async def test_integration_with_event_bus(self):
+        """测试与EventBus的集成"""
+        from loom.events.event_bus import EventBus
+
+        event_bus = EventBus()
+        memory = LoomMemory(node_id="test_node", event_bus=event_bus, max_l1_size=10, max_l2_size=10)
+
+        # 通过EventBus发布任务
+        task1 = Task(task_id="task1", action="test_action")
+        task1.metadata["importance"] = 0.5
+
+        task2 = Task(task_id="task2", action="test_action")
+        task2.metadata["importance"] = 0.8
+
+        await event_bus.publish(task1)
+        await event_bus.publish(task2)
+
+        # 等待异步处理完成
+        import asyncio
+        await asyncio.sleep(0.01)
+
+        # Memory应该自动接收到任务
+        assert len(memory._l1_tasks) == 2
+        assert len(memory._l2_tasks) == 1  # 只有高重要性的task2
+
+        l1_task_ids = [t.task_id for t in memory._l1_tasks]
+        assert "task1" in l1_task_ids
+        assert "task2" in l1_task_ids
+
+        l2_task_ids = [t.task_id for t in memory._l2_tasks]
+        assert "task2" in l2_task_ids
+
