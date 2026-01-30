@@ -40,6 +40,7 @@ from loom.providers.llm.openai import OpenAIProvider
 @dataclass
 class ParadigmStats:
     """Track usage of paradigms"""
+
     reflection_events: int = 0
     tool_calls: int = 0
     planning_events: int = 0
@@ -52,25 +53,34 @@ class ParadigmStats:
 @dataclass
 class SessionState:
     """Complete session state for TUI"""
+
     # Current thinking - accumulated per node
     current_thinking: dict[str, str] = field(default_factory=dict)  # base_task_id -> content
     thinking_order: list[str] = field(default_factory=list)  # base_task_id order
 
     # Pending sentences to display (for streaming)
-    pending_sentences: list[tuple[str, str, str]] = field(default_factory=list)  # (base_task_id, node_id, chunk)
+    pending_sentences: list[tuple[str, str, str]] = field(
+        default_factory=list
+    )  # (base_task_id, node_id, chunk)
 
     # Node depth for indentation
     node_depth: dict[str, int] = field(default_factory=dict)
     task_nodes: dict[str, str] = field(default_factory=dict)  # base_task_id -> node_id
 
     # Tool calls
-    tool_calls: list[tuple[str, str, str, dict]] = field(default_factory=list)  # (base_task_id, node_id, tool, args)
+    tool_calls: list[tuple[str, str, str, dict]] = field(
+        default_factory=list
+    )  # (base_task_id, node_id, tool, args)
 
     # Tool results
-    tool_results: list[tuple[str, str, str, str]] = field(default_factory=list)  # (base_task_id, node_id, tool, result)
+    tool_results: list[tuple[str, str, str, str]] = field(
+        default_factory=list
+    )  # (base_task_id, node_id, tool, result)
 
     # Planning events
-    plans: list[tuple[str, str, dict]] = field(default_factory=list)  # (base_task_id, node_id, plan)
+    plans: list[tuple[str, str, dict]] = field(
+        default_factory=list
+    )  # (base_task_id, node_id, plan)
 
     # Memory layers
     l2_memory: list[str] = field(default_factory=list)
@@ -262,7 +272,14 @@ async def query_memory_layers(agent: Agent, state: SessionState) -> None:
             t
             for t in l1_tasks
             if t.action
-            in ("node.thinking", "node.tool_call", "node.tool_result", "node.planning", "execute", "node.complete")
+            in (
+                "node.thinking",
+                "node.tool_call",
+                "node.tool_result",
+                "node.planning",
+                "execute",
+                "node.complete",
+            )
         ]
 
         if not interesting_tasks:
@@ -285,8 +302,7 @@ async def query_memory_layers(agent: Agent, state: SessionState) -> None:
             return str(task.parameters.get("content", task.parameters.get("tool_name", "")))[:60]
 
         state.l2_memory = [
-            f"[{task.action}] {summarize_task(task)}"
-            for task in interesting_tasks[-5:]
+            f"[{task.action}] {summarize_task(task)}" for task in interesting_tasks[-5:]
         ]
 
         # L2: Important tasks (importance > 0.6)
@@ -522,12 +538,20 @@ class LoomAgentApp(App):
 
     def on_mount(self) -> None:
         """Called when app starts"""
+
         # Register event handlers ONCE at startup
         async def handle_event(event_task: Task) -> Task:
             await self.event_queue.put(event_task)
             return event_task
 
-        for action in ("node.thinking", "node.tool_call", "node.tool_result", "node.planning", "node.start", "node.complete"):
+        for action in (
+            "node.thinking",
+            "node.tool_call",
+            "node.tool_result",
+            "node.planning",
+            "node.start",
+            "node.complete",
+        ):
             if self.agent.event_bus:  # Type guard for mypy
                 self.agent.event_bus.register_handler(action, handle_event)
 
@@ -596,7 +620,11 @@ class LoomAgentApp(App):
 
             # NOW display final result after all thinking is shown
             if result and result.result:
-                content = result.result.get("content", "") if isinstance(result.result, dict) else str(result.result)
+                content = (
+                    result.result.get("content", "")
+                    if isinstance(result.result, dict)
+                    else str(result.result)
+                )
                 if content:
                     chat_log.write(f"\n[bold blue]Assistant>[/bold blue] {content}\n")
 
@@ -626,6 +654,7 @@ class LoomAgentApp(App):
 
                 # Display thinking chunks with typewriter effect
                 import time
+
                 current_time = time.time()
 
                 # Process new chunks
@@ -643,14 +672,18 @@ class LoomAgentApp(App):
                     for base_task_id, content in list(current_node_buffer.items()):
                         if content:
                             if base_task_id not in self.state.node_depth:
-                                self.state.node_depth[base_task_id] = self.processor._calculate_depth(base_task_id)
+                                self.state.node_depth[base_task_id] = (
+                                    self.processor._calculate_depth(base_task_id)
+                                )
 
                             depth = self.state.node_depth.get(base_task_id, 0)
                             indent = "  ↳ " * depth if depth > 0 else ""
                             node_id = self.state.task_nodes.get(base_task_id, base_task_id)
                             short_id = shorten_id(node_id)
 
-                            chat_log.write(f"{indent}[dim cyan]💭 [{short_id}][/dim cyan] [dim]{content}[/dim]")
+                            chat_log.write(
+                                f"{indent}[dim cyan]💭 [{short_id}][/dim cyan] [dim]{content}[/dim]"
+                            )
                             current_node_buffer[base_task_id] = ""  # Clear buffer after display
 
                     last_display_time = current_time
@@ -668,12 +701,16 @@ class LoomAgentApp(App):
 
                         if tool_name == "create_plan":
                             goal = tool_args.get("goal", "")[:50]
-                            chat_log.write(f"{indent}[yellow]🔧 [{short_id}] 创建计划:[/yellow] {goal}...")
+                            chat_log.write(
+                                f"{indent}[yellow]🔧 [{short_id}] 创建计划:[/yellow] {goal}..."
+                            )
                         elif tool_name.startswith("query_"):
                             chat_log.write(f"{indent}[yellow]🔧 [{short_id}] 查询记忆[/yellow]")
                         else:
                             args_str = ", ".join(f"{k}={v}" for k, v in list(tool_args.items())[:2])
-                            chat_log.write(f"{indent}[yellow]🔧 [{short_id}] {tool_name}:[/yellow] {args_str}")
+                            chat_log.write(
+                                f"{indent}[yellow]🔧 [{short_id}] {tool_name}:[/yellow] {args_str}"
+                            )
 
                         displayed_tool_calls += 1
 
@@ -700,7 +737,9 @@ class LoomAgentApp(App):
                         indent = "  ↳ " * depth if depth > 0 else ""
                         short_id = shorten_id(node_id)
 
-                        for line in self._format_tool_result_lines(tool_name, result, indent, short_id):
+                        for line in self._format_tool_result_lines(
+                            tool_name, result, indent, short_id
+                        ):
                             chat_log.write(line)
                     displayed_tool_results = len(self.state.tool_results)
 
@@ -716,7 +755,9 @@ class LoomAgentApp(App):
                     indent = "  ↳ " * depth if depth > 0 else ""
                     node_ref = self.state.task_nodes.get(base_task_id, base_task_id)
                     short_id = shorten_id(node_ref)
-                    chat_log.write(f"{indent}[dim cyan]💭 [{short_id}][/dim cyan] [dim]{remaining}[/dim]")
+                    chat_log.write(
+                        f"{indent}[dim cyan]💭 [{short_id}][/dim cyan] [dim]{remaining}[/dim]"
+                    )
 
     def _truncate(self, text: str, max_len: int) -> str:
         if len(text) <= max_len:

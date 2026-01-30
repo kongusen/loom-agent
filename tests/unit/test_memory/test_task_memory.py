@@ -525,7 +525,7 @@ class TestEventBusSubscription:
             (0.5, False),  # 低于阈值
             (0.6, False),  # 等于阈值（不包含）
             (0.61, True),  # 高于阈值
-            (0.8, True),   # 明显高于阈值
+            (0.8, True),  # 明显高于阈值
         ]
 
         for i, (importance, _should_be_in_l2) in enumerate(test_cases):
@@ -537,8 +537,8 @@ class TestEventBusSubscription:
         l2_task_ids = [t.task_id for t in memory._l2_tasks]
         assert "task0" not in l2_task_ids  # 0.5
         assert "task1" not in l2_task_ids  # 0.6
-        assert "task2" in l2_task_ids      # 0.61
-        assert "task3" in l2_task_ids      # 0.8
+        assert "task2" in l2_task_ids  # 0.61
+        assert "task3" in l2_task_ids  # 0.8
 
     @pytest.mark.asyncio
     async def test_on_task_default_importance(self):
@@ -576,7 +576,9 @@ class TestEventBusSubscription:
         from loom.events.event_bus import EventBus
 
         event_bus = EventBus()
-        memory = LoomMemory(node_id="test_node", event_bus=event_bus, max_l1_size=10, max_l2_size=10)
+        memory = LoomMemory(
+            node_id="test_node", event_bus=event_bus, max_l1_size=10, max_l2_size=10
+        )
 
         # 通过EventBus发布任务
         task1 = Task(task_id="task1", action="test_action")
@@ -590,6 +592,7 @@ class TestEventBusSubscription:
 
         # 等待异步处理完成
         import asyncio
+
         await asyncio.sleep(0.01)
 
         # Memory应该自动接收到任务
@@ -602,4 +605,3 @@ class TestEventBusSubscription:
 
         l2_task_ids = [t.task_id for t in memory._l2_tasks]
         assert "task2" in l2_task_ids
-

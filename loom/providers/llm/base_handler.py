@@ -97,7 +97,7 @@ class ToolCallAggregator:
                     content={
                         "error": "invalid_tool_arguments",
                         "message": f"Invalid JSON in tool {tc['name']} arguments: {str(e)}",
-                        "tool_name": tc['name'],
+                        "tool_name": tc["name"],
                     },
                     metadata={"index": idx},
                 )

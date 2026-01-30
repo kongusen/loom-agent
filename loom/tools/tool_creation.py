@@ -69,6 +69,7 @@ def create_tool_creation_tool() -> dict[str, Any]:
 
 class ToolCreationError(Exception):
     """Raised when tool creation fails"""
+
     pass
 
 
@@ -194,7 +195,9 @@ class DynamicToolExecutor:
             },
         }
 
-        return f"Tool '{tool_name}' created successfully. You can now use it in subsequent iterations."
+        return (
+            f"Tool '{tool_name}' created successfully. You can now use it in subsequent iterations."
+        )
 
     async def execute_tool(self, tool_name: str, **kwargs) -> Any:
         """
@@ -228,5 +231,3 @@ class DynamicToolExecutor:
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Get all dynamically created tool definitions"""
         return list(self.tool_definitions.values())
-
-

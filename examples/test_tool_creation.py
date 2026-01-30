@@ -68,7 +68,11 @@ async def main() -> None:
     result1 = await agent.execute_task(task1)
 
     if result1.result:
-        content = result1.result.get("content", "") if isinstance(result1.result, dict) else str(result1.result)
+        content = (
+            result1.result.get("content", "")
+            if isinstance(result1.result, dict)
+            else str(result1.result)
+        )
         print(f"\nResult: {content}\n")
 
     print("\n=== Test 2: Simple Question (No Repetition) ===\n")
@@ -77,16 +81,18 @@ async def main() -> None:
     task2 = Task(
         task_id="test-2",
         action="execute",
-        parameters={
-            "content": "你好，你可以自主构建工具么？"
-        },
+        parameters={"content": "你好，你可以自主构建工具么？"},
     )
 
     print("Task: 测试输出是否重复\n")
     result2 = await agent.execute_task(task2)
 
     if result2.result:
-        content = result2.result.get("content", "") if isinstance(result2.result, dict) else str(result2.result)
+        content = (
+            result2.result.get("content", "")
+            if isinstance(result2.result, dict)
+            else str(result2.result)
+        )
         print(f"\nResult: {content}\n")
 
         # Check for repetition

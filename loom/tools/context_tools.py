@@ -769,4 +769,3 @@ class ContextToolExecutor:
 
     async def _execute_query_l4_memory(self, args: dict) -> dict[str, Any]:
         return await execute_query_l4_memory_tool(args, self.memory)
-

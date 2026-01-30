@@ -146,13 +146,14 @@ class TestMemoryStats:
         memory = LoomMemory(node_id="test-node", max_l1_size=5, max_l2_size=3)
 
         # 2. 添加任务到不同层级
-        # 添加3个任务到L1
+        # 添加3个任务到L1（低importance避免自动提升到L2）
         for i in range(3):
             task = Task(
                 task_id=f"l1-task-{i}",
                 action="execute",
                 parameters={"content": f"L1 Task {i}"},
                 status=TaskStatus.COMPLETED,
+                metadata={"importance": 0.5},  # 低于0.6阈值，不会被自动提升
             )
             memory.add_task(task, tier=MemoryTier.L1_RAW_IO)
 

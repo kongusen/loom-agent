@@ -1,6 +1,7 @@
 """
 Test script to verify plan execution fixes
 """
+
 import asyncio
 import os
 from uuid import uuid4
@@ -98,7 +99,11 @@ async def main():
     print(f"Total Nodes Used: {len(agent.memory.get_l1_tasks())}")
 
     if result.result:
-        content = result.result.get("content", "") if isinstance(result.result, dict) else str(result.result)
+        content = (
+            result.result.get("content", "")
+            if isinstance(result.result, dict)
+            else str(result.result)
+        )
         print(f"\nFinal Answer Length: {len(content)} chars")
         print("\nFinal Answer Preview:")
         print("-" * 80)
@@ -117,7 +122,11 @@ async def main():
     # Check answer quality
     print("\n[CHECK] Answer Quality:")
     if result.result:
-        content = result.result.get("content", "") if isinstance(result.result, dict) else str(result.result)
+        content = (
+            result.result.get("content", "")
+            if isinstance(result.result, dict)
+            else str(result.result)
+        )
         if "Plan" in content and "completed with" in content and "steps:" in content:
             print("  ⚠️  WARNING: Answer looks like a plan summary")
         elif "Step 1:" in content or "Step 2:" in content:

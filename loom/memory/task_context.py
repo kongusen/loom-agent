@@ -626,7 +626,9 @@ class FractalMemoryContextSource(ContextSource):
         # Optional: include additional shared/inherited/global context (ranked)
         if self.include_additional and len(tasks) < limit:
             content = current_task.parameters.get("content", "") or current_task.action
-            query_text = " ".join(part for part in [root_content, parent_content, str(content)] if part)
+            query_text = " ".join(
+                part for part in [root_content, parent_content, str(content)] if part
+            )
             keywords = self._extract_keywords(query_text)
             candidates: list[tuple[float, Any]] = []
 
@@ -642,7 +644,11 @@ class FractalMemoryContextSource(ContextSource):
                     candidates.append((score, entry))
 
             # Rank within scopes
-            by_scope: dict[str, list[tuple[float, Any]]] = {"shared": [], "inherited": [], "global": []}
+            by_scope: dict[str, list[tuple[float, Any]]] = {
+                "shared": [],
+                "inherited": [],
+                "global": [],
+            }
             for score, entry in candidates:
                 scope_key = entry.scope.value if hasattr(entry, "scope") else "shared"
                 by_scope.setdefault(scope_key, []).append((score, entry))
@@ -718,8 +724,6 @@ class FractalMemoryContextSource(ContextSource):
         return (0.7 * overlap) + (0.3 * scope_weight) - length_penalty
 
 
-
-
 # ==================== 核心管理器 ====================
 
 
@@ -757,11 +761,6 @@ class TaskContextManager:
             if isinstance(config, dict):
                 config = BudgetConfig(**cast(dict[str, Any], config))
             self.budgeter = ContextBudgeter(token_counter, max_tokens=max_tokens, config=config)
-
-
-
-
-
 
     async def build_context(
         self,

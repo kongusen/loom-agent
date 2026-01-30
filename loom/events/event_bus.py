@@ -55,6 +55,7 @@ class EventBus:
         self._recent_events: Any | None = None
         if debug_mode:
             from collections import deque
+
             self._recent_events = deque(maxlen=100)
 
     async def _ensure_transport_connected(self) -> None:

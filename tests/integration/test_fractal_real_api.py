@@ -133,7 +133,9 @@ class TestFractalRealAPI:
             print(f"结果类型: {type(result_task.result)}")
             print(f"结果内容: {result_task.result}")
 
-        assert result_task.status == TaskStatus.COMPLETED, f"任务应该成功完成，实际状态: {result_task.status}, 错误: {result_task.error}"
+        assert (
+            result_task.status == TaskStatus.COMPLETED
+        ), f"任务应该成功完成，实际状态: {result_task.status}, 错误: {result_task.error}"
         assert result_task.result is not None, "应该有结果"
 
         print(f"\n{'='*60}")
@@ -199,7 +201,9 @@ class TestFractalRealAPI:
         print(f"  当前深度: {usage.current_depth}/{budget_tracker.budget.max_depth}")
         print(f"  总子节点数: {usage.total_children}")
         print(f"  已用Token: {usage.tokens_used}/{budget_tracker.budget.token_budget}")
-        print(f"  已用时间: {usage.time_elapsed:.2f}秒/{budget_tracker.budget.time_budget_seconds}秒")
+        print(
+            f"  已用时间: {usage.time_elapsed:.2f}秒/{budget_tracker.budget.time_budget_seconds}秒"
+        )
         print(f"{'='*60}")
 
         # 验证没有超出预算
@@ -220,7 +224,9 @@ class TestFractalRealAPI:
         print(f"\n{'='*60}")
         print("Context 构建:")
         print(f"  消息数量: {len(context_messages)}")
-        print(f"  包含历史: {len([m for m in context_messages if m.get('role') == 'assistant'])} 条")
+        print(
+            f"  包含历史: {len([m for m in context_messages if m.get('role') == 'assistant'])} 条"
+        )
         print(f"{'='*60}")
 
         # 应该包含历史消息
@@ -229,7 +235,8 @@ class TestFractalRealAPI:
         # ==================== 验证点 6: 分形委派（如果发生）====================
         # 检查是否有委派发生
         delegate_events = [
-            t for t in l1_tasks
+            t
+            for t in l1_tasks
             if t.action == "node.tool_call"
             and "delegate_task" in str(t.parameters.get("tool_name", ""))
         ]
@@ -259,9 +266,7 @@ class TestFractalRealAPI:
         assert len(found_keywords) >= 2, f"结果应该包含至少2个关键词，实际: {found_keywords}"
 
     @pytest.mark.asyncio
-    async def test_multi_level_fractal_delegation(
-        self, llm_provider, event_bus, budget_tracker
-    ):
+    async def test_multi_level_fractal_delegation(self, llm_provider, event_bus, budget_tracker):
         """
         测试多层分形委派
 
@@ -337,7 +342,8 @@ delegate_task 工具会自动创建子节点，你只需要提供：
         l1_tasks = memory.get_l1_tasks(limit=100)
 
         delegate_events = [
-            t for t in l1_tasks
+            t
+            for t in l1_tasks
             if t.action == "node.tool_call"
             and "delegate" in str(t.parameters.get("tool_name", "")).lower()
         ]

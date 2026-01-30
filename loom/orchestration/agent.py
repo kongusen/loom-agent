@@ -307,7 +307,10 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                                 "items": {"type": "string"},
                                 "description": "List of execution steps",
                             },
-                            "reasoning": {"type": "string", "description": "Why this plan is needed"},
+                            "reasoning": {
+                                "type": "string",
+                                "description": "Why this plan is needed",
+                            },
                         },
                         "required": ["goal", "steps"],
                     },
@@ -956,11 +959,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
             # DEBUG: 验证写入成功
             import logging
+
             logger = logging.getLogger(__name__)
             logger.info(f"[DEBUG] Plan written to SHARED: {plan_entry_id}")
             logger.info(f"[DEBUG] Plan content length: {len(plan_content)}")
         else:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(f"[DEBUG] No fractal_memory available for task {parent_task.task_id}")
 
@@ -1210,8 +1215,8 @@ IMPORTANT:
         child_system_prompt = self.system_prompt
         if subtask.parameters.get("is_plan_step"):
             parent_plan = subtask.parameters.get("parent_plan", "")
-            step_index = subtask.parameters.get('step_index', '?')
-            total_steps = subtask.parameters.get('total_steps', '?')
+            step_index = subtask.parameters.get("step_index", "?")
+            total_steps = subtask.parameters.get("total_steps", "?")
 
             # 简化的上下文提示：提供信息，不限制能力
             step_context = f"""

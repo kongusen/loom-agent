@@ -148,7 +148,12 @@ class TestEventBusPublishWithTransport:
         bus = EventBus(transport=mock_transport)
         bus._transport_initialized = True
 
-        task = Task(task_id="task1", action="test_action", parameters={"key": "value"}, status=TaskStatus.PENDING)
+        task = Task(
+            task_id="task1",
+            action="test_action",
+            parameters={"key": "value"},
+            status=TaskStatus.PENDING,
+        )
         result = await bus.publish(task)
 
         # 应该通过transport发布
@@ -259,6 +264,7 @@ class TestEventBusWildcardSubscription:
 
         # 等待异步通知完成
         import asyncio
+
         await asyncio.sleep(0.01)
 
         # 通配符订阅者应该接收到所有任务
@@ -367,4 +373,3 @@ class TestEventBusDebugMode:
         # 未启用调试模式，应该返回空列表
         recent_events = bus.get_recent_events()
         assert recent_events == []
-
