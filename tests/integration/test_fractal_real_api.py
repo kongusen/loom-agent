@@ -25,7 +25,6 @@ import pytest
 from loom.config.llm import LLMConfig
 from loom.events.event_bus import EventBus
 from loom.fractal.budget import BudgetTracker, RecursiveBudget
-from loom.memory.core import LoomMemory
 from loom.orchestration.agent import Agent
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.openai import OpenAIProvider
@@ -196,7 +195,7 @@ class TestFractalRealAPI:
         # 检查预算跟踪器
         usage = budget_tracker.usage
         print(f"\n{'='*60}")
-        print(f"预算统计:")
+        print("预算统计:")
         print(f"  当前深度: {usage.current_depth}/{budget_tracker.budget.max_depth}")
         print(f"  总子节点数: {usage.total_children}")
         print(f"  已用Token: {usage.tokens_used}/{budget_tracker.budget.token_budget}")
@@ -219,7 +218,7 @@ class TestFractalRealAPI:
         context_messages = await root_agent.context_manager.build_context(follow_up_task)
 
         print(f"\n{'='*60}")
-        print(f"Context 构建:")
+        print("Context 构建:")
         print(f"  消息数量: {len(context_messages)}")
         print(f"  包含历史: {len([m for m in context_messages if m.get('role') == 'assistant'])} 条")
         print(f"{'='*60}")
@@ -237,7 +236,7 @@ class TestFractalRealAPI:
 
         if delegate_events:
             print(f"\n{'='*60}")
-            print(f"分形委派:")
+            print("分形委派:")
             print(f"  委派次数: {len(delegate_events)}")
             print(f"{'='*60}")
 
@@ -321,13 +320,13 @@ delegate_task 工具会自动创建子节点，你只需要提供：
         assert result_task.status == TaskStatus.COMPLETED
 
         print(f"\n{'='*60}")
-        print(f"多层委派测试")
+        print("多层委派测试")
         print(f"执行时间: {duration:.2f} 秒")
         print(f"{'='*60}")
 
         # 检查预算统计
         usage = budget_tracker.usage
-        print(f"\n预算统计:")
+        print("\n预算统计:")
         print(f"  达到的最大深度: {usage.current_depth}/{budget_tracker.budget.max_depth}")
         print(f"  总子节点数: {usage.total_children}")
         print(f"  已用Token: {usage.tokens_used}")

@@ -6,7 +6,8 @@ This extends the Tool Use paradigm with Tool Creation capability.
 """
 
 import inspect
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def create_tool_creation_tool() -> dict[str, Any]:
@@ -170,7 +171,7 @@ class DynamicToolExecutor:
         try:
             exec(implementation, namespace)
         except Exception as e:
-            raise ToolCreationError(f"Failed to execute tool code: {str(e)}")
+            raise ToolCreationError(f"Failed to execute tool code: {str(e)}") from e
 
         # Extract the function
         if tool_name not in namespace:
@@ -222,7 +223,7 @@ class DynamicToolExecutor:
                 result = tool_func(**kwargs)
             return result
         except Exception as e:
-            raise ToolCreationError(f"Tool execution failed: {str(e)}")
+            raise ToolCreationError(f"Tool execution failed: {str(e)}") from e
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Get all dynamically created tool definitions"""

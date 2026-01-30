@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from loom.events.event_bus import EventBus
 from loom.memory.core import LoomMemory
 from loom.memory.task_context import (
     MemoryContextSource,

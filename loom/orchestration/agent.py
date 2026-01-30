@@ -28,6 +28,7 @@ from typing import Any
 
 from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
+from loom.fractal.memory import FractalMemory
 from loom.memory.core import LoomMemory
 from loom.memory.task_context import (
     MemoryContextSource,
@@ -425,7 +426,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         }
         if tool_name in context_tool_names and self._context_tool_executor:
             try:
-                result = await self._context_tool_executor.execute(tool_name, parsed_args)
+                result = await self._context_tool_executor.execute(tool_name, parsed_args)  # type: ignore[assignment]
                 return json.dumps(result, ensure_ascii=False, default=str)
             except Exception as e:
                 return f"错误：上下文工具执行失败 - {str(e)}"
@@ -1048,7 +1049,7 @@ IMPORTANT:
                 max_tokens=1000,
             )
             final_answer = synthesis_response.content
-        except Exception as e:
+        except Exception:
             # 如果综合失败，返回步骤摘要作为后备
             final_answer = f"Plan '{goal}' completed with {len(steps)} steps:\n" + steps_context
 

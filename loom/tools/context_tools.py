@@ -377,7 +377,7 @@ async def execute_query_events_by_action_tool(args: dict, event_bus: "EventBus")
     node_filter = args.get("node_filter")
     limit = args.get("limit", 10)
 
-    events = event_bus.query_by_action(action=action, node_filter=node_filter, limit=limit)
+    events = event_bus.query_by_action(action=action, node_filter=node_filter, limit=limit)  # type: ignore[attr-defined]
 
     return {
         "query_type": "by_action",
@@ -448,7 +448,7 @@ async def execute_query_events_by_node_tool(args: dict, event_bus: "EventBus") -
     action_filter = args.get("action_filter")
     limit = args.get("limit", 10)
 
-    events = event_bus.query_by_node(node_id=node_id, action_filter=action_filter, limit=limit)
+    events = event_bus.query_by_node(node_id=node_id, action_filter=action_filter, limit=limit)  # type: ignore[attr-defined]
 
     return {
         "query_type": "by_node",
@@ -532,7 +532,7 @@ async def execute_query_events_by_target_tool(args: dict, event_bus: "EventBus")
             "events": [],
         }
 
-    events = event_bus.query_by_target(
+    events = event_bus.query_by_target(  # type: ignore[attr-defined]
         target_agent=target_agent,
         target_node_id=target_node_id,
         action_filter=action_filter,
@@ -607,7 +607,7 @@ async def execute_query_recent_events_tool(args: dict, event_bus: "EventBus") ->
     action_filter = args.get("action_filter")
     node_filter = args.get("node_filter")
 
-    events = event_bus.query_recent(
+    events = event_bus.query_recent(  # type: ignore[attr-defined]
         limit=limit, action_filter=action_filter, node_filter=node_filter
     )
 
@@ -680,7 +680,7 @@ async def execute_query_thinking_process_tool(args: dict, event_bus: "EventBus")
     task_id = args.get("task_id")
     limit = args.get("limit", 10)
 
-    thoughts = event_bus.query_thinking_process(node_id=node_id, task_id=task_id, limit=limit)
+    thoughts = event_bus.query_thinking_process(node_id=node_id, task_id=task_id, limit=limit)  # type: ignore[attr-defined]
 
     return {
         "query_type": "thinking_process",

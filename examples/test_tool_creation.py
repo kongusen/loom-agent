@@ -91,7 +91,7 @@ async def main() -> None:
 
         # Check for repetition
         sentences = content.split("。")
-        unique_sentences = set(s.strip() for s in sentences if s.strip())
+        unique_sentences = {s.strip() for s in sentences if s.strip()}
         if len(sentences) > len(unique_sentences) + 2:
             print("⚠️  Warning: Possible repetition detected")
         else:

@@ -16,11 +16,10 @@ import contextlib
 import json
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 from loom.events.actions import AgentAction, MemoryAction, TaskAction
-from loom.protocol.task import Task, TaskStatus
+from loom.protocol.task import Task
 
 if TYPE_CHECKING:
     from loom.events.transport import Transport
@@ -53,7 +52,7 @@ class EventBus:
         self._transport_initialized = False
 
         # 可选的调试事件记录（仅保留最近100条）
-        self._recent_events: Optional[Any] = None
+        self._recent_events: Any | None = None
         if debug_mode:
             from collections import deque
             self._recent_events = deque(maxlen=100)
@@ -118,11 +117,9 @@ class EventBus:
         async def _notify_wildcard_handlers() -> None:
             """通知所有通配符订阅者"""
             for wildcard_handler in wildcard_handlers:
-                try:
+                # 通配符处理器异常不影响主流程
+                with contextlib.suppress(Exception):
                     await wildcard_handler(task)
-                except Exception:
-                    # 通配符处理器异常不影响主流程
-                    pass
 
         # 如果有通配符订阅者，异步通知它们
         if wildcard_handlers:

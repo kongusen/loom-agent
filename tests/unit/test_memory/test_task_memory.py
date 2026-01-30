@@ -528,7 +528,7 @@ class TestEventBusSubscription:
             (0.8, True),   # 明显高于阈值
         ]
 
-        for i, (importance, should_be_in_l2) in enumerate(test_cases):
+        for i, (importance, _should_be_in_l2) in enumerate(test_cases):
             task = Task(task_id=f"task{i}", action="test")
             task.metadata["importance"] = importance
             await memory._on_task(task)

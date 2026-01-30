@@ -129,12 +129,12 @@ class TestPromoteTaskToL2Tool:
         """Test successfully promoting a task to L2"""
         memory = LoomMemory(node_id="test_node")
 
-        # Add a task to L1
+        # Add a task to L1 with low importance to avoid auto-promotion
         task = Task(
             task_id="test_task",
             action="test_action",
             parameters={"key": "value"},
-            metadata={"importance": 0.8},
+            metadata={"importance": 0.5},
         )
         memory.add_task(task)
 

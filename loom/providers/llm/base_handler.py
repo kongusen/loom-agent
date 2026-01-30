@@ -93,9 +93,13 @@ class ToolCallAggregator:
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON in tool {tc['name']} arguments: {str(e)}")
                 yield StreamChunk(
-                    type="tool_call_complete",
-                    content=tc,
-                    metadata={"index": idx, "invalid_json": True, "error": str(e)},
+                    type="error",
+                    content={
+                        "error": "invalid_tool_arguments",
+                        "message": f"Invalid JSON in tool {tc['name']} arguments: {str(e)}",
+                        "tool_name": tc['name'],
+                    },
+                    metadata={"index": idx},
                 )
 
     def clear(self):

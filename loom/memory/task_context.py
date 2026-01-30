@@ -26,9 +26,7 @@ from loom.protocol import Task
 
 if TYPE_CHECKING:
     from loom.config.knowledge import KnowledgeBaseProvider
-    from loom.events.event_bus import EventBus
-    from loom.fractal.memory import FractalMemory
-    from loom.fractal.memory import MemoryScope
+    from loom.fractal.memory import FractalMemory, MemoryScope
     from loom.memory.core import LoomMemory
 
 
@@ -790,7 +788,7 @@ class TaskContextManager:
             if self.system_prompt
             else 0
         )
-        allocation = self.budgeter.allocate_budget(system_prompt_tokens=system_tokens)
+        self.budgeter.allocate_budget(system_prompt_tokens=system_tokens)
 
         # 2. 从 Memory 获取上下文（只查询 Memory，不查询 EventBus）
         context_tasks: list[Task] = []

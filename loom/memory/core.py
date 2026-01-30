@@ -147,11 +147,10 @@ class LoomMemory:
         # 根据层级分发
         if tier == MemoryTier.L1_RAW_IO:
             self._add_to_l1(task)
+            # 触发提升（L1->L2->L3->L4）
+            self.promote_tasks()
         elif tier == MemoryTier.L2_WORKING:
             self._add_to_l2(task)
-
-        # 触发提升（L1->L2->L3->L4）
-        self.promote_tasks()
 
     def _ensure_importance(self, task: "Task") -> None:
         """为任务设置默认重要性（若未显式提供）"""
@@ -529,7 +528,7 @@ class LoomMemory:
         self._promote_l1_to_l2()
 
         # L2 → L3: 当L2满时，将旧的Task压缩为摘要
-        if len(self._l2_layer._heap) >= self.max_l2_size * 0.9:  # 90%阈值
+        if len(self._l2_layer._heap) >= self.max_l2_size:  # 100%阈值
             self._promote_l2_to_l3()
 
         # L3 → L4: 当L3满时，向量化摘要
@@ -579,7 +578,7 @@ class LoomMemory:
 
         当L2接近满时，将最不重要的Task压缩为摘要
         """
-        if len(self._l2_layer._heap) < self.max_l2_size * 0.9:
+        if len(self._l2_layer._heap) < self.max_l2_size:
             return
 
         # 按重要性排序（从heap中提取）

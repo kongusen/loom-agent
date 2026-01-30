@@ -44,7 +44,7 @@ async def main():
             tool_name = event_task.parameters.get("tool_name", "")
             tool_call_events.append(event_task)
             if tool_name == "create_plan":
-                print(f"[TOOL_CALL] create_plan")
+                print("[TOOL_CALL] create_plan")
         return event_task
 
     event_bus.register_handler("node.planning", track_event)
@@ -100,13 +100,13 @@ async def main():
     if result.result:
         content = result.result.get("content", "") if isinstance(result.result, dict) else str(result.result)
         print(f"\nFinal Answer Length: {len(content)} chars")
-        print(f"\nFinal Answer Preview:")
+        print("\nFinal Answer Preview:")
         print("-" * 80)
         print(content[:500] + ("..." if len(content) > 500 else ""))
         print("-" * 80)
 
     # Check for nested planning
-    print(f"\n[CHECK] Nested Planning:")
+    print("\n[CHECK] Nested Planning:")
     if len(planning_events) > 1:
         print(f"  ⚠️  WARNING: {len(planning_events)} planning events detected (expected 1)")
         for idx, event in enumerate(planning_events, 1):
@@ -115,15 +115,15 @@ async def main():
         print(f"  ✅ OK: Only {len(planning_events)} planning event")
 
     # Check answer quality
-    print(f"\n[CHECK] Answer Quality:")
+    print("\n[CHECK] Answer Quality:")
     if result.result:
         content = result.result.get("content", "") if isinstance(result.result, dict) else str(result.result)
         if "Plan" in content and "completed with" in content and "steps:" in content:
-            print(f"  ⚠️  WARNING: Answer looks like a plan summary")
+            print("  ⚠️  WARNING: Answer looks like a plan summary")
         elif "Step 1:" in content or "Step 2:" in content:
-            print(f"  ⚠️  WARNING: Answer contains step-by-step format")
+            print("  ⚠️  WARNING: Answer contains step-by-step format")
         else:
-            print(f"  ✅ OK: Answer appears to be synthesized")
+            print("  ✅ OK: Answer appears to be synthesized")
 
     print("\n" + "=" * 80)
 
