@@ -636,9 +636,18 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         # 记录任务到分形共享记忆（用于子节点继承上下文）
         await self._ensure_shared_task_context(task)
 
-        # 加载相关的Skills（Progressive Disclosure）
+        # 加载并激活相关的Skills（Progressive Disclosure + Phase 2 三种形态）
         task_content = task.parameters.get("content", "")
-        relevant_skills = await self._load_relevant_skills(task_content)
+        activated_skills = await self._load_relevant_skills(task_content)
+
+        # 提取激活结果
+        injected_instructions = activated_skills.get("injected_instructions", [])
+        compiled_tools = activated_skills.get("compiled_tools", [])
+        instantiated_nodes = activated_skills.get("instantiated_nodes", [])
+
+        # Form 2: 编译的工具已经注册到 SandboxToolManager，会自动可用
+        # Form 3: 实例化的节点存储起来，供后续委派使用
+        self._active_skill_nodes = instantiated_nodes
 
         # Agent 循环
         accumulated_messages: list[dict[str, Any]] = []
@@ -652,11 +661,10 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 # 2. 构建优化上下文（第二层防护）
                 messages = await self.context_manager.build_context(task)
 
-                # 添加Skills指令（如果有相关Skills）
-                if relevant_skills and iteration == 0:  # 只在第一次迭代添加
+                # Form 1: 添加Skills指令（知识注入）
+                if injected_instructions and iteration == 0:  # 只在第一次迭代添加
                     skill_instructions = "\n\n=== Available Skills ===\n\n"
-                    for skill in relevant_skills:
-                        skill_instructions += skill.get_full_instructions() + "\n\n"
+                    skill_instructions += "\n\n".join(injected_instructions)
                     messages.append({"role": "system", "content": skill_instructions})
 
                 # 添加过滤后的累积消息
@@ -963,44 +971,37 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
     # ==================== 自动能力（内部方法）====================
 
-    async def _load_relevant_skills(self, task_description: str) -> list[Any]:
+    async def _load_relevant_skills(self, task_description: str) -> dict[str, Any]:
         """
-        加载与任务相关的Skills
+        加载并激活与任务相关的Skills（Phase 2 - 三种形态）
 
         使用Progressive Disclosure + LLM智能判断：
         1. 第一阶段：获取所有Skills的元数据（name + description）
         2. 使用LLM判断哪些Skills相关
-        3. 第二阶段：只加载相关Skills的完整定义
+        3. 第三阶段：激活相关Skills（三种形态）
 
         Args:
             task_description: 任务描述
 
         Returns:
-            相关的SkillDefinition列表
+            激活结果字典：
+            {
+                "injected_instructions": list[str],  # Form 1
+                "compiled_tools": list[str],         # Form 2
+                "instantiated_nodes": list[Any],     # Form 3
+            }
         """
-        if not self.skill_registry:
-            return []
+        # 如果没有 skill_activator，返回空结果
+        if not self.skill_activator:
+            return {
+                "injected_instructions": [],
+                "compiled_tools": [],
+                "instantiated_nodes": [],
+            }
 
-        # 获取所有Skills的元数据
-        all_metadata = await self.skill_registry.get_all_metadata()
-
-        if not all_metadata:
-            return []
-
-        # 使用LLM智能判断相关性
-        from loom.skills.activator import SkillActivator
-
-        activator = SkillActivator(self.llm_provider)
-        relevant_skill_ids = await activator.find_relevant_skills(task_description, all_metadata)
-
-        # 加载完整的Skill定义
-        relevant_skills = []
-        for skill_id in relevant_skill_ids:
-            skill = await self.skill_registry.get_skill(skill_id)
-            if skill:
-                relevant_skills.append(skill)
-
-        return relevant_skills
+        # 调用 Phase 2 实现的 _activate_skills() 方法
+        # 它会处理所有三种形态的激活
+        return await self._activate_skills(task_description)
 
     async def _execute_delegate_task(
         self,
