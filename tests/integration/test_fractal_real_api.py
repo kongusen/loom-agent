@@ -25,7 +25,7 @@ import pytest
 from loom.config.llm import LLMConfig
 from loom.events.event_bus import EventBus
 from loom.fractal.budget import BudgetTracker, RecursiveBudget
-from loom.orchestration.agent import Agent
+from loom.agent import Agent
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.openai import OpenAIProvider
 

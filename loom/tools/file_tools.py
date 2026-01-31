@@ -11,7 +11,17 @@ File Tools - 文件操作工具集
 所有操作都通过沙箱验证，确保不会访问沙箱外的文件。
 """
 
+from typing import Any
+
+from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.sandbox import Sandbox, SandboxViolation
+
+# Optional import for SandboxToolManager
+try:
+    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+except ImportError:
+    SandboxToolManager = None  # type: ignore
+    ToolScope = None  # type: ignore
 
 
 class FileTools:
@@ -247,3 +257,106 @@ def create_file_tools(sandbox: Sandbox) -> list[dict]:
             "_executor": tools.edit_file,
         },
     ]
+
+
+async def register_file_tools_to_manager(
+    manager: "SandboxToolManager",
+) -> None:
+    """
+    注册文件工具到沙盒工具管理器
+
+    这是新的推荐方式，通过 SandboxToolManager 管理所有工具。
+
+    Args:
+        manager: 沙盒工具管理器实例
+
+    Example:
+        manager = SandboxToolManager(sandbox)
+        await register_file_tools_to_manager(manager)
+        # 工具已注册，可以通过 manager.execute_tool() 调用
+    """
+    if SandboxToolManager is None or ToolScope is None:
+        raise ImportError("SandboxToolManager is not available")
+
+    tools = FileTools(manager.sandbox)
+
+    # 注册 read_file 工具
+    read_definition = MCPToolDefinition(
+        name="read_file",
+        description=f"Read file content from the sandbox ({manager.sandbox.root_dir}). "
+        "Provide the file path relative to the sandbox root.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file (relative to sandbox root)",
+                },
+            },
+            "required": ["file_path"],
+        },
+    )
+    await manager.register_tool(
+        "read_file",
+        tools.read_file,
+        read_definition,
+        ToolScope.SANDBOXED,
+    )
+
+    # 注册 write_file 工具
+    write_definition = MCPToolDefinition(
+        name="write_file",
+        description=f"Write content to a file in the sandbox ({manager.sandbox.root_dir}). "
+        "Creates parent directories if needed.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file (relative to sandbox root)",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Content to write to the file",
+                },
+            },
+            "required": ["file_path", "content"],
+        },
+    )
+    await manager.register_tool(
+        "write_file",
+        tools.write_file,
+        write_definition,
+        ToolScope.SANDBOXED,
+    )
+
+    # 注册 edit_file 工具
+    edit_definition = MCPToolDefinition(
+        name="edit_file",
+        description=f"Edit a file by replacing a string in the sandbox ({manager.sandbox.root_dir}). "
+        "All occurrences of old_string will be replaced with new_string.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file (relative to sandbox root)",
+                },
+                "old_string": {
+                    "type": "string",
+                    "description": "String to replace",
+                },
+                "new_string": {
+                    "type": "string",
+                    "description": "Replacement string",
+                },
+            },
+            "required": ["file_path", "old_string", "new_string"],
+        },
+    )
+    await manager.register_tool(
+        "edit_file",
+        tools.edit_file,
+        edit_definition,
+        ToolScope.SANDBOXED,
+    )

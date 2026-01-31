@@ -273,7 +273,7 @@ class TestFractalMemory:
     @pytest.mark.asyncio
     async def test_agent_stores_task_in_memory(self):
         """测试Agent执行任务后将任务存储到记忆中"""
-        from loom.orchestration.agent import Agent
+        from loom.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
 
@@ -344,7 +344,7 @@ class TestFractalMemory:
     async def test_child_node_inherits_parent_memory(self):
         """测试子节点继承父节点的记忆"""
         from loom.fractal.memory import FractalMemory
-        from loom.orchestration.agent import Agent
+        from loom.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
 
@@ -406,7 +406,7 @@ class TestFractalMemory:
     async def test_child_memory_syncs_back_to_parent(self):
         """测试子节点记忆同步回父节点"""
         from loom.fractal.memory import FractalMemory, MemoryScope
-        from loom.orchestration.agent import Agent
+        from loom.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
 

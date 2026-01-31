@@ -115,6 +115,16 @@ class AgentConfig(BaseModel):
         description="是否启用观测能力",
     )
 
+    enable_context_tools: bool = Field(
+        default=True,
+        description="是否启用上下文查询工具",
+    )
+
+    enable_tool_creation: bool = Field(
+        default=False,
+        description="是否启用工具创建能力（建议禁用，优先使用delegate_task）",
+    )
+
     max_context_tokens: int = Field(
         default=4000,
         description="最大上下文 token 数",
@@ -130,6 +140,37 @@ class AgentConfig(BaseModel):
     context_budget_config: dict[str, float | int] | None = Field(
         default=None,
         description="上下文预算比例配置（可选）",
+    )
+
+    # Phase 3: Skill 和工具配置
+    enabled_skills: set[str] = Field(
+        default_factory=set,
+        description="启用的 Skills（Phase 3）",
+    )
+
+    disabled_tools: set[str] = Field(
+        default_factory=set,
+        description="禁用的工具（Phase 3）",
+    )
+
+    extra_tools: set[str] = Field(
+        default_factory=set,
+        description="额外的工具（Phase 3）",
+    )
+
+    # 知识库RAG配置
+    knowledge_max_items: int = Field(
+        default=3,
+        description="知识库查询返回的最大条目数",
+        ge=1,
+        le=10,
+    )
+
+    knowledge_relevance_threshold: float = Field(
+        default=0.7,
+        description="知识相关度阈值（0.0-1.0）",
+        ge=0.0,
+        le=1.0,
     )
 
     @field_validator("capabilities")

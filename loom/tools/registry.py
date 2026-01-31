@@ -69,6 +69,18 @@ class ToolRegistry:
         """
         return self._tools.get(name)
 
+    def has(self, name: str) -> bool:
+        """
+        检查工具是否存在
+
+        Args:
+            name: 工具名称
+
+        Returns:
+            是否存在
+        """
+        return name in self._tools
+
     @property
     def definitions(self) -> list[MCPToolDefinition]:
         """

@@ -11,7 +11,7 @@ Tests cover:
 import pytest
 
 from loom.fractal.memory import FractalMemory, MemoryScope
-from loom.orchestration.agent import Agent
+from loom.agent import Agent
 from loom.protocol import Task
 from loom.providers.llm.mock import MockLLMProvider
 

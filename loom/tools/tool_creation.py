@@ -3,11 +3,22 @@ Tool Creation - Dynamic tool creation capability
 
 Allows agents to create new tools at runtime using Python code.
 This extends the Tool Use paradigm with Tool Creation capability.
+
+动态创建的工具自动继承父沙盒，在安全的环境中执行。
 """
 
 import inspect
 from collections.abc import Callable
 from typing import Any
+
+from loom.protocol.mcp import MCPToolDefinition
+
+# Optional import for SandboxToolManager
+try:
+    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+except ImportError:
+    SandboxToolManager = None  # type: ignore
+    ToolScope = None  # type: ignore
 
 
 def create_tool_creation_tool() -> dict[str, Any]:
@@ -74,11 +85,23 @@ class ToolCreationError(Exception):
 
 
 class DynamicToolExecutor:
-    """Executes dynamically created tools in a controlled environment"""
+    """
+    执行动态创建的工具
 
-    def __init__(self):
+    动态创建的工具自动继承父沙盒，在安全的环境中执行。
+    """
+
+    def __init__(self, sandbox_manager: "SandboxToolManager | None" = None):
+        """
+        初始化动态工具执行器
+
+        Args:
+            sandbox_manager: 沙盒工具管理器实例（可选）
+                如果提供，创建的工具将自动注册到管理器
+        """
         self.created_tools: dict[str, Callable] = {}
         self.tool_definitions: dict[str, dict[str, Any]] = {}
+        self.sandbox_manager = sandbox_manager
 
     def validate_tool_code(self, tool_name: str, code: str) -> None:
         """
@@ -127,6 +150,8 @@ class DynamicToolExecutor:
         """
         Create a new tool dynamically
 
+        创建的工具自动继承父沙盒（如果有 sandbox_manager）。
+
         Args:
             tool_name: Name of the tool
             description: Tool description
@@ -142,7 +167,7 @@ class DynamicToolExecutor:
         # Validate tool code
         self.validate_tool_code(tool_name, implementation)
 
-        # Create execution namespace
+        # Create execution namespace with safe builtins
         namespace: dict[str, Any] = {
             "__builtins__": {
                 "str": str,
@@ -168,6 +193,10 @@ class DynamicToolExecutor:
             }
         }
 
+        # 如果有沙盒管理器，添加沙盒到命名空间
+        if self.sandbox_manager:
+            namespace["sandbox"] = self.sandbox_manager.sandbox
+
         # Execute code to define the function
         try:
             exec(implementation, namespace)
@@ -184,7 +213,7 @@ class DynamicToolExecutor:
         if not callable(tool_func):
             raise ToolCreationError(f"'{tool_name}' is not callable")
 
-        # Store the tool
+        # Store the tool locally (for backward compatibility)
         self.created_tools[tool_name] = tool_func
         self.tool_definitions[tool_name] = {
             "type": "function",
@@ -195,8 +224,29 @@ class DynamicToolExecutor:
             },
         }
 
+        # 如果有沙盒管理器，同时注册到管理器
+        if self.sandbox_manager:
+            tool_definition = MCPToolDefinition(
+                name=tool_name,
+                description=description,
+                input_schema=parameters,
+            )
+            await self.sandbox_manager.register_tool(
+                tool_name,
+                tool_func,
+                tool_definition,
+                ToolScope.SANDBOXED,  # 动态工具继承父沙盒
+            )
+
+        sandbox_note = (
+            f" The tool has access to the sandbox at {self.sandbox_manager.sandbox.root_dir}."
+            if self.sandbox_manager
+            else ""
+        )
+
         return (
-            f"Tool '{tool_name}' created successfully. You can now use it in subsequent iterations."
+            f"Tool '{tool_name}' created successfully.{sandbox_note} "
+            "You can now use it in subsequent iterations."
         )
 
     async def execute_tool(self, tool_name: str, **kwargs) -> Any:

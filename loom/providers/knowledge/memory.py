@@ -6,7 +6,7 @@
 
 from typing import Any
 
-from loom.config.knowledge import KnowledgeBaseProvider, KnowledgeItem
+from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 
 
 class InMemoryKnowledgeBase(KnowledgeBaseProvider):

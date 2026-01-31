@@ -6,7 +6,6 @@ A5: 认知调度公理 (Cognitive Orchestration Axiom)
 本模块实现不同的编排模式，通过节点间的协作涌现认知。
 
 导出内容：
-- Agent: 自主智能体
 - Workflow: 工作流抽象基类
 - SequentialWorkflow: 固定流程工作流
 - AgentWorkflow: 动态流程工作流
@@ -16,7 +15,7 @@ A5: 认知调度公理 (Cognitive Orchestration Axiom)
 - PipelineBuilder: 流水线构建器（顺序/并行/条件执行）
 """
 
-from loom.orchestration.agent import Agent
+# Orchestration-specific imports
 from loom.orchestration.agent_workflow import AgentWorkflow
 from loom.orchestration.base import Orchestrator
 from loom.orchestration.crew import CrewOrchestrator
@@ -26,7 +25,6 @@ from loom.orchestration.sequential_workflow import SequentialWorkflow
 from loom.orchestration.workflow import Workflow
 
 __all__ = [
-    "Agent",
     "Workflow",
     "SequentialWorkflow",
     "AgentWorkflow",

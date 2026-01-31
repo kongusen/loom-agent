@@ -17,7 +17,15 @@ Bash Tool - Bash 命令执行工具
 
 import asyncio
 
+from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.sandbox import Sandbox
+
+# Optional import for SandboxToolManager
+try:
+    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+except ImportError:
+    SandboxToolManager = None  # type: ignore
+    ToolScope = None  # type: ignore
 
 
 class BashTool:
@@ -138,3 +146,51 @@ def create_bash_tool(sandbox: Sandbox, timeout: float = 30.0) -> dict:
         },
         "_executor": tool.execute,
     }
+
+
+async def register_bash_tool_to_manager(
+    manager: "SandboxToolManager",
+    timeout: float = 30.0,
+) -> None:
+    """
+    注册 Bash 工具到沙盒工具管理器
+
+    Bash 是系统级工具，不受文件系统沙盒约束，但工作目录设置为沙盒根目录。
+
+    Args:
+        manager: 沙盒工具管理器实例
+        timeout: 命令执行超时时间（秒）
+
+    Example:
+        manager = SandboxToolManager(sandbox)
+        await register_bash_tool_to_manager(manager)
+        # 工具已注册，可以通过 manager.execute_tool() 调用
+    """
+    if SandboxToolManager is None or ToolScope is None:
+        raise ImportError("SandboxToolManager is not available")
+
+    tool = BashTool(manager.sandbox, timeout)
+
+    # 注册 bash 工具（SYSTEM 作用域 - 不受文件系统沙盒约束）
+    bash_definition = MCPToolDefinition(
+        name="bash",
+        description=f"Execute bash commands in the sandbox directory ({manager.sandbox.root_dir}). "
+        "The working directory is set to the sandbox root. "
+        f"Commands will timeout after {timeout} seconds.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The bash command to execute",
+                },
+            },
+            "required": ["command"],
+        },
+    )
+    await manager.register_tool(
+        "bash",
+        tool.execute,
+        bash_definition,
+        ToolScope.SYSTEM,  # Bash 是系统级操作，不受文件系统沙盒约束
+    )

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from loom.orchestration.agent import Agent
+from loom.agent import Agent
 from loom.orchestration.agent_workflow import AgentWorkflow
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider

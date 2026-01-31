@@ -119,3 +119,28 @@ class TestAgentConfig:
             )
 
         assert "Invalid capability" in str(exc_info.value)
+
+    def test_agent_config_phase3_fields(self):
+        """测试Phase 3新增字段（enabled_skills, disabled_tools, extra_tools）"""
+        config = AgentConfig(
+            agent_id="test-agent",
+            name="Test Agent",
+            enabled_skills={"skill1", "skill2"},
+            disabled_tools={"tool1"},
+            extra_tools={"tool2", "tool3"},
+        )
+
+        assert config.enabled_skills == {"skill1", "skill2"}
+        assert config.disabled_tools == {"tool1"}
+        assert config.extra_tools == {"tool2", "tool3"}
+
+    def test_agent_config_phase3_fields_default(self):
+        """测试Phase 3字段的默认值"""
+        config = AgentConfig(
+            agent_id="test-agent",
+            name="Test Agent",
+        )
+
+        assert config.enabled_skills == set()
+        assert config.disabled_tools == set()
+        assert config.extra_tools == set()

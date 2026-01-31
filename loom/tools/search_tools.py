@@ -12,7 +12,15 @@ Search Tools - 搜索工具集
 
 import re
 
+from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.sandbox import Sandbox
+
+# Optional import for SandboxToolManager
+try:
+    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+except ImportError:
+    SandboxToolManager = None  # type: ignore
+    ToolScope = None  # type: ignore
 
 
 class SearchTools:
@@ -228,3 +236,87 @@ def create_search_tools(sandbox: Sandbox) -> list[dict]:
             "_executor": tools.grep,
         },
     ]
+
+
+async def register_search_tools_to_manager(
+    manager: "SandboxToolManager",
+) -> None:
+    """
+    注册搜索工具到沙盒工具管理器
+
+    这是新的推荐方式，通过 SandboxToolManager 管理所有工具。
+
+    Args:
+        manager: 沙盒工具管理器实例
+
+    Example:
+        manager = SandboxToolManager(sandbox)
+        await register_search_tools_to_manager(manager)
+        # 工具已注册，可以通过 manager.execute_tool() 调用
+    """
+    if SandboxToolManager is None or ToolScope is None:
+        raise ImportError("SandboxToolManager is not available")
+
+    tools = SearchTools(manager.sandbox)
+
+    # 注册 glob 工具
+    glob_definition = MCPToolDefinition(
+        name="glob",
+        description=f"Search for files by name pattern in the sandbox ({manager.sandbox.root_dir}). "
+        "Supports glob patterns like '*.py', '**/*.txt', etc.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern (e.g., '*.py', '**/*.txt')",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default: 100)",
+                },
+            },
+            "required": ["pattern"],
+        },
+    )
+    await manager.register_tool(
+        "glob",
+        tools.glob,
+        glob_definition,
+        ToolScope.SANDBOXED,
+    )
+
+    # 注册 grep 工具
+    grep_definition = MCPToolDefinition(
+        name="grep",
+        description=f"Search for text patterns in files in the sandbox ({manager.sandbox.root_dir}). "
+        "Uses regular expressions for pattern matching.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Search pattern (regular expression)",
+                },
+                "file_pattern": {
+                    "type": "string",
+                    "description": "File name pattern to search in (default: '**/*')",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default: 100)",
+                },
+                "case_sensitive": {
+                    "type": "boolean",
+                    "description": "Whether to match case sensitively (default: true)",
+                },
+            },
+            "required": ["pattern"],
+        },
+    )
+    await manager.register_tool(
+        "grep",
+        tools.grep,
+        grep_definition,
+        ToolScope.SANDBOXED,
+    )

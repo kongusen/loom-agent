@@ -12,7 +12,7 @@ Skill Activator - 智能Skill激活器
 from typing import Any
 
 from loom.providers.llm.interface import LLMProvider
-from loom.skills.models import SkillActivationMode, SkillDefinition
+from loom.skills.models import ActivationResult, SkillActivationMode, SkillDefinition
 from loom.skills.script_compiler import ScriptCompiler
 
 
@@ -23,14 +23,20 @@ class SkillActivator:
     使用LLM判断Skills与任务的相关性，避免加载无关的Skills。
     """
 
-    def __init__(self, llm_provider: LLMProvider):
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        tool_registry: Any | None = None,
+    ):
         """
         初始化激活器
 
         Args:
             llm_provider: LLM提供者（用于判断相关性）
+            tool_registry: 工具注册表（用于依赖验证）
         """
         self.llm_provider = llm_provider
+        self.tool_registry = tool_registry
 
     async def find_relevant_skills(
         self,
@@ -265,3 +271,108 @@ Relevant skill numbers:"""
         )
 
         return skill_node
+
+    def validate_dependencies(
+        self,
+        skill: SkillDefinition,
+    ) -> tuple[bool, list[str]]:
+        """
+        验证 Skill 依赖的工具是否存在
+
+        Args:
+            skill: Skill 定义
+
+        Returns:
+            (是否通过, 缺失的工具列表)
+        """
+        if not self.tool_registry:
+            return True, []  # 无 tool_registry 时跳过验证
+
+        missing = []
+        for tool_name in skill.required_tools:
+            if not self.tool_registry.has(tool_name):
+                missing.append(tool_name)
+
+        return len(missing) == 0, missing
+
+    async def activate(
+        self,
+        skill: SkillDefinition,
+        tool_manager: Any | None = None,
+        event_bus: Any | None = None,
+    ) -> ActivationResult:
+        """
+        统一的 Skill 激活接口（带依赖验证）
+
+        Args:
+            skill: Skill 定义
+            tool_manager: SandboxToolManager（Form 2 需要）
+            event_bus: EventBus（Form 3 需要）
+
+        Returns:
+            ActivationResult 包含成功/失败信息
+        """
+        # 1. 验证依赖
+        valid, missing = self.validate_dependencies(skill)
+        if not valid:
+            return ActivationResult(
+                success=False,
+                skill_id=skill.skill_id,
+                mode=self.determine_activation_mode(skill),
+                error=f"Missing required tools: {missing}",
+                missing_tools=missing,
+            )
+
+        # 2. 确定激活模式
+        mode = self.determine_activation_mode(skill)
+
+        # 3. 根据模式激活
+        try:
+            if mode == SkillActivationMode.INJECTION:
+                content = self.activate_injection(skill)
+                return ActivationResult(
+                    success=True,
+                    skill_id=skill.skill_id,
+                    mode=mode,
+                    content=content,
+                )
+
+            elif mode == SkillActivationMode.COMPILATION:
+                if not tool_manager:
+                    return ActivationResult(
+                        success=False,
+                        skill_id=skill.skill_id,
+                        mode=mode,
+                        error="tool_manager required for COMPILATION mode",
+                    )
+                tool_names = await self.activate_compilation(skill, tool_manager)
+                return ActivationResult(
+                    success=True,
+                    skill_id=skill.skill_id,
+                    mode=mode,
+                    tool_names=tool_names,
+                )
+
+            elif mode == SkillActivationMode.INSTANTIATION:
+                if not event_bus:
+                    return ActivationResult(
+                        success=False,
+                        skill_id=skill.skill_id,
+                        mode=mode,
+                        error="event_bus required for INSTANTIATION mode",
+                    )
+                node = self.activate_instantiation(skill, event_bus)
+                return ActivationResult(
+                    success=True,
+                    skill_id=skill.skill_id,
+                    mode=mode,
+                    node=node,
+                )
+
+        except Exception as e:
+            return ActivationResult(
+                success=False,
+                skill_id=skill.skill_id,
+                mode=mode,
+                error=str(e),
+            )

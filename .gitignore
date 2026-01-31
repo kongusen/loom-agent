@@ -198,3 +198,4 @@ verify-*/
 docs/design/*.md
 
 .ruff_cache/
+AGENTS.md

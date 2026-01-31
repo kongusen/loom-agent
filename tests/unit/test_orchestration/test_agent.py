@@ -5,7 +5,7 @@ Agent Unit Tests
 """
 
 from loom.events.event_bus import EventBus
-from loom.orchestration.agent import Agent
+from loom.agent import Agent
 from loom.providers.llm.mock import MockLLMProvider
 
 

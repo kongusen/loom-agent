@@ -666,6 +666,38 @@ class LoomMemory:
         """
         return self._task_index.get(task_id)
 
+    def get_call_chain(self, task_id: str) -> list["Task"]:
+        """
+        获取任务调用链（从根任务到当前任务）
+
+        通过递归查询 parent_task_id 构建完整的调用链。
+        用于调试和追踪任务执行路径。
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            任务列表，从根任务到当前任务的完整路径
+            如果任务不存在，返回空列表
+
+        Example:
+            >>> chain = memory.get_call_chain("task-3")
+            >>> # 返回: [root_task, parent_task, current_task]
+        """
+        chain = []
+        current = self.get_task(task_id)
+
+        # 递归查询父任务
+        while current:
+            chain.append(current)
+            if current.parent_task_id:
+                current = self.get_task(current.parent_task_id)
+            else:
+                break
+
+        # 反转列表，使其从根任务到当前任务
+        return list(reversed(chain))
+
     def get_stats(self) -> dict[str, Any]:
         """
         获取记忆系统统计信息

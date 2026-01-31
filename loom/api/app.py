@@ -10,13 +10,19 @@ Loom App - FastAPI 风格的应用接口
 4. 简洁 API - 直观易用的接口
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loom.api.models import AgentConfig
 from loom.events import EventBus
-from loom.orchestration import Agent
+from loom.agent import Agent
 from loom.providers.llm.interface import LLMProvider
 from loom.runtime import Dispatcher
+from loom.tools.registry import ToolRegistry
+from loom.skills.skill_registry import SkillRegistry
+from loom.skills.activator import SkillActivator
+
+if TYPE_CHECKING:
+    from loom.providers.knowledge.base import KnowledgeBaseProvider
 
 
 class LoomApp:
@@ -67,6 +73,16 @@ class LoomApp:
         self._llm_provider: LLMProvider | None = None
         self._default_tools: list[dict[str, Any]] = []
         self._agents: dict[str, Agent] = {}
+        self._knowledge_base: "KnowledgeBaseProvider | None" = None
+
+        # 创建工具注册表
+        self._tool_registry = ToolRegistry()
+
+        # 创建Skill注册表
+        self._skill_registry = SkillRegistry()
+
+        # Skill激活器（延迟初始化，需要LLM provider）
+        self._skill_activator: SkillActivator | None = None
 
     def set_llm_provider(self, provider: LLMProvider) -> "LoomApp":
         """
@@ -79,6 +95,26 @@ class LoomApp:
             self（支持链式调用）
         """
         self._llm_provider = provider
+
+        # 初始化Skill激活器（需要LLM provider）
+        self._skill_activator = SkillActivator(
+            llm_provider=provider,
+            tool_registry=self._tool_registry
+        )
+
+        return self
+
+    def set_knowledge_base(self, knowledge_base: "KnowledgeBaseProvider") -> "LoomApp":
+        """
+        设置全局知识库提供者
+
+        Args:
+            knowledge_base: 知识库提供者
+
+        Returns:
+            self（支持链式调用）
+        """
+        self._knowledge_base = knowledge_base
         return self
 
     def add_tools(self, tools: list[dict[str, Any]]) -> "LoomApp":
@@ -94,11 +130,59 @@ class LoomApp:
         self._default_tools.extend(tools)
         return self
 
+    def register_tool(self, func: Any, name: str | None = None) -> "LoomApp":
+        """
+        注册工具实现
+
+        Args:
+            func: Python 函数（工具的实际实现）
+            name: 工具名称（可选，默认使用函数名）
+
+        Returns:
+            self（支持链式调用）
+        """
+        self._tool_registry.register_function(func, name)
+        return self
+
+    def register_skill(
+        self,
+        name: str,
+        description: str,
+        parameters: dict[str, Any],
+        handler: Any,
+        source: str = "python",
+        **metadata: Any,
+    ) -> "LoomApp":
+        """
+        注册Skill
+
+        Args:
+            name: Skill名称
+            description: Skill描述
+            parameters: 参数定义（OpenAI格式）
+            handler: 处理函数
+            source: 来源类型（python/mcp/http）
+            **metadata: 其他元数据
+
+        Returns:
+            self（支持链式调用）
+        """
+        self._skill_registry.register_skill(
+            name=name,
+            description=description,
+            parameters=parameters,
+            handler=handler,
+            source=source,
+            **metadata,
+        )
+        return self
+
     def create_agent(
         self,
         config: AgentConfig,
         llm_provider: LLMProvider | None = None,
         tools: list[dict[str, Any]] | None = None,
+        knowledge_base: "KnowledgeBaseProvider | None" = None,
     ) -> Agent:
         """
         创建 Agent（使用 Pydantic 配置）
@@ -107,6 +191,7 @@ class LoomApp:
             config: Agent 配置（Pydantic 模型）
             llm_provider: LLM 提供者（可选，默认使用全局配置）
             tools: 工具列表（可选，默认使用全局工具）
+            knowledge_base: 知识库提供者（可选，默认使用全局配置）
 
         Returns:
             创建的 Agent 实例
@@ -127,6 +212,9 @@ class LoomApp:
         if tools:
             agent_tools.extend(tools)
 
+        # 使用提供的或全局的知识库
+        kb = knowledge_base or self._knowledge_base
+
         # 创建 Agent
         agent = Agent(
             node_id=config.agent_id,
@@ -135,11 +223,19 @@ class LoomApp:
             tools=agent_tools,
             event_bus=self.event_bus,
             enable_observation=config.enable_observation,
+            enable_context_tools=config.enable_context_tools,
+            enable_tool_creation=config.enable_tool_creation,
             max_context_tokens=config.max_context_tokens,
             max_iterations=config.max_iterations,
             require_done_tool=config.require_done_tool,
             memory_config=config.memory_config.model_dump(),
             context_budget_config=config.context_budget_config,
+            knowledge_base=kb,
+            knowledge_max_items=config.knowledge_max_items,
+            knowledge_relevance_threshold=config.knowledge_relevance_threshold,
+            tool_registry=self._tool_registry,
+            skill_registry=self._skill_registry,
+            skill_activator=self._skill_activator,
         )
 
         # 存储 Agent

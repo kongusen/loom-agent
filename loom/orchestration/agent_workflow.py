@@ -6,7 +6,7 @@ Agent Workflow - 动态流程工作流
 
 from loom.protocol import Task
 
-from .agent import Agent
+from loom.agent import Agent
 from .workflow import Workflow
 
 

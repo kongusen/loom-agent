@@ -1,6 +1,8 @@
 """
 Base Node - 节点基类
 
+位置: loom/agent/base.py
+
 基于公理系统和唯一性原则：
 将观测和集体记忆能力集成到BaseNode中，作为所有节点的基础能力。
 

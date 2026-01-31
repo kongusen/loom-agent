@@ -8,7 +8,7 @@ Phase 3 功能测试
 
 import pytest
 
-from loom.orchestration.base_node import BaseNode, NodeState
+from loom.agent import BaseNode, NodeState
 from loom.protocol import Task, TaskStatus
 
 # ==================== BaseNode 测试 ====================

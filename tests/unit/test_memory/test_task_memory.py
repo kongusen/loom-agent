@@ -605,3 +605,79 @@ class TestEventBusSubscription:
 
         l2_task_ids = [t.task_id for t in memory._l2_tasks]
         assert "task2" in l2_task_ids
+
+
+class TestCallChain:
+    """测试任务调用链功能"""
+
+    def test_get_call_chain_single_task(self):
+        """测试单个任务（没有父任务）"""
+        memory = LoomMemory(node_id="test_node")
+
+        # 创建单个任务
+        task = Task(task_id="task1", action="test_action")
+        memory.add_task(task)
+
+        # 获取调用链
+        chain = memory.get_call_chain("task1")
+
+        # 应该只有一个任务
+        assert len(chain) == 1
+        assert chain[0].task_id == "task1"
+
+    def test_get_call_chain_parent_child(self):
+        """测试简单的父子关系"""
+        memory = LoomMemory(node_id="test_node")
+
+        # 创建父任务
+        parent = Task(task_id="parent", action="test_action")
+        memory.add_task(parent)
+
+        # 创建子任务
+        child = Task(task_id="child", action="test_action", parent_task_id="parent")
+        memory.add_task(child)
+
+        # 获取调用链
+        chain = memory.get_call_chain("child")
+
+        # 应该有两个任务：parent -> child
+        assert len(chain) == 2
+        assert chain[0].task_id == "parent"
+        assert chain[1].task_id == "child"
+
+    def test_get_call_chain_multi_level(self):
+        """测试多层级的调用链"""
+        memory = LoomMemory(node_id="test_node")
+
+        # 创建多层级任务：root -> level1 -> level2 -> level3
+        root = Task(task_id="root", action="test_action")
+        memory.add_task(root)
+
+        level1 = Task(task_id="level1", action="test_action", parent_task_id="root")
+        memory.add_task(level1)
+
+        level2 = Task(task_id="level2", action="test_action", parent_task_id="level1")
+        memory.add_task(level2)
+
+        level3 = Task(task_id="level3", action="test_action", parent_task_id="level2")
+        memory.add_task(level3)
+
+        # 获取调用链
+        chain = memory.get_call_chain("level3")
+
+        # 应该有四个任务：root -> level1 -> level2 -> level3
+        assert len(chain) == 4
+        assert chain[0].task_id == "root"
+        assert chain[1].task_id == "level1"
+        assert chain[2].task_id == "level2"
+        assert chain[3].task_id == "level3"
+
+    def test_get_call_chain_nonexistent_task(self):
+        """测试不存在的任务"""
+        memory = LoomMemory(node_id="test_node")
+
+        # 获取不存在任务的调用链
+        chain = memory.get_call_chain("nonexistent")
+
+        # 应该返回空列表
+        assert len(chain) == 0
