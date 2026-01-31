@@ -33,6 +33,7 @@ from loom.fractal.budget import BudgetTracker
 from loom.fractal.memory import FractalMemory
 from loom.memory.core import LoomMemory
 from loom.memory.unified import UnifiedMemoryManager
+from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import (
     MemoryContextSource,
     TaskContextManager,
@@ -217,7 +218,7 @@ class Agent(BaseNode):
             # 传递 sandbox_manager，使动态创建的工具自动继承父沙盒
             self._dynamic_tool_executor = DynamicToolExecutor(sandbox_manager=self.sandbox_manager)
 
-        # 创建 TaskContextManager
+        # 创建 ContextOrchestrator（替代 TaskContextManager）
         from loom.memory.task_context import ContextSource
 
         sources: list[ContextSource] = []
@@ -250,14 +251,16 @@ class Agent(BaseNode):
         # Note: EventBusContextSource removed in Phase 3 refactoring
         # Context now only queries Memory, which automatically receives Tasks from EventBus
 
-        self.context_manager = TaskContextManager(
+        self.context_orchestrator = ContextOrchestrator(
             token_counter=TiktokenCounter(model="gpt-4"),
             sources=sources,
             max_tokens=max_context_tokens,
             system_prompt=self.system_prompt,
-            node_id=self.node_id,
             budget_config=context_budget_config,
         )
+
+        # 保持向后兼容：创建 self.context_manager 的别名
+        self.context_manager = self.context_orchestrator
 
         # 构建完整工具列表（普通工具 + 元工具）
         self.all_tools = self._build_tool_list()
