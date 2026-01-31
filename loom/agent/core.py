@@ -600,6 +600,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         # 1. 基础工具
         for tool in self.tools:
+            # Skip non-dictionary tools (e.g., raw functions from old tests)
+            if not isinstance(tool, dict):
+                continue
             tool_name = tool.get("function", {}).get("name")
             if tool_name and tool_name not in tool_names_seen:
                 available.append(tool)
@@ -629,7 +632,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         if self.config.disabled_tools:
             available = [
                 tool for tool in available
-                if tool.get("function", {}).get("name") not in self.config.disabled_tools
+                if isinstance(tool, dict) and tool.get("function", {}).get("name") not in self.config.disabled_tools
             ]
 
         return available
