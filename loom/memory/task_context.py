@@ -25,7 +25,7 @@ from loom.memory.tokenizer import TokenCounter
 from loom.protocol import Task
 
 if TYPE_CHECKING:
-    from loom.config.knowledge import KnowledgeBaseProvider
+    from loom.providers.knowledge.base import KnowledgeBaseProvider
     from loom.fractal.memory import FractalMemory, MemoryScope
     from loom.memory.core import LoomMemory
 
@@ -729,6 +729,10 @@ class FractalMemoryContextSource(ContextSource):
 
 class TaskContextManager:
     """
+    DEPRECATED: Use ContextOrchestrator instead.
+
+    This class will be removed in version 0.5.0.
+
     基于 Task 的上下文管理器
 
     整合 LoomMemory 和 EventBus，提供智能的上下文构建。
@@ -747,6 +751,12 @@ class TaskContextManager:
         budget_config: BudgetConfig | dict[str, float | int] | None = None,
     ):
         """初始化上下文管理器"""
+        import warnings
+        warnings.warn(
+            "TaskContextManager is deprecated. Use ContextOrchestrator instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.token_counter = token_counter
         self.sources = sources
         self.converter = converter or MessageConverter()
