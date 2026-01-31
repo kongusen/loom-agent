@@ -32,10 +32,7 @@ from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
 from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
-from loom.memory.task_context import (
-    MemoryContextSource,
-    TaskContextManager,
-)
+from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import TiktokenCounter
 from loom.agent.base import BaseNode
 from loom.protocol import Task, TaskStatus
