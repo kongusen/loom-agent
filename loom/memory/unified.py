@@ -88,8 +88,45 @@ class UnifiedMemoryManager:
     async def read(
         self, entry_id: str, search_scopes: list[MemoryScope] | None = None
     ) -> MemoryEntry | None:
-        """读取记忆（TODO: Task 3）"""
-        raise NotImplementedError
+        """
+        读取记忆（支持作用域搜索和父节点继承）
+
+        Args:
+            entry_id: 记忆唯一标识
+            search_scopes: 搜索的作用域列表（None = 搜索所有）
+
+        Returns:
+            记忆条目，如果不存在返回 None
+        """
+        if search_scopes is None:
+            search_scopes = list(MemoryScope)
+
+        # 按优先级搜索本地作用域：LOCAL > SHARED > INHERITED > GLOBAL
+        for scope in search_scopes:
+            if entry_id in self._memory_by_scope[scope]:
+                return self._memory_by_scope[scope][entry_id]
+
+        # 如果是 INHERITED 作用域，尝试从父节点读取
+        if MemoryScope.INHERITED in search_scopes and self.parent:
+            parent_entry = await self.parent.read(
+                entry_id,
+                search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED],
+            )
+            if parent_entry:
+                # 创建只读副本并缓存
+                inherited_entry = MemoryEntry(
+                    id=parent_entry.id,
+                    content=parent_entry.content,
+                    scope=MemoryScope.INHERITED,
+                    version=parent_entry.version,
+                    created_by=parent_entry.created_by,
+                    updated_by=parent_entry.updated_by,
+                    parent_version=parent_entry.version,
+                )
+                self._memory_by_scope[MemoryScope.INHERITED][entry_id] = inherited_entry
+                return inherited_entry
+
+        return None
 
     # LoomMemory 兼容接口
     def add_task(self, task: Task) -> None:

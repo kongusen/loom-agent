@@ -38,3 +38,30 @@ async def test_write_inherited_fails():
 
     with pytest.raises(PermissionError):
         await manager.write("key1", "value1", MemoryScope.INHERITED)
+
+
+@pytest.mark.asyncio
+async def test_read_local():
+    """Test reading from LOCAL scope"""
+    manager = UnifiedMemoryManager(node_id="test")
+    await manager.write("key1", "value1", MemoryScope.LOCAL)
+
+    entry = await manager.read("key1")
+    assert entry is not None
+    assert entry.content == "value1"
+
+
+@pytest.mark.asyncio
+async def test_read_inherited_from_parent():
+    """Test reading INHERITED scope from parent"""
+    parent = UnifiedMemoryManager(node_id="parent")
+    child = UnifiedMemoryManager(node_id="child", parent=parent)
+
+    # Parent writes to SHARED
+    await parent.write("shared_key", "shared_value", MemoryScope.SHARED)
+
+    # Child reads as INHERITED
+    entry = await child.read("shared_key", [MemoryScope.INHERITED])
+    assert entry is not None
+    assert entry.content == "shared_value"
+    assert entry.scope == MemoryScope.INHERITED
