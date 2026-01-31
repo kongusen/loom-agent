@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from loom.fractal.memory import FractalMemory, MemoryEntry, MemoryScope
+    from loom.memory.manager import MemoryManager
     from loom.protocol import Task
 
 from loom.fractal.memory import MemoryScope
@@ -141,7 +142,7 @@ class SmartAllocationStrategy:
 
     async def allocate(
         self,
-        parent_memory: "FractalMemory",
+        parent_memory: "FractalMemory | MemoryManager",
         child_task: "Task",
         context_hints: list[str] | None = None,
     ) -> dict["MemoryScope", list["MemoryEntry"]]:
@@ -149,7 +150,7 @@ class SmartAllocationStrategy:
         为子节点分配记忆
 
         Args:
-            parent_memory: 父节点的记忆
+            parent_memory: 父节点的记忆（MemoryManager 或 FractalMemory，统一 read/list_by_scope 接口）
             child_task: 子任务
             context_hints: 上下文提示（LLM提供的记忆ID列表）
 
@@ -176,7 +177,7 @@ class SmartAllocationStrategy:
         return {MemoryScope.INHERITED: selected[: self.max_inherited_memories]}
 
     async def _allocate_with_hints(
-        self, parent_memory: "FractalMemory", hints: list[str]
+        self, parent_memory: "FractalMemory | MemoryManager", hints: list[str]
     ) -> list["MemoryEntry"]:
         """使用context_hints分配记忆"""
         selected = []
@@ -189,7 +190,7 @@ class SmartAllocationStrategy:
         return selected
 
     async def _retrieve_relevant_memories(
-        self, parent_memory: "FractalMemory", features: TaskFeatures
+        self, parent_memory: "FractalMemory | MemoryManager", features: TaskFeatures
     ) -> list["MemoryEntry"]:
         """检索相关记忆"""
         # 获取父节点的SHARED、INHERITED和GLOBAL记忆

@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from loom.providers.knowledge.base import KnowledgeBaseProvider
     from loom.fractal.memory import FractalMemory, MemoryScope
     from loom.memory.core import LoomMemory
+    from loom.memory.manager import MemoryManager
 
 
 # ==================== 上下文预算分配器 ====================
@@ -534,20 +535,20 @@ class MemoryContextSource(ContextSource):
 
 class FractalMemoryContextSource(ContextSource):
     """
-    从 FractalMemory 获取跨节点共享上下文
+    从作用域记忆（MemoryManager）获取跨节点共享上下文
 
     读取 INHERITED / SHARED / GLOBAL 作用域，注入为系统消息。
     """
 
     def __init__(
         self,
-        fractal_memory: "FractalMemory",
+        memory: "MemoryManager | FractalMemory",
         scopes: list["MemoryScope"] | None = None,
         max_items: int = 6,
         include_additional: bool = True,
         max_additional: int = 4,
     ):
-        self.fractal_memory = fractal_memory
+        self.memory = memory
         self.scopes = scopes or []
         self.max_items = max_items
         self.include_additional = include_additional
@@ -570,7 +571,7 @@ class FractalMemoryContextSource(ContextSource):
         root_content = ""
         if root_context_id:
             entries.append(("ROOT GOAL", root_context_id))
-            root_entry = await self.fractal_memory.read(root_context_id)
+            root_entry = await self.memory.read(root_context_id)
             if root_entry and root_entry.content:
                 root_content = str(root_entry.content)
 
@@ -578,7 +579,7 @@ class FractalMemoryContextSource(ContextSource):
         parent_content = ""
         if parent_task_id:
             entries.append(("PARENT TASK", f"task:{parent_task_id}:content"))
-            parent_entry = await self.fractal_memory.read(f"task:{parent_task_id}:content")
+            parent_entry = await self.memory.read(f"task:{parent_task_id}:content")
             if parent_entry and parent_entry.content:
                 parent_content = str(parent_entry.content)
 
@@ -588,7 +589,7 @@ class FractalMemoryContextSource(ContextSource):
         async def _append_entry(label: str, entry_id: str) -> None:
             if entry_id in seen_ids:
                 return
-            entry = await self.fractal_memory.read(entry_id)
+            entry = await self.memory.read(entry_id)
             if not entry:
                 return
             content = entry.content
@@ -633,7 +634,7 @@ class FractalMemoryContextSource(ContextSource):
             candidates: list[tuple[float, Any]] = []
 
             for scope in self.scopes:
-                scope_entries = await self.fractal_memory.list_by_scope(scope)
+                scope_entries = await self.memory.list_by_scope(scope)
                 for entry in scope_entries:
                     if entry.id in seen_ids:
                         continue

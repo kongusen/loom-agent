@@ -219,7 +219,7 @@ class TestFractalRealAPI:
         )
 
         # 构建上下文
-        context_messages = await root_agent.context_manager.build_context(follow_up_task)
+        context_messages = await root_agent.context_orchestrator.build_context(follow_up_task)
 
         print(f"\n{'='*60}")
         print("Context 构建:")

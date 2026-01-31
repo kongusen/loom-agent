@@ -30,9 +30,7 @@ from typing import Any
 
 from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
-from loom.fractal.memory import FractalMemory
-from loom.memory.core import LoomMemory
-from loom.memory.unified import UnifiedMemoryManager
+from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import (
     MemoryContextSource,
@@ -67,8 +65,8 @@ class Agent(BaseNode):
     属性：
         llm_provider: LLM提供者
         system_prompt: 系统提示词
-        memory: LoomMemory实例（L1-L4分层记忆）
-        context_manager: TaskContextManager（智能上下文管理）
+        memory: MemoryManager实例（L1-L4分层记忆 + 作用域管理）
+        context_orchestrator: ContextOrchestrator（智能上下文编排）
     """
 
     def __init__(
@@ -92,7 +90,7 @@ class Agent(BaseNode):
         skill_activator: Any | None = None,  # SkillActivator（Phase 2）
         tool_registry: Any | None = None,  # ToolRegistry
         sandbox_manager: "SandboxToolManager | None" = None,  # 沙盒工具管理器（NEW）
-        fractal_memory: "FractalMemory | None" = None,
+        parent_memory: "MemoryManager | None" = None,  # 父节点的 MemoryManager
         root_context_id: str | None = None,
         memory_config: dict[str, Any] | None = None,
         context_budget_config: dict[str, float | int] | None = None,
@@ -188,25 +186,13 @@ class Agent(BaseNode):
         if self.require_done_tool:
             self.tools.append(create_done_tool())
 
-        # 创建 UnifiedMemoryManager（整合 LoomMemory + FractalMemory）
-        # 提取父节点的 UnifiedMemoryManager（如果存在）
-        parent_unified = None
-        if fractal_memory is not None:
-            # 如果传入了 fractal_memory，尝试从中提取父节点
-            # 这是为了向后兼容，未来应该直接传入 parent_unified_memory
-            if hasattr(fractal_memory, '_unified_memory'):
-                parent_unified = fractal_memory._unified_memory
-
-        self.unified_memory = UnifiedMemoryManager(
+        # 创建 MemoryManager（整合 LoomMemory + FractalMemory）
+        self.memory = MemoryManager(
             node_id=node_id,
-            parent=parent_unified,
+            parent=parent_memory,
             event_bus=event_bus,
             **(memory_config or {})
         )
-
-        # 保持向后兼容：创建 self.memory 和 self.fractal_memory 的别名
-        self.memory = self.unified_memory._loom_memory
-        self.fractal_memory = fractal_memory if fractal_memory is not None else None
 
         # 创建上下文工具执行器（如果启用）
         self._context_tool_executor: ContextToolExecutor | None = None
@@ -224,17 +210,17 @@ class Agent(BaseNode):
 
         sources: list[ContextSource] = []
         sources.append(MemoryContextSource(self.memory))
-        if self.fractal_memory:
-            from loom.memory.task_context import FractalMemoryContextSource
+        # 添加作用域记忆上下文源（MemoryManager 提供 LOCAL/SHARED/INHERITED/GLOBAL）
+        from loom.memory.task_context import FractalMemoryContextSource
 
-            sources.append(
-                FractalMemoryContextSource(
-                    self.fractal_memory,
-                    include_additional=True,
-                    max_items=6,
-                    max_additional=4,
-                )
+        sources.append(
+            FractalMemoryContextSource(
+                self.memory,
+                include_additional=True,
+                max_items=6,
+                max_additional=4,
             )
+        )
 
         # 添加知识库上下文源（如果提供）
         if self.knowledge_base:
@@ -243,7 +229,7 @@ class Agent(BaseNode):
             sources.append(
                 KnowledgeContextSource(
                     knowledge_base=self.knowledge_base,
-                    fractal_memory=self.fractal_memory,
+                    memory=self.memory,
                     max_items=self.knowledge_max_items,
                     relevance_threshold=self.knowledge_relevance_threshold,
                 )
@@ -259,9 +245,6 @@ class Agent(BaseNode):
             system_prompt=self.system_prompt,
             budget_config=context_budget_config,
         )
-
-        # 保持向后兼容：创建 self.context_manager 的别名
-        self.context_manager = self.context_orchestrator
 
         # 构建完整工具列表（普通工具 + 元工具）
         self.all_tools = self._build_tool_list()
@@ -861,7 +844,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 filtered_messages = self._filter_ephemeral_messages(accumulated_messages)
 
                 # 2. 构建优化上下文（第二层防护）
-                messages = await self.context_manager.build_context(task)
+                messages = await self.context_orchestrator.build_context(task)
 
                 # Form 1: 添加Skills指令（知识注入）
                 if injected_instructions and iteration == 0:  # 只在第一次迭代添加
@@ -1338,32 +1321,25 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             session_id=parent_task.session_id,
         )
 
-        # 将计划写入FractalMemory的SHARED作用域，让子节点能看到
-        fractal_memory = getattr(self, "fractal_memory", None)
-        if fractal_memory:
-            from loom.fractal.memory import MemoryScope
+        # 将计划写入 MemoryManager 的 SHARED 作用域，让子节点能看到
+        from loom.fractal.memory import MemoryScope
 
-            plan_content = f"[Parent Plan] Goal: {goal}\n"
-            if reasoning:
-                plan_content += f"Reasoning: {reasoning}\n"
-            plan_content += f"Steps ({len(steps)}):\n"
-            for idx, step in enumerate(steps, 1):
-                plan_content += f"  {idx}. {step}\n"
+        plan_content = f"[Parent Plan] Goal: {goal}\n"
+        if reasoning:
+            plan_content += f"Reasoning: {reasoning}\n"
+        plan_content += f"Steps ({len(steps)}):\n"
+        for idx, step in enumerate(steps, 1):
+            plan_content += f"  {idx}. {step}\n"
 
-            plan_entry_id = f"plan:{parent_task.task_id}"
-            await fractal_memory.write(plan_entry_id, plan_content, scope=MemoryScope.SHARED)
+        plan_entry_id = f"plan:{parent_task.task_id}"
+        await self.memory.write(plan_entry_id, plan_content, scope=MemoryScope.SHARED)
 
-            # DEBUG: 验证写入成功
-            import logging
+        # DEBUG: 验证写入成功
+        import logging
 
-            logger = logging.getLogger(__name__)
-            logger.info(f"[DEBUG] Plan written to SHARED: {plan_entry_id}")
-            logger.info(f"[DEBUG] Plan content length: {len(plan_content)}")
-        else:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(f"[DEBUG] No fractal_memory available for task {parent_task.task_id}")
+        logger = logging.getLogger(__name__)
+        logger.info(f"[DEBUG] Plan written to SHARED: {plan_entry_id}")
+        logger.info(f"[DEBUG] Plan content length: {len(plan_content)}")
 
         # 确保父任务上下文可继承
         parent_context_id = await self._ensure_shared_task_context(parent_task)
@@ -1548,9 +1524,9 @@ IMPORTANT:
         自动委派实现（框架内部）
 
         整合点：
-        - 使用FractalMemory建立父子关系
-        - 使用SmartAllocationStrategy分配记忆
-        - 使用TaskContextManager构建子节点上下文
+        - 使用 MemoryManager 父子关系（parent_memory）
+        - 使用 SmartAllocationStrategy 分配记忆
+        - 子节点通过 parent_memory 继承上下文
 
         Args:
             args: delegate_task工具参数
@@ -1620,15 +1596,14 @@ IMPORTANT:
         创建子节点并智能分配上下文
 
         整合所有组件：
-        - FractalMemory（继承父节点）
+        - MemoryManager（继承父节点 parent_memory）
         - SmartAllocationStrategy（智能分配）
-        - TaskContextManager（上下文构建）
         - AgentConfig（配置继承 - Phase 3）
 
         继承规则（12.5.3）：
         - 共享：skill_registry, tool_registry, event_bus, sandbox_manager
         - 继承：config (可覆盖)
-        - 独立：active_skills, fractal_memory
+        - 独立：active_skills, memory（每个节点独立的 MemoryManager）
 
         Args:
             subtask: 子任务
@@ -1645,7 +1620,7 @@ IMPORTANT:
             RuntimeError: 如果超出预算限制
         """
         from loom.fractal.allocation import SmartAllocationStrategy
-        from loom.fractal.memory import FractalMemory, MemoryScope
+        from loom.fractal.memory import MemoryScope
 
         # 0. 预算检查（在创建子节点前强制执行）
         violation = self._budget_tracker.check_can_create_child(
@@ -1670,51 +1645,7 @@ IMPORTANT:
             remove_tools=remove_tools,
         )
 
-        # 1. 创建FractalMemory（继承父节点记忆）
-        child_memory = FractalMemory(
-            node_id=subtask.task_id,
-            parent_memory=getattr(self, "fractal_memory", None),  # type: ignore[attr-defined]
-            base_memory=LoomMemory(node_id=subtask.task_id),
-        )
-
-        # 2. 使用SmartAllocationStrategy分配相关记忆
-        allocation_strategy = SmartAllocationStrategy(max_inherited_memories=10)
-        allocated_memories = await allocation_strategy.allocate(
-            parent_memory=child_memory.parent_memory or child_memory,
-            child_task=subtask,
-            context_hints=context_hints,
-        )
-
-        # 3. 将分配的记忆写入子节点
-        # 注意：INHERITED scope是只读的，需要直接缓存而不是通过write方法
-        for scope, entries in allocated_memories.items():
-            if scope == MemoryScope.INHERITED:
-                # 直接缓存到INHERITED scope（不通过write方法，因为它是只读的）
-                for entry in entries:
-                    from loom.fractal.memory import MemoryEntry
-
-                    inherited_entry = MemoryEntry(
-                        id=entry.id,
-                        content=entry.content,
-                        scope=MemoryScope.INHERITED,
-                        version=entry.version if hasattr(entry, "version") else 1,
-                        created_by=entry.created_by
-                        if hasattr(entry, "created_by")
-                        else child_memory.node_id,
-                        updated_by=entry.updated_by
-                        if hasattr(entry, "updated_by")
-                        else child_memory.node_id,
-                        parent_version=entry.version if hasattr(entry, "version") else None,
-                    )
-                    child_memory._memory_by_scope[MemoryScope.INHERITED][entry.id] = inherited_entry
-            else:
-                for entry in entries:
-                    await child_memory.write(entry.id, entry.content, scope=scope)
-
-        # 4. 创建TaskContextManager (暂时不使用，保留用于将来扩展)
-        # child_context_manager = TaskContextManager(...)
-
-        # 5. 为子节点提供上下文（不限制能力，只提供信息）
+        # 1. 为子节点提供上下文（不限制能力，只提供信息）
         child_system_prompt = self.system_prompt
         if subtask.parameters.get("is_plan_step"):
             parent_plan = subtask.parameters.get("parent_plan", "")
@@ -1735,7 +1666,7 @@ Prefer ReAct (direct tool use) for most tasks.
 """
             child_system_prompt = self.system_prompt + step_context
 
-        # 6. 创建子Agent（传递预算跟踪器和递增的深度）
+        # 2. 创建子 Agent（parent_memory=self.memory，子节点拥有独立 MemoryManager）
         child_agent = Agent(
             node_id=subtask.task_id,
             llm_provider=self.llm_provider,
@@ -1744,21 +1675,29 @@ Prefer ReAct (direct tool use) for most tasks.
             event_bus=self.event_bus,
             max_iterations=self.max_iterations,
             require_done_tool=self.require_done_tool,
-            budget_tracker=self._budget_tracker,  # 共享预算跟踪器
-            recursive_depth=self._recursive_depth + 1,  # 递增深度
-            fractal_memory=child_memory,
+            budget_tracker=self._budget_tracker,
+            recursive_depth=self._recursive_depth + 1,
+            parent_memory=self.memory,
             root_context_id=self._root_context_id,
-            # === Phase 3: 共享 Registry（分形继承规则 12.5.3）===
             skill_registry=self.skill_registry,
             tool_registry=self.tool_registry,
             sandbox_manager=self.sandbox_manager,
             skill_activator=self.skill_activator,
-            # === Phase 3: 继承配置（分形继承规则 12.5.3）===
             config=child_config,
         )
 
-        # 6. 设置子Agent的fractal_memory引用
-        child_agent.fractal_memory = child_memory  # type: ignore[attr-defined]
+        # 3. 使用 SmartAllocationStrategy 分配相关记忆并预暖子节点 INHERITED 缓存
+        allocation_strategy = SmartAllocationStrategy(max_inherited_memories=10)
+        allocated_memories = await allocation_strategy.allocate(
+            parent_memory=self.memory,
+            child_task=subtask,
+            context_hints=context_hints,
+        )
+        for entry in allocated_memories.get(MemoryScope.INHERITED, []):
+            await child_agent.memory.read(
+                entry.id,
+                search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED],
+            )
 
         return child_agent
 
@@ -1766,10 +1705,6 @@ Prefer ReAct (direct tool use) for most tasks.
         """
         将当前任务内容写入 SHARED 作用域，供子节点继承
         """
-        fractal_memory = getattr(self, "fractal_memory", None)
-        if not fractal_memory:
-            return None
-
         content = task.parameters.get("content", "")
         if not content:
             return None
@@ -1780,14 +1715,14 @@ Prefer ReAct (direct tool use) for most tasks.
 
         if self._recursive_depth == 0 and task.session_id:
             root_entry_id = f"session:{task.session_id}:goal"
-            await fractal_memory.write(root_entry_id, content, scope=MemoryScope.SHARED)
+            await self.memory.write(root_entry_id, content, scope=MemoryScope.SHARED)
             self._root_context_id = root_entry_id
             if "root_context_id" not in task.parameters:
                 task.parameters["root_context_id"] = root_entry_id
 
-        existing = await fractal_memory.read(entry_id, search_scopes=[MemoryScope.SHARED])
+        existing = await self.memory.read(entry_id, search_scopes=[MemoryScope.SHARED])
         if not existing:
-            await fractal_memory.write(entry_id, content, scope=MemoryScope.SHARED)
+            await self.memory.write(entry_id, content, scope=MemoryScope.SHARED)
         return entry_id
 
     async def _sync_memory_from_child(self, child_agent: "Agent") -> None:
@@ -1801,27 +1736,14 @@ Prefer ReAct (direct tool use) for most tasks.
         """
         from loom.fractal.memory import MemoryScope
 
-        # 获取子节点的fractal_memory
-        child_memory = getattr(child_agent, "fractal_memory", None)
-        if not child_memory:
-            return
-
-        # 获取父节点的fractal_memory
-        parent_memory = getattr(self, "fractal_memory", None)
-        if not parent_memory:
-            return
-
-        # 1. 同步FractalMemory的SHARED记忆
-        child_shared = await child_memory.list_by_scope(MemoryScope.SHARED)
+        # 1. 同步 MemoryManager 的 SHARED 记忆
+        child_shared = await child_agent.memory.list_by_scope(MemoryScope.SHARED)
         for entry in child_shared:
-            await parent_memory.write(entry.id, entry.content, MemoryScope.SHARED)
+            await self.memory.write(entry.id, entry.content, MemoryScope.SHARED)
 
-        # 2. 同步LoomMemory的重要任务（L2）到父节点
-        child_loom_memory = getattr(child_agent, "memory", None)
-        if child_loom_memory and self.memory:
-            # 获取子节点L2中的重要任务
-            child_l2_tasks = child_loom_memory.get_l2_tasks(limit=5)
-            for task in child_l2_tasks:
-                # 提升重要性，因为这是子节点的重要发现
-                task.metadata["importance"] = min(1.0, task.metadata.get("importance", 0.5) + 0.1)
-                self.memory.add_task(task)
+        # 2. 同步重要任务（L2）到父节点
+        child_l2_tasks = child_agent.memory.get_l2_tasks(limit=5)
+        for task in child_l2_tasks:
+            # 提升重要性，因为这是子节点的重要发现
+            task.metadata["importance"] = min(1.0, task.metadata.get("importance", 0.5) + 0.1)
+            self.memory.add_task(task)

@@ -65,7 +65,7 @@ class TestKnowledgeContextSourceBasic:
         assert source.knowledge_base == kb
         assert source.max_items == 3
         assert source.relevance_threshold == 0.7
-        assert source.fractal_memory is None
+        assert source._memory is None
 
     @pytest.mark.asyncio
     async def test_get_context_no_content(self):
@@ -133,13 +133,13 @@ class TestKnowledgeContextSourceCache:
         """测试缓存未命中时查询知识库"""
         kb = MockKnowledgeBase()
 
-        # 创建一个模拟的FractalMemory，返回None（缓存未命中）
-        mock_fractal = AsyncMock()
-        mock_fractal.read = AsyncMock(return_value=None)
+        # 模拟 MemoryManager，返回 None（缓存未命中）
+        mock_memory = AsyncMock()
+        mock_memory.read = AsyncMock(return_value=None)
 
         source = KnowledgeContextSource(
             knowledge_base=kb,
-            fractal_memory=mock_fractal,
+            memory=mock_memory,
         )
 
         task = Task(
@@ -154,17 +154,17 @@ class TestKnowledgeContextSourceCache:
         assert len(messages) == 3
 
         # 应该尝试从缓存读取
-        assert mock_fractal.read.called
+        assert mock_memory.read.called
 
         # 应该写入缓存
-        assert mock_fractal.write.called
+        assert mock_memory.write.called
 
     @pytest.mark.asyncio
     async def test_cache_hit_skips_kb(self):
         """测试缓存命中时跳过知识库查询"""
         kb = MockKnowledgeBase()
 
-        # 创建一个模拟的FractalMemory，返回缓存数据
+        # 模拟 MemoryManager.read 返回 MemoryEntry 形态（带 .content）
         import json
         cached_data = json.dumps([
             {
@@ -174,13 +174,14 @@ class TestKnowledgeContextSourceCache:
                 "relevance": 0.95,
             }
         ])
+        mock_entry = type("MemoryEntry", (), {"content": cached_data})()
 
-        mock_fractal = AsyncMock()
-        mock_fractal.read = AsyncMock(return_value=cached_data)
+        mock_memory = AsyncMock()
+        mock_memory.read = AsyncMock(return_value=mock_entry)
 
         source = KnowledgeContextSource(
             knowledge_base=kb,
-            fractal_memory=mock_fractal,
+            memory=mock_memory,
         )
 
         task = Task(

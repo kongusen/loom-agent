@@ -1,5 +1,5 @@
 """
-Unified Memory Manager - 统一内存管理器
+Memory Manager - 内存管理器
 
 整合 FractalMemory 和 LoomMemory 的职责：
 - L1-L4 分层存储（来自 LoomMemory）
@@ -17,13 +17,13 @@ from loom.memory.core import LoomMemory
 from loom.protocol import Task
 
 
-class UnifiedMemoryManager:
-    """统一内存管理器 - 整合 LoomMemory（L1-L4）和 FractalMemory（作用域）"""
+class MemoryManager:
+    """内存管理器 - 整合 LoomMemory（L1-L4）和 FractalMemory（作用域）"""
 
     def __init__(
         self,
         node_id: str,
-        parent: Optional["UnifiedMemoryManager"] = None,
+        parent: Optional["MemoryManager"] = None,
         max_l1_size: int = 50,
         max_l2_size: int = 100,
         max_l3_size: int = 500,

@@ -13,7 +13,7 @@ from loom.memory.task_context import ContextSource
 
 if TYPE_CHECKING:
     from loom.providers.knowledge.base import KnowledgeBaseProvider
-    from loom.fractal.memory import FractalMemory
+    from loom.memory.manager import MemoryManager
     from loom.protocol import Task
 
 
@@ -22,16 +22,16 @@ class KnowledgeContextSource(ContextSource):
     知识上下文源 - 智能 RAG 实现
 
     工作流程：
-    1. 检查 Fractal Memory 中是否有相关知识（缓存）
+    1. 检查 MemoryManager 中是否有相关知识（缓存）
     2. 如果有缓存，直接使用
     3. 如果没有，查询知识库
-    4. 将查询结果缓存到 Fractal Memory（供子节点使用）
+    4. 将查询结果缓存到 MemoryManager（供子节点使用）
     """
 
     def __init__(
         self,
         knowledge_base: "KnowledgeBaseProvider",
-        fractal_memory: "FractalMemory | None" = None,
+        memory: "MemoryManager | None" = None,
         max_items: int = 3,
         relevance_threshold: float = 0.7,
     ):
@@ -40,12 +40,12 @@ class KnowledgeContextSource(ContextSource):
 
         Args:
             knowledge_base: 知识库提供者
-            fractal_memory: 分形记忆（可选，用于缓存）
+            memory: 记忆管理器（可选，用于缓存）
             max_items: 最大知识条目数
             relevance_threshold: 相关度阈值（0.0-1.0）
         """
         self.knowledge_base = knowledge_base
-        self.fractal_memory = fractal_memory
+        self._memory = memory
         self.max_items = max_items
         self.relevance_threshold = relevance_threshold
 
@@ -133,7 +133,7 @@ class KnowledgeContextSource(ContextSource):
         Returns:
             缓存的知识列表，如果没有则返回 None
         """
-        if not self.fractal_memory:
+        if not self._memory:
             return None
 
         from loom.fractal.memory import MemoryScope
@@ -144,17 +144,16 @@ class KnowledgeContextSource(ContextSource):
         cache_key = f"knowledge:query:{query_hash}"
 
         # 从 INHERITED 和 SHARED 作用域查询
-        cached = await self.fractal_memory.read(
+        cached = await self._memory.read(
             cache_key,
             search_scopes=[MemoryScope.INHERITED, MemoryScope.SHARED]
         )
 
-        if cached:
-            # 解析缓存的知识
+        if cached is not None and hasattr(cached, "content"):
             import json
             try:
-                return json.loads(cached)
-            except json.JSONDecodeError:
+                return json.loads(cached.content)
+            except (json.JSONDecodeError, TypeError):
                 return None
 
         return None
@@ -171,7 +170,7 @@ class KnowledgeContextSource(ContextSource):
             query: 查询内容
             knowledge_items: 知识条目列表
         """
-        if not self.fractal_memory or not knowledge_items:
+        if not self._memory or not knowledge_items:
             return
 
         from loom.fractal.memory import MemoryScope
@@ -194,7 +193,7 @@ class KnowledgeContextSource(ContextSource):
         ]
 
         # 写入 SHARED 作用域（子节点可继承）
-        await self.fractal_memory.write(
+        await self._memory.write(
             cache_key,
             json.dumps(cached_data, ensure_ascii=False),
             scope=MemoryScope.SHARED

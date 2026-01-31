@@ -1,6 +1,6 @@
-"""Integration tests for UnifiedMemoryManager"""
+"""Integration tests for MemoryManager"""
 import pytest
-from loom.memory.unified import UnifiedMemoryManager
+from loom.memory.manager import MemoryManager
 from loom.fractal.memory import MemoryScope
 from loom.protocol import Task
 
@@ -9,8 +9,8 @@ from loom.protocol import Task
 async def test_parent_child_memory_sharing():
     """Test complete parent-child memory sharing workflow"""
     # Create parent and child
-    parent = UnifiedMemoryManager(node_id="parent")
-    child = UnifiedMemoryManager(node_id="child", parent=parent)
+    parent = MemoryManager(node_id="parent")
+    child = MemoryManager(node_id="child", parent=parent)
 
     # Parent writes to SHARED scope
     await parent.write("goal", "Analyze codebase", MemoryScope.SHARED)
@@ -36,7 +36,7 @@ async def test_parent_child_memory_sharing():
 @pytest.mark.asyncio
 async def test_loom_memory_compatibility():
     """Test that LoomMemory interface still works"""
-    manager = UnifiedMemoryManager(node_id="test")
+    manager = MemoryManager(node_id="test")
 
     # Add task via LoomMemory interface
     task = Task(task_id="task1", action="execute", parameters={"content": "test"})

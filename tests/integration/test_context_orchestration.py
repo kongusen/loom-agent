@@ -1,6 +1,6 @@
-"""Integration tests for ContextOrchestrator with UnifiedMemoryManager"""
+"""Integration tests for ContextOrchestrator with MemoryManager"""
 import pytest
-from loom.memory.unified import UnifiedMemoryManager
+from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import EstimateCounter
@@ -9,10 +9,10 @@ from loom.fractal.memory import MemoryScope
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_with_unified_memory():
-    """Test ContextOrchestrator using UnifiedMemoryManager"""
-    # Create unified memory
-    memory = UnifiedMemoryManager(node_id="test")
+async def test_orchestrator_with_memory_manager():
+    """Test ContextOrchestrator using MemoryManager"""
+    # Create memory manager
+    memory = MemoryManager(node_id="test")
 
     # Add some tasks
     task1 = Task(task_id="t1", action="execute", parameters={"content": "task 1"}, session_id="s1")
