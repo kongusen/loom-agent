@@ -26,7 +26,7 @@ from loom.fractal import NodeContainer
 
 # A4: 记忆层次公理
 from loom.memory import (
-    LoomMemory,
+    MemoryManager,
     MemoryQuery,
     MemoryTier,
     MemoryType,
@@ -63,7 +63,7 @@ __all__ = [
     # Fractal
     "NodeContainer",
     # Memory
-    "LoomMemory",
+    "MemoryManager",
     "MemoryUnit",
     "MemoryTier",
     "MemoryType",

@@ -202,7 +202,7 @@ class Agent(BaseNode):
             # 传递 sandbox_manager，使动态创建的工具自动继承父沙盒
             self._dynamic_tool_executor = DynamicToolExecutor(sandbox_manager=self.sandbox_manager)
 
-        # 创建 ContextOrchestrator（替代 TaskContextManager）
+        # 创建 ContextOrchestrator（统一的上下文编排器）
         from loom.memory.task_context import ContextSource
 
         sources: list[ContextSource] = []
