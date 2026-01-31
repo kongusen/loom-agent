@@ -47,8 +47,43 @@ class UnifiedMemoryManager:
     async def write(
         self, entry_id: str, content: Any, scope: MemoryScope = MemoryScope.LOCAL
     ) -> MemoryEntry:
-        """写入记忆（TODO: Task 2）"""
-        raise NotImplementedError
+        """
+        写入记忆到指定作用域
+
+        Args:
+            entry_id: 记忆唯一标识
+            content: 记忆内容
+            scope: 作用域（LOCAL/SHARED/INHERITED/GLOBAL）
+
+        Returns:
+            创建的记忆条目
+        """
+        from loom.fractal.memory import ACCESS_POLICIES
+
+        # 检查写权限
+        policy = ACCESS_POLICIES[scope]
+        if not policy.writable:
+            raise PermissionError(f"Scope {scope.value} is read-only")
+
+        # 如果已存在，更新版本
+        existing = self._memory_by_scope[scope].get(entry_id)
+        if existing:
+            existing.version += 1
+            existing.content = content
+            existing.updated_by = self.node_id
+            return existing
+
+        # 创建新记忆条目
+        entry = MemoryEntry(
+            id=entry_id,
+            content=content,
+            scope=scope,
+            created_by=self.node_id,
+            updated_by=self.node_id,
+        )
+
+        self._memory_by_scope[scope][entry_id] = entry
+        return entry
 
     async def read(
         self, entry_id: str, search_scopes: list[MemoryScope] | None = None
