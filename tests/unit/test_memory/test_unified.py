@@ -65,3 +65,18 @@ async def test_read_inherited_from_parent():
     assert entry is not None
     assert entry.content == "shared_value"
     assert entry.scope == MemoryScope.INHERITED
+
+
+@pytest.mark.asyncio
+async def test_list_by_scope():
+    """Test listing entries by scope"""
+    manager = UnifiedMemoryManager(node_id="test")
+    await manager.write("key1", "value1", MemoryScope.LOCAL)
+    await manager.write("key2", "value2", MemoryScope.LOCAL)
+    await manager.write("key3", "value3", MemoryScope.SHARED)
+
+    local_entries = await manager.list_by_scope(MemoryScope.LOCAL)
+    assert len(local_entries) == 2
+
+    shared_entries = await manager.list_by_scope(MemoryScope.SHARED)
+    assert len(shared_entries) == 1

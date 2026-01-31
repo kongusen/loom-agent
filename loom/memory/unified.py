@@ -128,9 +128,25 @@ class UnifiedMemoryManager:
 
         return None
 
+    async def list_by_scope(self, scope: MemoryScope) -> list[MemoryEntry]:
+        """列出指定作用域的所有记忆"""
+        return list(self._memory_by_scope[scope].values())
+
     # LoomMemory 兼容接口
     def add_task(self, task: Task) -> None:
         self._loom_memory.add_task(task)
 
     def get_l1_tasks(self, limit: int = 10, session_id: str | None = None) -> list[Task]:
         return self._loom_memory.get_l1_tasks(limit=limit, session_id=session_id)
+
+    def get_l2_tasks(self, limit: int = 10, session_id: str | None = None) -> list[Task]:
+        """获取 L2 重要任务（兼容 LoomMemory 接口）"""
+        return self._loom_memory.get_l2_tasks(limit=limit, session_id=session_id)
+
+    def promote_tasks(self) -> None:
+        """触发任务提升（L1→L2→L3→L4）"""
+        self._loom_memory.promote_tasks()
+
+    async def promote_tasks_async(self) -> None:
+        """异步触发任务提升"""
+        await self._loom_memory.promote_tasks_async()
