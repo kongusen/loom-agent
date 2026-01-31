@@ -342,8 +342,7 @@ class TestFractalMemory:
 
     @pytest.mark.asyncio
     async def test_child_node_inherits_parent_memory(self):
-        """测试子节点继承父节点的记忆"""
-        from loom.fractal.memory import FractalMemory
+        """测试子节点继承父节点的记忆（MemoryManager 父子关系）"""
         from loom.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
@@ -368,49 +367,35 @@ class TestFractalMemory:
             status=TaskStatus.COMPLETED,
             result={"content": "Parent result"},
         )
-        parent_agent.memory.add_task(parent_task, tier=MemoryTier.L2_WORKING)
+        parent_agent.memory.add_task(parent_task)
 
-        # 3. 创建FractalMemory给父Agent
-        parent_fractal_memory = FractalMemory(
-            node_id="parent-agent",
-            parent_memory=None,
-            base_memory=parent_agent.memory,
-        )
-        parent_agent.fractal_memory = parent_fractal_memory
-
-        # 4. 创建子任务
+        # 3. 创建子任务
         child_task = Task(
             task_id="child-task-1",
             action="execute",
             parameters={"content": "Child task"},
         )
 
-        # 5. 使用_create_child_node创建子节点
+        # 4. 使用 _create_child_node 创建子节点（子节点 memory.parent = parent_agent.memory）
         child_agent = await parent_agent._create_child_node(
             subtask=child_task,
             context_hints=[],
         )
 
-        # 6. 验证子节点有fractal_memory
-        assert hasattr(child_agent, "fractal_memory"), "Expected child to have fractal_memory"
-        assert child_agent.fractal_memory is not None
-
-        # 7. 验证子节点的fractal_memory有parent_memory引用
-        assert (
-            child_agent.fractal_memory.parent_memory is not None
-        ), "Expected child to have parent_memory reference"
+        # 5. 验证子节点有 memory 且 parent 引用父节点
+        assert child_agent.memory is not None
+        assert child_agent.memory.parent is parent_agent.memory
 
         print("\n[SUCCESS] Child node inherited parent memory structure")
 
     @pytest.mark.asyncio
     async def test_child_memory_syncs_back_to_parent(self):
-        """测试子节点记忆同步回父节点"""
-        from loom.fractal.memory import FractalMemory, MemoryScope
+        """测试子节点记忆同步回父节点（MemoryManager）"""
+        from loom.fractal.memory import MemoryScope
         from loom.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
 
-        # 1. 创建父Agent
         tool_registry = ToolRegistry()
         llm = MockLLMProvider()
 
@@ -422,28 +407,17 @@ class TestFractalMemory:
             require_done_tool=False,
         )
 
-        # 2. 创建FractalMemory给父Agent
-        parent_fractal_memory = FractalMemory(
-            node_id="parent-agent",
-            parent_memory=None,
-            base_memory=parent_agent.memory,
-        )
-        parent_agent.fractal_memory = parent_fractal_memory
-
-        # 3. 创建子任务
         child_task = Task(
             task_id="child-task-sync",
             action="execute",
             parameters={"content": "Child task for sync test"},
         )
 
-        # 4. 创建子节点
         child_agent = await parent_agent._create_child_node(
             subtask=child_task,
             context_hints=[],
         )
 
-        # 5. 在子节点的记忆中添加一个任务（模拟子节点执行任务）
         child_completed_task = Task(
             task_id="child-completed-task",
             action="execute",
@@ -453,30 +427,18 @@ class TestFractalMemory:
         )
         child_agent.memory.add_task(child_completed_task)
 
-        # 6. 将子节点的记忆写入SHARED scope（这样才能同步回父节点）
-        # 注意：在实际使用中，子节点会自动将重要信息写入SHARED scope
-        if hasattr(child_agent, "fractal_memory") and child_agent.fractal_memory:
-            await child_agent.fractal_memory.write(
-                "child-shared-info",
-                {"task_id": "child-completed-task", "result": "Child result"},
-                MemoryScope.SHARED,
-            )
+        await child_agent.memory.write(
+            "child-shared-info",
+            {"task_id": "child-completed-task", "result": "Child result"},
+            scope=MemoryScope.SHARED,
+        )
 
-        # 7. 同步子节点记忆回父节点
         await parent_agent._sync_memory_from_child(child_agent)
 
-        # 8. 验证父节点的fractal_memory中包含子节点的SHARED记忆
-        if hasattr(parent_agent, "fractal_memory") and parent_agent.fractal_memory:
-            parent_shared = await parent_agent.fractal_memory.list_by_scope(MemoryScope.SHARED)
-
-            # 验证至少有一条SHARED记忆
-            assert len(parent_shared) > 0, "Expected parent to have SHARED memories from child"
-
-            # 验证包含子节点写入的信息
-            shared_ids = [entry.id for entry in parent_shared]
-            assert (
-                "child-shared-info" in shared_ids
-            ), "Expected child's shared info in parent memory"
+        parent_shared = await parent_agent.memory.list_by_scope(MemoryScope.SHARED)
+        assert len(parent_shared) > 0, "Expected parent to have SHARED memories from child"
+        shared_ids = [entry.id for entry in parent_shared]
+        assert "child-shared-info" in shared_ids
 
         print(
             f"\n[SUCCESS] Child memory synced back to parent - {len(parent_shared)} shared entries"

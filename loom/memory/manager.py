@@ -145,6 +145,10 @@ class MemoryManager:
         """获取 L2 重要任务（兼容 LoomMemory 接口）"""
         return self._loom_memory.get_l2_tasks(limit=limit, session_id=session_id)
 
+    def get_task(self, task_id: str) -> Task | None:
+        """根据 ID 获取任务"""
+        return self._loom_memory.get_task(task_id)
+
     def promote_tasks(self) -> None:
         """触发任务提升（L1→L2→L3→L4）"""
         self._loom_memory.promote_tasks()

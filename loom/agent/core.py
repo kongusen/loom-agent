@@ -186,7 +186,7 @@ class Agent(BaseNode):
         if self.require_done_tool:
             self.tools.append(create_done_tool())
 
-        # 创建 MemoryManager（整合 LoomMemory + FractalMemory）
+        # 创建 MemoryManager（统一的内存管理系统）
         self.memory = MemoryManager(
             node_id=node_id,
             parent=parent_memory,
@@ -211,10 +211,10 @@ class Agent(BaseNode):
         sources: list[ContextSource] = []
         sources.append(MemoryContextSource(self.memory))
         # 添加作用域记忆上下文源（MemoryManager 提供 LOCAL/SHARED/INHERITED/GLOBAL）
-        from loom.memory.task_context import FractalMemoryContextSource
+        from loom.memory.task_context import MemoryScopeContextSource
 
         sources.append(
-            FractalMemoryContextSource(
+            MemoryScopeContextSource(
                 self.memory,
                 include_additional=True,
                 max_items=6,
@@ -1525,8 +1525,7 @@ IMPORTANT:
 
         整合点：
         - 使用 MemoryManager 父子关系（parent_memory）
-        - 使用 SmartAllocationStrategy 分配记忆
-        - 子节点通过 parent_memory 继承上下文
+        - 子节点通过 parent_memory 自动继承父节点的 SHARED/GLOBAL 记忆
 
         Args:
             args: delegate_task工具参数
@@ -1593,11 +1592,10 @@ IMPORTANT:
         remove_tools: set[str] | None = None,
     ) -> "Agent":
         """
-        创建子节点并智能分配上下文
+        创建子节点
 
         整合所有组件：
-        - MemoryManager（继承父节点 parent_memory）
-        - SmartAllocationStrategy（智能分配）
+        - MemoryManager（继承父节点 parent_memory，自动继承 SHARED/GLOBAL 记忆）
         - AgentConfig（配置继承 - Phase 3）
 
         继承规则（12.5.3）：
@@ -1607,7 +1605,7 @@ IMPORTANT:
 
         Args:
             subtask: 子任务
-            context_hints: 上下文提示（记忆ID列表）
+            context_hints: 上下文提示（记忆ID列表，当前未使用）
             add_skills: 子节点额外启用的 Skills
             remove_skills: 子节点禁用的 Skills
             add_tools: 子节点额外启用的工具
@@ -1619,7 +1617,6 @@ IMPORTANT:
         Raises:
             RuntimeError: 如果超出预算限制
         """
-        from loom.fractal.allocation import SmartAllocationStrategy
         from loom.fractal.memory import MemoryScope
 
         # 0. 预算检查（在创建子节点前强制执行）
@@ -1667,6 +1664,7 @@ Prefer ReAct (direct tool use) for most tasks.
             child_system_prompt = self.system_prompt + step_context
 
         # 2. 创建子 Agent（parent_memory=self.memory，子节点拥有独立 MemoryManager）
+        # 子节点的 MemoryManager 会自动通过 parent_memory 继承父节点的 SHARED/GLOBAL 记忆
         child_agent = Agent(
             node_id=subtask.task_id,
             llm_provider=self.llm_provider,
@@ -1685,19 +1683,6 @@ Prefer ReAct (direct tool use) for most tasks.
             skill_activator=self.skill_activator,
             config=child_config,
         )
-
-        # 3. 使用 SmartAllocationStrategy 分配相关记忆并预暖子节点 INHERITED 缓存
-        allocation_strategy = SmartAllocationStrategy(max_inherited_memories=10)
-        allocated_memories = await allocation_strategy.allocate(
-            parent_memory=self.memory,
-            child_task=subtask,
-            context_hints=context_hints,
-        )
-        for entry in allocated_memories.get(MemoryScope.INHERITED, []):
-            await child_agent.memory.read(
-                entry.id,
-                search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED],
-            )
 
         return child_agent
 

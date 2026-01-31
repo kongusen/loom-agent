@@ -533,7 +533,7 @@ class MemoryContextSource(ContextSource):
         return context_tasks[:max_items]
 
 
-class FractalMemoryContextSource(ContextSource):
+class MemoryScopeContextSource(ContextSource):
     """
     从作用域记忆（MemoryManager）获取跨节点共享上下文
 
@@ -542,7 +542,7 @@ class FractalMemoryContextSource(ContextSource):
 
     def __init__(
         self,
-        memory: "MemoryManager | FractalMemory",
+        memory: "MemoryManager",
         scopes: list["MemoryScope"] | None = None,
         max_items: int = 6,
         include_additional: bool = True,
