@@ -27,6 +27,7 @@ class UnifiedMemoryManager:
         max_l1_size: int = 50,
         max_l2_size: int = 100,
         max_l3_size: int = 500,
+        event_bus: Any = None,
     ):
         self.node_id = node_id
         self.parent = parent
@@ -37,6 +38,7 @@ class UnifiedMemoryManager:
             max_l1_size=max_l1_size,
             max_l2_size=max_l2_size,
             max_l3_size=max_l3_size,
+            event_bus=event_bus,
         )
 
         # 作用域索引

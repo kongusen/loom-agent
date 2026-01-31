@@ -200,6 +200,7 @@ class Agent(BaseNode):
         self.unified_memory = UnifiedMemoryManager(
             node_id=node_id,
             parent=parent_unified,
+            event_bus=event_bus,
             **(memory_config or {})
         )
 
