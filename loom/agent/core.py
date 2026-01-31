@@ -32,6 +32,7 @@ from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
 from loom.fractal.memory import FractalMemory
 from loom.memory.core import LoomMemory
+from loom.memory.unified import UnifiedMemoryManager
 from loom.memory.task_context import (
     MemoryContextSource,
     TaskContextManager,
@@ -85,6 +86,7 @@ class Agent(BaseNode):
         enable_tool_creation: bool = True,  # 是否启用工具创建能力
         budget_tracker: BudgetTracker | None = None,  # 递归预算跟踪器
         recursive_depth: int = 0,  # 当前递归深度
+        config: Any | None = None,  # AgentConfig（Phase 3: 12.5.2）
         skill_registry: Any | None = None,  # SkillRegistry
         skill_activator: Any | None = None,  # SkillActivator（Phase 2）
         tool_registry: Any | None = None,  # ToolRegistry
@@ -93,6 +95,9 @@ class Agent(BaseNode):
         root_context_id: str | None = None,
         memory_config: dict[str, Any] | None = None,
         context_budget_config: dict[str, float | int] | None = None,
+        knowledge_base: Any | None = None,  # KnowledgeBaseProvider
+        knowledge_max_items: int = 3,  # 知识库查询最大条目数
+        knowledge_relevance_threshold: float = 0.7,  # 知识相关度阈值
         **kwargs,
     ):
         """
@@ -119,6 +124,9 @@ class Agent(BaseNode):
             sandbox_manager: 沙盒工具管理器（可选，用于统一管理工具和自动沙盒化）
             memory_config: 记忆系统配置（可选，默认使用标准配置）
             context_budget_config: 上下文预算配置（可选，动态调整比例）
+            knowledge_base: 知识库提供者（可选，用于智能RAG）
+            knowledge_max_items: 知识库查询返回的最大条目数（默认3）
+            knowledge_relevance_threshold: 知识相关度阈值，0.0-1.0（默认0.7）
             **kwargs: 其他参数传递给BaseNode
         """
         super().__init__(
@@ -141,10 +149,34 @@ class Agent(BaseNode):
         self.require_done_tool = require_done_tool
         self.enable_context_tools = enable_context_tools
         self.enable_tool_creation = enable_tool_creation
+
+        # === Phase 3: 配置体系（12.5.2）===
+        from loom.config.agent import AgentConfig
+
+        # 1. 配置（可继承）
+        self.config = config or AgentConfig()
+
+        # 2. 共享的 Registry（全局单例）
         self.skill_registry = skill_registry
-        self.skill_activator = skill_activator  # Phase 2: Skill激活器
         self.tool_registry = tool_registry
+
+        # 3. 激活状态（独立，不继承）
+        self._active_skills: set[str] = set()
+
+        # 创建 SkillActivator（如果未提供且有 skill_registry）
+        if skill_activator is None and skill_registry is not None:
+            from loom.skills.activator import SkillActivator
+            self.skill_activator = SkillActivator(
+                llm_provider=llm_provider,
+                tool_registry=tool_registry,
+            )
+        else:
+            self.skill_activator = skill_activator  # Phase 2: Skill激活器
+
         self.sandbox_manager = sandbox_manager  # NEW: 存储沙盒工具管理器
+        self.knowledge_base = knowledge_base  # 知识库提供者（用于智能RAG）
+        self.knowledge_max_items = knowledge_max_items  # 知识库查询最大条目数
+        self.knowledge_relevance_threshold = knowledge_relevance_threshold  # 知识相关度阈值
         self._root_context_id = root_context_id
 
         # 递归预算控制
@@ -155,18 +187,24 @@ class Agent(BaseNode):
         if self.require_done_tool:
             self.tools.append(create_done_tool())
 
-        # 创建 LoomMemory（使用配置，并连接到 EventBus）
-        # Phase 2: Memory 订阅 EventBus，自动接收所有 Task
-        self.memory = LoomMemory(node_id=node_id, event_bus=event_bus, **(memory_config or {}))
+        # 创建 UnifiedMemoryManager（整合 LoomMemory + FractalMemory）
+        # 提取父节点的 UnifiedMemoryManager（如果存在）
+        parent_unified = None
+        if fractal_memory is not None:
+            # 如果传入了 fractal_memory，尝试从中提取父节点
+            # 这是为了向后兼容，未来应该直接传入 parent_unified_memory
+            if hasattr(fractal_memory, '_unified_memory'):
+                parent_unified = fractal_memory._unified_memory
 
-        # 创建 FractalMemory（用于跨节点上下文共享）
-        from loom.fractal.memory import FractalMemory
-
-        self.fractal_memory = (
-            fractal_memory
-            if fractal_memory is not None
-            else FractalMemory(node_id=node_id, parent_memory=None, base_memory=self.memory)
+        self.unified_memory = UnifiedMemoryManager(
+            node_id=node_id,
+            parent=parent_unified,
+            **(memory_config or {})
         )
+
+        # 保持向后兼容：创建 self.memory 和 self.fractal_memory 的别名
+        self.memory = self.unified_memory._loom_memory
+        self.fractal_memory = fractal_memory if fractal_memory is not None else None
 
         # 创建上下文工具执行器（如果启用）
         self._context_tool_executor: ContextToolExecutor | None = None
@@ -195,6 +233,20 @@ class Agent(BaseNode):
                     max_additional=4,
                 )
             )
+
+        # 添加知识库上下文源（如果提供）
+        if self.knowledge_base:
+            from loom.memory.knowledge_context import KnowledgeContextSource
+
+            sources.append(
+                KnowledgeContextSource(
+                    knowledge_base=self.knowledge_base,
+                    fractal_memory=self.fractal_memory,
+                    max_items=self.knowledge_max_items,
+                    relevance_threshold=self.knowledge_relevance_threshold,
+                )
+            )
+
         # Note: EventBusContextSource removed in Phase 3 refactoring
         # Context now only queries Memory, which automatically receives Tasks from EventBus
 
@@ -213,12 +265,9 @@ class Agent(BaseNode):
         # Ephemeral 消息跟踪（用于大输出工具）
         self._ephemeral_tool_outputs: dict[str, deque] = defaultdict(lambda: deque())
 
-        # EventBus委派处理器（用于异步委派）
-        self._delegation_handler = None
-        if event_bus and hasattr(event_bus, "query_by_task"):
-            from .eventbus_delegation import EventBusDelegationHandler
-
-            self._delegation_handler = EventBusDelegationHandler(event_bus)
+        # EventBus委派处理器已移除（使用统一的 Agent.delegate() 方法）
+        # Tier 2 delegation through EventBusDelegationHandler has been removed
+        # All delegation now uses Agent.delegate() which internally uses EventBus
 
         # AgentNode 统一抽象：节点类型
         # BaseNode 已经设置了 self.node_type = "agent"
@@ -320,6 +369,43 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         return "\n\n".join(parts)
 
+    async def _build_skill_context(self) -> str:
+        """
+        构建 Skill 上下文（用于 Discovery 层 - Phase 3: 12.5.4）
+
+        返回所有启用 Skills 的元数据，让 LLM 知道有哪些 Skills 可用。
+        这是 Progressive Disclosure 的第二层：Discovery 层。
+
+        Returns:
+            Skill 上下文字符串
+        """
+        if not self.skill_registry or not self.config.enabled_skills:
+            return ""
+
+        lines = ["## Available Skills\n"]
+
+        for skill_id in self.config.enabled_skills:
+            try:
+                # 获取 Skill 定义
+                skill_def = await self.skill_registry.get_skill(skill_id)
+                if skill_def:
+                    # 添加 Skill 基本信息
+                    lines.append(f"- **{skill_def.name}**: {skill_def.description}")
+
+                    # 如果有绑定的工具，显示工具列表
+                    if skill_def.required_tools:
+                        tools_str = ", ".join(skill_def.required_tools)
+                        lines.append(f"  - Required Tools: {tools_str}")
+            except Exception:
+                # 跳过无法加载的 Skill
+                continue
+
+        # 如果没有可用的 Skills，返回空字符串
+        if len(lines) == 1:
+            return ""
+
+        return "\n".join(lines)
+
     async def _activate_skills(
         self, task_description: str
     ) -> dict[str, Any]:
@@ -354,16 +440,8 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             # Step 1: Find relevant skills (Progressive Disclosure)
             # Get skill metadata from registry
             skill_metadata = []
-            if hasattr(self.skill_registry, "list_skills"):
-                all_skills = self.skill_registry.list_skills()
-                for skill_id in all_skills:
-                    skill_def = self.skill_registry.get_skill(skill_id)
-                    if skill_def:
-                        skill_metadata.append({
-                            "skill_id": skill_id,
-                            "name": skill_def.get("name", skill_id),
-                            "description": skill_def.get("description", ""),
-                        })
+            if hasattr(self.skill_registry, "get_all_metadata"):
+                skill_metadata = await self.skill_registry.get_all_metadata()
 
             # Find relevant skills using LLM
             relevant_skill_ids = await self.skill_activator.find_relevant_skills(
@@ -376,22 +454,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             from loom.skills.models import SkillDefinition
 
             for skill_id in relevant_skill_ids:
-                skill_dict = self.skill_registry.get_skill(skill_id)
-                if not skill_dict:
+                skill_def = await self.skill_registry.get_skill(skill_id)
+                if not skill_def:
                     continue
-
-                # Convert dict to SkillDefinition
-                skill_def = SkillDefinition(
-                    skill_id=skill_dict.get("skill_id", skill_id),
-                    name=skill_dict.get("name", ""),
-                    description=skill_dict.get("description", ""),
-                    instructions=skill_dict.get("instructions", ""),
-                    activation_criteria=skill_dict.get("activation_criteria", ""),
-                    scripts=skill_dict.get("scripts", {}),
-                    references=skill_dict.get("references", {}),
-                    required_tools=skill_dict.get("required_tools", []),
-                    metadata=skill_dict.get("_metadata", {}),
-                )
 
                 # Determine activation mode
                 mode = self.skill_activator.determine_activation_mode(skill_def)
@@ -406,7 +471,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
                 elif mode == SkillActivationMode.COMPILATION:
                     # Form 2: Script compilation
-                    if self.sandbox_manager:
+                    if self.sandbox_manager is not None:
                         tool_names = await self.skill_activator.activate_compilation(
                             skill_def, self.sandbox_manager
                         )
@@ -425,6 +490,146 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         return result
 
+    async def _activate_skill(self, skill_id: str) -> dict[str, Any]:
+        """
+        激活单个 Skill 并验证依赖（Phase 3: 12.5.5）
+
+        流程：
+        1. 检查 skill 是否在 enabled_skills 中
+        2. 检查是否已激活（避免重复）
+        3. 验证绑定的 tools 是否可用
+        4. 激活 Skill（三种形态）
+        5. 记录激活状态
+
+        Args:
+            skill_id: Skill ID
+
+        Returns:
+            激活结果字典：
+            {
+                "success": bool,
+                "already_active": bool,
+                "mode": SkillActivationMode,
+                "content": str,  # Form 1
+                "tool_names": list[str],  # Form 2
+                "node": SkillAgentNode,  # Form 3
+                "error": str,
+            }
+        """
+        # 1. 检查是否启用
+        if skill_id not in self.config.enabled_skills:
+            return {
+                "success": False,
+                "error": f"Skill '{skill_id}' not in enabled_skills",
+            }
+
+        # 2. 检查是否已激活
+        if skill_id in self._active_skills:
+            return {
+                "success": True,
+                "already_active": True,
+            }
+
+        # 3. 使用 SkillActivator 验证并激活
+        if not self.skill_activator or not self.skill_registry:
+            return {
+                "success": False,
+                "error": "SkillActivator or SkillRegistry not initialized",
+            }
+
+        try:
+            # 获取 Skill 定义
+            skill_def = await self.skill_registry.get_skill(skill_id)
+            if not skill_def:
+                return {
+                    "success": False,
+                    "error": f"Skill '{skill_id}' not found in registry",
+                }
+
+            # 激活（带依赖验证）
+            from loom.skills.models import ActivationResult
+
+            result: ActivationResult = await self.skill_activator.activate(
+                skill=skill_def,
+                tool_manager=self.sandbox_manager,
+                event_bus=self.event_bus,
+            )
+
+            # 4. 记录激活状态
+            if result.success:
+                self._active_skills.add(skill_id)
+
+            # 5. 转换为字典返回
+            return {
+                "success": result.success,
+                "mode": result.mode,
+                "content": result.content,
+                "tool_names": result.tool_names,
+                "node": result.node,
+                "error": result.error,
+                "missing_tools": result.missing_tools,
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    def _get_available_tools(self) -> list[dict[str, Any]]:
+        """
+        获取当前可用的工具列表（动态 - Phase 3: 12.5.6）
+
+        来源：
+        1. 基础工具（self.tools）
+        2. 已激活 Skills 绑定的工具（通过 sandbox_manager）
+        3. 额外配置的工具（config.extra_tools）
+
+        排除：
+        - config.disabled_tools 中的工具
+
+        Returns:
+            工具定义列表（LLM 格式）
+        """
+        available = []
+        tool_names_seen = set()
+
+        # 1. 基础工具
+        for tool in self.tools:
+            tool_name = tool.get("function", {}).get("name")
+            if tool_name and tool_name not in tool_names_seen:
+                available.append(tool)
+                tool_names_seen.add(tool_name)
+
+        # 2. 已激活 Skills 绑定的工具
+        # 注意：Skills 的工具已经通过 sandbox_manager 注册，会在后面统一添加
+
+        # 3. 额外配置的工具（从 tool_registry）
+        if self.tool_registry and self.config.extra_tools:
+            for tool_name in self.config.extra_tools:
+                if tool_name not in tool_names_seen:
+                    tool_def = self.tool_registry.get_definition(tool_name)
+                    if tool_def:
+                        # 转换为 LLM 格式
+                        available.append({
+                            "type": "function",
+                            "function": {
+                                "name": tool_def.name,
+                                "description": tool_def.description,
+                                "parameters": tool_def.input_schema,
+                            },
+                        })
+                        tool_names_seen.add(tool_name)
+
+        # 4. 过滤禁用的工具
+        if self.config.disabled_tools:
+            available = [
+                tool for tool in available
+                if tool.get("function", {}).get("name") not in self.config.disabled_tools
+            ]
+
+        return available
+
     def _build_tool_list(self) -> list[dict[str, Any]]:
         """
         构建完整工具列表（普通工具 + 元工具）
@@ -432,7 +637,8 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         Returns:
             完整的工具列表
         """
-        tools = self.tools.copy()
+        # 使用动态工具列表（基于配置和已激活的 Skills）
+        tools = self._get_available_tools()
 
         # 添加规划元工具
         tools.append(
@@ -467,7 +673,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         )
 
         # 添加分形委派元工具（自动创建子节点）
-        from loom.orchestration.meta_tools import create_delegate_task_tool
+        from loom.agent.meta_tools import create_delegate_task_tool
 
         tools.append(create_delegate_task_tool())
 
@@ -510,18 +716,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             # 添加已创建的动态工具
             tools.extend(self._dynamic_tool_executor.get_tool_definitions())
 
-        # 添加沙盒工具管理器中的工具（如果有）
-        if self.sandbox_manager:
-            # 转换 MCP 格式的工具定义为 Agent 使用的格式
-            for tool_def in self.sandbox_manager.list_tools():
-                tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": tool_def.name,
-                        "description": tool_def.description,
-                        "parameters": tool_def.input_schema,
-                    },
-                })
+        # 注意：沙盒工具已经在 _get_available_tools() 中处理，不需要重复添加
 
         return tools
 
@@ -772,7 +967,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                             )
                         else:
                             # New fractal-based delegation (auto-create child)
-                            from loom.orchestration.meta_tools import execute_delegate_task
+                            from loom.agent.meta_tools import execute_delegate_task
 
                             result = await execute_delegate_task(self, tool_args, task)
                     else:
@@ -1057,21 +1252,45 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             except Exception as e:
                 return f"Delegation error: {str(e)}"
 
-        # Tier 2: EventBus 路由（可选机制）
-        elif self._delegation_handler:
-            # 使用EventBusDelegationHandler进行异步委派
-            result = await self._delegation_handler.delegate_task(
-                source_agent_id=self.node_id,
-                target_agent_id=target_agent_id,
-                subtask=subtask,
-                parent_task_id=parent_task_id,
-                session_id=session_id,
-            )
-            return result
+        # Tier 2: 检查激活的 Skill 节点（Form 3 - Phase 3）
+        # 如果目标不在 available_agents 中，检查是否是激活的 SkillAgentNode
+        active_skill_nodes = getattr(self, '_active_skill_nodes', [])
+        for skill_node in active_skill_nodes:
+            # 匹配 node_id 或 skill_id
+            node_id = getattr(skill_node, 'node_id', None)
+            skill_id = getattr(skill_node, 'skill_id', None)
 
-        # 找不到目标 agent
-        else:
-            return f"Error: Agent '{target_agent_id}' not found in available_agents"
+            if node_id == target_agent_id or skill_id == target_agent_id:
+                # 找到匹配的 SkillAgentNode，创建委派任务
+                delegated_task = Task(
+                    task_id=f"{parent_task_id}:delegated:{target_agent_id}",
+                    source_agent=self.node_id,
+                    target_agent=target_agent_id,
+                    action="execute",
+                    parameters={"content": subtask},
+                    parent_task_id=parent_task_id,
+                    session_id=session_id,
+                )
+
+                # 执行任务
+                try:
+                    result_task = await skill_node.execute_task(delegated_task)
+
+                    if result_task.status == TaskStatus.COMPLETED:
+                        # 提取结果内容
+                        if isinstance(result_task.result, dict):
+                            content = result_task.result.get("content", str(result_task.result))
+                            return str(content)
+                        else:
+                            return str(result_task.result)
+                    else:
+                        return f"Delegation to skill node failed: {result_task.error or 'Unknown error'}"
+
+                except Exception as e:
+                    return f"Skill node delegation error: {str(e)}"
+
+        # 找不到目标 agent（既不在 available_agents 也不在 active_skill_nodes）
+        return f"Error: Agent '{target_agent_id}' not found in available_agents or active_skill_nodes"
 
     async def _execute_plan(
         self,
@@ -1384,6 +1603,11 @@ IMPORTANT:
         self,
         subtask: Task,
         context_hints: list[str],
+        # === Phase 3: 配置继承参数（12.5.3）===
+        add_skills: set[str] | None = None,
+        remove_skills: set[str] | None = None,
+        add_tools: set[str] | None = None,
+        remove_tools: set[str] | None = None,
     ) -> "Agent":
         """
         创建子节点并智能分配上下文
@@ -1392,10 +1616,20 @@ IMPORTANT:
         - FractalMemory（继承父节点）
         - SmartAllocationStrategy（智能分配）
         - TaskContextManager（上下文构建）
+        - AgentConfig（配置继承 - Phase 3）
+
+        继承规则（12.5.3）：
+        - 共享：skill_registry, tool_registry, event_bus, sandbox_manager
+        - 继承：config (可覆盖)
+        - 独立：active_skills, fractal_memory
 
         Args:
             subtask: 子任务
             context_hints: 上下文提示（记忆ID列表）
+            add_skills: 子节点额外启用的 Skills
+            remove_skills: 子节点禁用的 Skills
+            add_tools: 子节点额外启用的工具
+            remove_tools: 子节点禁用的工具
 
         Returns:
             配置好的子Agent实例
@@ -1417,6 +1651,17 @@ IMPORTANT:
         # 记录子节点创建和深度
         self._budget_tracker.record_child_created(self.node_id)
         self._budget_tracker.record_depth(self._recursive_depth + 1)
+
+        # === Phase 3: 配置继承（12.5.3）===
+        from loom.config.agent import AgentConfig
+
+        child_config = AgentConfig.inherit(
+            parent=self.config,
+            add_skills=add_skills,
+            remove_skills=remove_skills,
+            add_tools=add_tools,
+            remove_tools=remove_tools,
+        )
 
         # 1. 创建FractalMemory（继承父节点记忆）
         child_memory = FractalMemory(
@@ -1496,6 +1741,13 @@ Prefer ReAct (direct tool use) for most tasks.
             recursive_depth=self._recursive_depth + 1,  # 递增深度
             fractal_memory=child_memory,
             root_context_id=self._root_context_id,
+            # === Phase 3: 共享 Registry（分形继承规则 12.5.3）===
+            skill_registry=self.skill_registry,
+            tool_registry=self.tool_registry,
+            sandbox_manager=self.sandbox_manager,
+            skill_activator=self.skill_activator,
+            # === Phase 3: 继承配置（分形继承规则 12.5.3）===
+            config=child_config,
         )
 
         # 6. 设置子Agent的fractal_memory引用
