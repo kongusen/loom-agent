@@ -32,7 +32,7 @@ from textual.widgets import Footer, Header, Input, RichLog, Static
 
 from loom.config.llm import LLMConfig
 from loom.events import EventBus
-from loom.orchestration.agent import Agent
+from loom.agent.core import Agent
 from loom.protocol import Task
 from loom.providers.llm.openai import OpenAIProvider
 
