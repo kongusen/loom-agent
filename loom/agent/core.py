@@ -53,6 +53,61 @@ except ImportError:
     SandboxToolManager = None  # type: ignore
 
 
+class AgentBuilder:
+    """
+    Agent构建器 - 支持流畅的链式调用
+
+    提供类似llama-index的流畅API风格。
+
+    Examples:
+        >>> agent = (Agent.create(llm)
+        ...     .with_system_prompt("你是一个AI助手")
+        ...     .with_tools([...])
+        ...     .with_memory(max_tokens=4000)
+        ...     .build())
+    """
+
+    def __init__(self, llm: LLMProvider):
+        """初始化构建器"""
+        self.llm = llm
+        self.config: dict[str, Any] = {}
+
+    def with_system_prompt(self, prompt: str) -> "AgentBuilder":
+        """设置系统提示词"""
+        self.config["system_prompt"] = prompt
+        return self
+
+    def with_tools(self, tools: list[dict[str, Any]]) -> "AgentBuilder":
+        """设置工具列表"""
+        self.config["tools"] = tools
+        return self
+
+    def with_memory(self, max_tokens: int = 4000) -> "AgentBuilder":
+        """配置记忆系统"""
+        self.config["max_context_tokens"] = max_tokens
+        return self
+
+    def with_knowledge_base(self, knowledge_base: Any) -> "AgentBuilder":
+        """设置知识库"""
+        self.config["knowledge_base"] = knowledge_base
+        return self
+
+    def with_event_bus(self, event_bus: Any) -> "AgentBuilder":
+        """设置事件总线"""
+        self.config["event_bus"] = event_bus
+        return self
+
+    def with_iterations(self, max_iterations: int) -> "AgentBuilder":
+        """设置最大迭代次数"""
+        self.config["max_iterations"] = max_iterations
+        return self
+
+    def build(self) -> "Agent":
+        """构建Agent实例"""
+        # Agent类在同一文件中，直接引用
+        return Agent.from_llm(self.llm, **self.config)
+
+
 class Agent(BaseNode):
     """
     统一的智能体基类
@@ -312,6 +367,53 @@ class Agent(BaseNode):
             max_iterations=max_iterations,
             **kwargs,
         )
+
+    @classmethod
+    def create(cls, llm: LLMProvider) -> "AgentBuilder":
+        """
+        创建AgentBuilder - 支持流畅的链式调用
+
+        Args:
+            llm: LLM提供者
+
+        Returns:
+            AgentBuilder实例
+
+        Examples:
+            >>> agent = (Agent.create(llm)
+            ...     .with_system_prompt("你是一个AI助手")
+            ...     .with_tools([...])
+            ...     .build())
+        """
+        return AgentBuilder(llm)
+
+    async def run(self, content: str, **kwargs) -> str:
+        """
+        简化的执行接口 - 直接运行任务并返回结果
+
+        Args:
+            content: 任务内容
+            **kwargs: 额外参数
+
+        Returns:
+            任务执行结果字符串
+
+        Examples:
+            >>> result = await agent.run("帮我分析这段代码")
+        """
+        task = Task(
+            task_id=str(uuid4()),
+            action="execute",
+            parameters={"content": content, **kwargs}
+        )
+        result = await self.execute_task(task)
+
+        if result.status == TaskStatus.COMPLETED:
+            if isinstance(result.result, dict):
+                return str(result.result.get("content", ""))
+            return str(result.result)
+        else:
+            return f"Error: {result.error or 'Task failed'}"
 
     def get_node_type(self) -> "NodeType":
         """
