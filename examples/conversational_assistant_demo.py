@@ -20,8 +20,7 @@ import asyncio
 import os
 from typing import Any
 
-from loom.api import LoomApp
-from loom.api.models import AgentConfig
+from loom.agent import Agent
 from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.events import EventBus
 from loom.protocol import Task
@@ -283,15 +282,7 @@ async def main():
     print("对话助手 Demo")
     print("=" * 60)
 
-    # 1. 创建EventBus和观察器
-    event_bus = EventBus()
-    observer = ConversationObserver()
-    event_bus.register_handler("*", observer.on_event)
-
-    # 2. 创建LoomApp
-    app = LoomApp(event_bus=event_bus)
-
-    # 3. 配置LLM
+    # 1. 配置LLM
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         print("❌ 错误: 请设置 OPENAI_API_KEY 环境变量")
@@ -301,33 +292,28 @@ async def main():
         api_key=api_key,
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
     )
-    app.set_llm_provider(llm)
-
     print("✓ LLM已配置")
 
-    # 3. 配置知识库
+    # 2. 配置知识库
     knowledge_base = ConversationalKnowledgeBase()
-    app.set_knowledge_base(knowledge_base)
     print(f"✓ 知识库已配置 ({len(knowledge_base.knowledge_data)} 条知识)")
 
-    # 4. 创建EventBus和观察器
+    # 3. 创建EventBus和观察器
     event_bus = EventBus()
     observer = ConversationObserver()
     event_bus.register_handler("*", observer.on_event)
     print("✓ 事件观察器已配置")
 
-    # 4.5 添加工具
+    # 4. 创建工具
     tools = [
         create_calculator_tool(),
         create_search_tool(),
     ]
-    app.add_tools(tools)
     print(f"✓ 工具已配置 ({len(tools)} 个工具)")
 
-    # 5. 创建Agent配置
-    config = AgentConfig(
-        agent_id="conversational-assistant",
-        name="对话助手",
+    # 5. 使用新的简化API创建Agent
+    agent = Agent.from_llm(
+        llm=llm,
         system_prompt="""你是一个友好、专业的AI助手。
 
 你的特点：
@@ -337,15 +323,15 @@ async def main():
 - 思考过程透明可见
 
 请用自然、流畅的语言回答用户问题。""",
+        tools=tools,
+        event_bus=event_bus,
+        knowledge_base=knowledge_base,
         knowledge_max_items=3,
         knowledge_relevance_threshold=0.75,
     )
-
-    # 6. 创建Agent
-    agent = app.create_agent(config)
     print(f"✓ Agent已创建: {agent.node_id}")
 
-    # 7. 启动对话循环
+    # 6. 启动对话循环
     await conversation_loop(agent, observer)
 
 

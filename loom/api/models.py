@@ -8,9 +8,13 @@ API Models - Pydantic 配置模型
 2. 数据验证 - 自动验证输入数据
 3. 默认值 - 合理的默认配置
 4. 文档生成 - 自动生成配置文档
+
+.. deprecated:: 0.4.7
+    AgentConfig 将在 v0.5.0 中移除。请使用 Agent.from_llm() 或 Agent.create() 代替。
 """
 
-from pydantic import BaseModel, Field, field_validator
+import warnings
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class MemoryConfig(BaseModel):
@@ -66,6 +70,9 @@ class AgentConfig(BaseModel):
     Agent 配置模型
 
     定义创建 Agent 所需的所有配置参数。
+
+    .. deprecated:: 0.4.7
+        AgentConfig 将在 v0.5.0 中移除。请使用 Agent.from_llm() 或 Agent.create() 代替。
     """
 
     agent_id: str = Field(
@@ -184,6 +191,17 @@ class AgentConfig(BaseModel):
                     f"Invalid capability: {cap}. " f"Valid capabilities: {valid_capabilities}"
                 )
         return v
+
+    @model_validator(mode='after')
+    def _emit_deprecation_warning(self) -> 'AgentConfig':
+        """Emit deprecation warning when AgentConfig is instantiated"""
+        warnings.warn(
+            "AgentConfig is deprecated and will be removed in v0.5.0. "
+            "Please use Agent.from_llm() or Agent.create() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return self
 
     model_config = {
         "json_schema_extra": {

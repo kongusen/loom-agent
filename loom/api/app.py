@@ -8,8 +8,12 @@ Loom App - FastAPI 风格的应用接口
 2. 类型安全 - 完整的类型注解
 3. 依赖注入 - 自动管理组件依赖
 4. 简洁 API - 直观易用的接口
+
+.. deprecated:: 0.4.7
+    LoomApp 将在 v0.5.0 中移除。请使用 Agent.from_llm() 或 Agent.create() 代替。
 """
 
+import warnings
 from typing import TYPE_CHECKING, Any
 
 from loom.api.models import AgentConfig
@@ -62,7 +66,17 @@ class LoomApp:
         Args:
             event_bus: 事件总线（可选，默认创建新的）
             dispatcher: 调度器（可选，默认创建新的）
+
+        .. deprecated:: 0.4.7
+            LoomApp 将在 v0.5.0 中移除。请使用 Agent.from_llm() 或 Agent.create() 代替。
         """
+        warnings.warn(
+            "LoomApp is deprecated and will be removed in v0.5.0. "
+            "Please use Agent.from_llm() or Agent.create() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
         # 创建或使用提供的事件总线
         self.event_bus = event_bus or EventBus()
 

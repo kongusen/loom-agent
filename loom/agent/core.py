@@ -102,6 +102,24 @@ class AgentBuilder:
         self.config["max_iterations"] = max_iterations
         return self
 
+    def with_knowledge_config(
+        self, max_items: int = 3, relevance_threshold: float = 0.7
+    ) -> "AgentBuilder":
+        """配置知识库查询参数"""
+        self.config["knowledge_max_items"] = max_items
+        self.config["knowledge_relevance_threshold"] = relevance_threshold
+        return self
+
+    def with_done_tool(self, require: bool = True) -> "AgentBuilder":
+        """设置是否要求显式调用done工具"""
+        self.config["require_done_tool"] = require
+        return self
+
+    def with_tool_creation(self, enable: bool = True) -> "AgentBuilder":
+        """设置是否启用工具创建能力"""
+        self.config["enable_tool_creation"] = enable
+        return self
+
     def build(self) -> "Agent":
         """构建Agent实例"""
         # Agent类在同一文件中，直接引用

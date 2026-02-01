@@ -3,9 +3,9 @@
 
 本示例展示如何：
 1. 实现自定义的KnowledgeBaseProvider
-2. 配置LoomApp使用知识库
-3. 创建Agent并使用智能RAG功能
-4. 验证知识库查询和缓存机制
+2. 使用Agent.from_llm()创建带知识库的Agent
+3. Agent自动查询知识库并生成答案
+4. 验证知识库集成效果
 
 特性：
 - 按需查询：Agent根据任务内容自动查询相关知识
@@ -14,12 +14,12 @@
 """
 
 import asyncio
-from typing import Any
+import os
 
-from loom.api import LoomApp
-from loom.api.models import AgentConfig
+from loom.agent import Agent
 from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
-from loom.providers.llm import OpenAIProvider
+from loom.providers.llm.openai import OpenAIProvider
+from loom.protocol import Task
 
 
 # ==================== 1. 实现自定义知识库提供者 ====================
@@ -118,37 +118,33 @@ async def main():
     print("智能RAG功能演示")
     print("=" * 60)
 
-    # 1. 创建LoomApp
-    app = LoomApp()
+    # 1. 配置LLM提供者
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("❌ 错误: 请设置 OPENAI_API_KEY 环境变量")
+        print("   示例: export OPENAI_API_KEY='your-api-key-here'")
+        return
 
-    # 2. 配置LLM提供者
     llm = OpenAIProvider(
-        api_key="your-api-key-here",  # 替换为你的API密钥
-        model="gpt-4",
+        api_key=api_key,
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
     )
-    app.set_llm_provider(llm)
+    print("✓ LLM已配置")
 
-    # 3. 创建并配置知识库
+    # 2. 创建并配置知识库
     knowledge_base = SimpleKnowledgeBase()
-    app.set_knowledge_base(knowledge_base)
+    print(f"✓ 知识库已配置 ({len(knowledge_base.knowledge_data)} 条知识)")
 
-    print("\n✓ 知识库已配置")
-    print(f"  - 知识条目数: {len(knowledge_base.knowledge_data)}")
-
-    # 4. 创建Agent配置（使用自定义RAG参数）
-    config = AgentConfig(
-        agent_id="rag-agent",
-        name="RAG演示Agent",
-        system_prompt="你是一个智能助手，可以利用知识库回答问题。",
+    # 3. 使用新的简化API创建Agent（带知识库）
+    agent = Agent.from_llm(
+        llm=llm,
+        system_prompt="你是一个智能助手，可以利用知识库回答问题。请基于知识库提供准确的答案。",
+        knowledge_base=knowledge_base,
         knowledge_max_items=3,  # 每次查询最多返回3个知识条目
         knowledge_relevance_threshold=0.7,  # 相关度阈值
     )
 
-    # 5. 创建Agent
-    agent = app.create_agent(config)
-
-    print("\n✓ Agent已创建")
-    print(f"  - Agent ID: {agent.node_id}")
+    print(f"✓ Agent已创建: {agent.node_id}")
     print(f"  - 知识库配置: max_items={agent.knowledge_max_items}, "
           f"threshold={agent.knowledge_relevance_threshold}")
 
@@ -157,68 +153,59 @@ async def main():
     print("=" * 60)
 
     # 测试场景1：查询Python相关知识
-    print("\n[测试1] 查询Python相关知识")
+    print("\n[测试1] 询问Python相关问题")
     print("-" * 60)
-
-    from loom.protocol import Task
 
     task1 = Task(
         task_id="task_1",
-        action="query",
-        parameters={"content": "Python编程语言"},
+        action="execute",
+        parameters={"content": "请介绍一下Python编程语言的特点"},
     )
 
-    # 获取上下文（会触发知识库查询）
-    context1 = await agent.context_manager.get_context(task1)
+    result1 = await agent.execute_task(task1)
+    if result1.result:
+        content = result1.result.get("content", "") if isinstance(result1.result, dict) else str(result1.result)
+        print(f"✓ Agent回答:\n{content}\n")
 
-    print(f"✓ 上下文已生成，包含 {len(context1)} 条消息")
-    for i, msg in enumerate(context1):
-        if "Knowledge" in msg.get("content", ""):
-            print(f"  [{i+1}] {msg['content'][:100]}...")
-
-    # 测试场景2：查询相同内容（应该使用缓存）
-    print("\n[测试2] 再次查询相同内容（测试缓存）")
+    # 测试场景2：查询异步编程
+    print("\n[测试2] 询问异步编程")
     print("-" * 60)
 
     task2 = Task(
         task_id="task_2",
-        action="query",
-        parameters={"content": "Python编程语言"},
+        action="execute",
+        parameters={"content": "什么是异步编程？它有什么优势？"},
     )
 
-    context2 = await agent.context_manager.get_context(task2)
+    result2 = await agent.execute_task(task2)
+    if result2.result:
+        content = result2.result.get("content", "") if isinstance(result2.result, dict) else str(result2.result)
+        print(f"✓ Agent回答:\n{content}\n")
 
-    print(f"✓ 上下文已生成，包含 {len(context2)} 条消息")
-    for i, msg in enumerate(context2):
-        if "Cached" in msg.get("content", ""):
-            print(f"  [{i+1}] 使用缓存: {msg['content'][:100]}...")
-
-    # 测试场景3：查询不同内容
-    print("\n[测试3] 查询RAG相关知识")
+    # 测试场景3：查询RAG相关知识
+    print("\n[测试3] 询问RAG技术")
     print("-" * 60)
 
     task3 = Task(
         task_id="task_3",
-        action="query",
-        parameters={"content": "RAG技术"},
+        action="execute",
+        parameters={"content": "请解释一下RAG技术是什么"},
     )
 
-    context3 = await agent.context_manager.get_context(task3)
-
-    print(f"✓ 上下文已生成，包含 {len(context3)} 条消息")
-    for i, msg in enumerate(context3):
-        if "Knowledge" in msg.get("content", ""):
-            print(f"  [{i+1}] {msg['content'][:100]}...")
+    result3 = await agent.execute_task(task3)
+    if result3.result:
+        content = result3.result.get("content", "") if isinstance(result3.result, dict) else str(result3.result)
+        print(f"✓ Agent回答:\n{content}\n")
 
     print("\n" + "=" * 60)
     print("演示完成！")
     print("=" * 60)
 
     print("\n总结：")
-    print("1. ✓ 知识库查询：Agent根据任务内容自动查询相关知识")
-    print("2. ✓ 智能缓存：相同查询使用缓存，避免重复查询")
+    print("1. ✓ 知识库集成：Agent自动查询知识库获取相关信息")
+    print("2. ✓ 智能回答：基于知识库内容生成准确答案")
     print("3. ✓ 可配置：支持自定义查询条目数和相关度阈值")
-    print("4. ✓ Fractal Memory：子节点可以继承父节点的知识缓存")
+    print("4. ✓ 简化API：使用Agent.from_llm()轻松创建带知识库的Agent")
 
 
 if __name__ == "__main__":

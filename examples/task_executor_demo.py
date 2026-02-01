@@ -20,8 +20,7 @@ import asyncio
 import os
 from typing import Any
 
-from loom.api import LoomApp
-from loom.api.models import AgentConfig
+from loom.agent import Agent
 from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.events import EventBus
 from loom.protocol import Task
@@ -192,7 +191,7 @@ async def execute_task(agent: Any, task_description: str, observer: TaskObserver
     print("\n🔄 开始执行...")
 
     try:
-        result = await agent.execute(task)
+        result = await agent.execute_task(task)
 
         print(f"\n\n✅ 任务完成")
         print(f"\n{'='*60}")
@@ -219,15 +218,7 @@ async def main():
     print("任务执行器 Demo")
     print("=" * 60)
 
-    # 1. 创建EventBus和观察器
-    event_bus = EventBus()
-    observer = TaskObserver()
-    event_bus.register_handler("*", observer.on_event)
-
-    # 2. 创建LoomApp
-    app = LoomApp(event_bus=event_bus)
-
-    # 3. 配置LLM
+    # 1. 配置LLM
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         print("❌ 错误: 请设置 OPENAI_API_KEY 环境变量")
@@ -237,26 +228,28 @@ async def main():
         api_key=api_key,
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
     )
-    app.set_llm_provider(llm)
     print("✓ LLM已配置")
 
-    # 4. 配置知识库
+    # 2. 配置知识库
     knowledge_base = TechnicalKnowledgeBase()
-    app.set_knowledge_base(knowledge_base)
     print(f"✓ 知识库已配置 ({len(knowledge_base.knowledge_data)} 条技术知识)")
 
-    # 4.5 添加工具
+    # 3. 创建EventBus和观察器
+    event_bus = EventBus()
+    observer = TaskObserver()
+    event_bus.register_handler("*", observer.on_event)
+    print("✓ 事件观察器已配置")
+
+    # 4. 创建工具
     tools = [
         create_code_generator_tool(),
         create_architecture_tool(),
     ]
-    app.add_tools(tools)
     print(f"✓ 工具已配置 ({len(tools)} 个工具)")
 
-    # 5. 创建Agent配置
-    config = AgentConfig(
-        agent_id="task-executor",
-        name="任务执行器",
+    # 5. 使用新的简化API创建Agent
+    agent = Agent.from_llm(
+        llm=llm,
         system_prompt="""你是一个专业的任务执行器。
 
 你的职责：
@@ -266,12 +259,12 @@ async def main():
 - 提供详细的实现步骤
 
 请基于技术知识库，产出高质量的解决方案和代码。""",
+        tools=tools,
+        event_bus=event_bus,
+        knowledge_base=knowledge_base,
         knowledge_max_items=3,
         knowledge_relevance_threshold=0.75,
     )
-
-    # 6. 创建Agent
-    agent = app.create_agent(config)
     print(f"✓ Agent已创建: {agent.node_id}")
 
     # 7. 执行示例任务
