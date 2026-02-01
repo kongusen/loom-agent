@@ -27,6 +27,7 @@ Agent - 自主智能体基类
 
 from collections import defaultdict, deque
 from typing import Any
+from uuid import uuid4
 
 from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
@@ -256,6 +257,61 @@ class Agent(BaseNode):
         # AgentNode 统一抽象：节点类型
         # BaseNode 已经设置了 self.node_type = "agent"
         # 我们提供 get_node_type() 方法来获取枚举值
+
+    @classmethod
+    def from_llm(
+        cls,
+        llm: LLMProvider,
+        system_prompt: str = "",
+        tools: list[dict[str, Any]] | None = None,
+        node_id: str | None = None,
+        event_bus: Any | None = None,
+        knowledge_base: Any | None = None,
+        max_context_tokens: int = 4000,
+        max_iterations: int = 10,
+        **kwargs,
+    ) -> "Agent":
+        """
+        便捷创建方法 - 类似llama-index风格的简洁API
+
+        这是创建Agent的推荐方式，提供简洁直观的接口。
+
+        Args:
+            llm: LLM提供者
+            system_prompt: 系统提示词
+            tools: 工具列表
+            node_id: 节点ID（可选，默认自动生成）
+            event_bus: 事件总线（可选）
+            knowledge_base: 知识库提供者（可选）
+            max_context_tokens: 最大上下文token数
+            max_iterations: 最大迭代次数
+            **kwargs: 其他参数传递给__init__
+
+        Returns:
+            Agent实例
+
+        Examples:
+            >>> from loom.agent import Agent
+            >>> from loom.providers.llm.openai import OpenAIProvider
+            >>>
+            >>> llm = OpenAIProvider(api_key="...")
+            >>> agent = Agent.from_llm(
+            ...     llm=llm,
+            ...     system_prompt="你是一个AI助手",
+            ...     tools=[...],
+            ... )
+        """
+        return cls(
+            node_id=node_id or str(uuid4()),
+            llm_provider=llm,
+            system_prompt=system_prompt,
+            tools=tools,
+            event_bus=event_bus,
+            knowledge_base=knowledge_base,
+            max_context_tokens=max_context_tokens,
+            max_iterations=max_iterations,
+            **kwargs,
+        )
 
     def get_node_type(self) -> "NodeType":
         """
