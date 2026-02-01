@@ -11,8 +11,6 @@ File Tools - 文件操作工具集
 所有操作都通过沙箱验证，确保不会访问沙箱外的文件。
 """
 
-from typing import Any
-
 from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.sandbox import Sandbox, SandboxViolation
 

@@ -5,12 +5,13 @@ Tests the fix for Form 3 delegation path where _active_skill_nodes
 should be checked when target_agent_id is not in available_agents.
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from loom.agent.core import Agent
 from loom.agent.skill_node import SkillAgentNode
-from loom.protocol.task import Task, TaskStatus
+from loom.protocol.task import TaskStatus
 from loom.skills.models import SkillDefinition
 
 
@@ -36,7 +37,7 @@ class TestForm3Delegation:
             activation_criteria="code review with discussion",
             scripts={},
             required_tools=["read_file"],
-            metadata={"multi_turn": True}
+            metadata={"multi_turn": True},
         )
 
     @pytest.fixture
@@ -45,7 +46,7 @@ class TestForm3Delegation:
         node = SkillAgentNode(
             skill_id="code_reviewer",
             skill_definition=sample_skill_definition,
-            llm_provider=mock_llm_provider
+            llm_provider=mock_llm_provider,
         )
 
         # Mock execute_task to return a successful result
@@ -64,7 +65,7 @@ class TestForm3Delegation:
             node_id="test_agent",
             llm_provider=mock_llm_provider,
             system_prompt="Test agent",
-            require_done_tool=False
+            require_done_tool=False,
         )
 
         # Add the skill node to _active_skill_nodes (simulating Form 3 activation)
@@ -73,9 +74,7 @@ class TestForm3Delegation:
         return agent
 
     @pytest.mark.asyncio
-    async def test_delegate_to_skill_node_by_node_id(
-        self, agent_with_skill_node, mock_skill_node
-    ):
+    async def test_delegate_to_skill_node_by_node_id(self, agent_with_skill_node, mock_skill_node):
         """Test delegation to SkillAgentNode using node_id"""
         agent = agent_with_skill_node
 
@@ -84,7 +83,7 @@ class TestForm3Delegation:
             target_agent_id="skill_code_reviewer",  # node_id format
             subtask="Review this authentication code",
             parent_task_id="parent_task_123",
-            session_id="session_456"
+            session_id="session_456",
         )
 
         # Verify delegation succeeded
@@ -99,9 +98,7 @@ class TestForm3Delegation:
         assert delegated_task.session_id == "session_456"
 
     @pytest.mark.asyncio
-    async def test_delegate_to_skill_node_by_skill_id(
-        self, agent_with_skill_node, mock_skill_node
-    ):
+    async def test_delegate_to_skill_node_by_skill_id(self, agent_with_skill_node, mock_skill_node):
         """Test delegation to SkillAgentNode using skill_id"""
         agent = agent_with_skill_node
 
@@ -109,7 +106,7 @@ class TestForm3Delegation:
         result = await agent._execute_delegate_task(
             target_agent_id="code_reviewer",  # skill_id
             subtask="Review error handling",
-            parent_task_id="parent_task_789"
+            parent_task_id="parent_task_789",
         )
 
         # Verify delegation succeeded
@@ -117,9 +114,7 @@ class TestForm3Delegation:
         assert mock_skill_node.execute_task.called
 
     @pytest.mark.asyncio
-    async def test_delegate_skill_node_not_found(
-        self, agent_with_skill_node
-    ):
+    async def test_delegate_skill_node_not_found(self, agent_with_skill_node):
         """Test delegation fails gracefully when skill node not found"""
         agent = agent_with_skill_node
 
@@ -127,7 +122,7 @@ class TestForm3Delegation:
         result = await agent._execute_delegate_task(
             target_agent_id="non_existent_skill",
             subtask="Some task",
-            parent_task_id="parent_task_999"
+            parent_task_id="parent_task_999",
         )
 
         # Verify error message
@@ -141,15 +136,13 @@ class TestForm3Delegation:
         agent = agent_with_skill_node
 
         # Mock skill node to raise an error
-        mock_skill_node.execute_task = AsyncMock(
-            side_effect=Exception("Skill execution failed")
-        )
+        mock_skill_node.execute_task = AsyncMock(side_effect=Exception("Skill execution failed"))
 
         # Execute delegation
         result = await agent._execute_delegate_task(
             target_agent_id="skill_code_reviewer",
             subtask="Review code",
-            parent_task_id="parent_task_error"
+            parent_task_id="parent_task_error",
         )
 
         # Verify error is handled
@@ -163,10 +156,12 @@ class TestForm3Delegation:
         """Test that available_agents takes precedence over skill nodes"""
         # Create a mock agent for available_agents
         mock_available_agent = MagicMock()
+
         async def mock_execute(task):
             task.status = TaskStatus.COMPLETED
             task.result = {"content": "Available agent result"}
             return task
+
         mock_available_agent.execute_task = AsyncMock(side_effect=mock_execute)
 
         # Create agent with both available_agents and skill nodes
@@ -175,7 +170,7 @@ class TestForm3Delegation:
             llm_provider=mock_llm_provider,
             system_prompt="Test agent",
             available_agents={"code_reviewer": mock_available_agent},
-            require_done_tool=False
+            require_done_tool=False,
         )
         agent._active_skill_nodes = [mock_skill_node]
 
@@ -183,7 +178,7 @@ class TestForm3Delegation:
         result = await agent._execute_delegate_task(
             target_agent_id="code_reviewer",
             subtask="Review code",
-            parent_task_id="parent_task_precedence"
+            parent_task_id="parent_task_precedence",
         )
 
         # Verify available_agents was used (Tier 1), not skill nodes (Tier 2)

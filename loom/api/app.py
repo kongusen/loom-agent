@@ -16,14 +16,14 @@ Loom App - FastAPI 风格的应用接口
 import warnings
 from typing import TYPE_CHECKING, Any
 
+from loom.agent import Agent
 from loom.api.models import AgentConfig
 from loom.events import EventBus
-from loom.agent import Agent
 from loom.providers.llm.interface import LLMProvider
 from loom.runtime import Dispatcher
-from loom.tools.registry import ToolRegistry
-from loom.skills.skill_registry import SkillRegistry
 from loom.skills.activator import SkillActivator
+from loom.skills.skill_registry import SkillRegistry
+from loom.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
     from loom.providers.knowledge.base import KnowledgeBaseProvider
@@ -74,7 +74,7 @@ class LoomApp:
             "LoomApp is deprecated and will be removed in v0.5.0. "
             "Please use Agent.from_llm() or Agent.create() instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
         # 创建或使用提供的事件总线
@@ -112,8 +112,7 @@ class LoomApp:
 
         # 初始化Skill激活器（需要LLM provider）
         self._skill_activator = SkillActivator(
-            llm_provider=provider,
-            tool_registry=self._tool_registry
+            llm_provider=provider, tool_registry=self._tool_registry
         )
 
         return self

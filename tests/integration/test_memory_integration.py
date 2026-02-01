@@ -391,8 +391,8 @@ class TestFractalMemory:
     @pytest.mark.asyncio
     async def test_child_memory_syncs_back_to_parent(self):
         """测试子节点记忆同步回父节点（MemoryManager）"""
-        from loom.fractal.memory import MemoryScope
         from loom.agent import Agent
+        from loom.fractal.memory import MemoryScope
         from loom.providers.llm.mock import MockLLMProvider
         from loom.tools.registry import ToolRegistry
 

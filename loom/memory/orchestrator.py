@@ -16,10 +16,10 @@ Context Orchestrator - 上下文编排器
 from typing import Any
 
 from loom.memory.task_context import (
+    BudgetConfig,
     ContextBudgeter,
     ContextSource,
     MessageConverter,
-    BudgetConfig,
 )
 from loom.memory.tokenizer import TokenCounter
 from loom.protocol import Task
@@ -81,7 +81,7 @@ class ContextOrchestrator:
             if self.system_prompt
             else 0
         )
-        budget = self.budgeter.allocate_budget(system_prompt_tokens=system_tokens)
+        _budget = self.budgeter.allocate_budget(system_prompt_tokens=system_tokens)
 
         # 2. 从各个源收集上下文任务
         context_tasks: list[Task] = []
@@ -130,7 +130,7 @@ class ContextOrchestrator:
         available = self.max_tokens - system_tokens
 
         # 从后往前保留消息
-        kept = []
+        kept: list[dict[str, Any]] = []
         current = 0
         for msg in reversed(other_messages):
             msg_tokens = self.token_counter.count_messages([msg])

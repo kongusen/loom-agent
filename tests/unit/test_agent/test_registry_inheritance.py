@@ -35,9 +35,7 @@ class TestRegistryInheritance:
     """测试 Registry 继承功能"""
 
     @pytest.mark.asyncio
-    async def test_child_inherits_skill_registry(
-        self, mock_llm, skill_registry, tool_registry
-    ):
+    async def test_child_inherits_skill_registry(self, mock_llm, skill_registry, tool_registry):
         """测试子节点继承 skill_registry"""
         # 创建父 Agent
         parent = Agent(
@@ -65,9 +63,7 @@ class TestRegistryInheritance:
         assert child.skill_registry is skill_registry
 
     @pytest.mark.asyncio
-    async def test_child_inherits_tool_registry(
-        self, mock_llm, skill_registry, tool_registry
-    ):
+    async def test_child_inherits_tool_registry(self, mock_llm, skill_registry, tool_registry):
         """测试子节点继承 tool_registry"""
         parent = Agent(
             node_id="parent",
@@ -123,9 +119,7 @@ class TestRegistryInheritance:
         assert child.config.extra_tools == {"read_file"}
 
     @pytest.mark.asyncio
-    async def test_child_config_modification(
-        self, mock_llm, skill_registry, tool_registry
-    ):
+    async def test_child_config_modification(self, mock_llm, skill_registry, tool_registry):
         """测试子节点配置的增量修改"""
         parent_config = AgentConfig(
             enabled_skills={"pdf", "docx"},

@@ -9,10 +9,9 @@ Loom Agent Framework
 """
 
 # Core exceptions
-from loom.exceptions import LoomError, TaskComplete
-
 # Core Agent abstractions
 from loom.agent import Agent, BaseNode
+from loom.exceptions import LoomError, TaskComplete
 
 __all__ = [
     # Exceptions

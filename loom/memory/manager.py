@@ -8,11 +8,9 @@ Memory Manager - 内存管理器
 - 父子节点关系管理
 """
 
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Optional
 
-from loom.fractal.memory import MemoryScope, MemoryEntry
+from loom.fractal.memory import MemoryEntry, MemoryScope
 from loom.memory.core import LoomMemory
 from loom.protocol import Task
 
@@ -131,7 +129,34 @@ class MemoryManager:
         return None
 
     async def list_by_scope(self, scope: MemoryScope) -> list[MemoryEntry]:
-        """列出指定作用域的所有记忆"""
+        """
+        列出指定作用域的所有记忆
+
+        对于 INHERITED 作用域，会从父节点的 SHARED/GLOBAL 作用域获取并缓存
+        """
+        # 对于 INHERITED 作用域，需要从父节点获取
+        if scope == MemoryScope.INHERITED and self.parent:
+            # 获取父节点的 SHARED 和 GLOBAL 记忆
+            parent_shared = await self.parent.list_by_scope(MemoryScope.SHARED)
+            parent_global = await self.parent.list_by_scope(MemoryScope.GLOBAL)
+
+            # 合并父节点的记忆
+            parent_entries = parent_shared + parent_global
+
+            # 缓存到本地 INHERITED 作用域（避免重复查询）
+            for parent_entry in parent_entries:
+                if parent_entry.id not in self._memory_by_scope[MemoryScope.INHERITED]:
+                    inherited_entry = MemoryEntry(
+                        id=parent_entry.id,
+                        content=parent_entry.content,
+                        scope=MemoryScope.INHERITED,
+                        version=parent_entry.version,
+                        created_by=parent_entry.created_by,
+                        updated_by=parent_entry.updated_by,
+                        parent_version=parent_entry.version,
+                    )
+                    self._memory_by_scope[MemoryScope.INHERITED][parent_entry.id] = inherited_entry
+
         return list(self._memory_by_scope[scope].values())
 
     # LoomMemory 兼容接口

@@ -5,6 +5,7 @@ Tests for TodoTool
 """
 
 import json
+
 import pytest
 
 from loom.tools.sandbox import Sandbox

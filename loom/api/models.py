@@ -14,6 +14,7 @@ API Models - Pydantic 配置模型
 """
 
 import warnings
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -192,14 +193,14 @@ class AgentConfig(BaseModel):
                 )
         return v
 
-    @model_validator(mode='after')
-    def _emit_deprecation_warning(self) -> 'AgentConfig':
+    @model_validator(mode="after")
+    def _emit_deprecation_warning(self) -> "AgentConfig":
         """Emit deprecation warning when AgentConfig is instantiated"""
         warnings.warn(
             "AgentConfig is deprecated and will be removed in v0.5.0. "
             "Please use Agent.from_llm() or Agent.create() instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         return self
 

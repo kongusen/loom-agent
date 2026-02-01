@@ -1,11 +1,12 @@
 """Integration tests for ContextOrchestrator with MemoryManager"""
+
 import pytest
+
 from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import EstimateCounter
 from loom.protocol import Task
-from loom.fractal.memory import MemoryScope
 
 
 @pytest.mark.asyncio
@@ -33,7 +34,9 @@ async def test_orchestrator_with_memory_manager():
     )
 
     # Build context
-    current = Task(task_id="t3", action="execute", parameters={"content": "current"}, session_id="s1")
+    current = Task(
+        task_id="t3", action="execute", parameters={"content": "current"}, session_id="s1"
+    )
     messages = await orchestrator.build_context(current)
 
     assert len(messages) > 0

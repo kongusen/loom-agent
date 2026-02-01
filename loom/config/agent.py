@@ -5,7 +5,6 @@ Agent Configuration - 可继承的配置体系
 """
 
 from dataclasses import dataclass, field
-from typing import Set
 
 
 @dataclass
@@ -24,12 +23,12 @@ class AgentConfig:
     """
 
     # Skill 配置
-    enabled_skills: Set[str] = field(default_factory=set)
-    disabled_skills: Set[str] = field(default_factory=set)
+    enabled_skills: set[str] = field(default_factory=set)
+    disabled_skills: set[str] = field(default_factory=set)
 
     # 工具配置
-    extra_tools: Set[str] = field(default_factory=set)
-    disabled_tools: Set[str] = field(default_factory=set)
+    extra_tools: set[str] = field(default_factory=set)
+    disabled_tools: set[str] = field(default_factory=set)
 
     # 激活模式
     skill_activation_mode: str = "hybrid"  # hybrid, explicit, auto
@@ -38,10 +37,10 @@ class AgentConfig:
     def inherit(
         cls,
         parent: "AgentConfig",
-        add_skills: Set[str] | None = None,
-        remove_skills: Set[str] | None = None,
-        add_tools: Set[str] | None = None,
-        remove_tools: Set[str] | None = None,
+        add_skills: set[str] | None = None,
+        remove_skills: set[str] | None = None,
+        add_tools: set[str] | None = None,
+        remove_tools: set[str] | None = None,
     ) -> "AgentConfig":
         """
         从父配置继承，支持增量修改

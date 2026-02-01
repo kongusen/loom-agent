@@ -19,14 +19,13 @@ Task-based Context Management
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from loom.memory.tokenizer import TokenCounter
 from loom.protocol import Task
 
 if TYPE_CHECKING:
-    from loom.providers.knowledge.base import KnowledgeBaseProvider
-    from loom.fractal.memory import FractalMemory, MemoryScope
+    from loom.fractal.memory import MemoryScope
     from loom.memory.core import LoomMemory
     from loom.memory.manager import MemoryManager
 
@@ -726,5 +725,3 @@ class MemoryScopeContextSource(ContextSource):
 
 
 # ==================== 核心管理器 ====================
-
-

@@ -1,10 +1,11 @@
 """测试 Skill 依赖验证机制"""
 
-import pytest
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 from loom.skills.activator import SkillActivator
-from loom.skills.models import ActivationResult, SkillActivationMode, SkillDefinition
+from loom.skills.models import SkillActivationMode, SkillDefinition
 from loom.tools.registry import ToolRegistry
 
 

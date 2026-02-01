@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Any
 from loom.memory.task_context import ContextSource
 
 if TYPE_CHECKING:
-    from loom.providers.knowledge.base import KnowledgeBaseProvider
     from loom.memory.manager import MemoryManager
     from loom.protocol import Task
+    from loom.providers.knowledge.base import KnowledgeBaseProvider
 
 
 class KnowledgeContextSource(ContextSource):
@@ -52,19 +52,22 @@ class KnowledgeContextSource(ContextSource):
     async def get_context(
         self,
         current_task: "Task",
-        max_items: int = 10,
+        max_items: int | None = None,
     ) -> list["Task"]:
         """
         获取知识上下文（智能 RAG）
 
         Args:
             current_task: 当前任务对象
-            max_items: 最大返回数量（使用实例的max_items，此参数用于接口兼容）
+            max_items: 最大返回数量（可选，默认使用实例的max_items）
 
         Returns:
             知识上下文Task列表
         """
         from loom.protocol import Task
+
+        # 使用传入的max_items，如果没有传入则使用实例的max_items
+        limit = max_items if max_items is not None else self.max_items
 
         task_content = current_task.parameters.get("content", "")
         if not task_content:
@@ -83,7 +86,7 @@ class KnowledgeContextSource(ContextSource):
                         action="node.message",
                         parameters={
                             "content": f"📚 Cached Knowledge: {knowledge['content']}\n"
-                                     f"(Source: {knowledge['source']}, Cached)",
+                            f"(Source: {knowledge['source']}, Cached)",
                             "context_role": "system",
                         },
                         session_id=current_task.session_id,
@@ -92,15 +95,11 @@ class KnowledgeContextSource(ContextSource):
             return tasks
 
         # 2. 查询知识库（按需查询）
-        knowledge_items = await self.knowledge_base.query(
-            query=task_content,
-            limit=self.max_items
-        )
+        knowledge_items = await self.knowledge_base.query(query=task_content, limit=limit)
 
         # 3. 过滤低相关度的知识
         filtered_items = [
-            item for item in knowledge_items
-            if item.relevance >= self.relevance_threshold
+            item for item in knowledge_items if item.relevance >= self.relevance_threshold
         ]
 
         # 4. 转换为Task对象
@@ -111,7 +110,7 @@ class KnowledgeContextSource(ContextSource):
                     action="node.message",
                     parameters={
                         "content": f"📚 Domain Knowledge: {item.content}\n"
-                                 f"(Source: {item.source}, Relevance: {item.relevance:.2f})",
+                        f"(Source: {item.source}, Relevance: {item.relevance:.2f})",
                         "context_role": "system",
                     },
                     session_id=current_task.session_id,
@@ -136,33 +135,31 @@ class KnowledgeContextSource(ContextSource):
         if not self._memory:
             return None
 
-        from loom.fractal.memory import MemoryScope
-
         # 生成缓存键（基于查询内容的哈希）
         import hashlib
+
+        from loom.fractal.memory import MemoryScope
+
         query_hash = hashlib.md5(query.encode()).hexdigest()[:8]
         cache_key = f"knowledge:query:{query_hash}"
 
         # 从 INHERITED 和 SHARED 作用域查询
         cached = await self._memory.read(
-            cache_key,
-            search_scopes=[MemoryScope.INHERITED, MemoryScope.SHARED]
+            cache_key, search_scopes=[MemoryScope.INHERITED, MemoryScope.SHARED]
         )
 
         if cached is not None and hasattr(cached, "content"):
             import json
+            from typing import cast
+
             try:
-                return json.loads(cached.content)
+                return cast(list[dict[str, Any]], json.loads(cached.content))
             except (json.JSONDecodeError, TypeError):
                 return None
 
         return None
 
-    async def _cache_knowledge(
-        self,
-        query: str,
-        knowledge_items: list[Any]
-    ) -> None:
+    async def _cache_knowledge(self, query: str, knowledge_items: list[Any]) -> None:
         """
         将查询结果缓存到 Fractal Memory
 
@@ -173,9 +170,10 @@ class KnowledgeContextSource(ContextSource):
         if not self._memory or not knowledge_items:
             return
 
-        from loom.fractal.memory import MemoryScope
         import hashlib
         import json
+
+        from loom.fractal.memory import MemoryScope
 
         # 生成缓存键
         query_hash = hashlib.md5(query.encode()).hexdigest()[:8]
@@ -194,7 +192,5 @@ class KnowledgeContextSource(ContextSource):
 
         # 写入 SHARED 作用域（子节点可继承）
         await self._memory.write(
-            cache_key,
-            json.dumps(cached_data, ensure_ascii=False),
-            scope=MemoryScope.SHARED
+            cache_key, json.dumps(cached_data, ensure_ascii=False), scope=MemoryScope.SHARED
         )

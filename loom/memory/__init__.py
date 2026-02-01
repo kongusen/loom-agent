@@ -37,8 +37,8 @@ from loom.memory.context import (
     SlidingWindowStrategy,
 )
 from loom.memory.core import LoomMemory
-from loom.memory.manager import MemoryManager
 from loom.memory.factory import MemoryFactory
+from loom.memory.manager import MemoryManager
 from loom.memory.sanitizers import ContentSanitizer
 from loom.memory.tokenizer import (
     AnthropicCounter,

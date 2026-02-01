@@ -25,6 +25,7 @@ SKILL_PROMPT = """你是一个专业的代码审查专家。
 - 示例代码（如适用）
 """
 
+
 def review_code(code: str, language: str = "python") -> dict:
     """
     审查代码

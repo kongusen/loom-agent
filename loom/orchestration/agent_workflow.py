@@ -4,9 +4,9 @@ Agent Workflow - 动态流程工作流
 由Agent自主决策流程，可以委派给其他Agents。
 """
 
+from loom.agent import Agent
 from loom.protocol import Task
 
-from loom.agent import Agent
 from .workflow import Workflow
 
 

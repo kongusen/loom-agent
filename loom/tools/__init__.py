@@ -34,25 +34,24 @@ Loom Tools - 统一的工具系统
 """
 
 # 核心组件
-from loom.tools.sandbox import Sandbox, SandboxViolation
-from loom.tools.sandbox_manager import SandboxToolManager, ToolScope, ToolWrapper
-from loom.tools.executor import SandboxedExecutor, ToolExecutor
+# 工具注册函数（新方式）
+from loom.tools.bash_tool import register_bash_tool_to_manager
 
 # Done 工具（特殊处理，不需要注册到管理器）
 from loom.tools.done_tool import create_done_tool, execute_done_tool
-
-# 工具注册函数（新方式）
-from loom.tools.bash_tool import register_bash_tool_to_manager
+from loom.tools.executor import SandboxedExecutor, ToolExecutor
 from loom.tools.file_tools import register_file_tools_to_manager
 from loom.tools.http_tool import register_http_tool_to_manager
+from loom.tools.sandbox import Sandbox, SandboxViolation
+from loom.tools.sandbox_manager import SandboxToolManager, ToolScope, ToolWrapper
 from loom.tools.search_tools import register_search_tools_to_manager
 from loom.tools.todo_tool import register_todo_tool_to_manager
 
 # 工具集（新方式 - 返回 SandboxToolManager）
 from loom.tools.toolset import (
-    create_sandbox_toolset,
-    create_minimal_toolset,
     create_coding_toolset,
+    create_minimal_toolset,
+    create_sandbox_toolset,
     create_web_toolset,
 )
 

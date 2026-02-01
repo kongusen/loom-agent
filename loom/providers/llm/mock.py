@@ -97,11 +97,8 @@ class MockLLMProvider(LLMProvider):
 
         # 如果有预设响应，使用预设响应序列
         if self.responses is not None:
-            # 只处理当前 call_count 对应的响应
-            if self.call_count < len(self.responses):
-                response = self.responses[self.call_count]
-                self.call_count += 1
-
+            # 在一次调用中返回所有预设响应
+            for response in self.responses:
                 if response["type"] == "text":
                     yield StreamChunk(type="text", content=response["content"], metadata={})
                 elif response["type"] == "tool_call":
@@ -114,6 +111,7 @@ class MockLLMProvider(LLMProvider):
                         },
                         metadata={},
                     )
+                    self.call_count += 1
             return
 
         # 否则使用默认的关键词匹配逻辑

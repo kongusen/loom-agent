@@ -1,7 +1,9 @@
 """Integration tests for MemoryManager"""
+
 import pytest
-from loom.memory.manager import MemoryManager
+
 from loom.fractal.memory import MemoryScope
+from loom.memory.manager import MemoryManager
 from loom.protocol import Task
 
 

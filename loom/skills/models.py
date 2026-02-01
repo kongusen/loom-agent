@@ -125,14 +125,15 @@ class ActivationResult:
 
     用于依赖验证机制（第12章 12.3.4）
     """
+
     success: bool
     skill_id: str
     mode: SkillActivationMode
 
     # 成功时的数据
-    content: str | None = None              # Form 1: 注入内容
-    tool_names: list[str] | None = None     # Form 2: 工具名称
-    node: Any | None = None                 # Form 3: 节点实例
+    content: str | None = None  # Form 1: 注入内容
+    tool_names: list[str] | None = None  # Form 2: 工具名称
+    node: Any | None = None  # Form 3: 节点实例
 
     # 失败时的信息
     error: str | None = None

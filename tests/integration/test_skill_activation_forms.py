@@ -9,21 +9,20 @@ Skill Activation Forms Integration Tests
 这些测试验证从 Agent 创建、Skill 注册、激活到任务执行的完整流程。
 """
 
-import pytest
 import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from loom.agent import Agent
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
+from loom.skills.activator import SkillActivator
+from loom.skills.loader import SkillLoader
 from loom.skills.models import SkillDefinition
 from loom.skills.registry import SkillRegistry
-from loom.skills.loader import SkillLoader
-from loom.skills.activator import SkillActivator
 from loom.tools.registry import ToolRegistry
-from loom.tools.sandbox_manager import SandboxToolManager
 from loom.tools.sandbox import Sandbox
+from loom.tools.sandbox_manager import SandboxToolManager
 
 
 class InMemorySkillLoader(SkillLoader):
@@ -99,8 +98,15 @@ You are a Python expert. When reviewing code, always check:
                 # SkillActivator 的 LLM 调用：返回相关 Skill（返回编号，不是ID）
                 {"type": "text", "content": "1"},
                 # Agent 执行任务的 LLM 调用
-                {"type": "text", "content": "Based on Python best practices, this code needs type hints."},
-                {"type": "tool_call", "name": "done", "arguments": {"message": "Code review complete: Add type hints"}},
+                {
+                    "type": "text",
+                    "content": "Based on Python best practices, this code needs type hints.",
+                },
+                {
+                    "type": "tool_call",
+                    "name": "done",
+                    "arguments": {"message": "Code review complete: Add type hints"},
+                },
             ]
         )
 
@@ -121,15 +127,15 @@ You are a Python expert. When reviewing code, always check:
 
         # Debug: 验证 SkillRegistry 是否正确设置
         metadata = await skill_registry.get_all_metadata()
-        print(f"\n=== Skill Metadata ===")
+        print("\n=== Skill Metadata ===")
         print(f"Metadata: {metadata}")
-        print(f"=====================\n")
+        print("=====================\n")
 
         # 5. 执行任务
         task = Task(
             task_id="test-task-1",
             action="execute",
-            parameters={"content": "Review this Python code: def calc(a, b): return a + b"}
+            parameters={"content": "Review this Python code: def calc(a, b): return a + b"},
         )
 
         result = await agent.execute_task(task)
@@ -139,11 +145,11 @@ You are a Python expert. When reviewing code, always check:
         assert result.result is not None
 
         # Debug: 打印结果内容
-        print(f"\n=== Debug Info ===")
+        print("\n=== Debug Info ===")
         print(f"Result: {result.result}")
         print(f"Active skills: {agent._active_skills}")
         print(f"System prompt length: {len(agent.system_prompt)}")
-        print(f"==================\n")
+        print("==================\n")
 
         # 验证 Skill 知识被应用（结果中提到了 type hints）
         result_content = result.result.get("content", "")
@@ -207,9 +213,17 @@ def main(data):
                 {"type": "text", "content": "1"},
                 # Agent 执行任务的 LLM 调用
                 {"type": "text", "content": "I'll calculate statistics for the data."},
-                {"type": "tool_call", "name": "data-analysis_calculate_stats", "arguments": {"data": [1, 2, 3, 4, 5]}},
+                {
+                    "type": "tool_call",
+                    "name": "data-analysis_calculate_stats",
+                    "arguments": {"data": [1, 2, 3, 4, 5]},
+                },
                 {"type": "text", "content": "Statistics calculated."},
-                {"type": "tool_call", "name": "done", "arguments": {"message": "Mean: 3.0, Min: 1, Max: 5"}},
+                {
+                    "type": "tool_call",
+                    "name": "done",
+                    "arguments": {"message": "Mean: 3.0, Min: 1, Max: 5"},
+                },
             ]
         )
 
@@ -233,7 +247,7 @@ def main(data):
         task = Task(
             task_id="test-task-2",
             action="execute",
-            parameters={"content": "Calculate statistics for [1, 2, 3, 4, 5]"}
+            parameters={"content": "Calculate statistics for [1, 2, 3, 4, 5]"},
         )
 
         result = await agent.execute_task(task)
@@ -273,7 +287,7 @@ class TestForm3Instantiation:
             activation_criteria="code review with discussion",
             scripts={},
             required_tools=[],
-            metadata={"multi_turn": True}  # 触发 Form 3
+            metadata={"multi_turn": True},  # 触发 Form 3
         )
 
         # 2. 注册 Skill（使用 Loader 模式）
@@ -292,16 +306,27 @@ class TestForm3Instantiation:
                 {"type": "text", "content": "1"},
                 # Agent 主循环：决定委派给 code-reviewer
                 {"type": "text", "content": "I'll delegate this to the code reviewer."},
-                {"type": "tool_call", "name": "delegate_task", "arguments": {
-                    "target_agent": "code-reviewer",
-                    "subtask": "Review the authentication code"
-                }},
+                {
+                    "type": "tool_call",
+                    "name": "delegate_task",
+                    "arguments": {
+                        "target_agent": "code-reviewer",
+                        "subtask": "Review the authentication code",
+                    },
+                },
                 # SkillAgentNode 执行审查
-                {"type": "text", "content": "Code review: The authentication logic looks good but needs error handling."},
+                {
+                    "type": "text",
+                    "content": "Code review: The authentication logic looks good but needs error handling.",
+                },
                 {"type": "tool_call", "name": "done", "arguments": {"message": "Review complete"}},
                 # Agent 主循环：完成任务
                 {"type": "text", "content": "Review completed."},
-                {"type": "tool_call", "name": "done", "arguments": {"message": "Code review completed"}},
+                {
+                    "type": "tool_call",
+                    "name": "done",
+                    "arguments": {"message": "Code review completed"},
+                },
             ]
         )
 
@@ -325,7 +350,7 @@ class TestForm3Instantiation:
         task = Task(
             task_id="test-task-3",
             action="execute",
-            parameters={"content": "Review the authentication module code"}
+            parameters={"content": "Review the authentication module code"},
         )
 
         result = await agent.execute_task(task)
@@ -335,10 +360,9 @@ class TestForm3Instantiation:
         assert result.result is not None
 
         # 验证 SkillAgentNode 被创建
-        assert hasattr(agent, '_active_skill_nodes')
+        assert hasattr(agent, "_active_skill_nodes")
         assert len(agent._active_skill_nodes) > 0
 
         # 验证委派成功（结果中包含审查内容）
         result_content = result.result.get("content", "")
         assert "review" in result_content.lower() or "code" in result_content.lower()
-

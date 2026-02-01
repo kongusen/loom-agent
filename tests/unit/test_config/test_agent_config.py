@@ -2,8 +2,6 @@
 测试 AgentConfig - 配置继承和增量修改
 """
 
-import pytest
-
 from loom.config.agent import AgentConfig
 
 
@@ -66,9 +64,7 @@ class TestAgentConfigInheritance:
     def test_inherit_add_and_remove_skills(self):
         """测试同时添加和移除 Skills"""
         parent = AgentConfig(enabled_skills={"pdf", "docx"})
-        child = AgentConfig.inherit(
-            parent, add_skills={"excel", "ppt"}, remove_skills={"docx"}
-        )
+        child = AgentConfig.inherit(parent, add_skills={"excel", "ppt"}, remove_skills={"docx"})
 
         # 应该先添加再移除
         assert child.enabled_skills == {"pdf", "excel", "ppt"}

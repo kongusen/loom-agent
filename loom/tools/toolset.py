@@ -32,15 +32,14 @@ Toolset - 预设工具集
 """
 
 from pathlib import Path
-from typing import Any
 
 from loom.events import EventBus
-from loom.tools.done_tool import create_done_tool
-from loom.tools.sandbox import Sandbox
-from loom.tools.sandbox_manager import SandboxToolManager
 from loom.tools.bash_tool import register_bash_tool_to_manager
+from loom.tools.done_tool import create_done_tool
 from loom.tools.file_tools import register_file_tools_to_manager
 from loom.tools.http_tool import register_http_tool_to_manager
+from loom.tools.sandbox import Sandbox
+from loom.tools.sandbox_manager import SandboxToolManager
 from loom.tools.search_tools import register_search_tools_to_manager
 from loom.tools.todo_tool import register_todo_tool_to_manager
 
@@ -229,7 +228,7 @@ def create_sandbox_toolset_sync(
         工具定义列表（旧格式）
     """
     # 创建沙箱
-    sandbox = Sandbox(sandbox_dir, auto_create=auto_create_sandbox)
+    _sandbox = Sandbox(sandbox_dir, auto_create=auto_create_sandbox)
 
     tools = []
 

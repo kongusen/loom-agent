@@ -7,20 +7,20 @@ Tests performance metrics mentioned in the implementation plan:
 3. Context building performance
 4. Parent-child memory operations
 """
+
 import asyncio
 import time
 import tracemalloc
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from loom.agent.core import Agent
+from loom.fractal.memory import MemoryScope
 from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import EstimateCounter
 from loom.protocol import Task, TaskStatus
-from loom.fractal.memory import MemoryScope
 
 
 class MockLLMProvider:
@@ -35,12 +35,9 @@ class MockLLMProvider:
                 {
                     "id": "call_1",
                     "type": "function",
-                    "function": {
-                        "name": "done",
-                        "arguments": '{"result": "Test completed"}'
-                    }
+                    "function": {"name": "done", "arguments": '{"result": "Test completed"}'},
                 }
-            ]
+            ],
         }
 
 
@@ -60,7 +57,7 @@ async def test_agent_response_time():
         task_id="test-1",
         action="execute",
         parameters={"content": "Simple test task"},
-        session_id="session-1"
+        session_id="session-1",
     )
 
     start_time = time.time()
@@ -91,7 +88,7 @@ async def test_memory_usage_stability():
 
     # Check memory after operations
     current_snapshot = tracemalloc.take_snapshot()
-    top_stats = current_snapshot.compare_to(baseline_snapshot, 'lineno')
+    top_stats = current_snapshot.compare_to(baseline_snapshot, "lineno")
 
     # Calculate total memory increase
     total_increase = sum(stat.size_diff for stat in top_stats)
@@ -99,7 +96,9 @@ async def test_memory_usage_stability():
     tracemalloc.stop()
 
     # Memory increase should be reasonable (< 1MB for 100 operations)
-    assert total_increase < 1024 * 1024, f"Memory increased by {total_increase / 1024:.1f}KB (> 1MB threshold)"
+    assert (
+        total_increase < 1024 * 1024
+    ), f"Memory increased by {total_increase / 1024:.1f}KB (> 1MB threshold)"
     print(f"✓ Memory usage stable: {total_increase / 1024:.1f}KB increase for 100 operations")
 
 
@@ -115,7 +114,7 @@ async def test_context_building_performance():
             task_id=f"task_{i}",
             action="execute",
             parameters={"content": f"Task {i} content"},
-            session_id="session-1"
+            session_id="session-1",
         )
         memory.add_task(task)
 
@@ -123,10 +122,7 @@ async def test_context_building_performance():
     counter = EstimateCounter()
     source = MemoryContextSource(memory._loom_memory)
     orchestrator = ContextOrchestrator(
-        token_counter=counter,
-        sources=[source],
-        max_tokens=4000,
-        system_prompt="Test system"
+        token_counter=counter, sources=[source], max_tokens=4000, system_prompt="Test system"
     )
 
     # Measure context building time
@@ -134,7 +130,7 @@ async def test_context_building_performance():
         task_id="current",
         action="execute",
         parameters={"content": "Current task"},
-        session_id="session-1"
+        session_id="session-1",
     )
 
     start_time = time.time()
@@ -170,7 +166,9 @@ async def test_parent_child_memory_performance():
     # Operations should be fast
     assert write_duration < 0.1, f"Parent writes took {write_duration:.3f}s (> 0.1s threshold)"
     assert read_duration < 0.1, f"Child reads took {read_duration:.3f}s (> 0.1s threshold)"
-    print(f"✓ Parent-child memory: write={write_duration:.3f}s, read={read_duration:.3f}s (< 0.1s each)")
+    print(
+        f"✓ Parent-child memory: write={write_duration:.3f}s, read={read_duration:.3f}s (< 0.1s each)"
+    )
 
 
 @pytest.mark.asyncio
@@ -199,7 +197,9 @@ async def test_concurrent_memory_operations():
     # Concurrent operations should complete quickly
     assert write_duration < 0.5, f"Concurrent writes took {write_duration:.3f}s (> 0.5s threshold)"
     assert read_duration < 0.5, f"Concurrent reads took {read_duration:.3f}s (> 0.5s threshold)"
-    print(f"✓ Concurrent operations: write={write_duration:.3f}s, read={read_duration:.3f}s (< 0.5s each)")
+    print(
+        f"✓ Concurrent operations: write={write_duration:.3f}s, read={read_duration:.3f}s (< 0.5s each)"
+    )
 
 
 if __name__ == "__main__":

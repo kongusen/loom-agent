@@ -28,18 +28,19 @@ from textual.widgets import Footer, Header, Input, RichLog, Static
 
 from loom.api import LoomApp
 from loom.api.models import AgentConfig
-from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.config.llm import LLMConfig
 from loom.events import EventBus
 from loom.protocol import Task
+from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.providers.llm.openai import OpenAIProvider
 
-
 # ==================== 数据结构 ====================
+
 
 @dataclass
 class ParadigmStats:
     """范式统计 - 跟踪各种AI能力的使用"""
+
     reflection_events: int = 0
     tool_calls: int = 0
     planning_events: int = 0
@@ -77,11 +78,17 @@ class ConversationState:
     task_names: dict[str, str] = field(default_factory=dict)  # 任务名称
 
     # 流式显示
-    pending_sentences: list[tuple[str, str, str]] = field(default_factory=list)  # (task_id, node_id, chunk)
+    pending_sentences: list[tuple[str, str, str]] = field(
+        default_factory=list
+    )  # (task_id, node_id, chunk)
 
     # 工具调用跟踪（增强版）
-    tool_calls: list[tuple[str, str, str, dict]] = field(default_factory=list)  # (task_id, node_id, tool, args)
-    tool_results: list[tuple[str, str, str, str]] = field(default_factory=list)  # (task_id, node_id, tool, result)
+    tool_calls: list[tuple[str, str, str, dict]] = field(
+        default_factory=list
+    )  # (task_id, node_id, tool, args)
+    tool_results: list[tuple[str, str, str, str]] = field(
+        default_factory=list
+    )  # (task_id, node_id, tool, result)
 
     # 规划事件
     plans: list[tuple[str, str, dict]] = field(default_factory=list)  # (task_id, node_id, plan)
@@ -104,6 +111,7 @@ class ConversationState:
 
 # ==================== 辅助函数 ====================
 
+
 def shorten_id(full_id: str, length: int = 8) -> str:
     """缩短长ID以便显示"""
     if len(full_id) <= length:
@@ -115,6 +123,7 @@ def shorten_id(full_id: str, length: int = 8) -> str:
 
 
 # ==================== 知识库 ====================
+
 
 class ConversationalKnowledgeBase(KnowledgeBaseProvider):
     """对话知识库"""
@@ -181,6 +190,7 @@ class ConversationalKnowledgeBase(KnowledgeBaseProvider):
 
 # ==================== 工具定义 ====================
 
+
 # 工具实现函数
 async def calculator(expression: str) -> str:
     """
@@ -223,9 +233,7 @@ def create_calculator_tool():
             "description": "执行数学计算",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "expression": {"type": "string", "description": "数学表达式"}
-                },
+                "properties": {"expression": {"type": "string", "description": "数学表达式"}},
                 "required": ["expression"],
             },
         },
@@ -241,9 +249,7 @@ def create_search_tool():
             "description": "搜索知识库中的相关信息",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "搜索查询"}
-                },
+                "properties": {"query": {"type": "string", "description": "搜索查询"}},
                 "required": ["query"],
             },
         },
@@ -251,6 +257,7 @@ def create_search_tool():
 
 
 # ==================== 事件处理器 ====================
+
 
 class EventProcessor:
     """事件处理器 - 处理Agent事件并更新TUI（增强版 - 综合两个demo）"""
@@ -483,6 +490,7 @@ class EventProcessor:
 
 # ==================== TUI 组件 ====================
 
+
 class ChatWindow(RichLog):
     """聊天窗口"""
 
@@ -553,6 +561,7 @@ class StatsPanel(Static):
 
 
 # ==================== 主应用 ====================
+
 
 class ConversationalAssistantApp(App):
     """对话助手 TUI 应用"""
@@ -679,7 +688,9 @@ class ConversationalAssistantApp(App):
     async def show_knowledge_results(self, items: list):
         """显示知识库查询结果"""
         if items:
-            self.thinking_panel.write(f"\n[bold yellow]✓ 检索到 {len(items)} 条相关知识:[/bold yellow]")
+            self.thinking_panel.write(
+                f"\n[bold yellow]✓ 检索到 {len(items)} 条相关知识:[/bold yellow]"
+            )
             for i, item in enumerate(items, 1):
                 relevance = item.get("relevance", 0.0)
                 source = item.get("source", "未知来源")
@@ -696,7 +707,7 @@ class ConversationalAssistantApp(App):
         steps = plan.get("steps", [])
         reasoning = plan.get("reasoning", "")
 
-        self.thinking_panel.write(f"\n[bold cyan]📋 规划:[/bold cyan]")
+        self.thinking_panel.write("\n[bold cyan]📋 规划:[/bold cyan]")
         if goal:
             self.thinking_panel.write(f"  目标: {goal}")
         if reasoning:
@@ -712,7 +723,11 @@ class ConversationalAssistantApp(App):
         args_str = ""
         if tool_args:
             args_preview = str(tool_args)[:50]
-            args_str = f" [dim]({args_preview}...)[/dim]" if len(str(tool_args)) > 50 else f" [dim]({args_preview})[/dim]"
+            args_str = (
+                f" [dim]({args_preview}...)[/dim]"
+                if len(str(tool_args)) > 50
+                else f" [dim]({args_preview})[/dim]"
+            )
         self.thinking_panel.write(f"\n[bold green]🔧 调用工具: {tool_name}{args_str}[/bold green]")
         self._update_stats()
 
@@ -790,6 +805,7 @@ class ConversationalAssistantApp(App):
                 # EventProcessor会更新self.state
 
                 import time
+
                 current_time = time.time()
 
                 # 处理新的思考内容
@@ -895,8 +911,8 @@ class ConversationalAssistantApp(App):
             self.chat_window.write("")
 
 
-
 # ==================== 主函数 ====================
+
 
 async def main():
     """主函数"""
@@ -1051,4 +1067,3 @@ delegate_task(
 
 if __name__ == "__main__":
     asyncio.run(main())
-

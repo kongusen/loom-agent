@@ -2,8 +2,9 @@
 Unit tests for SkillAgentNode
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from loom.agent.skill_node import SkillAgentNode
 from loom.events.actions import TaskAction
@@ -29,7 +30,7 @@ class TestSkillAgentNode:
             name="Test Skill",
             description="A test skill for unit testing",
             instructions="You are a helpful assistant for testing.",
-            metadata={"multi_turn": True}
+            metadata={"multi_turn": True},
         )
 
     def test_init(self, sample_skill_definition, mock_llm_provider):
@@ -37,7 +38,7 @@ class TestSkillAgentNode:
         node = SkillAgentNode(
             skill_id="test_skill",
             skill_definition=sample_skill_definition,
-            llm_provider=mock_llm_provider
+            llm_provider=mock_llm_provider,
         )
 
         assert node.node_id == "skill_test_skill"
@@ -48,9 +49,7 @@ class TestSkillAgentNode:
         assert node.system_prompt == sample_skill_definition.get_full_instructions()
 
     @pytest.mark.asyncio
-    async def test_execute_impl_success(
-        self, sample_skill_definition, mock_llm_provider
-    ):
+    async def test_execute_impl_success(self, sample_skill_definition, mock_llm_provider):
         """Test successful execution of _execute_impl"""
         # Setup mock LLM response
         mock_response = MagicMock()
@@ -61,7 +60,7 @@ class TestSkillAgentNode:
         node = SkillAgentNode(
             skill_id="test_skill",
             skill_definition=sample_skill_definition,
-            llm_provider=mock_llm_provider
+            llm_provider=mock_llm_provider,
         )
 
         # Create task
@@ -71,7 +70,7 @@ class TestSkillAgentNode:
             target_agent="skill_test_skill",
             action=TaskAction.EXECUTE,
             parameters={"task": "Solve this problem"},
-            session_id="session_1"
+            session_id="session_1",
         )
 
         # Execute
@@ -99,7 +98,7 @@ class TestSkillAgentNode:
         node = SkillAgentNode(
             skill_id="test_skill",
             skill_definition=sample_skill_definition,
-            llm_provider=mock_llm_provider
+            llm_provider=mock_llm_provider,
         )
 
         # Create task without task description
@@ -109,7 +108,7 @@ class TestSkillAgentNode:
             target_agent="skill_test_skill",
             action=TaskAction.EXECUTE,
             parameters={},  # No "task" parameter
-            session_id="session_1"
+            session_id="session_1",
         )
 
         # Execute
@@ -121,9 +120,7 @@ class TestSkillAgentNode:
         assert "No task description" in result_task.result["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_impl_llm_error(
-        self, sample_skill_definition, mock_llm_provider
-    ):
+    async def test_execute_impl_llm_error(self, sample_skill_definition, mock_llm_provider):
         """Test _execute_impl with LLM error"""
         # Setup mock LLM to raise an error
         mock_llm_provider.chat.side_effect = Exception("LLM API error")
@@ -131,7 +128,7 @@ class TestSkillAgentNode:
         node = SkillAgentNode(
             skill_id="test_skill",
             skill_definition=sample_skill_definition,
-            llm_provider=mock_llm_provider
+            llm_provider=mock_llm_provider,
         )
 
         # Create task
@@ -141,7 +138,7 @@ class TestSkillAgentNode:
             target_agent="skill_test_skill",
             action=TaskAction.EXECUTE,
             parameters={"task": "Solve this problem"},
-            session_id="session_1"
+            session_id="session_1",
         )
 
         # Execute
@@ -152,4 +149,3 @@ class TestSkillAgentNode:
         assert "error" in result_task.result
         assert "LLM API error" in result_task.result["error"]
         assert result_task.result["skill_id"] == "test_skill"
-

@@ -26,6 +26,7 @@ class CapabilitySet:
 
     包含相关的 Tools 和 Skills
     """
+
     tools: list[dict[str, Any]] = field(default_factory=list)
     skill_ids: list[str] = field(default_factory=list)
 
@@ -43,6 +44,7 @@ class ValidationResult:
 
     用于验证 Skill 的工具依赖是否满足
     """
+
     is_valid: bool
     missing_tools: list[str] = field(default_factory=list)
     error: str = ""
@@ -69,7 +71,7 @@ class CapabilityRegistry:
     def __init__(
         self,
         sandbox_manager: Any = None,  # SandboxToolManager
-        skill_registry: Any = None,   # SkillRegistry
+        skill_registry: Any = None,  # SkillRegistry
         skill_activator: Any = None,  # SkillActivator
     ):
         """
@@ -204,9 +206,7 @@ class CapabilityRegistry:
             )
 
         # 6. 检查缺失的工具
-        missing_tools = [
-            tool for tool in required_tools if tool not in available_tool_names
-        ]
+        missing_tools = [tool for tool in required_tools if tool not in available_tool_names]
 
         if missing_tools:
             return ValidationResult(
@@ -217,4 +217,3 @@ class CapabilityRegistry:
             )
 
         return ValidationResult(is_valid=True)
-

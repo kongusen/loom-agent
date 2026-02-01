@@ -8,7 +8,6 @@ import pytest
 from loom.agent.core import Agent
 from loom.config.agent import AgentConfig
 from loom.providers.llm.mock import MockLLMProvider
-from loom.skills.models import SkillDefinition
 from loom.skills.registry import SkillRegistry
 from loom.tools.registry import ToolRegistry
 
@@ -49,9 +48,7 @@ class TestSkillActivation:
     """测试 Skill 激活功能"""
 
     @pytest.mark.asyncio
-    async def test_activate_skill_not_enabled(
-        self, mock_llm, skill_registry, tool_registry
-    ):
+    async def test_activate_skill_not_enabled(self, mock_llm, skill_registry, tool_registry):
         """测试激活未启用的 Skill"""
         config = AgentConfig(enabled_skills={"pdf"})
 
@@ -71,9 +68,7 @@ class TestSkillActivation:
         assert "not in enabled_skills" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_activate_skill_already_active(
-        self, mock_llm, skill_registry, tool_registry
-    ):
+    async def test_activate_skill_already_active(self, mock_llm, skill_registry, tool_registry):
         """测试激活已经激活的 Skill"""
         config = AgentConfig(enabled_skills={"pdf"})
 
@@ -96,9 +91,7 @@ class TestSkillActivation:
         assert result.get("already_active") is True
 
     @pytest.mark.asyncio
-    async def test_activate_skill_tracks_state(
-        self, mock_llm, skill_registry, tool_registry
-    ):
+    async def test_activate_skill_tracks_state(self, mock_llm, skill_registry, tool_registry):
         """测试 Skill 激活状态跟踪"""
         config = AgentConfig(enabled_skills={"pdf"})
 

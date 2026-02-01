@@ -26,16 +26,16 @@ Agent - 自主智能体基类
 """
 
 from collections import defaultdict, deque
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+from loom.agent.base import BaseNode
 from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
 from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import TiktokenCounter
-from loom.agent.base import BaseNode
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
 from loom.tools.context_tools import ContextToolExecutor, create_all_context_tools
@@ -51,6 +51,10 @@ try:
     from loom.tools.sandbox_manager import SandboxToolManager
 except ImportError:
     SandboxToolManager = None  # type: ignore
+
+# Type checking imports (avoid circular imports)
+if TYPE_CHECKING:
+    from loom.agent.agent_node import NodeType
 
 
 class AgentBuilder:
@@ -234,14 +238,18 @@ class Agent(BaseNode):
         self._active_skills: set[str] = set()
 
         # 创建 SkillActivator（如果未提供且有 skill_registry）
+        self.skill_activator: "SkillActivator | None"
         if skill_activator is None and skill_registry is not None:
             from loom.skills.activator import SkillActivator
+
             self.skill_activator = SkillActivator(
                 llm_provider=llm_provider,
                 tool_registry=tool_registry,
             )
         else:
-            self.skill_activator = skill_activator  # Phase 2: Skill激活器
+            from typing import cast
+
+            self.skill_activator = cast("SkillActivator | None", skill_activator)  # Phase 2: Skill激活器
 
         self.sandbox_manager = sandbox_manager  # NEW: 存储沙盒工具管理器
         self.knowledge_base = knowledge_base  # 知识库提供者（用于智能RAG）
@@ -259,16 +267,13 @@ class Agent(BaseNode):
 
         # 创建 MemoryManager（统一的内存管理系统）
         self.memory = MemoryManager(
-            node_id=node_id,
-            parent=parent_memory,
-            event_bus=event_bus,
-            **(memory_config or {})
+            node_id=node_id, parent=parent_memory, event_bus=event_bus, **(memory_config or {})
         )
 
         # 创建上下文工具执行器（如果启用）
         self._context_tool_executor: ContextToolExecutor | None = None
         if self.enable_context_tools and event_bus:
-            self._context_tool_executor = ContextToolExecutor(self.memory, event_bus)
+            self._context_tool_executor = ContextToolExecutor(self.memory, event_bus)  # type: ignore[arg-type]
 
         # 创建动态工具执行器（如果启用）
         self._dynamic_tool_executor: DynamicToolExecutor | None = None
@@ -280,7 +285,7 @@ class Agent(BaseNode):
         from loom.memory.task_context import ContextSource
 
         sources: list[ContextSource] = []
-        sources.append(MemoryContextSource(self.memory))
+        sources.append(MemoryContextSource(self.memory))  # type: ignore[arg-type]
         # 添加作用域记忆上下文源（MemoryManager 提供 LOCAL/SHARED/INHERITED/GLOBAL）
         from loom.memory.task_context import MemoryScopeContextSource
 
@@ -314,7 +319,7 @@ class Agent(BaseNode):
             sources=sources,
             max_tokens=max_context_tokens,
             system_prompt=self.system_prompt,
-            budget_config=context_budget_config,
+            budget_config=context_budget_config,  # type: ignore[arg-type]
         )
 
         # 构建完整工具列表（普通工具 + 元工具）
@@ -420,9 +425,7 @@ class Agent(BaseNode):
             >>> result = await agent.run("帮我分析这段代码")
         """
         task = Task(
-            task_id=str(uuid4()),
-            action="execute",
-            parameters={"content": content, **kwargs}
+            task_id=str(uuid4()), action="execute", parameters={"content": content, **kwargs}
         )
         result = await self.execute_task(task)
 
@@ -441,6 +444,7 @@ class Agent(BaseNode):
             NodeType.AGENT 表示完整四范式执行
         """
         from .agent_node import NodeType
+
         return NodeType.AGENT
 
     def _build_full_system_prompt(
@@ -571,9 +575,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         return "\n".join(lines)
 
-    async def _activate_skills(
-        self, task_description: str
-    ) -> dict[str, Any]:
+    async def _activate_skills(self, task_description: str) -> dict[str, Any]:
         """
         Activate relevant skills for the task (Phase 2 - Three Forms)
 
@@ -591,7 +593,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             - compiled_tools: list[str] - Form 2 tool names
             - instantiated_nodes: list[SkillAgentNode] - Form 3 nodes
         """
-        result = {
+        result: dict[str, Any] = {
             "injected_instructions": [],
             "compiled_tools": [],
             "instantiated_nodes": [],
@@ -616,7 +618,6 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             )
 
             # Step 2: Activate each relevant skill
-            from loom.skills.models import SkillDefinition
 
             for skill_id in relevant_skill_ids:
                 skill_def = await self.skill_registry.get_skill(skill_id)
@@ -779,21 +780,25 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     tool_def = self.tool_registry.get_definition(tool_name)
                     if tool_def:
                         # 转换为 LLM 格式
-                        available.append({
-                            "type": "function",
-                            "function": {
-                                "name": tool_def.name,
-                                "description": tool_def.description,
-                                "parameters": tool_def.input_schema,
-                            },
-                        })
+                        available.append(
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": tool_def.name,
+                                    "description": tool_def.description,
+                                    "parameters": tool_def.input_schema,
+                                },
+                            }
+                        )
                         tool_names_seen.add(tool_name)
 
         # 4. 过滤禁用的工具
         if self.config.disabled_tools:
             available = [
-                tool for tool in available
-                if isinstance(tool, dict) and tool.get("function", {}).get("name") not in self.config.disabled_tools
+                tool
+                for tool in available
+                if isinstance(tool, dict)
+                and tool.get("function", {}).get("name") not in self.config.disabled_tools
             ]
 
         return available
@@ -1005,7 +1010,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         # 提取激活结果
         injected_instructions = activated_skills.get("injected_instructions", [])
-        compiled_tools = activated_skills.get("compiled_tools", [])
+        activated_skills.get("compiled_tools", [])
         instantiated_nodes = activated_skills.get("instantiated_nodes", [])
 
         # Form 2: 编译的工具已经注册到 SandboxToolManager，会自动可用
@@ -1422,11 +1427,11 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         # Tier 2: 检查激活的 Skill 节点（Form 3 - Phase 3）
         # 如果目标不在 available_agents 中，检查是否是激活的 SkillAgentNode
-        active_skill_nodes = getattr(self, '_active_skill_nodes', [])
+        active_skill_nodes = getattr(self, "_active_skill_nodes", [])
         for skill_node in active_skill_nodes:
             # 匹配 node_id 或 skill_id
-            node_id = getattr(skill_node, 'node_id', None)
-            skill_id = getattr(skill_node, 'skill_id', None)
+            node_id = getattr(skill_node, "node_id", None)
+            skill_id = getattr(skill_node, "skill_id", None)
 
             if node_id == target_agent_id or skill_id == target_agent_id:
                 # 找到匹配的 SkillAgentNode，创建委派任务
@@ -1458,7 +1463,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     return f"Skill node delegation error: {str(e)}"
 
         # 找不到目标 agent（既不在 available_agents 也不在 active_skill_nodes）
-        return f"Error: Agent '{target_agent_id}' not found in available_agents or active_skill_nodes"
+        return (
+            f"Error: Agent '{target_agent_id}' not found in available_agents or active_skill_nodes"
+        )
 
     async def _execute_plan(
         self,
@@ -1635,19 +1642,19 @@ IMPORTANT:
             这是 AgentNode 统一接口的方法。
             与 _auto_delegate 不同，此方法通过 EventBus 进行委派。
         """
-        from loom.protocol import Task, TaskAction, generate_id
+        from uuid import uuid4
+
+        from loom.protocol import Task
 
         # 如果没有指定目标，使用现有的 _auto_delegate 逻辑
         if target_node_id is None:
             # 使用现有的直接委派机制（向后兼容）
-            from uuid import uuid4
-
             # 获取当前任务（从执行上下文）
             # 这里我们需要模拟一个 parent_task，但由于此方法可能被直接调用，
             # 我们创建一个临时任务对象
             parent_task = Task(
                 task_id=f"{self.node_id}-delegate-{uuid4()}",
-                action=TaskAction.EXECUTE,
+                action="execute",
                 parameters={
                     "content": subtask,
                     **kwargs,
@@ -1665,7 +1672,7 @@ IMPORTANT:
             # 将结果转换为 Task 对象
             result_task = Task(
                 task_id=parent_task.task_id + ":result",
-                action=TaskAction.EXECUTE,
+                action="execute",
                 parameters={"result": result_str},
                 status=TaskStatus.COMPLETED,
                 result={"content": result_str},
@@ -1679,19 +1686,21 @@ IMPORTANT:
 
         # 创建委派任务
         delegation_task = Task(
-            task_id=generate_id(),
+            task_id=str(uuid4()),
             source_agent=self.node_id,
             target_agent=target_node_id,
-            action=TaskAction.EXECUTE,
+            action="execute",
             parameters={"task": subtask, **kwargs},
             parent_task_id=getattr(self, "_current_task_id", None),
             session_id=getattr(self, "_session_id", None),
         )
 
         # 通过 EventBus 发布（遵循 A2 公理）
+        from typing import cast
+
         result = await self.event_bus.publish(delegation_task, wait_result=True)
 
-        return result
+        return cast(Task, result)
 
     async def _auto_delegate(
         self,
@@ -1795,7 +1804,6 @@ IMPORTANT:
         Raises:
             RuntimeError: 如果超出预算限制
         """
-        from loom.fractal.memory import MemoryScope
 
         # 0. 预算检查（在创建子节点前强制执行）
         violation = self._budget_tracker.check_can_create_child(

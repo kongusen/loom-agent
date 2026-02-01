@@ -17,12 +17,12 @@ import asyncio
 import os
 
 from loom.agent import Agent
+from loom.protocol import Task
 from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.providers.llm.openai import OpenAIProvider
-from loom.protocol import Task
-
 
 # ==================== 1. 实现自定义知识库提供者 ====================
+
 
 class SimpleKnowledgeBase(KnowledgeBaseProvider):
     """
@@ -111,6 +111,7 @@ class SimpleKnowledgeBase(KnowledgeBaseProvider):
 
 # ==================== 2. 配置和使用 ====================
 
+
 async def main():
     """主函数：演示智能RAG功能"""
 
@@ -145,8 +146,10 @@ async def main():
     )
 
     print(f"✓ Agent已创建: {agent.node_id}")
-    print(f"  - 知识库配置: max_items={agent.knowledge_max_items}, "
-          f"threshold={agent.knowledge_relevance_threshold}")
+    print(
+        f"  - 知识库配置: max_items={agent.knowledge_max_items}, "
+        f"threshold={agent.knowledge_relevance_threshold}"
+    )
 
     print("\n" + "=" * 60)
     print("开始测试智能RAG功能")
@@ -164,7 +167,11 @@ async def main():
 
     result1 = await agent.execute_task(task1)
     if result1.result:
-        content = result1.result.get("content", "") if isinstance(result1.result, dict) else str(result1.result)
+        content = (
+            result1.result.get("content", "")
+            if isinstance(result1.result, dict)
+            else str(result1.result)
+        )
         print(f"✓ Agent回答:\n{content}\n")
 
     # 测试场景2：查询异步编程
@@ -179,7 +186,11 @@ async def main():
 
     result2 = await agent.execute_task(task2)
     if result2.result:
-        content = result2.result.get("content", "") if isinstance(result2.result, dict) else str(result2.result)
+        content = (
+            result2.result.get("content", "")
+            if isinstance(result2.result, dict)
+            else str(result2.result)
+        )
         print(f"✓ Agent回答:\n{content}\n")
 
     # 测试场景3：查询RAG相关知识
@@ -194,7 +205,11 @@ async def main():
 
     result3 = await agent.execute_task(task3)
     if result3.result:
-        content = result3.result.get("content", "") if isinstance(result3.result, dict) else str(result3.result)
+        content = (
+            result3.result.get("content", "")
+            if isinstance(result3.result, dict)
+            else str(result3.result)
+        )
         print(f"✓ Agent回答:\n{content}\n")
 
     print("\n" + "=" * 60)

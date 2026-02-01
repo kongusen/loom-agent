@@ -27,14 +27,14 @@ from textual.widgets import Footer, Header, Input, RichLog, Static
 
 from loom.api import LoomApp
 from loom.api.models import AgentConfig
-from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.config.llm import LLMConfig
 from loom.events import EventBus
 from loom.protocol import Task
+from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.providers.llm.openai import OpenAIProvider
 
-
 # ==================== 数据结构 ====================
+
 
 @dataclass
 class TaskExecutionState:
@@ -70,6 +70,7 @@ class TaskExecutionState:
 
 # ==================== 技术知识库 ====================
 
+
 class TechnicalKnowledgeBase(KnowledgeBaseProvider):
     """技术知识库 - 用于任务执行的技术参考"""
 
@@ -78,29 +79,29 @@ class TechnicalKnowledgeBase(KnowledgeBaseProvider):
             {
                 "id": "kb_auth_001",
                 "content": "用户认证系统通常包括：用户注册、登录、密码加密（bcrypt/argon2）、"
-                          "会话管理（JWT/Session）、权限控制（RBAC）。"
-                          "安全要点：密码哈希、HTTPS传输、防暴力破解、双因素认证。",
+                "会话管理（JWT/Session）、权限控制（RBAC）。"
+                "安全要点：密码哈希、HTTPS传输、防暴力破解、双因素认证。",
                 "source": "认证系统设计指南",
                 "tags": ["auth", "security", "jwt", "session"],
             },
             {
                 "id": "kb_queue_001",
                 "content": "任务队列系统核心组件：生产者、消费者、队列存储（Redis/RabbitMQ）、"
-                          "任务调度器。实现要点：任务持久化、失败重试、优先级队列、并发控制。",
+                "任务调度器。实现要点：任务持久化、失败重试、优先级队列、并发控制。",
                 "source": "任务队列架构",
                 "tags": ["queue", "redis", "rabbitmq", "async"],
             },
             {
                 "id": "kb_db_001",
                 "content": "数据库优化策略：索引优化（B-tree/Hash）、查询优化（EXPLAIN分析）、"
-                          "连接池管理、缓存策略（Redis）、分库分表、读写分离。",
+                "连接池管理、缓存策略（Redis）、分库分表、读写分离。",
                 "source": "数据库性能优化",
                 "tags": ["database", "optimization", "index", "cache"],
             },
             {
                 "id": "kb_api_001",
                 "content": "RESTful API设计原则：资源导向、HTTP方法语义、状态码规范、"
-                          "版本控制、认证授权、限流熔断、文档规范（OpenAPI）。",
+                "版本控制、认证授权、限流熔断、文档规范（OpenAPI）。",
                 "source": "API设计最佳实践",
                 "tags": ["api", "rest", "design", "http"],
             },
@@ -153,6 +154,7 @@ class TechnicalKnowledgeBase(KnowledgeBaseProvider):
 
 # ==================== 工具定义 ====================
 
+
 # 工具实现函数
 async def generate_code(language: str, description: str) -> str:
     """
@@ -179,15 +181,15 @@ def main():
 if __name__ == "__main__":
     main()
 ''',
-        "javascript": f'''// {description}
+        "javascript": f"""// {description}
 
 function main() {{
     // TODO: 实现具体逻辑
 }}
 
 main();
-''',
-        "go": f'''// {description}
+""",
+        "go": f"""// {description}
 
 package main
 
@@ -197,7 +199,7 @@ func main() {{
     // TODO: 实现具体逻辑
     fmt.Println("Hello, World!")
 }}
-''',
+""",
     }
 
     template = code_templates.get(language.lower(), f"// {description}\n// TODO: 实现代码")
@@ -341,6 +343,7 @@ def create_task_planner_tool():
 
 # ==================== 事件处理器 ====================
 
+
 class TaskEventProcessor:
     """任务事件处理器 - 处理任务执行事件并更新TUI"""
 
@@ -396,6 +399,7 @@ class TaskEventProcessor:
 
 
 # ==================== TUI 组件 ====================
+
 
 class TaskListPanel(RichLog):
     """任务列表面板 - 显示任务分解和进度"""
@@ -485,6 +489,7 @@ class ExecutionStatsPanel(Static):
 
 
 # ==================== 主应用 ====================
+
 
 class TaskExecutorApp(App):
     """任务执行器 TUI 应用"""
@@ -590,11 +595,7 @@ class TaskExecutorApp(App):
         # 初始化任务列表，所有任务初始状态为pending
         self.state.tasks = []
         for i, step in enumerate(steps):
-            task = {
-                "step": step,
-                "status": "pending",
-                "index": i
-            }
+            task = {"step": step, "status": "pending", "index": i}
             self.state.tasks.append(task)
 
         # 显示任务列表
@@ -605,11 +606,7 @@ class TaskExecutorApp(App):
 
     async def _refresh_task_list(self):
         """刷新任务列表显示"""
-        status_icons = {
-            "pending": "⏳",
-            "in_progress": "▶️",
-            "completed": "✅"
-        }
+        status_icons = {"pending": "⏳", "in_progress": "▶️", "completed": "✅"}
 
         for task in self.state.tasks:
             icon = status_icons.get(task["status"], "❓")
@@ -657,15 +654,15 @@ class TaskExecutorApp(App):
     async def add_code_block(self, code: str, language: str, description: str = ""):
         """添加代码块（优化版 - 结构化展示）"""
         block_num = len(self.state.code_blocks) + 1
-        self.state.code_blocks.append({
-            "code": code,
-            "language": language,
-            "description": description
-        })
+        self.state.code_blocks.append(
+            {"code": code, "language": language, "description": description}
+        )
 
         # 显示代码块头部
         self.output_panel.write(f"\n[bold cyan]{'='*60}[/bold cyan]")
-        self.output_panel.write(f"[bold cyan]💻 代码块 #{block_num} - {language.upper()}[/bold cyan]")
+        self.output_panel.write(
+            f"[bold cyan]💻 代码块 #{block_num} - {language.upper()}[/bold cyan]"
+        )
         if description:
             self.output_panel.write(f"[dim]{description}[/dim]")
         self.output_panel.write(f"[bold cyan]{'='*60}[/bold cyan]")
@@ -676,7 +673,7 @@ class TaskExecutorApp(App):
         self.output_panel.write("```")
 
         # 显示代码块尾部
-        self.output_panel.write(f"[dim]提示: 可以复制上述代码用于实现[/dim]")
+        self.output_panel.write("[dim]提示: 可以复制上述代码用于实现[/dim]")
         self.output_panel.write("")
         self._update_stats()
 
@@ -690,7 +687,7 @@ class TaskExecutorApp(App):
             "architecture": ("🏗️", "架构设计"),
             "implementation": ("⚙️", "实现方案"),
             "analysis": ("🔍", "问题分析"),
-            "general": ("✨", "解决方案")
+            "general": ("✨", "解决方案"),
         }
         icon, title = type_config.get(solution_type, ("✨", "解决方案"))
 
@@ -715,7 +712,9 @@ class TaskExecutorApp(App):
     async def mark_task_complete(self):
         """标记任务完成（优化版 - 更新任务状态）"""
         # 如果有当前任务，标记为完成
-        if self.state.current_task_index >= 0 and self.state.current_task_index < len(self.state.tasks):
+        if self.state.current_task_index >= 0 and self.state.current_task_index < len(
+            self.state.tasks
+        ):
             self.state.tasks[self.state.current_task_index]["status"] = "completed"
             self.state.completed_tasks += 1
 
@@ -753,19 +752,21 @@ class TaskExecutorApp(App):
             # 调试信息：查看返回结果
             self.task_list_panel.write(f"\n[dim]DEBUG - Task Status: {result.status}[/dim]")
             self.task_list_panel.write(f"[dim]DEBUG - Result Type: {type(result.result)}[/dim]")
-            self.task_list_panel.write(f"[dim]DEBUG - Result Content: {str(result.result)[:200]}...[/dim]")
+            self.task_list_panel.write(
+                f"[dim]DEBUG - Result Content: {str(result.result)[:200]}...[/dim]"
+            )
             if result.error:
                 self.task_list_panel.write(f"[dim]DEBUG - Error: {result.error}[/dim]")
 
             # 显示结果（安全处理）
             if result.result is None:
-                self.output_panel.write(f"\n[bold yellow]⚠️ 任务完成，但没有返回结果[/bold yellow]")
+                self.output_panel.write("\n[bold yellow]⚠️ 任务完成，但没有返回结果[/bold yellow]")
             elif isinstance(result.result, dict):
                 for key, value in result.result.items():
                     self.output_panel.write(f"\n[bold yellow]{key}:[/bold yellow]")
                     self.output_panel.write(str(value))
             else:
-                self.output_panel.write(f"\n[bold green]结果:[/bold green]")
+                self.output_panel.write("\n[bold green]结果:[/bold green]")
                 self.output_panel.write(str(result.result))
 
             self.output_panel.write("")
@@ -777,6 +778,7 @@ class TaskExecutorApp(App):
 
 
 # ==================== 主函数 ====================
+
 
 async def main():
     """主函数"""
@@ -876,4 +878,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

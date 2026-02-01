@@ -58,6 +58,7 @@ class TestToolWrapper:
     @pytest.mark.asyncio
     async def test_wrapper_direct_execution(self):
         """测试直接执行（不注入沙盒）"""
+
         async def system_func(value: int) -> int:
             return value * 2
 
@@ -111,6 +112,7 @@ class TestSandboxToolManagerRegister:
     @pytest.mark.asyncio
     async def test_register_tool(self, manager):
         """测试注册工具"""
+
         async def dummy_func(arg: str) -> str:
             return arg
 
@@ -128,6 +130,7 @@ class TestSandboxToolManagerRegister:
     @pytest.mark.asyncio
     async def test_register_duplicate_tool_raises_error(self, manager):
         """测试注册重复工具抛出错误"""
+
         async def dummy_func(arg: str) -> str:
             return arg
 
@@ -190,6 +193,7 @@ class TestSandboxToolManagerExecute:
     @pytest.mark.asyncio
     async def test_execute_system_tool(self, manager):
         """测试执行系统工具"""
+
         async def double_func(value: int) -> int:
             return value * 2
 
@@ -213,6 +217,7 @@ class TestSandboxToolManagerExecute:
     @pytest.mark.asyncio
     async def test_execute_tool_with_error(self, manager):
         """测试工具执行错误"""
+
         async def failing_func() -> str:
             raise ValueError("Tool failed")
 
@@ -240,6 +245,7 @@ class TestSandboxToolManagerList:
     @pytest.mark.asyncio
     async def test_list_tools(self, manager):
         """测试列出所有工具"""
+
         async def dummy1() -> str:
             return "1"
 
@@ -260,6 +266,7 @@ class TestSandboxToolManagerList:
     @pytest.mark.asyncio
     async def test_list_tool_names(self, manager):
         """测试列出工具名称"""
+
         async def dummy() -> str:
             return "dummy"
 
@@ -273,6 +280,7 @@ class TestSandboxToolManagerList:
     @pytest.mark.asyncio
     async def test_get_tools_by_scope(self, manager):
         """测试按作用域获取工具"""
+
         async def dummy1() -> str:
             return "1"
 
@@ -295,6 +303,7 @@ class TestSandboxToolManagerList:
 
     def test_get_tool(self, manager):
         """测试获取工具包装器"""
+
         async def dummy() -> str:
             return "dummy"
 
@@ -331,6 +340,7 @@ class TestSandboxToolManagerContains:
     @pytest.mark.asyncio
     async def test_contains_registered_tool(self, manager):
         """测试检查已注册的工具"""
+
         async def dummy() -> str:
             return "dummy"
 

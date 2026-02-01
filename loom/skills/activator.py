@@ -203,8 +203,7 @@ Relevant skill numbers:"""
                 # 2. 创建 Tool 名称和描述
                 tool_name = f"{skill.skill_id}_{script_name.replace('.py', '')}"
                 tool_description = (
-                    f"Script from skill '{skill.name}': {script_name}\n"
-                    f"{skill.description}"
+                    f"Script from skill '{skill.name}': {script_name}\n" f"{skill.description}"
                 )
 
                 # 3. 创建 MCP Tool 定义
@@ -213,7 +212,7 @@ Relevant skill numbers:"""
                 tool_def = MCPToolDefinition(
                     name=tool_name,
                     description=tool_description,
-                    inputSchema={
+                    input_schema={
                         "type": "object",
                         "properties": {},
                         "required": [],

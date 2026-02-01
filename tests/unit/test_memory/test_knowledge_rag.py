@@ -8,8 +8,9 @@ Knowledge RAG Integration Tests
 4. Fractal Memory集成
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
 
 from loom.memory.knowledge_context import KnowledgeContextSource
 from loom.protocol import Task
@@ -166,14 +167,17 @@ class TestKnowledgeContextSourceCache:
 
         # 模拟 MemoryManager.read 返回 MemoryEntry 形态（带 .content）
         import json
-        cached_data = json.dumps([
-            {
-                "id": "cached_1",
-                "content": "Cached knowledge",
-                "source": "cache",
-                "relevance": 0.95,
-            }
-        ])
+
+        cached_data = json.dumps(
+            [
+                {
+                    "id": "cached_1",
+                    "content": "Cached knowledge",
+                    "source": "cache",
+                    "relevance": 0.95,
+                }
+            ]
+        )
         mock_entry = type("MemoryEntry", (), {"content": cached_data})()
 
         mock_memory = AsyncMock()
@@ -243,4 +247,3 @@ class TestKnowledgeContextSourceConfiguration:
         # 没有任何条目满足0.95的阈值
         assert len(messages) == 0
         assert source.relevance_threshold == 0.95
-

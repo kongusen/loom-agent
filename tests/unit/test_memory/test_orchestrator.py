@@ -1,5 +1,7 @@
 """Tests for ContextOrchestrator"""
+
 import pytest
+
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.tokenizer import EstimateCounter
 from loom.protocol import Task
@@ -22,8 +24,8 @@ def test_init_basic():
 @pytest.mark.asyncio
 async def test_build_context_basic():
     """Test basic context building"""
-    from loom.memory.task_context import MemoryContextSource
     from loom.memory.core import LoomMemory
+    from loom.memory.task_context import MemoryContextSource
 
     counter = EstimateCounter()
     memory = LoomMemory(node_id="test")

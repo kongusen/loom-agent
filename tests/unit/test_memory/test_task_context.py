@@ -4,8 +4,6 @@ Task Context Unit Tests
 测试基于 Task 的上下文管理功能
 """
 
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
 from loom.memory.core import LoomMemory
@@ -13,7 +11,6 @@ from loom.memory.task_context import (
     MemoryContextSource,
     MessageConverter,
 )
-from loom.memory.tokenizer import EstimateCounter
 from loom.protocol import Task, TaskStatus
 
 
@@ -212,5 +209,3 @@ class TestMemoryContextSource:
         context = await source.get_context(current_task, max_items=5)
 
         assert len(context) <= 5
-
-

@@ -4,8 +4,8 @@ Agent Unit Tests
 测试Agent类的核心功能
 """
 
-from loom.events.event_bus import EventBus
 from loom.agent import Agent
+from loom.events.event_bus import EventBus
 from loom.providers.llm.mock import MockLLMProvider
 
 

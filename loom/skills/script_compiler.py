@@ -4,7 +4,8 @@ Script Compiler - 将 Skill 脚本编译为可执行函数
 支持将 Python 脚本编译为可以在沙盒中执行的函数。
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any, cast
 
 
 class ScriptCompiler:
@@ -55,20 +56,14 @@ class ScriptCompiler:
                 )
 
             if not callable(main_func):
-                raise ValueError(
-                    f"Script '{script_name}': 'main' or 'execute' is not callable"
-                )
+                raise ValueError(f"Script '{script_name}': 'main' or 'execute' is not callable")
 
-            return main_func
+            return cast(Callable[..., Any], main_func)
 
         except SyntaxError as e:
-            raise SyntaxError(
-                f"Script '{script_name}' has syntax error: {e}"
-            ) from e
+            raise SyntaxError(f"Script '{script_name}' has syntax error: {e}") from e
         except Exception as e:
-            raise ValueError(
-                f"Failed to compile script '{script_name}': {e}"
-            ) from e
+            raise ValueError(f"Failed to compile script '{script_name}': {e}") from e
 
     def create_tool_wrapper(
         self,

@@ -2,8 +2,7 @@
 Unit tests for CapabilityRegistry
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from loom.capabilities.registry import (
     CapabilityRegistry,
@@ -23,26 +22,19 @@ class TestCapabilitySet:
 
     def test_capability_set_with_tools(self):
         """Test CapabilitySet with tools"""
-        cap_set = CapabilitySet(
-            tools=[{"name": "tool1"}, {"name": "tool2"}]
-        )
+        cap_set = CapabilitySet(tools=[{"name": "tool1"}, {"name": "tool2"}])
         assert len(cap_set) == 2
         assert not cap_set.is_empty()
 
     def test_capability_set_with_skills(self):
         """Test CapabilitySet with skills"""
-        cap_set = CapabilitySet(
-            skill_ids=["skill1", "skill2", "skill3"]
-        )
+        cap_set = CapabilitySet(skill_ids=["skill1", "skill2", "skill3"])
         assert len(cap_set) == 3
         assert not cap_set.is_empty()
 
     def test_capability_set_with_both(self):
         """Test CapabilitySet with both tools and skills"""
-        cap_set = CapabilitySet(
-            tools=[{"name": "tool1"}],
-            skill_ids=["skill1", "skill2"]
-        )
+        cap_set = CapabilitySet(tools=[{"name": "tool1"}], skill_ids=["skill1", "skill2"])
         assert len(cap_set) == 3
         assert not cap_set.is_empty()
 
@@ -60,9 +52,7 @@ class TestValidationResult:
     def test_invalid_result(self):
         """Test invalid ValidationResult"""
         result = ValidationResult(
-            is_valid=False,
-            missing_tools=["tool1", "tool2"],
-            error="Missing tools"
+            is_valid=False, missing_tools=["tool1", "tool2"], error="Missing tools"
         )
         assert not result.is_valid
         assert bool(result) is False
@@ -208,7 +198,7 @@ class TestCapabilityRegistry:
         skill_registry = Mock()
         skill_registry.get_skill.return_value = {
             "function": {"name": "test_skill"},
-            "_metadata": {}
+            "_metadata": {},
         }
 
         registry = CapabilityRegistry(skill_registry=skill_registry)
@@ -222,7 +212,7 @@ class TestCapabilityRegistry:
         skill_registry = Mock()
         skill_registry.get_skill.return_value = {
             "function": {"name": "test_skill"},
-            "_metadata": {"required_tools": ["tool1", "tool2"]}
+            "_metadata": {"required_tools": ["tool1", "tool2"]},
         }
 
         # Mock tool manager
@@ -248,7 +238,7 @@ class TestCapabilityRegistry:
         skill_registry = Mock()
         skill_registry.get_skill.return_value = {
             "function": {"name": "test_skill"},
-            "_metadata": {"required_tools": ["tool1", "tool2", "tool3"]}
+            "_metadata": {"required_tools": ["tool1", "tool2", "tool3"]},
         }
 
         # Mock tool manager (only has tool1)
@@ -274,7 +264,7 @@ class TestCapabilityRegistry:
         skill_registry = Mock()
         skill_registry.get_skill.return_value = {
             "function": {"name": "test_skill"},
-            "_metadata": {"required_tools": ["tool1"]}
+            "_metadata": {"required_tools": ["tool1"]},
         }
 
         registry = CapabilityRegistry(skill_registry=skill_registry)
@@ -300,7 +290,7 @@ class TestCapabilityRegistry:
         skill_registry = Mock()
         skill_registry.get_skill.return_value = {
             "function": {"name": "test_skill"},
-            "_metadata": {"required_tools": ["tool1"]}
+            "_metadata": {"required_tools": ["tool1"]},
         }
 
         tool_manager = Mock()
@@ -314,4 +304,3 @@ class TestCapabilityRegistry:
 
         assert not result.is_valid
         assert "Failed to get available tools" in result.error
-

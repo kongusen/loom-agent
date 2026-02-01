@@ -14,10 +14,10 @@ Sandbox Tool Manager - 沙盒工具管理器
 4. 向后兼容 - 现有工具可以平滑迁移
 """
 
-import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from loom.events import EventBus
 from loom.protocol.mcp import MCPToolDefinition
@@ -223,8 +223,8 @@ class SandboxToolManager:
         # 为每个 MCP 工具创建包装器
         for mcp_tool in mcp_tools:
             # 创建一个调用 MCP 适配器的函数
-            async def mcp_func(**kwargs):
-                return await self._mcp_adapter.call_tool(mcp_tool.name, kwargs)
+            async def mcp_func(tool=mcp_tool, adapter=self._mcp_adapter, **kwargs):
+                return await adapter.call_tool(tool.name, kwargs)
 
             wrapper = ToolWrapper(
                 name=mcp_tool.name,

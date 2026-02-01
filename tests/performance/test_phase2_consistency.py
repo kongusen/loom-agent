@@ -6,11 +6,13 @@ Tests consistency issues mentioned in the implementation plan:
 2. Concurrent writes causing data loss
 3. Memory version conflicts
 """
+
 import asyncio
+
 import pytest
 
-from loom.memory.manager import MemoryManager
 from loom.fractal.memory import MemoryScope
+from loom.memory.manager import MemoryManager
 
 
 @pytest.mark.asyncio
@@ -52,13 +54,12 @@ async def test_concurrent_writes_no_data_loss():
     keys = [f"key_{i}" for i in range(20)]
     values = [f"value_{i}" for i in range(20)]
 
-    await asyncio.gather(*[
-        write_entry(key, value)
-        for key, value in zip(keys, values)
-    ])
+    await asyncio.gather(
+        *[write_entry(key, value) for key, value in zip(keys, values, strict=False)]
+    )
 
     # Verify all entries were written
-    for key, expected_value in zip(keys, values):
+    for key, expected_value in zip(keys, values, strict=False):
         entry = await memory.read(key)
         assert entry is not None, f"Entry {key} was lost during concurrent writes"
         assert entry.content == expected_value, f"Entry {key} has wrong value"

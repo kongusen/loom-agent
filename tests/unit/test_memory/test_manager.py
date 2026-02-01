@@ -1,7 +1,9 @@
 """Tests for MemoryManager"""
+
 import pytest
-from loom.memory.manager import MemoryManager
+
 from loom.fractal.memory import MemoryScope
+from loom.memory.manager import MemoryManager
 
 
 def test_init_basic():

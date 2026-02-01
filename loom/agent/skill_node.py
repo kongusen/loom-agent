@@ -13,7 +13,6 @@ Skill Agent Node - Form 3 实例化形态
 from typing import Any
 
 from loom.agent.base import BaseNode
-from loom.events.actions import TaskAction
 from loom.protocol.task import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
 from loom.skills.models import SkillDefinition
@@ -40,7 +39,7 @@ class SkillAgentNode(BaseNode):
         skill_definition: SkillDefinition,
         llm_provider: LLMProvider,
         event_bus: Any | None = None,
-        **kwargs
+        **kwargs,
     ):
         """
         初始化 Skill Agent Node
@@ -53,10 +52,7 @@ class SkillAgentNode(BaseNode):
             **kwargs: 传递给 BaseNode 的其他参数
         """
         super().__init__(
-            node_id=f"skill_{skill_id}",
-            node_type="skill",
-            event_bus=event_bus,
-            **kwargs
+            node_id=f"skill_{skill_id}", node_type="skill", event_bus=event_bus, **kwargs
         )
         self.skill_id = skill_id
         self.skill_definition = skill_definition
@@ -91,7 +87,7 @@ class SkillAgentNode(BaseNode):
             # 2. 构建消息列表
             messages = [
                 {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": task_description}
+                {"role": "user", "content": task_description},
             ]
 
             # 3. 调用 LLM（简化版本，不包含工具调用循环）
@@ -102,7 +98,7 @@ class SkillAgentNode(BaseNode):
             task.result = {
                 "content": response.content,
                 "skill_id": self.skill_id,
-                "skill_name": self.skill_definition.name
+                "skill_name": self.skill_definition.name,
             }
 
             return task
@@ -110,8 +106,5 @@ class SkillAgentNode(BaseNode):
         except Exception as e:
             # 错误处理
             task.status = TaskStatus.FAILED
-            task.result = {
-                "error": str(e),
-                "skill_id": self.skill_id
-            }
+            task.result = {"error": str(e), "skill_id": self.skill_id}
             return task

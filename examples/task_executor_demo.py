@@ -21,13 +21,13 @@ import os
 from typing import Any
 
 from loom.agent import Agent
-from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.events import EventBus
 from loom.protocol import Task
+from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.providers.llm.openai import OpenAIProvider
 
-
 # ==================== 技术知识库 ====================
+
 
 class TechnicalKnowledgeBase(KnowledgeBaseProvider):
     """
@@ -39,22 +39,22 @@ class TechnicalKnowledgeBase(KnowledgeBaseProvider):
             {
                 "id": "kb_auth_001",
                 "content": "用户认证系统通常包括：用户注册、登录、密码加密（bcrypt/argon2）、"
-                          "会话管理（JWT/Session）、权限控制（RBAC）。"
-                          "安全要点：密码哈希、HTTPS传输、防暴力破解、双因素认证。",
+                "会话管理（JWT/Session）、权限控制（RBAC）。"
+                "安全要点：密码哈希、HTTPS传输、防暴力破解、双因素认证。",
                 "source": "认证系统设计指南",
                 "tags": ["auth", "security", "jwt", "session"],
             },
             {
                 "id": "kb_queue_001",
                 "content": "任务队列系统核心组件：生产者、消费者、队列存储（Redis/RabbitMQ）、"
-                          "任务调度器。实现要点：任务持久化、失败重试、优先级队列、并发控制。",
+                "任务调度器。实现要点：任务持久化、失败重试、优先级队列、并发控制。",
                 "source": "任务队列架构",
                 "tags": ["queue", "redis", "rabbitmq", "async"],
             },
             {
                 "id": "kb_db_001",
                 "content": "数据库优化策略：索引优化（B-tree/Hash）、查询优化（EXPLAIN分析）、"
-                          "连接池管理、缓存策略（Redis）、分库分表、读写分离。",
+                "连接池管理、缓存策略（Redis）、分库分表、读写分离。",
                 "source": "数据库性能优化",
                 "tags": ["database", "optimization", "index", "cache"],
             },
@@ -93,6 +93,7 @@ class TechnicalKnowledgeBase(KnowledgeBaseProvider):
 
 
 # ==================== 工具定义 ====================
+
 
 def create_code_generator_tool():
     """创建代码生成工具"""
@@ -146,6 +147,7 @@ def create_architecture_tool():
 
 # ==================== 任务观察器 ====================
 
+
 class TaskObserver:
     """任务执行观察器 - 追踪任务分解和执行"""
 
@@ -161,19 +163,20 @@ class TaskObserver:
         if action == "node.planning":
             # 任务规划
             plan = task.parameters.get("plan", {})
-            print(f"\n📋 任务规划:")
+            print("\n📋 任务规划:")
             print(f"  步骤数: {len(plan.get('steps', []))}")
 
         elif action == "node.tool_call":
             # 工具调用
             tool_name = task.parameters.get("tool_name", "")
             if "code" in tool_name.lower():
-                print(f"\n💻 生成代码...")
+                print("\n💻 生成代码...")
 
         return task
 
 
 # ==================== 任务执行函数 ====================
+
 
 async def execute_task(agent: Any, task_description: str, observer: TaskObserver):
     """执行任务并展示结果"""
@@ -193,7 +196,7 @@ async def execute_task(agent: Any, task_description: str, observer: TaskObserver
     try:
         result = await agent.execute_task(task)
 
-        print(f"\n\n✅ 任务完成")
+        print("\n\n✅ 任务完成")
         print(f"\n{'='*60}")
         print("📊 执行结果:")
         print(f"{'='*60}")
@@ -211,6 +214,7 @@ async def execute_task(agent: Any, task_description: str, observer: TaskObserver
 
 
 # ==================== 主函数 ====================
+
 
 async def main():
     """主函数"""
@@ -273,11 +277,7 @@ async def main():
     print("=" * 60)
 
     # 示例任务1：设计认证系统
-    await execute_task(
-        agent,
-        "设计一个简单的用户认证系统，包括注册、登录和JWT token管理",
-        observer
-    )
+    await execute_task(agent, "设计一个简单的用户认证系统，包括注册、登录和JWT token管理", observer)
 
     # 可以添加更多任务
     # await execute_task(agent, "实现一个基于Redis的任务队列", observer)
@@ -285,4 +285,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

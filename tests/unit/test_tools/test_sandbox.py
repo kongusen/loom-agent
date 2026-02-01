@@ -4,7 +4,7 @@ Tests for Sandbox
 
 import pytest
 
-from loom.tools.sandbox import Sandbox, SandboxViolation, RESTRICTED_PYTHON_AVAILABLE
+from loom.tools.sandbox import RESTRICTED_PYTHON_AVAILABLE, Sandbox, SandboxViolation
 
 
 class TestSandboxInit:
@@ -320,7 +320,9 @@ class TestSandboxExecutePython:
         """Create a sandbox instance"""
         return Sandbox(tmp_path)
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_simple_code(self, sandbox):
         """Test executing simple Python code (触发line 248-284)"""
@@ -331,7 +333,9 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 4
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_params(self, sandbox):
         """Test executing code with parameters"""
@@ -343,7 +347,9 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 15
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_allowed_module(self, sandbox):
         """Test using allowed module (math)"""
@@ -354,7 +360,9 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 4.0
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_json_module(self, sandbox):
         """Test using allowed module (json)"""
@@ -365,7 +373,9 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == '{"key": "value"}'
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_invalid_code(self, sandbox):
         """Test executing invalid Python code"""
@@ -376,7 +386,9 @@ class TestSandboxExecutePython:
         assert result["success"] is False
         assert "error" in result
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_timeout(self, sandbox):
         """Test code execution timeout"""
@@ -401,7 +413,9 @@ class TestSandboxExecutePython:
         else:
             assert result["success"] is False or result["result"] is None
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_print(self, sandbox):
         """Test using _print_ in sandboxed code"""
@@ -412,7 +426,9 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == "printed"
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_custom_timeout(self, tmp_path):
         """Test custom timeout setting"""
@@ -424,7 +440,9 @@ class TestSandboxExecutePython:
         assert result["success"] is False
         assert "timeout" in result["error"].lower()
 
-    @pytest.mark.xfail(reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False)
+    @pytest.mark.xfail(
+        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_custom_allowed_modules(self, tmp_path):
         """Test custom allowed modules"""
@@ -447,9 +465,13 @@ class TestSandboxValidatePathErrors:
 
     def test_validate_path_with_resolve_error(self, sandbox, tmp_path):
         """Test path resolve error handling - using a special path that causes resolve errors"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
 
         # Mock the Path.resolve method to raise an OSError
-        with patch.object(sandbox.root_dir.__class__, 'resolve', side_effect=OSError("Simulated error")):
-            with pytest.raises(SandboxViolation, match="Cannot resolve path"):
-                sandbox.validate_path("test.txt")
+        with (
+            patch.object(
+                sandbox.root_dir.__class__, "resolve", side_effect=OSError("Simulated error")
+            ),
+            pytest.raises(SandboxViolation, match="Cannot resolve path"),
+        ):
+            sandbox.validate_path("test.txt")
