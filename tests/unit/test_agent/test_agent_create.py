@@ -127,9 +127,9 @@ class TestAgentCreateCapabilities:
     def test_create_with_capabilities_parameter(self, mock_llm, tmp_path):
         """测试传入 capabilities 参数时自动配置组件"""
         from loom.capabilities.registry import CapabilityRegistry
+        from loom.skills.skill_registry import skill_market
         from loom.tools.sandbox import Sandbox
         from loom.tools.sandbox_manager import SandboxToolManager
-        from loom.skills.skill_registry import skill_market
 
         # 创建组件
         sandbox = Sandbox(tmp_path)
@@ -167,9 +167,9 @@ class TestAgentCreateCapabilities:
     def test_create_capabilities_does_not_override_explicit_params(self, mock_llm, tmp_path):
         """测试 capabilities 不会覆盖显式传入的参数"""
         from loom.capabilities.registry import CapabilityRegistry
+        from loom.skills.skill_registry import skill_market
         from loom.tools.sandbox import Sandbox
         from loom.tools.sandbox_manager import SandboxToolManager
-        from loom.skills.skill_registry import skill_market
 
         # 创建两套组件
         sandbox1 = Sandbox(tmp_path / "sandbox1")

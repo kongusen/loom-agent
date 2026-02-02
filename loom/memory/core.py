@@ -155,9 +155,9 @@ class LoomMemory:
     def _ensure_importance(self, task: "Task") -> None:
         """为任务设置默认重要性（若未显式提供）"""
         if "importance" not in task.metadata:
-            task.metadata["importance"] = self._infer_importance(task)
+            task.metadata["importance"] = self._infer_importance()
 
-    def _infer_importance(self, task: "Task") -> float:
+    def _infer_importance(self) -> float:
         """
         返回统一的默认重要性值
 

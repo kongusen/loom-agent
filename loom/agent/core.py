@@ -423,10 +423,9 @@ class Agent(BaseNode):
         sandbox_manager_in = kwargs.get("sandbox_manager")
         if tools_callables and sandbox_manager_in is None:
             import tempfile
+
             from loom.tools.sandbox import Sandbox
             from loom.tools.sandbox_manager import SandboxToolManager
-            from loom.tools.converters import FunctionToMCP
-            from loom.tools.sandbox_manager import ToolScope
 
             sandbox_path = tempfile.mkdtemp(prefix="loom_agent_")
             sandbox = Sandbox(sandbox_path, auto_create=True)
@@ -1065,6 +1064,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         if not self._pending_tool_callables or self.sandbox_manager is None:
             return
         import asyncio
+
         from loom.tools.converters import FunctionToMCP
         from loom.tools.sandbox_manager import ToolScope
 

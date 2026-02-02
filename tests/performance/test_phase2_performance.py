@@ -26,19 +26,22 @@ from loom.protocol import Task, TaskStatus
 class MockLLMProvider:
     """Mock LLM provider for testing"""
 
-    async def generate(self, messages, tools=None, **kwargs):
-        """Mock generate that returns a done tool call"""
-        return {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {"name": "done", "arguments": '{"result": "Test completed"}'},
-                }
-            ],
-        }
+    async def stream_chat(self, messages, tools=None, **kwargs):
+        """Mock stream_chat that yields a done tool call"""
+        from loom.providers.llm.interface import StreamChunk
+
+        # Yield tool call complete event
+        yield StreamChunk(
+            type="tool_call_complete",
+            content={
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "done", "arguments": '{"result": "Test completed"}'},
+            },
+        )
+
+        # Yield done event
+        yield StreamChunk(type="done", content="")
 
 
 @pytest.mark.asyncio

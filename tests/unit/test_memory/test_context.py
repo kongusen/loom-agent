@@ -6,8 +6,6 @@ Context Management Unit Tests
 
 from datetime import UTC, datetime
 
-import pytest
-
 from loom.memory.context import (
     ContextManager,
     PriorityContextStrategy,

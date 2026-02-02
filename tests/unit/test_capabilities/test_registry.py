@@ -2,8 +2,9 @@
 Unit tests for CapabilityRegistry
 """
 
-import pytest
 from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from loom.capabilities.registry import (
     CapabilityRegistry,

@@ -71,18 +71,22 @@ class MemoryManager:
             existing.version += 1
             existing.content = content
             existing.updated_by = self.node_id
-            return existing
+            entry = existing
+        else:
+            # 创建新记忆条目
+            entry = MemoryEntry(
+                id=entry_id,
+                content=content,
+                scope=scope,
+                created_by=self.node_id,
+                updated_by=self.node_id,
+            )
+            self._memory_by_scope[scope][entry_id] = entry
 
-        # 创建新记忆条目
-        entry = MemoryEntry(
-            id=entry_id,
-            content=content,
-            scope=scope,
-            created_by=self.node_id,
-            updated_by=self.node_id,
-        )
+        # 实现向上传播（propagate_up）
+        if policy.propagate_up and self.parent:
+            await self.parent.write(entry_id, content, scope)
 
-        self._memory_by_scope[scope][entry_id] = entry
         return entry
 
     async def read(

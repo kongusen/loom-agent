@@ -6,7 +6,6 @@ v0.5.0: estimate_task_complexity 与 should_use_fractal 已移除，
 本文件保留占位，原测试已删除。
 """
 
-import pytest
 
 
 class TestFractalUtilsRemoved:
