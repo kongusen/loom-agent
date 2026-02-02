@@ -25,8 +25,8 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Header, Input, RichLog, Static
 
-from loom.api import LoomApp
-from loom.api.models import AgentConfig
+from loom.agent import Agent
+from loom.tools.registry import ToolRegistry
 from loom.config.llm import LLMConfig
 from loom.events import EventBus
 from loom.protocol import Task
@@ -534,9 +534,8 @@ class TaskExecutorApp(App):
     }
     """
 
-    def __init__(self, loom_app: LoomApp, agent: Any):
+    def __init__(self, agent: Any):
         super().__init__()
-        self.loom_app = loom_app
         self.agent = agent
         self.state = TaskExecutionState()
         self.task_list_panel = None
@@ -785,10 +784,7 @@ async def main():
     # 1. 创建EventBus
     event_bus = EventBus()
 
-    # 2. 创建LoomApp
-    app = LoomApp(event_bus=event_bus)
-
-    # 3. 配置LLM
+    # 2. 配置LLM
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         print("❌ 错误: 请设置 OPENAI_API_KEY 环境变量")
@@ -801,44 +797,31 @@ async def main():
         temperature=0.7,
     )
     llm = OpenAIProvider(llm_config)
-    app.set_llm_provider(llm)
     print("✓ LLM已配置")
 
-    # 4. 配置知识库
+    # 3. 配置知识库
     knowledge_base = TechnicalKnowledgeBase()
-    app.set_knowledge_base(knowledge_base)
     print(f"✓ 知识库已配置 ({len(knowledge_base.knowledge_data)} 条技术知识)")
 
-    # 5. 注册工具实现
-    app.register_tool(generate_code)
-    app.register_tool(design_architecture)
-    app.register_tool(plan_task)
+    # 4. 创建ToolRegistry并注册工具实现
+    tool_registry = ToolRegistry()
+    tool_registry.register_function(generate_code)
+    tool_registry.register_function(design_architecture)
+    tool_registry.register_function(plan_task)
     print("✓ 工具已注册 (generate_code, design_architecture, plan_task)")
 
+    # 5. 创建工具定义列表
+    tools = [
+        create_code_generator_tool(),
+        create_architecture_tool(),
+        create_task_planner_tool(),
+    ]
+
     # 6. 集成Skills（暂时禁用，等待 tool_registry 实现）
-    # try:
-    #     from loom.skills.activator import SkillActivator
-    #     skill_activator = SkillActivator()
-    #     code_review_skill_path = "examples/skills/code_review_skill.py"
-    #     if os.path.exists(code_review_skill_path):
-    #         skill_activator.load_skill(code_review_skill_path)
-    #         compiled_tool = skill_activator.compile_skill("code_review")
-    #         if compiled_tool:
-    #             app.add_tools([compiled_tool])
-    #             print("✓ Skill已集成 (COMPILATION): code_review")
-    #     deep_analysis_skill_path = "examples/skills/deep_analysis_skill.py"
-    #     if os.path.exists(deep_analysis_skill_path):
-    #         skill_activator.load_skill(deep_analysis_skill_path)
-    #         print("✓ Skill已加载 (INSTANTIATION): deep_analysis")
-    # except Exception as e:
-    #     print(f"⚠️  Skill集成失败: {e}")
     print("✓ Skill集成已跳过（等待 tool_registry 实现）")
 
-    # 7. 创建Agent配置
-    config = AgentConfig(
-        agent_id="task-executor",
-        name="任务执行器",
-        system_prompt="""你是一个专业的任务执行器。
+    # 7. 创建Agent
+    system_prompt = """你是一个专业的任务执行器。
 
 你的职责：
 - 分析复杂问题并分解为可执行步骤
@@ -854,18 +837,24 @@ async def main():
 
 当需要深度分析时，可以使用deep_analysis skill（INSTANTIATION形式）。
 
-请基于技术知识库，产出结构化、高质量的解决方案和代码。""",
+请基于技术知识库，产出结构化、高质量的解决方案和代码。"""
+
+    agent = Agent.from_llm(
+        llm=llm,
+        node_id="task-executor",
+        system_prompt=system_prompt,
+        tools=tools,
+        event_bus=event_bus,
+        knowledge_base=knowledge_base,
         knowledge_max_items=3,
         knowledge_relevance_threshold=0.75,
-        require_done_tool=False,  # 禁用 done tool 要求，允许直接响应
+        require_done_tool=False,
+        tool_registry=tool_registry,
     )
-
-    # 8. 创建Agent
-    agent = app.create_agent(config)
     print(f"✓ Agent已创建: {agent.node_id}")
 
-    # 9. 创建TUI应用并设置事件处理器
-    tui_app = TaskExecutorApp(app, agent)
+    # 8. 创建TUI应用并设置事件处理器
+    tui_app = TaskExecutorApp(agent)
     event_processor = TaskEventProcessor(tui_app)
     event_bus.register_handler("*", event_processor.on_event)
     print("✓ 事件处理器已配置")
