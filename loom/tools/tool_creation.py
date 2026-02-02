@@ -213,9 +213,7 @@ class DynamicToolExecutor:
         if not callable(tool_func):
             raise ToolCreationError(f"'{tool_name}' is not callable")
 
-        # Store the tool locally (for backward compatibility)
-        self.created_tools[tool_name] = tool_func
-        self.tool_definitions[tool_name] = {
+        tool_def = {
             "type": "function",
             "function": {
                 "name": tool_name,
@@ -224,9 +222,8 @@ class DynamicToolExecutor:
             },
         }
 
-        # 如果有沙盒管理器，同时注册到管理器
         if self.sandbox_manager:
-            tool_definition = MCPToolDefinition(
+            mcp_def = MCPToolDefinition(
                 name=tool_name,
                 description=description,
                 input_schema=parameters,
@@ -234,9 +231,12 @@ class DynamicToolExecutor:
             await self.sandbox_manager.register_tool(
                 tool_name,
                 tool_func,
-                tool_definition,
+                mcp_def,
                 ToolScope.SANDBOXED,  # 动态工具继承父沙盒
             )
+        else:
+            self.created_tools[tool_name] = tool_func
+            self.tool_definitions[tool_name] = tool_def
 
         sandbox_note = (
             f" The tool has access to the sandbox at {self.sandbox_manager.sandbox.root_dir}."

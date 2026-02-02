@@ -274,8 +274,8 @@ await kb.add_item(KnowledgeItem(
 memory_config = MemoryConfig(knowledge_base=kb)
 
 # 6. Create agent
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="api_assistant",
     system_prompt="You are an API documentation assistant",
     memory_config=memory_config

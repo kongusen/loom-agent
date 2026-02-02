@@ -252,8 +252,8 @@ async def main():
     print(f"✓ 工具已配置 ({len(tools)} 个工具)")
 
     # 5. 使用新的简化API创建Agent
-    agent = Agent.from_llm(
-        llm=llm,
+    agent = Agent.create(
+        llm,
         system_prompt="""你是一个专业的任务执行器。
 
 你的职责：

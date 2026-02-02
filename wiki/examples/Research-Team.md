@@ -19,22 +19,22 @@ async def main():
     llm = OpenAIProvider(api_key="your-api-key")
 
     # 创建研究员
-    researcher_agent = Agent.from_llm(
-        llm=llm,
+    researcher_agent = Agent.create(
+        llm,
         node_id="researcher",
         system_prompt="你是专业的研究员，擅长收集和分析信息。",
     )
 
     # 创建撰稿人
-    writer_agent = Agent.from_llm(
-        llm=llm,
+    writer_agent = Agent.create(
+        llm,
         node_id="writer",
         system_prompt="你是专业的撰稿人，擅长将研究结果写成文章。",
     )
 
     # 创建编辑
-    editor_agent = Agent.from_llm(
-        llm=llm,
+    editor_agent = Agent.create(
+        llm,
         node_id="editor",
         system_prompt="你是专业的编辑，负责校对和润色文章。",
     )

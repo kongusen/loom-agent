@@ -158,22 +158,12 @@ class LoomMemory:
             task.metadata["importance"] = self._infer_importance(task)
 
     def _infer_importance(self, task: "Task") -> float:
-        """基于动作类型的轻量默认重要性估计"""
-        action = task.action
-        if action == "node.error":
-            return 0.9
-        if action == "node.planning":
-            return 0.8
-        if action == "node.tool_result":
-            return 0.75
-        if action == "node.tool_call":
-            return 0.7
-        if action == "execute":
-            return 0.65
-        if action == "node.complete":
-            return 0.6
-        if action == "node.thinking":
-            return 0.55
+        """
+        返回统一的默认重要性值
+
+        Phase 5: 移除硬编码的重要性判断规则。
+        框架提供机制（importance 字段），LLM 提供策略（通过 metadata 显式设置）。
+        """
         return 0.5
 
     def _add_to_l1(self, task: "Task") -> None:

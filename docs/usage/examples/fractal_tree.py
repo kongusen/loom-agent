@@ -19,14 +19,14 @@ async def main():
     llm = OpenAIProvider(api_key="sk-mock", model="gpt-4")  # Use mock key for example
 
     # 2. Create Leaf Agents
-    researcher = Agent.from_llm(
-        llm=llm,
+    researcher = Agent.create(
+        llm,
         node_id="researcher",
         system_prompt="You find facts.",
     )
 
-    writer = Agent.from_llm(
-        llm=llm,
+    writer = Agent.create(
+        llm,
         node_id="writer",
         system_prompt="You write reports based on facts.",
     )

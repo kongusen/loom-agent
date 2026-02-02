@@ -218,8 +218,8 @@ memory_config = MemoryConfig(
 )
 
 # 5. Create agent
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="search_agent",
     system_prompt="You are a helpful assistant with search capabilities",
     memory_config=memory_config

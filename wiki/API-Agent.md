@@ -12,8 +12,8 @@ from loom.providers.llm import OpenAIProvider
 llm = OpenAIProvider(api_key="your-api-key")
 
 # 创建 Agent
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="assistant",
     system_prompt="你是一个专业、严谨的 AI 助手。",
 )
@@ -22,8 +22,8 @@ agent = Agent.from_llm(
 ### 高级配置
 
 ```python
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="researcher",
     system_prompt="你是专业的研究员...",
     max_iterations=10,

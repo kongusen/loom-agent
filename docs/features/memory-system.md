@@ -87,8 +87,8 @@ memory_config = MemoryConfig(
     enable_scopes=True
 )
 
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="memory-agent",
     system_prompt="You are a helpful assistant",
     memory_config=memory_config

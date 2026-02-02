@@ -15,7 +15,7 @@ Loom Framework - 统一对外API
 
 # A1: 统一接口公理
 # 注意: LoomApp 和 AgentConfig 已在 v0.4.7 废弃，将在 v0.5.0 移除
-# 请使用 Agent.from_llm() 或 Agent.create() 替代
+# 请使用 Agent.create() 替代（链式配置可用 Agent.builder(llm).with_*().build()）
 
 # A2: 事件主权公理
 from loom.events import EventBus, SSEFormatter
@@ -31,9 +31,6 @@ from loom.memory import (
     MemoryType,
     MemoryUnit,
 )
-
-# A5: 认知调度公理
-from loom.orchestration import CrewOrchestrator, RouterOrchestrator
 
 # A6: 四范式工作公理 - 现已集成到 Agent 基础能力中
 from loom.protocol import (
@@ -67,9 +64,6 @@ __all__ = [
     "MemoryTier",
     "MemoryType",
     "MemoryQuery",
-    # Orchestration
-    "RouterOrchestrator",
-    "CrewOrchestrator",
     # Runtime
     "Dispatcher",
     "Interceptor",

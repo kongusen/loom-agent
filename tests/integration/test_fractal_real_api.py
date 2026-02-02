@@ -5,7 +5,8 @@ Fractal Architecture Real API Integration Test
 1. 验证 EventBus → Memory → Context 数据流
 2. 验证分形委派（多层递归）
 3. 验证记忆继承和同步
-4. 验证预算控制和收敛性
+
+Phase 5: 预算控制已移除，只测试核心分形功能。
 
 测试场景：
 一个复杂的研究任务，需要多层委派：
@@ -25,7 +26,6 @@ import pytest
 from loom.agent import Agent
 from loom.config.llm import LLMConfig
 from loom.events.event_bus import EventBus
-from loom.fractal.budget import BudgetTracker, RecursiveBudget
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.openai import OpenAIProvider
 
@@ -54,21 +54,10 @@ class TestFractalRealAPI:
         """创建事件总线"""
         return EventBus()
 
-    @pytest.fixture
-    def budget_tracker(self):
-        """创建预算跟踪器"""
-        budget = RecursiveBudget(
-            max_depth=3,  # 最大递归深度
-            max_children=3,  # 每个节点最多3个子节点
-            token_budget=100000,  # Token预算
-            time_budget_seconds=300.0,  # 时间预算（秒）
-        )
-        return BudgetTracker(budget)
-
     @pytest.mark.asyncio
     @pytest.mark.xfail(reason="Real API test - may timeout without proper API configuration")
     async def test_fractal_delegation_with_memory_flow(
-        self, llm_provider, event_bus, budget_tracker
+        self, llm_provider, event_bus
     ):
         """
         测试分形委派和记忆流动
@@ -98,7 +87,6 @@ class TestFractalRealAPI:
             event_bus=event_bus,
             max_iterations=15,
             require_done_tool=True,
-            budget_tracker=budget_tracker,
             recursive_depth=0,
         )
 
@@ -194,23 +182,7 @@ class TestFractalRealAPI:
         # Memory 应该通过订阅 EventBus 自动接收所有任务
         # 这已经在 L1/L2 检查中验证了
 
-        # ==================== 验证点 4: 预算控制 ====================
-        # 检查预算跟踪器
-        usage = budget_tracker.usage
-        print(f"\n{'='*60}")
-        print("预算统计:")
-        print(f"  当前深度: {usage.current_depth}/{budget_tracker.budget.max_depth}")
-        print(f"  总子节点数: {usage.total_children}")
-        print(f"  已用Token: {usage.tokens_used}/{budget_tracker.budget.token_budget}")
-        print(
-            f"  已用时间: {usage.time_elapsed:.2f}秒/{budget_tracker.budget.time_budget_seconds}秒"
-        )
-        print(f"{'='*60}")
-
-        # 验证没有超出预算
-        assert usage.current_depth <= budget_tracker.budget.max_depth, "不应超出最大深度"
-
-        # ==================== 验证点 5: Context 构建 ====================
+        # ==================== 验证点 4: Context 构建 ====================
         # 创建一个新任务，验证 Context 可以从 Memory 获取历史
         follow_up_task = Task(
             task_id="follow_up_task",
@@ -268,15 +240,14 @@ class TestFractalRealAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.xfail(reason="Real API test - may timeout without proper API configuration")
-    async def test_multi_level_fractal_delegation(self, llm_provider, event_bus, budget_tracker):
+    async def test_multi_level_fractal_delegation(self, llm_provider, event_bus):
         """
         测试多层分形委派
 
         验证点：
         1. 可以创建多层子节点（Level 0 → Level 1 → Level 2）
         2. 记忆在多层之间正确流动
-        3. 预算控制在多层递归中生效
-        4. 最终结果正确收敛
+        3. 最终结果正确收敛
         """
         # 创建根节点，使用更明确的提示词鼓励委派
         root_agent = Agent(
@@ -296,7 +267,6 @@ delegate_task 工具会自动创建子节点，你只需要提供：
             event_bus=event_bus,
             max_iterations=20,
             require_done_tool=True,
-            budget_tracker=budget_tracker,
             recursive_depth=0,
         )
 
@@ -330,14 +300,6 @@ delegate_task 工具会自动创建子节点，你只需要提供：
         print("多层委派测试")
         print(f"执行时间: {duration:.2f} 秒")
         print(f"{'='*60}")
-
-        # 检查预算统计
-        usage = budget_tracker.usage
-        print("\n预算统计:")
-        print(f"  达到的最大深度: {usage.current_depth}/{budget_tracker.budget.max_depth}")
-        print(f"  总子节点数: {usage.total_children}")
-        print(f"  已用Token: {usage.tokens_used}")
-        print(f"  已用时间: {usage.time_elapsed:.2f}秒")
 
         # 验证发生了委派
         memory = root_agent.memory

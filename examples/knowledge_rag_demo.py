@@ -3,7 +3,7 @@
 
 本示例展示如何：
 1. 实现自定义的KnowledgeBaseProvider
-2. 使用Agent.from_llm()创建带知识库的Agent
+2. 使用Agent.create()创建带知识库的Agent
 3. Agent自动查询知识库并生成答案
 4. 验证知识库集成效果
 
@@ -137,8 +137,8 @@ async def main():
     print(f"✓ 知识库已配置 ({len(knowledge_base.knowledge_data)} 条知识)")
 
     # 3. 使用新的简化API创建Agent（带知识库）
-    agent = Agent.from_llm(
-        llm=llm,
+    agent = Agent.create(
+        llm,
         system_prompt="你是一个智能助手，可以利用知识库回答问题。请基于知识库提供准确的答案。",
         knowledge_base=knowledge_base,
         knowledge_max_items=3,  # 每次查询最多返回3个知识条目
@@ -220,7 +220,7 @@ async def main():
     print("1. ✓ 知识库集成：Agent自动查询知识库获取相关信息")
     print("2. ✓ 智能回答：基于知识库内容生成准确答案")
     print("3. ✓ 可配置：支持自定义查询条目数和相关度阈值")
-    print("4. ✓ 简化API：使用Agent.from_llm()轻松创建带知识库的Agent")
+    print("4. ✓ 简化API：使用Agent.create()轻松创建带知识库的Agent")
 
 
 if __name__ == "__main__":

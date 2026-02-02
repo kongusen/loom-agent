@@ -38,8 +38,8 @@ async def main():
     )
 
     # 3. Create Agent with Memory
-    agent = Agent.from_llm(
-        llm=llm,
+    agent = Agent.create(
+        llm,
         node_id="memory-agent",
         system_prompt="You maintain a vast archive of knowledge.",
         memory_config=memory_config

@@ -1013,8 +1013,8 @@ delegate_task(
 
 请用自然、流畅的语言回答用户问题，让对话像与真人交流一样自然。"""
 
-    agent = Agent.from_llm(
-        llm=llm,
+    agent = Agent.create(
+        llm,
         node_id="conversational-assistant",
         system_prompt=system_prompt,
         tools=tools,

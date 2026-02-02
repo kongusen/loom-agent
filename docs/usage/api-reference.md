@@ -4,10 +4,10 @@ Loom provides a direct, intuitive API for creating and managing AI agents with t
 
 ## Overview
 
-The Loom API is built around the **Agent** class, which provides two main creation methods:
+The Loom API is built around the **Agent** class, which provides two creation styles:
 
-1. **Agent.from_llm()** - Create an agent with an LLM provider (recommended)
-2. **Agent.create()** - Create an agent with custom configuration
+1. **Agent.create()** - One-shot creation with an LLM and options (recommended)
+2. **Agent.builder()** - Chain configuration then `.build()` for more control
 
 ## Agent Class
 
@@ -15,7 +15,7 @@ The Agent class represents an autonomous AI agent that can execute tasks, use to
 
 ### Creating an Agent
 
-#### Basic Creation with `Agent.from_llm()`
+#### Basic Creation with `Agent.create()`
 
 ```python
 from loom.agent import Agent
@@ -25,14 +25,14 @@ from loom.providers.llm import OpenAIProvider
 llm = OpenAIProvider(api_key="your-api-key", model="gpt-4")
 
 # Create agent
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="assistant",
     system_prompt="You are a helpful AI assistant",
 )
 ```
 
-### Agent.from_llm() Parameters
+### Agent.create() Parameters
 
 #### Required Parameters
 
@@ -59,6 +59,22 @@ agent = Agent.from_llm(
 
 - **`memory_config`** (MemoryConfig): Memory configuration for the agent
   - Default: None
+
+- **`skills`** (list[str]): List of skill IDs to enable
+  - Default: None
+  - Example: `["python-dev", "testing"]`
+
+- **`capabilities`** (CapabilityRegistry): Capability registry for advanced configuration
+  - Default: None
+
+- **`event_bus`** (EventBus): Event bus for agent communication
+  - Default: Auto-created if not provided
+
+- **`knowledge_base`** (KnowledgeBase): Knowledge base provider
+  - Default: None
+
+- **`max_context_tokens`** (int): Maximum context tokens for LLM calls
+  - Default: 4000
 
 ### Creating Agents with Tools
 
@@ -91,8 +107,8 @@ tools = [{
 }]
 
 # Create agent with tools
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="weather-assistant",
     system_prompt="You help with weather queries",
     tools=tools,
@@ -111,16 +127,16 @@ from loom.providers.llm import OpenAIProvider
 llm = OpenAIProvider(api_key="your-api-key", model="gpt-4")
 
 # Create general assistant
-assistant = Agent.from_llm(
-    llm=llm,
+assistant = Agent.create(
+    llm,
     node_id="assistant",
     system_prompt="You are a helpful general assistant",
     max_iterations=10,
 )
 
 # Create data analyst
-analyst = Agent.from_llm(
-    llm=llm,
+analyst = Agent.create(
+    llm,
     node_id="analyst",
     system_prompt="You are a data analysis expert",
     max_iterations=15,
@@ -187,8 +203,8 @@ tools = [
 ]
 
 # 5. Create agent
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="assistant",
     system_prompt="You are a helpful assistant with web search and calculation capabilities",
     tools=tools,
@@ -209,8 +225,8 @@ from loom.providers.llm import OpenAIProvider
 
 # Type hints work automatically
 llm: OpenAIProvider = OpenAIProvider(api_key="key")
-agent: Agent = Agent.from_llm(
-    llm=llm,
+agent: Agent = Agent.create(
+    llm,
     node_id="agent",
     system_prompt="You are a helpful assistant"
 )
@@ -226,8 +242,8 @@ from loom.providers.llm import OpenAIProvider
 
 # Missing required parameters
 try:
-    agent = Agent.from_llm(
-        llm=None,  # Missing LLM provider
+    agent = Agent.create(
+        None,  # Missing LLM provider
         node_id="agent"
     )
 except TypeError as e:
@@ -235,8 +251,8 @@ except TypeError as e:
 
 # Invalid parameters
 try:
-    agent = Agent.from_llm(
-        llm=llm,
+    agent = Agent.create(
+        llm,
         node_id="agent",
         max_iterations=200  # Exceeds maximum (100)
     )

@@ -27,16 +27,19 @@ class SkillActivator:
         self,
         llm_provider: LLMProvider,
         tool_registry: Any | None = None,
+        tool_manager: Any | None = None,
     ):
         """
         初始化激活器
 
         Args:
             llm_provider: LLM提供者（用于判断相关性）
-            tool_registry: 工具注册表（用于依赖验证）
+            tool_registry: 工具注册表（用于依赖验证，兼容旧用法）
+            tool_manager: SandboxToolManager（推荐，用于依赖验证；优先于 tool_registry）
         """
         self.llm_provider = llm_provider
         self.tool_registry = tool_registry
+        self.tool_manager = tool_manager
 
     async def find_relevant_skills(
         self,
@@ -276,7 +279,9 @@ Relevant skill numbers:"""
         skill: SkillDefinition,
     ) -> tuple[bool, list[str]]:
         """
-        验证 Skill 依赖的工具是否存在
+        验证 Skill 依赖的工具是否存在。
+
+        优先使用 SandboxToolManager（与执行来源一致），无则回退到 ToolRegistry。
 
         Args:
             skill: Skill 定义
@@ -284,14 +289,28 @@ Relevant skill numbers:"""
         Returns:
             (是否通过, 缺失的工具列表)
         """
-        if not self.tool_registry:
-            return True, []  # 无 tool_registry 时跳过验证
+        if not skill.required_tools:
+            return True, []
 
-        missing = []
-        for tool_name in skill.required_tools:
-            if not self.tool_registry.has(tool_name):
-                missing.append(tool_name)
+        available: set[str] = set()
+        if self.tool_manager is not None:
+            try:
+                for t in self.tool_manager.list_tools():
+                    available.add(t.name)
+            except Exception:
+                pass
+        elif self.tool_registry is not None:
+            for tool_name in skill.required_tools:
+                if self.tool_registry.has(tool_name):
+                    available.add(tool_name)
+            # 若用 tool_registry 校验，缺失 = 未在 available 中的 required_tools
+            missing = [t for t in skill.required_tools if t not in available]
+            return len(missing) == 0, missing
 
+        if not available:
+            return True, []  # 无可用工具源时跳过验证
+
+        missing = [t for t in skill.required_tools if t not in available]
         return len(missing) == 0, missing
 
     async def activate(

@@ -839,8 +839,8 @@ async def main():
 
 请基于技术知识库，产出结构化、高质量的解决方案和代码。"""
 
-    agent = Agent.from_llm(
-        llm=llm,
+    agent = Agent.create(
+        llm,
         node_id="task-executor",
         system_prompt=system_prompt,
         tools=tools,

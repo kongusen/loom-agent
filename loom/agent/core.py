@@ -32,7 +32,6 @@ from uuid import uuid4
 from loom.agent.base import BaseNode
 from loom.events.event_bus import EventBus
 from loom.exceptions import TaskComplete
-from loom.fractal.budget import BudgetTracker
 from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import MemoryContextSource
@@ -153,7 +152,6 @@ class Agent(BaseNode):
         max_context_tokens: int = 4000,
         max_iterations: int = 10,
         require_done_tool: bool = True,
-        budget_tracker: BudgetTracker | None = None,  # 递归预算跟踪器
         recursive_depth: int = 0,  # 当前递归深度
         config: Any | None = None,  # AgentConfig（Phase 3: 12.5.2）
         skill_registry: Any | None = None,  # SkillRegistry
@@ -183,7 +181,6 @@ class Agent(BaseNode):
             max_context_tokens: 最大上下文token数
             max_iterations: 最大迭代次数
             require_done_tool: 是否要求显式调用done工具完成任务
-            budget_tracker: 递归预算跟踪器（可选，用于控制递归深度和资源）
             recursive_depth: 当前递归深度（内部使用）
             skill_registry: Skill注册表（可选，用于加载Skills）
             skill_activator: Skill激活器（可选，Phase 2 三种激活形态）
@@ -196,6 +193,7 @@ class Agent(BaseNode):
             knowledge_relevance_threshold: 知识相关度阈值，0.0-1.0（默认0.7）
             **kwargs: 其他参数传递给BaseNode
         """
+        _pending_tool_callables = kwargs.pop("_pending_tool_callables", []) or []
         super().__init__(
             node_id=node_id,
             node_type="agent",
@@ -244,13 +242,11 @@ class Agent(BaseNode):
             self.skill_activator = cast("SkillActivator | None", skill_activator)  # Phase 2: Skill激活器
 
         self.sandbox_manager = sandbox_manager  # NEW: 存储沙盒工具管理器
+        self._pending_tool_callables: list[Any] = _pending_tool_callables  # Phase 3 Task 4: 首次执行时注册到 sandbox_manager
         self.knowledge_base = knowledge_base  # 知识库提供者（用于智能RAG）
         self.knowledge_max_items = knowledge_max_items  # 知识库查询最大条目数
         self.knowledge_relevance_threshold = knowledge_relevance_threshold  # 知识相关度阈值
         self._root_context_id = root_context_id
-
-        # 递归预算控制
-        self._budget_tracker = budget_tracker or BudgetTracker()
         self._recursive_depth = recursive_depth
 
         # 如果启用 done tool，添加到工具列表
@@ -419,6 +415,25 @@ class Agent(BaseNode):
             else:
                 # 如果已有 config，更新其 enabled_skills
                 kwargs["config"].enabled_skills = set(skills)
+
+        # Phase 3 Task 4: 仅传 tools= 且含可调用对象时，自动创建 SandboxToolManager
+        tools_list = tools or []
+        tools_dicts = [t for t in tools_list if isinstance(t, dict)]
+        tools_callables = [t for t in tools_list if callable(t)]
+        sandbox_manager_in = kwargs.get("sandbox_manager")
+        if tools_callables and sandbox_manager_in is None:
+            import tempfile
+            from loom.tools.sandbox import Sandbox
+            from loom.tools.sandbox_manager import SandboxToolManager
+            from loom.tools.converters import FunctionToMCP
+            from loom.tools.sandbox_manager import ToolScope
+
+            sandbox_path = tempfile.mkdtemp(prefix="loom_agent_")
+            sandbox = Sandbox(sandbox_path, auto_create=True)
+            manager = SandboxToolManager(sandbox, event_bus=event_bus)
+            kwargs["sandbox_manager"] = manager
+            kwargs["_pending_tool_callables"] = tools_callables
+            tools = tools_dicts  # 仅把 dict 形态传给 cls，可调用对象在首次执行时注册到 sandbox_manager
 
         return cls(
             node_id=node_id or str(uuid4()),
@@ -1042,6 +1057,38 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         except Exception as e:
             return f"错误：工具执行失败 - {str(e)}"
 
+    async def _ensure_pending_tools_registered(self) -> None:
+        """
+        Phase 3 Task 4: 将 Agent.create(tools=[callable, ...]) 传入的可调用对象
+        在首次执行时注册到 sandbox_manager，保证「发给 LLM 的工具列表」与「执行来源」一致。
+        """
+        if not self._pending_tool_callables or self.sandbox_manager is None:
+            return
+        import asyncio
+        from loom.tools.converters import FunctionToMCP
+        from loom.tools.sandbox_manager import ToolScope
+
+        pending = list(self._pending_tool_callables)
+        self._pending_tool_callables = []
+        for func in pending:
+            name = getattr(func, "__name__", "unknown")
+            definition = FunctionToMCP.convert(func, name=name)
+            if not asyncio.iscoroutinefunction(func):
+
+                async def _wrapped(*args: Any, _f: Any = func, **kwargs: Any) -> Any:
+                    return _f(*args, **kwargs)
+
+                exec_func: Any = _wrapped
+            else:
+                exec_func = func
+            await self.sandbox_manager.register_tool(
+                name=name,
+                func=exec_func,
+                definition=definition,
+                scope=ToolScope.SYSTEM,
+            )
+        self.all_tools = self._build_tool_list()
+
     async def _execute_impl(self, task: Task) -> Task:
         """
         执行任务 - Agent 核心循环
@@ -1054,6 +1101,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         Returns:
             更新后的任务
         """
+        await self._ensure_pending_tools_registered()
         # 存储任务到记忆
         self.memory.add_task(task)
 
@@ -1856,22 +1904,7 @@ IMPORTANT:
 
         Returns:
             配置好的子Agent实例
-
-        Raises:
-            RuntimeError: 如果超出预算限制
         """
-
-        # 0. 预算检查（在创建子节点前强制执行）
-        violation = self._budget_tracker.check_can_create_child(
-            parent_node_id=self.node_id,
-            current_depth=self._recursive_depth,
-        )
-        if violation:
-            raise RuntimeError(f"预算违规: {violation.message}. 建议: {violation.suggestion}")
-
-        # 记录子节点创建和深度
-        self._budget_tracker.record_child_created(self.node_id)
-        self._budget_tracker.record_depth(self._recursive_depth + 1)
 
         # === Phase 3: 配置继承（12.5.3）===
         from loom.config.agent import AgentConfig
@@ -1915,7 +1948,6 @@ Prefer ReAct (direct tool use) for most tasks.
             event_bus=self.event_bus,
             max_iterations=self.max_iterations,
             require_done_tool=self.require_done_tool,
-            budget_tracker=self._budget_tracker,
             recursive_depth=self._recursive_depth + 1,
             parent_memory=self.memory,
             root_context_id=self._root_context_id,

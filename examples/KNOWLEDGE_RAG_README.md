@@ -35,39 +35,30 @@ class MyKnowledgeBase(KnowledgeBaseProvider):
         return results
 ```
 
-### 2. 配置LoomApp
+### 2. 创建带知识库的 Agent（Agent.create）
 
 ```python
-from loom.api import LoomApp
-from loom.api.models import AgentConfig
+from loom.agent import Agent
+from loom.providers.llm import OpenAIProvider
 
-# 创建应用
-app = LoomApp()
+# 配置 LLM
+llm = OpenAIProvider(api_key="your-api-key")
 
-# 配置LLM
-app.set_llm_provider(your_llm_provider)
-
-# 配置知识库
+# 实现并实例化知识库
 knowledge_base = MyKnowledgeBase()
-app.set_knowledge_base(knowledge_base)
-```
 
-### 3. 创建Agent
-
-```python
-# 创建Agent配置
-config = AgentConfig(
-    agent_id="my-agent",
-    name="My Agent",
-    knowledge_max_items=5,  # 可选：自定义查询条目数
-    knowledge_relevance_threshold=0.8,  # 可选：自定义相关度阈值
+# 使用 Agent.create() 一步创建带知识库的 Agent
+agent = Agent.create(
+    llm,
+    node_id="my-agent",
+    system_prompt="你是一个智能助手，可基于知识库回答问题。",
+    knowledge_base=knowledge_base,
+    knowledge_max_items=5,       # 可选：每次查询最大条目数（1-10）
+    knowledge_relevance_threshold=0.8,  # 可选：相关度阈值（0.0-1.0）
 )
-
-# 创建Agent
-agent = app.create_agent(config)
 ```
 
-### 4. 使用Agent
+### 3. 使用 Agent
 
 ```python
 from loom.protocol import Task
@@ -113,7 +104,7 @@ Task创建 → TaskContextManager → KnowledgeContextSource
 
 ## 配置参数
 
-### AgentConfig参数
+### Agent.create() 知识库相关参数
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -277,9 +268,7 @@ task = Task(
 ### 组件关系
 
 ```
-LoomApp
-  ├── set_knowledge_base() → 设置全局知识库
-  └── create_agent()
+Agent.create(llm, knowledge_base=..., knowledge_max_items=..., ...)
         ↓
       Agent
         ├── knowledge_base: KnowledgeBaseProvider
@@ -315,8 +304,8 @@ Task → TaskContextManager.get_context()
 
 - [KnowledgeBaseProvider接口](../loom/config/knowledge.py)
 - [KnowledgeContextSource实现](../loom/memory/knowledge_context.py)
-- [AgentConfig配置](../loom/api/models.py)
-- [完整示例](../examples/knowledge_rag_demo.py)
+- [Agent.create() 参数说明](../../docs/usage/api-reference.md#agentcreate-parameters)
+- [完整示例](knowledge_rag_demo.py)
 
 ## 更新日志
 

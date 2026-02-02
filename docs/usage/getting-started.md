@@ -37,8 +37,8 @@ llm = OpenAIProvider(
 )
 
 # 2. Create agent directly
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="my-first-agent",
     system_prompt="You are a helpful AI assistant",
     max_iterations=10,
@@ -55,14 +55,14 @@ Create multiple agents that share infrastructure:
 from loom.agent import Agent
 
 # Create multiple agents (each with their own configuration)
-agent1 = Agent.from_llm(
-    llm=llm,
+agent1 = Agent.create(
+    llm,
     node_id="assistant",
     system_prompt="You are a general purpose assistant",
 )
 
-agent2 = Agent.from_llm(
-    llm=llm,
+agent2 = Agent.create(
+    llm,
     node_id="analyst",
     system_prompt="You are specialized in data analysis",
 )
@@ -124,8 +124,8 @@ tools = [
     }
 ]
 
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="health-assistant",
     system_prompt="You help with health and weather queries",
     tools=tools,
@@ -149,8 +149,8 @@ llm = OpenAIProvider(
 )
 
 # Create agent with LLM provider
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="smart-agent",
     system_prompt="You are an intelligent assistant",
 )

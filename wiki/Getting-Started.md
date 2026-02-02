@@ -26,8 +26,8 @@ from loom.providers.llm import OpenAIProvider
 
 llm = OpenAIProvider(api_key="your-api-key")
 
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="assistant",
     system_prompt="你是一个友好的助手。"
 )

@@ -25,15 +25,15 @@ Always consult `docs/` and `wiki/` before assumptions. Framework has specific de
 ## Quick Start
 
 ```python
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 
-app = LoomApp()
-app.set_llm_provider(OpenAIProvider(api_key="...", model="gpt-4"))
-agent = app.create_agent(AgentConfig(
-    agent_id="my-agent", name="My Agent",
-    system_prompt="...", capabilities=["tool_use", "reflection"]
-))
+llm = OpenAIProvider(api_key="...", model="gpt-4")
+agent = Agent.create(
+    llm,
+    node_id="my-agent",
+    system_prompt="...",
+)
 ```
 
 ---
@@ -54,7 +54,7 @@ agent = app.create_agent(AgentConfig(
 
 ## Patterns (5 Common)
 
-1. **Single+Tools**: `app.create_agent(config, tools=[...])`
+1. **Single+Tools**: `Agent.create(llm, system_prompt="...", tools=[...])`
 2. **Sequential**: `CompositeNode(children=[...], strategy=SequentialStrategy())`
 3. **Parallel**: `CompositeNode(children=[...], strategy=ParallelStrategy())`
 4. **Router**: `CompositeNode(children=[...], strategy=ConditionalStrategy(fn))`
@@ -102,9 +102,9 @@ agent = app.create_agent(AgentConfig(
 
 ## Key Classes/Modules
 
-**Classes**: LoomApp | AgentConfig | NodeProtocol | CompositeNode | UniversalEventBus | LoomMemory | FractalMemory
+**Classes**: Agent | NodeProtocol | CompositeNode | UniversalEventBus | LoomMemory | FractalMemory
 
-**Modules**: loom.api (LoomApp,AgentConfig) | loom.fractal (FractalComponents) | loom.events (EventBus,CloudEvents) | loom.memory (L1-L4) | loom.providers (LLMProviders) | loom.orchestration (Strategies) | loom.protocol (CoreProtocols)
+**Modules**: loom.agent (Agent,AgentBuilder) | loom.fractal (FractalComponents) | loom.events (EventBus,CloudEvents) | loom.memory (L1-L4) | loom.providers (LLMProviders) | loom.orchestration (Strategies) | loom.protocol (CoreProtocols)
 
 ---
 

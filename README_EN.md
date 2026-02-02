@@ -171,8 +171,8 @@ from loom.providers.llm import OpenAIProvider
 llm = OpenAIProvider(api_key="your-api-key")
 
 # 2. Create Agent
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="assistant",
     system_prompt="You are a professional, rigorous AI assistant.",
 )

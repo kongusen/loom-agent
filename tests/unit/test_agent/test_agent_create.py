@@ -196,3 +196,79 @@ class TestAgentCreateCapabilities:
         assert agent.sandbox_manager is tool_manager2
         # skill_registry 没有显式传入，应该使用 capabilities 中的
         assert agent.skill_registry is skill_market
+
+
+class TestAgentCreateToolsAutoSandbox:
+    """测试 Agent.create(tools=[callable, ...]) 自动创建 SandboxToolManager（Phase 3 Task 4）"""
+
+    def test_create_with_callables_auto_sandbox_manager(self, mock_llm):
+        """仅传 tools=[callable] 时自动创建 SandboxToolManager 并挂载待注册列表"""
+        def get_weather(city: str) -> str:
+            """Get weather for a city."""
+            return f"Weather in {city}: Sunny"
+
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            tools=[get_weather],
+        )
+        assert agent.sandbox_manager is not None
+        assert len(agent._pending_tool_callables) == 1
+        assert agent._pending_tool_callables[0] is get_weather
+
+    @pytest.mark.asyncio
+    async def test_pending_tools_registered_on_first_execute(self, mock_llm):
+        """首次执行时 pending 工具注册到 sandbox_manager，工具列表与执行来源一致"""
+        def get_weather(city: str) -> str:
+            """Get weather for a city."""
+            return f"Weather in {city}: Sunny"
+
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            tools=[get_weather],
+        )
+        assert agent.sandbox_manager is not None
+        assert len(agent._pending_tool_callables) == 1
+        await agent._ensure_pending_tools_registered()
+        # 关键行为：工具已注册且出现在可用工具列表中
+        assert "get_weather" in agent.sandbox_manager
+        available = agent._get_available_tools()
+        names = [t.get("function", {}).get("name") for t in available if isinstance(t, dict)]
+        assert "get_weather" in names
+        # 注册后待注册列表应被清空
+        assert len(agent._pending_tool_callables) == 0
+
+    def test_create_with_dicts_only_no_auto_sandbox(self, mock_llm):
+        """仅传 tools=[dict, ...]（无 callable）时不自动创建 SandboxToolManager"""
+        tools_schema = [{
+            "type": "function",
+            "function": {"name": "get_weather", "description": "Get weather", "parameters": {"type": "object"}},
+        }]
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            tools=tools_schema,
+        )
+        assert agent.sandbox_manager is None
+        assert len(agent._pending_tool_callables) == 0
+        assert agent.tools == tools_schema
+
+    def test_create_with_explicit_sandbox_manager_no_pending(self, mock_llm, tmp_path):
+        """显式传入 sandbox_manager 时即使 tools 含 callable 也不设 _pending_tool_callables"""
+        from loom.tools.sandbox import Sandbox
+        from loom.tools.sandbox_manager import SandboxToolManager
+
+        def get_weather(city: str) -> str:
+            return f"Weather in {city}: Sunny"
+
+        sandbox = Sandbox(tmp_path)
+        manager = SandboxToolManager(sandbox)
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            tools=[get_weather],
+            sandbox_manager=manager,
+        )
+        assert agent.sandbox_manager is manager
+        assert len(agent._pending_tool_callables) == 0

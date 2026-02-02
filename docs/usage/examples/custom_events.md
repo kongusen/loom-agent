@@ -27,8 +27,8 @@ async def main():
     llm = OpenAIProvider(api_key="your-api-key")
 
     # Create agent
-    agent = Agent.from_llm(
-        llm=llm,
+    agent = Agent.create(
+        llm,
         node_id="custom-agent",
         system_prompt="You are a helpful assistant.",
     )

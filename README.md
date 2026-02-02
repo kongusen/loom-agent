@@ -13,7 +13,7 @@
 
 [English](README_EN.md) | **中文**
 
-[宣言](MANIFESTO.md) | [文档](docs/README.md) | [快速开始](docs/usage/getting-started.md)
+[宣言](MANIFESTO.md) | [文档](docs/README.md) | [快速开始](docs/usage/getting-started.md) | [v0.5迁移指南](docs/usage/migration-v0.5.md)
 
 </div>
 
@@ -165,8 +165,8 @@ from loom.providers.llm import OpenAIProvider
 llm = OpenAIProvider(api_key="your-api-key")
 
 # 2. 创建 Agent
-agent = Agent.from_llm(
-    llm=llm,
+agent = Agent.create(
+    llm,
     node_id="architect",
     system_prompt="你是一个专注于长期任务执行的 AI 架构师。",
 )
