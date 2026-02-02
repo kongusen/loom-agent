@@ -2,6 +2,8 @@
 
 Loom provides a direct, intuitive API for creating and managing AI agents with type safety and automatic validation.
 
+**Version**: This reference reflects the v0.5.0 API. For breaking changes and migration, see [Migration Guide](migration-v0.5.md) and [What's New in v0.5.0](whats-new-v0.5.md).
+
 ## Overview
 
 The Loom API is built around the **Agent** class, which provides two creation styles:
@@ -75,6 +77,8 @@ agent = Agent.create(
 
 - **`max_context_tokens`** (int): Maximum context tokens for LLM calls
   - Default: 4000
+
+**Removed in v0.5.0**: `enable_tool_creation`, `enable_context_tools`. All tools (context tools, tool creation, delegation) are always available; the LLM decides whether to use them.
 
 ### Creating Agents with Tools
 
@@ -260,8 +264,21 @@ except ValueError as e:
     print(f"Error: {e}")
 ```
 
+## CapabilityRegistry (v0.5.0)
+
+Unified capability discovery and dependency validation. Both methods are **async**; use `await` when calling.
+
+- **`find_relevant_capabilities(task_description, context=None)`** → `CapabilitySet`  
+  Returns tools (from SandboxToolManager) and skill IDs (from SkillRegistry, including Loaders and runtime-registered skills). Call as `await registry.find_relevant_capabilities(...)`.
+
+- **`validate_skill_dependencies(skill_id)`** → `ValidationResult`  
+  Checks that the skill’s required tools are available (via SandboxToolManager). Call as `await registry.validate_skill_dependencies(skill_id)`.
+
+See [What's New in v0.5.0](whats-new-v0.5.md) for unified SkillRegistry and SkillActivator `tool_manager` usage.
+
 ## Next Steps
 
-- Learn about [LLM Providers](../providers/llm-providers.md)
+- [Migration Guide v0.4.x → v0.5.0](migration-v0.5.md)
+- [What's New in v0.5.0](whats-new-v0.5.md)
 - Explore [Memory System](../features/memory-system.md)
-- Understand [Event System](../features/event-system.md)
+- Understand [Event System](../framework/event-bus.md)

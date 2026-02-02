@@ -1,6 +1,6 @@
 # Loom Documentation
 
-Welcome to Loom.
+Welcome to Loom. The docs below reflect **v0.5.0** (unified SkillRegistry, LLM autonomy, removed enable_* parameters). For changes and migration from v0.4.x, see [What's New in v0.5.0](usage/whats-new-v0.5.md) and [Migration Guide](usage/migration-v0.5.md).
 
 ## The Long Horizon Challenge
 
@@ -53,6 +53,8 @@ Ready to build? Start here.
 
 *   **[Getting Started](usage/getting-started.md)**: Build your first agent in 5 minutes.
 *   **[API Reference](usage/api-reference.md)**: Comprehensive guide to the SDK (Levels 1-4).
+*   **v0.5.0**: **[What's New](usage/whats-new-v0.5.md)** — Summary of changes and removed APIs.
+*   **Migration**: **[v0.4.x → v0.5.0](usage/migration-v0.5.md)** — Breaking changes and migration steps.
 
 ## 6. Pattern Language
 

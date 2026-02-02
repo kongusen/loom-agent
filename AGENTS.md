@@ -1,6 +1,6 @@
 # Loom Agent Framework - AI Context
 
-**v0.4.4** | Python framework for long-horizon agents (hours/days tasks)
+**v0.5.0** | Python framework for long-horizon agents (hours/days tasks)
 
 ---
 
@@ -88,7 +88,7 @@ agent = Agent.create(
 
 ### Usage
 
-`docs/usage/`|getting-started.md:Install,FirstAgent,BasicPatterns|api-reference.md:CompleteAPI|memory-access.md:MemoryLayerUsage|examples/:MemoryLayers,CustomEvents
+`docs/usage/`|getting-started.md:Install,FirstAgent,BasicPatterns|api-reference.md:CompleteAPI|memory-access.md:MemoryLayerUsage|whats-new-v0.5.md:v0.5Changes,RemovedAPIs|migration-v0.5.md:BreakingChanges,Migration|examples/:MemoryLayers,CustomEvents
 
 ### Design
 

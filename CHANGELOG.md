@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.5.0] - 2026-02-03
+
+### ⚠️ BREAKING CHANGES
+
+这是一个重大重构版本，引入了全新的Agent API和统一架构。
+
+### 🌟 Agent API重构（渐进式披露）
+
+**核心理念：Progressive Disclosure**
+- **Agent.create()**: 统一的Agent创建接口，支持渐进式参数披露
+- **capabilities参数**: 声明式能力配置（reflection、planning、delegation）
+- **skills参数**: 三种形态的Skill激活（指令注入、工具编译、节点实例化）
+- 移除deprecated的LoomApp和AgentConfig
+
+### 🧠 统一内存架构
+
+**MemoryManager整合**：
+- 整合LoomMemory（L1-L4分层）和FractalMemory（作用域）
+- 实现SHARED内存作用域的双向传播（parent↔child）
+- ContextOrchestrator统一上下文构建
+
+### 🔧 Skills和Tools系统整合
+
+**三种Skill激活形态**：
+- Form 1: 指令注入（知识增强）
+- Form 2: 工具编译（能力扩展）
+- Form 3: 节点实例化（委派协作）
+
+**SandboxToolManager**：
+- 统一工具管理和沙箱隔离
+- 支持动态工具创建和注册
+
+### 🐛 Bug修复
+
+- 修复12个ruff linting错误（导入排序、未使用导入）
+- 修复SHARED内存作用域双向传播机制
+- 修复测试中的MockLLMProvider接口实现
+- 移除未使用的方法参数
+
+### 📚 文档更新
+
+- 添加v0.4.x → v0.5.0迁移指南
+- 更新API参考文档
+- 清理临时开发文档和测试记录
+
+### ✅ 测试
+
+- 1136 tests passed
+- Coverage: 81.83%
+- 所有linting检查通过
+
 ## [0.4.4] - 2026-01-28
 
 ### ✅ Context & Memory升级（会话显式化）

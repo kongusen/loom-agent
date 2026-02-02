@@ -2,7 +2,9 @@
 
 > **"Infinite Semantic Depth in Finite Cognitive Space"**
 
-Loom employs a **Fractal Architecture** to solve the problem of **Spatial Entropy** (Complexity). Inspired by the **Koch Snowflake**, the system implements a recursive composition pattern that allows for infinite task decomposition while ensuring that the cognitive load on any single node remains constant (O(1)).
+Loom employs a **Fractal Architecture** to solve the problem of **Spatial Entropy** (Complexity).
+
+**v0.5.0**: When to delegate (create child nodes) is decided by the **LLM** via tools (e.g. `delegate_task`), not by framework heuristics. The concepts below (NodeProtocol, CompositeNode, strategies, scoped memory) remain unchanged. Inspired by the **Koch Snowflake**, the system implements a recursive composition pattern that allows for infinite task decomposition while ensuring that the cognitive load on any single node remains constant (O(1)).
 
 ## The Core Concept: Recursive Composition
 

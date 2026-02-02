@@ -2,9 +2,9 @@
 
 ## Overview
 
-Loom v0.5.0 introduces **Progressive Disclosure** - a design pattern that makes simple use cases simpler while keeping advanced features accessible. This release focuses on improving the developer experience without breaking existing code.
+Loom v0.5.0 introduces **Progressive Disclosure** and **LLM Autonomy**: simple use cases use fewer parameters, while advanced features remain available via explicit injection. This release includes **breaking changes** (removed parameters and async API changes); see [What's New in v0.5.0](whats-new-v0.5.md) for the full list.
 
-**Key Principle**: Simple things should be simple, complex things should be possible.
+**Key Principles**: Simple things should be simple; complex things should be possible; the framework provides mechanism, the LLM provides policy.
 
 ## What's New in v0.5.0
 
@@ -104,20 +104,21 @@ agent = Agent.create(
 )
 ```
 
-**v0.5.0**: Use `CapabilityRegistry` for unified configuration:
+**v0.5.0**: Use `CapabilityRegistry` for unified configuration. Note: `find_relevant_capabilities` and `validate_skill_dependencies` are **async** (use `await`).
 
 ```python
 from loom.agent import Agent
 from loom.capabilities.registry import CapabilityRegistry
 from loom.tools.sandbox import Sandbox
 from loom.tools.sandbox_manager import SandboxToolManager
-from loom.skills.skill_registry import skill_market
+from loom.skills.registry import SkillRegistry  # or from loom.skills import skill_market
 from loom.skills.activator import SkillActivator
 
-# Create components
+# Create components (unified SkillRegistry: Loaders + runtime register_skill)
+skill_registry = SkillRegistry()  # or use skill_market
 sandbox = Sandbox("/path/to/sandbox")
 tool_manager = SandboxToolManager(sandbox)
-skill_activator = SkillActivator(llm, skill_registry=skill_market)
+skill_activator = SkillActivator(llm, skill_registry=skill_registry, tool_manager=tool_manager)
 
 # Bundle them in CapabilityRegistry
 capabilities = CapabilityRegistry(
@@ -140,13 +141,18 @@ agent = Agent.create(
 - Easier to share configurations across agents
 - Explicit parameters still override capabilities
 
+## Breaking Changes (Must Address)
+
+- **Agent**: Parameters `enable_tool_creation` and `enable_context_tools` are **removed**. All tools (context tools, tool creation, etc.) are always available; the LLM decides whether to use them. Remove these arguments from your `Agent.create()` / `Agent.from_llm()` calls.
+- **CapabilityRegistry**: `find_relevant_capabilities(...)` and `validate_skill_dependencies(skill_id)` are now **async**. Use `await registry.find_relevant_capabilities(...)` and `await registry.validate_skill_dependencies(skill_id)`.
+- **SkillRegistry**: There is now a **single** `SkillRegistry` in `loom.skills.registry` (and `loom.skills.skill_registry` re-exports it). Runtime-registered skills use `register_skill(...)`; Loader-based skills use `register_loader(...)` and async `get_skill` / `get_all_metadata`. If you imported the old dict-style class from `skill_registry.py`, the import still works but now points to the unified class.
+- **fractal**: `estimate_task_complexity` and `should_use_fractal` are **removed** from the public API. Delegate/fractal decisions are made by the LLM via tools (e.g. `delegate_task`), not by framework heuristics.
+
 ## Migration Steps
 
-### Step 1: Update Your Code (Optional)
+### Step 1: Update Your Code (Required for Breaking Changes)
 
-**Good news**: v0.5.0 is **100% backward compatible**. Your existing code will continue to work without any changes.
-
-However, you can simplify your code by adopting the new patterns:
+Apply the breaking changes above, then optionally adopt the new patterns below:
 
 #### Simplify EventBus Creation
 
@@ -180,13 +186,11 @@ agent = Agent.create(llm, skills=["skill1", "skill2"])
 
 ### Step 2: Test Your Application
 
-Run your existing test suite to verify everything works:
+After removing deprecated parameters and updating any `CapabilityRegistry` calls to `await`, run your test suite:
 
 ```bash
 pytest tests/
 ```
-
-All existing functionality should work exactly as before.
 
 ## Complete Examples
 

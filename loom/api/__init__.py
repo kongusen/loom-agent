@@ -44,7 +44,7 @@ from loom.protocol import (
 # Runtime
 from loom.runtime import Dispatcher, Interceptor, InterceptorChain
 
-__version__ = "0.4.6"
+__version__ = "0.5.0"
 
 __all__ = [
     # Protocol
