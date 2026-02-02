@@ -13,26 +13,30 @@ Currently, Loom emphasizes using the standard `TaskAction` Enum for type safety.
 ```python
 import asyncio
 from typing import Any
-from loom.api import LoomApp
+from loom.agent import Agent
+from loom.providers.llm import OpenAIProvider
 from loom.types.core import Task
 from loom.events.actions import TaskAction
 
-async def my_custom_logger(task: Task) -> Task:
-    """A middleware that logs every task."""
-    print(f"[AUDIT] Processing task: {task.id} - {task.action}")
-    return task
+async def my_custom_logger(event):
+    """A custom event handler that logs every task."""
+    print(f"[AUDIT] Event: {event.type} - {event.data}")
 
 async def main():
-    app = LoomApp()
-    
-    # Access the event bus via the app (or dispatcher)
-    # Note: Direct bus access might require accessing internal components depending on API exposure.
-    # Typically, you register plugins or middleware.
-    
-    # For demonstration, let's assume we can register to the internal bus:
-    if hasattr(app, 'event_bus'):
-        app.event_bus.register(TaskAction.EXECUTE, my_custom_logger)
-        print("Registered custom logger.")
+    # Create LLM provider
+    llm = OpenAIProvider(api_key="your-api-key")
+
+    # Create agent
+    agent = Agent.from_llm(
+        llm=llm,
+        node_id="custom-agent",
+        system_prompt="You are a helpful assistant.",
+    )
+
+    # Access the event bus via the agent and subscribe to events
+    agent.event_bus.subscribe("node.thinking", my_custom_logger)
+    agent.event_bus.subscribe("node.tool_call", my_custom_logger)
+    print("Registered custom logger.")
 
     # ... run your agent ...
 

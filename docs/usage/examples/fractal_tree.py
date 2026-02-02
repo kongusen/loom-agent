@@ -7,7 +7,7 @@ We will create a 'Research Team' composed of a 'Supervisor', a 'Researcher', and
 
 import asyncio
 
-from loom.api import AgentConfig, LoomApp
+from loom.agent import Agent
 from loom.fractal.composite import CompositeNode
 from loom.fractal.strategies import ParallelStrategy
 from loom.providers.llm import OpenAIProvider
@@ -15,22 +15,20 @@ from loom.types.core import Task
 
 
 async def main():
-    # 1. Setup App
-    app = LoomApp()
+    # 1. Setup LLM Provider
     llm = OpenAIProvider(api_key="sk-mock", model="gpt-4")  # Use mock key for example
-    app.set_llm_provider(llm)
 
     # 2. Create Leaf Agents
-    researcher = app.create_agent(
-        AgentConfig(agent_id="researcher", name="Researcher", system_prompt="You find facts.")
+    researcher = Agent.from_llm(
+        llm=llm,
+        node_id="researcher",
+        system_prompt="You find facts.",
     )
 
-    writer = app.create_agent(
-        AgentConfig(
-            agent_id="writer",
-            name="Writer",
-            system_prompt="You write reports based on facts.",
-        )
+    writer = Agent.from_llm(
+        llm=llm,
+        node_id="writer",
+        system_prompt="You write reports based on facts.",
     )
 
     # 3. Create a Composite Node (The Team)

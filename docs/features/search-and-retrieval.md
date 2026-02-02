@@ -192,35 +192,38 @@ class PineconeVectorStore(VectorStoreProvider):
 ## Configuration Example
 
 ```python
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
+from loom.providers.llm import OpenAIProvider
 from loom.config.memory import MemoryConfig
 from loom.providers.embedding.openai import OpenAIEmbeddingProvider
 from loom.memory.vector_store import InMemoryVectorStore
 
-# 1. Create embedding provider
+# 1. Create LLM provider
+llm = OpenAIProvider(api_key="your-api-key")
+
+# 2. Create embedding provider
 embedding_provider = OpenAIEmbeddingProvider(
     api_key="your-api-key",
     model="text-embedding-3-small"
 )
 
-# 2. Create vector store
+# 3. Create vector store
 vector_store = InMemoryVectorStore()
 
-# 3. Configure memory with search enabled
+# 4. Configure memory with search enabled
 memory_config = MemoryConfig(
     embedding_provider=embedding_provider,
     vector_store=vector_store,
     enable_l4_vector_search=True
 )
 
-# 4. Create agent
-agent_config = AgentConfig(
-    name="search_agent",
-    memory=memory_config
+# 5. Create agent
+agent = Agent.from_llm(
+    llm=llm,
+    node_id="search_agent",
+    system_prompt="You are a helpful assistant with search capabilities",
+    memory_config=memory_config
 )
-
-app = LoomApp()
-agent = app.create_agent(agent_config)
 ```
 
 ## Best Practices

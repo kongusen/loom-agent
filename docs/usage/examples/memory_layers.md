@@ -4,18 +4,15 @@ This example demonstrates how to configure the Loom memory system with specific 
 
 ```python
 import asyncio
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.config.memory import MemoryConfig, MemoryLayerConfig
 from loom.providers.llm import OpenAIProvider
 from loom.memory.vector_store import InMemoryVectorStore
 
 async def main():
-    app = LoomApp()
-    
-    # 1. Setup providers
+    # 1. Setup LLM provider
     llm = OpenAIProvider(api_key="sk-mock", model="gpt-4")
-    app.set_llm_provider(llm)
-    
+
     # 2. Define Memory Configuration
     # L1: Very short term (1 hour), highly active (auto-included)
     # L4: Permanent knowledge, large capacity
@@ -41,12 +38,12 @@ async def main():
     )
 
     # 3. Create Agent with Memory
-    agent = app.create_agent(AgentConfig(
-        agent_id="memory-agent",
-        name="Librarian",
+    agent = Agent.from_llm(
+        llm=llm,
+        node_id="memory-agent",
         system_prompt="You maintain a vast archive of knowledge.",
-        memory=memory_config
-    ))
+        memory_config=memory_config
+    )
 
     print(f"Agent {agent.node_id} created with 4-layer memory.")
 
