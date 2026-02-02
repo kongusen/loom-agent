@@ -164,25 +164,18 @@ pip install loom-agent
 Loom provides a minimal declarative API:
 
 ```python
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 
-# 1. Initialize App
-app = LoomApp()
-
-# 2. Configure Model Service
+# 1. Configure Model Service
 llm = OpenAIProvider(api_key="your-api-key")
-app.set_llm_provider(llm)
 
-# 3. Define Agent
-config = AgentConfig(
-    agent_id="assistant",
-    name="Smart Assistant",
+# 2. Create Agent
+agent = Agent.from_llm(
+    llm=llm,
+    node_id="assistant",
     system_prompt="You are a professional, rigorous AI assistant.",
-    capabilities=["tool_use", "reflection"],
 )
-
-agent = app.create_agent(config)
 print(f"Agent Ready: {agent.node_id}")
 ```
 
