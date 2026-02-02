@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from loom.agent.base import BaseNode
+from loom.events.event_bus import EventBus
 from loom.exceptions import TaskComplete
 from loom.fractal.budget import BudgetTracker
 from loom.memory.manager import MemoryManager
@@ -64,7 +65,7 @@ class AgentBuilder:
     提供类似llama-index的流畅API风格。
 
     Examples:
-        >>> agent = (Agent.create(llm)
+        >>> agent = (Agent.builder(llm)
         ...     .with_system_prompt("你是一个AI助手")
         ...     .with_tools([...])
         ...     .with_memory(max_tokens=4000)
@@ -119,15 +120,10 @@ class AgentBuilder:
         self.config["require_done_tool"] = require
         return self
 
-    def with_tool_creation(self, enable: bool = True) -> "AgentBuilder":
-        """设置是否启用工具创建能力"""
-        self.config["enable_tool_creation"] = enable
-        return self
-
     def build(self) -> "Agent":
         """构建Agent实例"""
         # Agent类在同一文件中，直接引用
-        return Agent.from_llm(self.llm, **self.config)
+        return Agent.create(self.llm, **self.config)
 
 
 class Agent(BaseNode):
@@ -156,8 +152,6 @@ class Agent(BaseNode):
         max_context_tokens: int = 4000,
         max_iterations: int = 10,
         require_done_tool: bool = True,
-        enable_context_tools: bool = True,  # 是否启用上下文查询工具
-        enable_tool_creation: bool = True,  # 是否启用工具创建能力
         budget_tracker: BudgetTracker | None = None,  # 递归预算跟踪器
         recursive_depth: int = 0,  # 当前递归深度
         config: Any | None = None,  # AgentConfig（Phase 3: 12.5.2）
@@ -188,8 +182,6 @@ class Agent(BaseNode):
             max_context_tokens: 最大上下文token数
             max_iterations: 最大迭代次数
             require_done_tool: 是否要求显式调用done工具完成任务
-            enable_context_tools: 是否启用上下文查询工具（默认True）
-            enable_tool_creation: 是否启用工具创建能力（默认True）
             budget_tracker: 递归预算跟踪器（可选，用于控制递归深度和资源）
             recursive_depth: 当前递归深度（内部使用）
             skill_registry: Skill注册表（可选，用于加载Skills）
@@ -221,8 +213,6 @@ class Agent(BaseNode):
         self.available_agents = available_agents or {}
         self.max_iterations = max_iterations
         self.require_done_tool = require_done_tool
-        self.enable_context_tools = enable_context_tools
-        self.enable_tool_creation = enable_tool_creation
 
         # === Phase 3: 配置体系（12.5.2）===
         from loom.config.agent import AgentConfig
@@ -245,6 +235,7 @@ class Agent(BaseNode):
             self.skill_activator = SkillActivator(
                 llm_provider=llm_provider,
                 tool_registry=tool_registry,
+                tool_manager=sandbox_manager,
             )
         else:
             from typing import cast
@@ -270,16 +261,13 @@ class Agent(BaseNode):
             node_id=node_id, parent=parent_memory, event_bus=event_bus, **(memory_config or {})
         )
 
-        # 创建上下文工具执行器（如果启用）
+        # 上下文工具执行器（始终创建，LLM 自主决定是否使用）
         self._context_tool_executor: ContextToolExecutor | None = None
-        if self.enable_context_tools and event_bus:
-            self._context_tool_executor = ContextToolExecutor(self.memory, event_bus)  # type: ignore[arg-type]
+        if event_bus:
+            self._context_tool_executor = ContextToolExecutor(self.memory)  # type: ignore[arg-type]
 
-        # 创建动态工具执行器（如果启用）
-        self._dynamic_tool_executor: DynamicToolExecutor | None = None
-        if self.enable_tool_creation:
-            # 传递 sandbox_manager，使动态创建的工具自动继承父沙盒
-            self._dynamic_tool_executor = DynamicToolExecutor(sandbox_manager=self.sandbox_manager)
+        # 动态工具执行器（始终创建，LLM 自主决定是否使用）
+        self._dynamic_tool_executor = DynamicToolExecutor(sandbox_manager=self.sandbox_manager)
 
         # 创建 ContextOrchestrator（统一的上下文编排器）
         from loom.memory.task_context import ContextSource
@@ -337,9 +325,10 @@ class Agent(BaseNode):
         # 我们提供 get_node_type() 方法来获取枚举值
 
     @classmethod
-    def from_llm(
+    def create(
         cls,
         llm: LLMProvider,
+        *,
         system_prompt: str = "",
         tools: list[dict[str, Any]] | None = None,
         node_id: str | None = None,
@@ -350,35 +339,41 @@ class Agent(BaseNode):
         **kwargs,
     ) -> "Agent":
         """
-        便捷创建方法 - 类似llama-index风格的简洁API
-
-        这是创建Agent的推荐方式，提供简洁直观的接口。
+        创建 Agent 的推荐方式（一步到位）。
 
         Args:
-            llm: LLM提供者
+            llm: LLM 提供者
             system_prompt: 系统提示词
             tools: 工具列表
-            node_id: 节点ID（可选，默认自动生成）
-            event_bus: 事件总线（可选）
+            node_id: 节点 ID（可选，默认自动生成）
+            event_bus: 事件总线（可选，未传入时自动创建）
             knowledge_base: 知识库提供者（可选）
-            max_context_tokens: 最大上下文token数
+            max_context_tokens: 最大上下文 token 数
             max_iterations: 最大迭代次数
-            **kwargs: 其他参数传递给__init__
+            **kwargs: 其他参数传递给 __init__
 
         Returns:
-            Agent实例
+            Agent 实例
 
         Examples:
             >>> from loom.agent import Agent
             >>> from loom.providers.llm.openai import OpenAIProvider
             >>>
             >>> llm = OpenAIProvider(api_key="...")
-            >>> agent = Agent.from_llm(
-            ...     llm=llm,
+            >>> agent = Agent.create(
+            ...     llm,
             ...     system_prompt="你是一个AI助手",
             ...     tools=[...],
             ... )
+
+        Note:
+            若未传入 event_bus，框架会自动创建 EventBus 实例。
+            多 Agent 需共享 EventBus 时，请显式传入同一 EventBus 实例。
         """
+        # Phase 3 Task 1: 未传 event_bus 时自动创建
+        if event_bus is None:
+            event_bus = EventBus()
+
         return cls(
             node_id=node_id or str(uuid4()),
             llm_provider=llm,
@@ -392,23 +387,26 @@ class Agent(BaseNode):
         )
 
     @classmethod
-    def create(cls, llm: LLMProvider) -> "AgentBuilder":
+    def builder(cls, llm: LLMProvider) -> "AgentBuilder":
         """
-        创建AgentBuilder - 支持流畅的链式调用
+        返回 AgentBuilder，支持链式配置后 .build() 得到 Agent。
 
         Args:
-            llm: LLM提供者
+            llm: LLM 提供者
 
         Returns:
-            AgentBuilder实例
+            AgentBuilder 实例
 
         Examples:
-            >>> agent = (Agent.create(llm)
+            >>> agent = (Agent.builder(llm)
             ...     .with_system_prompt("你是一个AI助手")
             ...     .with_tools([...])
             ...     .build())
         """
         return AgentBuilder(llm)
+
+    # 兼容旧命名：一步创建
+    from_llm = create
 
     async def run(self, content: str, **kwargs) -> str:
         """
@@ -792,7 +790,23 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                         )
                         tool_names_seen.add(tool_name)
 
-        # 4. 过滤禁用的工具
+        # 4. 沙盒工具（sandbox_manager，含已激活 Skills 绑定的工具）
+        if self.sandbox_manager:
+            for mcp_def in self.sandbox_manager.list_tools():
+                if mcp_def.name not in tool_names_seen:
+                    tool_names_seen.add(mcp_def.name)
+                    available.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": mcp_def.name,
+                                "description": mcp_def.description,
+                                "parameters": mcp_def.input_schema,
+                            },
+                        }
+                    )
+
+        # 过滤禁用的工具
         if self.config.disabled_tools:
             available = [
                 tool
@@ -879,17 +893,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 }
             )
 
-        # 添加上下文查询工具（如果启用）
-        if self.enable_context_tools and self._context_tool_executor:
+        # 添加上下文查询工具（始终提供，LLM 自主决定是否使用）
+        if self._context_tool_executor:
             tools.extend(create_all_context_tools())
 
-        # 添加工具创建元工具（如果启用）
-        if self.enable_tool_creation and self._dynamic_tool_executor:
-            tools.append(create_tool_creation_tool())
-            # 添加已创建的动态工具
-            tools.extend(self._dynamic_tool_executor.get_tool_definitions())
-
-        # 注意：沙盒工具已经在 _get_available_tools() 中处理，不需要重复添加
+        # 添加工具创建元工具（始终提供，LLM 自主决定是否使用）
+        tools.append(create_tool_creation_tool())
+        tools.extend(self._dynamic_tool_executor.get_tool_definitions())
 
         return tools
 
