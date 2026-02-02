@@ -8,41 +8,36 @@
 
 ```python
 import asyncio
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 from loom.fractal import CompositeNode
 from loom.fractal.strategies import SequentialStrategy
 from loom.protocol import Task
 
 async def main():
-    # 初始化应用
-    app = LoomApp()
+    # 配置 LLM
     llm = OpenAIProvider(api_key="your-api-key")
-    app.set_llm_provider(llm)
 
     # 创建研究员
-    researcher = AgentConfig(
-        agent_id="researcher",
-        name="研究员",
+    researcher_agent = Agent.from_llm(
+        llm=llm,
+        node_id="researcher",
         system_prompt="你是专业的研究员，擅长收集和分析信息。",
     )
-    researcher_agent = app.create_agent(researcher)
 
     # 创建撰稿人
-    writer = AgentConfig(
-        agent_id="writer",
-        name="撰稿人",
+    writer_agent = Agent.from_llm(
+        llm=llm,
+        node_id="writer",
         system_prompt="你是专业的撰稿人，擅长将研究结果写成文章。",
     )
-    writer_agent = app.create_agent(writer)
 
     # 创建编辑
-    editor = AgentConfig(
-        agent_id="editor",
-        name="编辑",
+    editor_agent = Agent.from_llm(
+        llm=llm,
+        node_id="editor",
         system_prompt="你是专业的编辑，负责校对和润色文章。",
     )
-    editor_agent = app.create_agent(editor)
 
     # 组合成研究小组（顺序执行）
     research_team = CompositeNode(

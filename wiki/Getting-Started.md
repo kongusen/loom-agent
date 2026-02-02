@@ -21,18 +21,16 @@ Loom 是一个基于公理系统的 AI Agent 框架：
 ### 1. 创建 Agent
 
 ```python
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 
-app = LoomApp()
 llm = OpenAIProvider(api_key="your-api-key")
-app.set_llm_provider(llm)
 
-agent = app.create_agent(AgentConfig(
-    agent_id="assistant",
-    name="助手",
+agent = Agent.from_llm(
+    llm=llm,
+    node_id="assistant",
     system_prompt="你是一个友好的助手。"
-))
+)
 ```
 
 ### 2. 执行任务
