@@ -14,9 +14,8 @@ Loom Framework - 统一对外API
 """
 
 # A1: 统一接口公理
-# FastAPI-style API - LoomApp (类型安全、Pydantic 验证)
-from loom.api.app import LoomApp
-from loom.api.models import AgentConfig
+# 注意: LoomApp 和 AgentConfig 已在 v0.4.7 废弃，将在 v0.5.0 移除
+# 请使用 Agent.from_llm() 或 Agent.create() 替代
 
 # A2: 事件主权公理
 from loom.events import EventBus, SSEFormatter
@@ -75,7 +74,4 @@ __all__ = [
     "Dispatcher",
     "Interceptor",
     "InterceptorChain",
-    # API - FastAPI-style
-    "LoomApp",
-    "AgentConfig",
 ]
