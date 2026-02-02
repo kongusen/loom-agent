@@ -67,3 +67,55 @@ class TestAgentCreateEventBus:
         assert agent1.event_bus is shared_bus
         assert agent2.event_bus is shared_bus
         assert agent1.event_bus is agent2.event_bus
+
+
+class TestAgentCreateSkills:
+    """测试 Agent.create() 支持 skills 参数（Phase 3 Task 2）"""
+
+    def test_create_with_skills_parameter(self, mock_llm):
+        """测试传入 skills 参数时自动配置"""
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            skills=["python-dev", "testing"],
+        )
+
+        # 应该设置 config.enabled_skills
+        assert agent.config.enabled_skills == {"python-dev", "testing"}
+
+        # 应该自动设置 skill_registry
+        assert agent.skill_registry is not None
+
+    def test_create_without_skills_parameter(self, mock_llm):
+        """测试不传 skills 参数时保持现有行为"""
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+        )
+
+        # config.enabled_skills 应该为空或默认值
+        assert agent.config.enabled_skills == set()
+
+    def test_create_with_empty_skills_list(self, mock_llm):
+        """测试传入空 skills 列表"""
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            skills=[],
+        )
+
+        # 应该设置为空集合
+        assert agent.config.enabled_skills == set()
+
+    def test_create_with_skills_uses_skill_market(self, mock_llm):
+        """测试 skills 参数使用全局 skill_market"""
+        from loom.skills.skill_registry import skill_market
+
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            skills=["test-skill"],
+        )
+
+        # 应该使用全局 skill_market 作为 skill_registry
+        assert agent.skill_registry is skill_market

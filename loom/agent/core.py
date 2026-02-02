@@ -39,6 +39,7 @@ from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import TiktokenCounter
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
+from loom.skills.skill_registry import skill_market
 from loom.tools.context_tools import ContextToolExecutor, create_all_context_tools
 from loom.tools.done_tool import create_done_tool, execute_done_tool
 from loom.tools.tool_creation import (
@@ -331,6 +332,7 @@ class Agent(BaseNode):
         *,
         system_prompt: str = "",
         tools: list[dict[str, Any]] | None = None,
+        skills: list[str] | None = None,
         node_id: str | None = None,
         event_bus: Any | None = None,
         knowledge_base: Any | None = None,
@@ -345,6 +347,7 @@ class Agent(BaseNode):
             llm: LLM 提供者
             system_prompt: 系统提示词
             tools: 工具列表
+            skills: 技能 ID 列表（可选，简单配置）
             node_id: 节点 ID（可选，默认自动生成）
             event_bus: 事件总线（可选，未传入时自动创建）
             knowledge_base: 知识库提供者（可选）
@@ -364,15 +367,33 @@ class Agent(BaseNode):
             ...     llm,
             ...     system_prompt="你是一个AI助手",
             ...     tools=[...],
+            ...     skills=["python-dev", "testing"],
             ... )
 
         Note:
             若未传入 event_bus，框架会自动创建 EventBus 实例。
             多 Agent 需共享 EventBus 时，请显式传入同一 EventBus 实例。
+
+            若传入 skills 参数，框架会使用全局 skill_market 作为 skill_registry，
+            并将 skills 设置为 config.enabled_skills。
         """
         # Phase 3 Task 1: 未传 event_bus 时自动创建
         if event_bus is None:
             event_bus = EventBus()
+
+        # Phase 3 Task 2: 处理 skills 参数（简单配置）
+        if skills is not None:
+            # 使用全局 skill_market 作为 skill_registry
+            if "skill_registry" not in kwargs:
+                kwargs["skill_registry"] = skill_market
+
+            # 设置 config.enabled_skills
+            if "config" not in kwargs:
+                from loom.config.agent import AgentConfig
+                kwargs["config"] = AgentConfig(enabled_skills=set(skills))
+            else:
+                # 如果已有 config，更新其 enabled_skills
+                kwargs["config"].enabled_skills = set(skills)
 
         return cls(
             node_id=node_id or str(uuid4()),
