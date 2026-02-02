@@ -195,3 +195,25 @@ class TestDynamicToolList:
         assert sandbox_tool_1_def is not None
         assert sandbox_tool_1_def["type"] == "function"
         assert sandbox_tool_1_def["function"]["description"] == "沙盒工具 1"
+
+    def test_get_available_tools_with_both_managers(
+        self, mock_llm, tool_registry, sandbox_manager
+    ):
+        """测试同时提供 sandbox_manager 和 tool_registry 时的工具合并（P2 验证）"""
+        # 同时提供 sandbox_manager 和 tool_registry
+        agent = Agent(
+            node_id="test-agent",
+            llm_provider=mock_llm,
+            tool_registry=tool_registry,
+            sandbox_manager=sandbox_manager,
+        )
+
+        available = agent._get_available_tools()
+        tool_names = [t.get("function", {}).get("name") for t in available]
+
+        # 应该包含来自 sandbox_manager 的工具
+        assert "sandbox_tool_1" in tool_names
+        assert "sandbox_tool_2" in tool_names
+
+        # 验证工具不重复（去重逻辑）
+        assert len(tool_names) == len(set(tool_names))
