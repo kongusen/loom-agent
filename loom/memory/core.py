@@ -155,25 +155,15 @@ class LoomMemory:
     def _ensure_importance(self, task: "Task") -> None:
         """为任务设置默认重要性（若未显式提供）"""
         if "importance" not in task.metadata:
-            task.metadata["importance"] = self._infer_importance(task)
+            task.metadata["importance"] = self._infer_importance()
 
-    def _infer_importance(self, task: "Task") -> float:
-        """基于动作类型的轻量默认重要性估计"""
-        action = task.action
-        if action == "node.error":
-            return 0.9
-        if action == "node.planning":
-            return 0.8
-        if action == "node.tool_result":
-            return 0.75
-        if action == "node.tool_call":
-            return 0.7
-        if action == "execute":
-            return 0.65
-        if action == "node.complete":
-            return 0.6
-        if action == "node.thinking":
-            return 0.55
+    def _infer_importance(self) -> float:
+        """
+        返回统一的默认重要性值
+
+        Phase 5: 移除硬编码的重要性判断规则。
+        框架提供机制（importance 字段），LLM 提供策略（通过 metadata 显式设置）。
+        """
         return 0.5
 
     def _add_to_l1(self, task: "Task") -> None:
@@ -665,6 +655,38 @@ class LoomMemory:
             Task对象，如果不存在则返回None
         """
         return self._task_index.get(task_id)
+
+    def get_call_chain(self, task_id: str) -> list["Task"]:
+        """
+        获取任务调用链（从根任务到当前任务）
+
+        通过递归查询 parent_task_id 构建完整的调用链。
+        用于调试和追踪任务执行路径。
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            任务列表，从根任务到当前任务的完整路径
+            如果任务不存在，返回空列表
+
+        Example:
+            >>> chain = memory.get_call_chain("task-3")
+            >>> # 返回: [root_task, parent_task, current_task]
+        """
+        chain = []
+        current = self.get_task(task_id)
+
+        # 递归查询父任务
+        while current:
+            chain.append(current)
+            if current.parent_task_id:
+                current = self.get_task(current.parent_task_id)
+            else:
+                break
+
+        # 反转列表，使其从根任务到当前任务
+        return list(reversed(chain))
 
     def get_stats(self) -> dict[str, Any]:
         """

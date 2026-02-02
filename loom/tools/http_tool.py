@@ -15,12 +15,21 @@ HTTP Tool - HTTP 请求工具
 import json
 from typing import Any
 
+from loom.protocol.mcp import MCPToolDefinition
+
 try:
     import httpx
 
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
+
+# Optional import for SandboxToolManager
+try:
+    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+except ImportError:
+    SandboxToolManager = None  # type: ignore
+    ToolScope = None  # type: ignore
 
 
 class HTTPTool:
@@ -160,3 +169,62 @@ def create_http_tool(timeout: float = 30.0) -> dict:
         },
         "_executor": tool.request,
     }
+
+
+async def register_http_tool_to_manager(
+    manager: "SandboxToolManager",
+    timeout: float = 30.0,
+) -> None:
+    """
+    注册 HTTP 工具到沙盒工具管理器
+
+    HTTP 是系统级工具，不受文件系统沙盒约束，可以访问任何 URL。
+
+    Args:
+        manager: 沙盒工具管理器实例
+        timeout: 请求超时时间（秒）
+
+    Example:
+        manager = SandboxToolManager(sandbox)
+        await register_http_tool_to_manager(manager)
+        # 工具已注册，可以通过 manager.execute_tool() 调用
+    """
+    if SandboxToolManager is None or ToolScope is None:
+        raise ImportError("SandboxToolManager is not available")
+
+    tool = HTTPTool(timeout)
+
+    # 注册 http_request 工具（SYSTEM 作用域 - 不受文件系统沙盒约束）
+    http_definition = MCPToolDefinition(
+        name="http_request",
+        description=f"Send HTTP requests to external APIs or websites. "
+        f"Supports GET, POST, PUT, DELETE methods. Timeout: {timeout}s.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The URL to send the request to",
+                },
+                "method": {
+                    "type": "string",
+                    "description": "HTTP method (default: GET)",
+                },
+                "headers": {
+                    "type": "object",
+                    "description": "Request headers (optional)",
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Request body (optional, JSON string or text)",
+                },
+            },
+            "required": ["url"],
+        },
+    )
+    await manager.register_tool(
+        "http_request",
+        tool.request,
+        http_definition,
+        ToolScope.SYSTEM,  # HTTP 是系统级操作，不受文件系统沙盒约束
+    )

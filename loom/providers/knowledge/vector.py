@@ -6,8 +6,8 @@
 
 from typing import Any
 
-from loom.config.knowledge import KnowledgeBaseProvider, KnowledgeItem
 from loom.memory.vector_store import EmbeddingProvider, VectorStoreProvider
+from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 
 
 class VectorKnowledgeBase(KnowledgeBaseProvider):

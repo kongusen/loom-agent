@@ -19,15 +19,15 @@ Task-based Context Management
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from loom.memory.tokenizer import TokenCounter
 from loom.protocol import Task
 
 if TYPE_CHECKING:
-    from loom.config.knowledge import KnowledgeBaseProvider
-    from loom.fractal.memory import FractalMemory, MemoryScope
+    from loom.fractal.memory import MemoryScope
     from loom.memory.core import LoomMemory
+    from loom.memory.manager import MemoryManager
 
 
 # ==================== 上下文预算分配器 ====================
@@ -532,22 +532,22 @@ class MemoryContextSource(ContextSource):
         return context_tasks[:max_items]
 
 
-class FractalMemoryContextSource(ContextSource):
+class MemoryScopeContextSource(ContextSource):
     """
-    从 FractalMemory 获取跨节点共享上下文
+    从作用域记忆（MemoryManager）获取跨节点共享上下文
 
     读取 INHERITED / SHARED / GLOBAL 作用域，注入为系统消息。
     """
 
     def __init__(
         self,
-        fractal_memory: "FractalMemory",
+        memory: "MemoryManager",
         scopes: list["MemoryScope"] | None = None,
         max_items: int = 6,
         include_additional: bool = True,
         max_additional: int = 4,
     ):
-        self.fractal_memory = fractal_memory
+        self.memory = memory
         self.scopes = scopes or []
         self.max_items = max_items
         self.include_additional = include_additional
@@ -570,7 +570,7 @@ class FractalMemoryContextSource(ContextSource):
         root_content = ""
         if root_context_id:
             entries.append(("ROOT GOAL", root_context_id))
-            root_entry = await self.fractal_memory.read(root_context_id)
+            root_entry = await self.memory.read(root_context_id)
             if root_entry and root_entry.content:
                 root_content = str(root_entry.content)
 
@@ -578,7 +578,7 @@ class FractalMemoryContextSource(ContextSource):
         parent_content = ""
         if parent_task_id:
             entries.append(("PARENT TASK", f"task:{parent_task_id}:content"))
-            parent_entry = await self.fractal_memory.read(f"task:{parent_task_id}:content")
+            parent_entry = await self.memory.read(f"task:{parent_task_id}:content")
             if parent_entry and parent_entry.content:
                 parent_content = str(parent_entry.content)
 
@@ -588,7 +588,7 @@ class FractalMemoryContextSource(ContextSource):
         async def _append_entry(label: str, entry_id: str) -> None:
             if entry_id in seen_ids:
                 return
-            entry = await self.fractal_memory.read(entry_id)
+            entry = await self.memory.read(entry_id)
             if not entry:
                 return
             content = entry.content
@@ -633,7 +633,7 @@ class FractalMemoryContextSource(ContextSource):
             candidates: list[tuple[float, Any]] = []
 
             for scope in self.scopes:
-                scope_entries = await self.fractal_memory.list_by_scope(scope)
+                scope_entries = await self.memory.list_by_scope(scope)
                 for entry in scope_entries:
                     if entry.id in seen_ids:
                         continue
@@ -725,159 +725,3 @@ class FractalMemoryContextSource(ContextSource):
 
 
 # ==================== 核心管理器 ====================
-
-
-class TaskContextManager:
-    """
-    基于 Task 的上下文管理器
-
-    整合 LoomMemory 和 EventBus，提供智能的上下文构建。
-    """
-
-    def __init__(
-        self,
-        token_counter: TokenCounter,
-        sources: list[ContextSource],
-        converter: MessageConverter | None = None,
-        max_tokens: int = 4000,
-        system_prompt: str = "",
-        knowledge_base: "KnowledgeBaseProvider | None" = None,
-        node_id: str | None = None,
-        budgeter: ContextBudgeter | None = None,
-        budget_config: BudgetConfig | dict[str, float | int] | None = None,
-    ):
-        """初始化上下文管理器"""
-        self.token_counter = token_counter
-        self.sources = sources
-        self.converter = converter or MessageConverter()
-        self.max_tokens = max_tokens
-        self.system_prompt = system_prompt
-        self.knowledge_base = knowledge_base
-        self.node_id = node_id
-        if budgeter:
-            self.budgeter = budgeter
-        else:
-            config = budget_config
-            if isinstance(config, dict):
-                config = BudgetConfig(**cast(dict[str, Any], config))
-            self.budgeter = ContextBudgeter(token_counter, max_tokens=max_tokens, config=config)
-
-    async def build_context(
-        self,
-        current_task: Task,
-    ) -> list[dict[str, str]]:
-        """
-        构建 LLM 上下文（简化版 - 只从 Memory 获取）
-
-        基于 A4 公理（记忆层次公理）：
-        - 只从 Memory 的 L1/L2 获取数据
-        - 按 session_id 过滤
-        - 转换为 LLM 消息
-        - Token 预算控制
-
-        Args:
-            current_task: 当前正在处理的任务
-
-        Returns:
-            OpenAI 格式的消息列表
-        """
-        # 1. 计算预算分配
-        system_tokens = (
-            self.token_counter.count_messages([{"role": "system", "content": self.system_prompt}])
-            if self.system_prompt
-            else 0
-        )
-        self.budgeter.allocate_budget(system_prompt_tokens=system_tokens)
-
-        # 2. 从 Memory 获取上下文（只查询 Memory，不查询 EventBus）
-        context_tasks: list[Task] = []
-        for source in self.sources:
-            tasks = await source.get_context(current_task, max_items=20)
-            context_tasks.extend(tasks)
-
-        # 3. 按 session_id 过滤
-        if current_task.session_id:
-            context_tasks = [t for t in context_tasks if t.session_id == current_task.session_id]
-
-        # 4. 去重
-        seen_ids = set()
-        unique_tasks = []
-        for task in context_tasks:
-            if task.task_id not in seen_ids:
-                unique_tasks.append(task)
-                seen_ids.add(task.task_id)
-
-        # 5. 转换为 LLM 消息
-        context_messages = self.converter.convert_tasks_to_messages(unique_tasks)
-
-        # 6. 外部知识库查询（可选）
-        knowledge_messages: list[dict[str, str]] = []
-        if self.knowledge_base:
-            query = current_task.action
-            knowledge_items = await self.knowledge_base.query(query, limit=3)
-            for item in knowledge_items:
-                knowledge_messages.append(
-                    {
-                        "role": "system",
-                        "content": f"📚 Knowledge: {item.content}\n(Source: {item.source})",
-                    }
-                )
-
-        # 7. 添加当前任务
-        current_task_messages = self.converter.convert_tasks_to_messages([current_task])
-
-        # 8. 合并消息
-        final_messages: list[dict[str, str]] = []
-        if self.system_prompt:
-            final_messages.append({"role": "system", "content": self.system_prompt})
-
-        final_messages.extend(context_messages)
-        final_messages.extend(knowledge_messages)
-        final_messages.extend(current_task_messages)
-
-        # 9. Token 限制处理
-        return self._fit_to_token_limit(final_messages)
-
-    def _fit_to_token_limit(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
-        """
-        确保消息列表不超过 token 限制
-
-        策略：
-        1. 始终保留所有开头的 System Messages
-        2. 始终保留最后 N 条消息 (Recent)
-        3. 如果超出，丢弃中间的消息
-        """
-        current_tokens = self.token_counter.count_messages(messages)
-        if current_tokens <= self.max_tokens:
-            return messages
-
-        # 分离开头的 System 消息
-        system_messages: list[dict[str, str]] = []
-        idx = 0
-        while idx < len(messages) and messages[idx].get("role") == "system":
-            system_messages.append(messages[idx])
-            idx += 1
-        other_messages = messages[idx:]
-
-        # 计算 System token
-        system_tokens = self.token_counter.count_messages(system_messages) if system_messages else 0
-        available_tokens = self.max_tokens - system_tokens
-
-        if available_tokens <= 0:
-            # 极端情况：系统提示词都放不下，只返回 System Message
-            return system_messages if system_messages else []
-
-        # 从后往前添加，直到填满
-        kept_messages: list[dict[str, str]] = []
-        current_count = 0
-
-        for msg in reversed(other_messages):
-            msg_tokens = self.token_counter.count_messages([msg])
-            if current_count + msg_tokens > available_tokens:
-                break
-            kept_messages.insert(0, msg)
-            current_count += msg_tokens
-
-        if system_messages:
-            return system_messages + kept_messages
-        return kept_messages

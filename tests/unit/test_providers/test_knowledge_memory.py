@@ -6,7 +6,7 @@ In-Memory Knowledge Base Unit Tests
 
 import pytest
 
-from loom.config.knowledge import KnowledgeItem
+from loom.providers.knowledge.base import KnowledgeItem
 from loom.providers.knowledge.memory import InMemoryKnowledgeBase
 
 

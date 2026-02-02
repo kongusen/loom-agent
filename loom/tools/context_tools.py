@@ -718,16 +718,14 @@ class ContextToolExecutor:
     Phase 3: Only executes Memory query tools, not EventBus query tools
     """
 
-    def __init__(self, memory: "LoomMemory", event_bus: "EventBus | None" = None):
+    def __init__(self, memory: "LoomMemory"):
         """
         初始化执行器
 
         Args:
             memory: LoomMemory实例
-            event_bus: EventBus实例（保留参数以保持向后兼容，但不再使用）
         """
         self.memory = memory
-        self.event_bus = event_bus  # Kept for backward compatibility, but not used
 
         # 工具名称到执行函数的映射（Phase 3: Only Memory tools）
         self._executors = {

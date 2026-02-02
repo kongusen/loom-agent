@@ -13,7 +13,7 @@
 
 [English](README_EN.md) | **中文**
 
-[宣言](MANIFESTO.md) | [文档](docs/README.md) | [快速开始](docs/usage/getting-started.md)
+[宣言](MANIFESTO.md) | [文档](docs/README.md) | [快速开始](docs/usage/getting-started.md) | [v0.5迁移指南](docs/usage/migration-v0.5.md)
 
 </div>
 
@@ -158,25 +158,19 @@ pip install loom-agent
 ```
 
 ```python
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 
-# 1. 初始化应用
-app = LoomApp()
-
-# 2. 配置模型服务
+# 1. 配置模型服务
 llm = OpenAIProvider(api_key="your-api-key")
-app.set_llm_provider(llm)
 
-# 3. 定义 Agent
-config = AgentConfig(
-    agent_id="architect",
-    name="长时程协调器",
+# 2. 创建 Agent
+agent = Agent.create(
+    llm,
+    node_id="architect",
     system_prompt="你是一个专注于长期任务执行的 AI 架构师。",
-    capabilities=["tool_use", "reflection"],
 )
 
-agent = app.create_agent(config)
 print(f"Agent 已就绪: {agent.node_id}")
 ```
 

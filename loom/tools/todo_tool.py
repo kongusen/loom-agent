@@ -14,7 +14,15 @@ Todo Tool - 任务管理工具
 import json
 from typing import Any
 
+from loom.protocol.mcp import MCPToolDefinition
 from loom.tools.sandbox import Sandbox
+
+# Optional import for SandboxToolManager
+try:
+    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+except ImportError:
+    SandboxToolManager = None  # type: ignore
+    ToolScope = None  # type: ignore
 
 
 class TodoTool:
@@ -171,3 +179,67 @@ def create_todo_tool(sandbox: Sandbox) -> dict:
         },
         "_executor": tool.write_todos,
     }
+
+
+async def register_todo_tool_to_manager(
+    manager: "SandboxToolManager",
+) -> None:
+    """
+    注册 Todo 工具到沙盒工具管理器
+
+    这是新的推荐方式，通过 SandboxToolManager 管理所有工具。
+
+    Args:
+        manager: 沙盒工具管理器实例
+
+    Example:
+        manager = SandboxToolManager(sandbox)
+        await register_todo_tool_to_manager(manager)
+        # 工具已注册，可以通过 manager.execute_tool() 调用
+    """
+    if SandboxToolManager is None or ToolScope is None:
+        raise ImportError("SandboxToolManager is not available")
+
+    tool = TodoTool(manager.sandbox)
+
+    # 注册 todo_write 工具
+    todo_definition = MCPToolDefinition(
+        name="todo_write",
+        description=f"Manage task list in the sandbox ({manager.sandbox.root_dir}). "
+        "Write or update the complete todo list. Each todo must have 'content', 'status', and 'activeForm' fields. "
+        "Status must be one of: pending, in_progress, completed.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "todos": {
+                    "type": "array",
+                    "description": "Complete list of todos",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "Task description",
+                            },
+                            "status": {
+                                "type": "string",
+                                "description": "Task status",
+                            },
+                            "activeForm": {
+                                "type": "string",
+                                "description": "Present continuous form of the task",
+                            },
+                        },
+                        "required": ["content", "status", "activeForm"],
+                    },
+                },
+            },
+            "required": ["todos"],
+        },
+    )
+    await manager.register_tool(
+        "todo_write",
+        tool.write_todos,
+        todo_definition,
+        ToolScope.SANDBOXED,
+    )

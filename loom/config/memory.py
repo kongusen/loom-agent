@@ -20,7 +20,7 @@ from pydantic import Field
 from loom.config.base import LoomBaseConfig
 
 if TYPE_CHECKING:
-    from loom.config.knowledge import KnowledgeBaseProvider
+    from loom.providers.knowledge.base import KnowledgeBaseProvider
 
 
 class MemoryStrategyType(str, Enum):

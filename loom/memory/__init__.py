@@ -3,10 +3,11 @@ A4: 记忆层次公理 (Memory Hierarchy Axiom)
 
 公理陈述：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
 
-本模块实现四层记忆系统，基于第一性原理简化重构。
+本模块实现统一的记忆管理系统，整合四层记忆（L1-L4）和作用域管理。
 
 导出内容：
-- LoomMemory: 统一的记忆管理系统
+- MemoryManager: 统一的记忆管理系统（L1-L4 + 作用域）
+- LoomMemory: L1-L4 层记忆实现（底层组件）
 - MemoryUnit: 记忆单元
 - MemoryTier: 记忆层级枚举
 - MemoryType: 记忆类型枚举
@@ -37,6 +38,7 @@ from loom.memory.context import (
 )
 from loom.memory.core import LoomMemory
 from loom.memory.factory import MemoryFactory
+from loom.memory.manager import MemoryManager
 from loom.memory.sanitizers import ContentSanitizer
 from loom.memory.tokenizer import (
     AnthropicCounter,
@@ -58,6 +60,7 @@ from loom.memory.vector_store import (
 )
 
 __all__ = [
+    "MemoryManager",
     "LoomMemory",
     "MemoryUnit",
     "MemoryTier",

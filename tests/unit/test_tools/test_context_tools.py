@@ -6,7 +6,6 @@ Context Tools Unit Tests
 
 import pytest
 
-from loom.events.event_bus import EventBus
 from loom.memory.core import LoomMemory
 from loom.memory.types import MemoryTier, TaskSummary
 from loom.protocol import Task, TaskStatus
@@ -229,8 +228,7 @@ class TestContextToolExecutor:
     def executor(self):
         """提供执行器实例"""
         memory = LoomMemory(node_id="test-node")
-        event_bus = EventBus()
-        return ContextToolExecutor(memory, event_bus)
+        return ContextToolExecutor(memory)
 
     @pytest.mark.asyncio
     async def test_execute_query_l1_memory(self, executor):

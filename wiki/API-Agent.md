@@ -5,42 +5,30 @@
 ### 基础创建
 
 ```python
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
-
-# 初始化应用
-app = LoomApp()
 
 # 配置 LLM
 llm = OpenAIProvider(api_key="your-api-key")
-app.set_llm_provider(llm)
 
 # 创建 Agent
-config = AgentConfig(
-    agent_id="assistant",
-    name="智能助手",
+agent = Agent.create(
+    llm,
+    node_id="assistant",
     system_prompt="你是一个专业、严谨的 AI 助手。",
-    capabilities=["tool_use", "reflection"],
 )
-
-agent = app.create_agent(config)
 ```
 
 ### 高级配置
 
 ```python
-config = AgentConfig(
-    agent_id="researcher",
-    name="研究员",
+agent = Agent.create(
+    llm,
+    node_id="researcher",
     system_prompt="你是专业的研究员...",
-    capabilities=["tool_use", "reflection", "planning", "collaboration"],
     max_iterations=10,
     require_done_tool=True,
-    enable_observation=True,
-    max_context_tokens=4000,
 )
-
-agent = app.create_agent(config)
 ```
 
 ## 执行任务

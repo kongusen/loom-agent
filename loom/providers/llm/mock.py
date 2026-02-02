@@ -53,6 +53,26 @@ class MockLLMProvider(LLMProvider):
         **kwargs: Any,  # noqa: ARG002
     ) -> LLMResponse:
         """非流式调用 - 返回预设响应"""
+        # 如果有预设响应，使用预设响应序列
+        if self.responses is not None and self.call_count < len(self.responses):
+            response = self.responses[self.call_count]
+            self.call_count += 1
+
+            if response["type"] == "text":
+                return LLMResponse(content=response["content"])
+            elif response["type"] == "tool_call":
+                return LLMResponse(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": response["name"],
+                            "arguments": response["arguments"],
+                            "id": f"call_mock_{self.call_count}",
+                        }
+                    ],
+                )
+
+        # 默认行为（关键词匹配）
         last_msg = messages[-1]["content"].lower()
 
         # 模拟工具调用
@@ -77,6 +97,7 @@ class MockLLMProvider(LLMProvider):
 
         # 如果有预设响应，使用预设响应序列
         if self.responses is not None:
+            # 在一次调用中返回所有预设响应
             for response in self.responses:
                 if response["type"] == "text":
                     yield StreamChunk(type="text", content=response["content"], metadata={})
@@ -90,7 +111,7 @@ class MockLLMProvider(LLMProvider):
                         },
                         metadata={},
                     )
-            self.call_count += 1
+                    self.call_count += 1
             return
 
         # 否则使用默认的关键词匹配逻辑

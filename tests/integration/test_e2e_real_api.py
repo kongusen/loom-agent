@@ -18,7 +18,6 @@ import pytest
 
 from loom.config import LLMConfig
 from loom.fractal.container import NodeContainer
-from loom.orchestration.crew import CrewOrchestrator
 from loom.protocol import AgentCapability, AgentCard, Task, TaskStatus
 from loom.providers.llm.openai import OpenAIProvider
 from tests.api_config import requires_real_api
@@ -135,41 +134,6 @@ class TestEndToEndRealAPI:
         assert len(result.result["result"]) > 0
         assert "token_usage" in result.result
         print(f"\n✅ LLM Summary: {result.result['result']}")
-
-    @requires_real_api
-    @pytest.mark.asyncio
-    async def test_orchestrator_with_real_llm(self, openai_config):
-        """测试编排器协调多个真实LLM agent"""
-        # 创建3个真实LLM agent
-        summary_agent = RealLLMAgent("llm-summary-2", "summary", openai_config)
-        keyword_agent = RealLLMAgent("llm-keyword", "keyword", openai_config)
-        sentiment_agent = RealLLMAgent("llm-sentiment", "sentiment", openai_config)
-
-        # 创建编排器
-        orchestrator = CrewOrchestrator(nodes=[summary_agent, keyword_agent, sentiment_agent])
-
-        # 创建任务
-        task = Task(
-            action="analyze",
-            parameters={
-                "text": "I love using this new AI framework! It's incredibly powerful and easy to use. "
-                "The documentation is clear and the community is very helpful."
-            },
-        )
-
-        # 执行编排
-        result = await orchestrator.orchestrate(task)
-
-        # 验证结果
-        assert result.status == TaskStatus.COMPLETED
-        assert "results" in result.result
-        assert len(result.result["results"]) == 3
-        assert len(result.result["errors"]) == 0
-
-        # 打印结果
-        print("\n✅ Orchestrator Results:")
-        for r in result.result["results"]:
-            print(f"  - {r['analysis_type']}: {r['result'][:100]}...")
 
     @requires_real_api
     @pytest.mark.asyncio

@@ -1,21 +1,21 @@
 """
 Skill Registry Unit Tests
 
-测试技能注册表功能
+测试统一 Skill 注册表（Loader + 运行时）功能
 """
 
-from loom.skills.skill_registry import SkillRegistry
+from loom.skills.registry import SkillRegistry
 
 
 class TestSkillRegistryInit:
-    """测试SkillRegistry初始化"""
+    """测试 SkillRegistry 初始化"""
 
     def test_skill_registry_init(self):
         """测试基本初始化"""
         registry = SkillRegistry()
 
-        assert registry._skills == {}
-        assert isinstance(registry._skills, dict)
+        assert registry._runtime_skills == {}
+        assert isinstance(registry._runtime_skills, dict)
 
 
 class TestRegisterSkill:
@@ -58,7 +58,7 @@ class TestRegisterSkill:
 
 
 class TestGetSkill:
-    """测试获取技能"""
+    """测试获取技能（同步 get_skill_sync 仅查运行时）"""
 
     def test_get_skill_exists(self):
         """测试获取存在的技能"""
@@ -70,7 +70,7 @@ class TestGetSkill:
             handler=lambda: None,
         )
 
-        skill = registry.get_skill("test_skill")
+        skill = registry.get_skill_sync("test_skill")
 
         assert skill is not None
         assert skill["function"]["name"] == "test_skill"
@@ -79,7 +79,7 @@ class TestGetSkill:
         """测试获取不存在的技能"""
         registry = SkillRegistry()
 
-        skill = registry.get_skill("non_existent")
+        skill = registry.get_skill_sync("non_existent")
 
         assert skill is None
 

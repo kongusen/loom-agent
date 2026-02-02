@@ -231,23 +231,27 @@ agent.register_tool("query_knowledge", query_knowledge_tool)
 ## Complete Example
 
 ```python
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
+from loom.providers.llm import OpenAIProvider
 from loom.config.memory import MemoryConfig
 from loom.providers.knowledge import VectorKnowledgeBase
 from loom.providers.embedding.openai import OpenAIEmbeddingProvider
 from loom.memory.vector_store import InMemoryVectorStore
 from loom.config.knowledge import KnowledgeItem
 
-# 1. Create embedding provider
+# 1. Create LLM provider
+llm = OpenAIProvider(api_key="your-api-key")
+
+# 2. Create embedding provider
 embedding_provider = OpenAIEmbeddingProvider(
     api_key="your-api-key",
     model="text-embedding-3-small"
 )
 
-# 2. Create vector store
+# 3. Create vector store
 vector_store = InMemoryVectorStore()
 
-# 3. Create and populate knowledge base
+# 4. Create and populate knowledge base
 kb = VectorKnowledgeBase(
     embedding_provider=embedding_provider,
     vector_store=vector_store
@@ -266,18 +270,16 @@ await kb.add_item(KnowledgeItem(
     source="API Documentation"
 ))
 
-# 4. Configure agent with knowledge base
+# 5. Configure agent with knowledge base
 memory_config = MemoryConfig(knowledge_base=kb)
 
-agent_config = AgentConfig(
-    name="api_assistant",
+# 6. Create agent
+agent = Agent.create(
+    llm,
+    node_id="api_assistant",
     system_prompt="You are an API documentation assistant",
-    memory=memory_config
+    memory_config=memory_config
 )
-
-# 5. Create agent
-app = LoomApp()
-agent = app.create_agent(agent_config)
 
 # Knowledge is automatically included in context
 ```

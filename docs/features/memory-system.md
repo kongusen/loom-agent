@@ -69,18 +69,29 @@ class FractalMemory:
 
 ## Configuration
 
-You can configure the memory system via `AgentConfig`:
+You can configure the memory system when creating an agent:
 
 ```python
+from loom.agent import Agent
 from loom.config.memory import MemoryConfig, MemoryLayerConfig
+from loom.providers.llm import OpenAIProvider
 
-config = MemoryConfig(
+llm = OpenAIProvider(api_key="your-api-key")
+
+memory_config = MemoryConfig(
     # Metabolic Configuration
     l1=MemoryLayerConfig(capacity=20, retention_hours=1),
     l4=MemoryLayerConfig(capacity=1000, retention_hours=None),
-    
+
     # Fractal Features
     enable_scopes=True
+)
+
+agent = Agent.create(
+    llm,
+    node_id="memory-agent",
+    system_prompt="You are a helpful assistant",
+    memory_config=memory_config
 )
 ```
 

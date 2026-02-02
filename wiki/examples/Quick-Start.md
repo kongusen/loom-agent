@@ -8,42 +8,31 @@ pip install loom-agent
 
 ## 创建第一个 Agent
 
-### 1. 初始化应用
+### 1. 配置 LLM
 
 ```python
-from loom.api import LoomApp
 from loom.providers.llm import OpenAIProvider
 
-app = LoomApp()
-```
-
-### 2. 配置 LLM
-
-```python
 llm = OpenAIProvider(
     api_key="your-api-key",
     model="gpt-4",
     temperature=0.7
 )
-
-app.set_llm_provider(llm)
 ```
 
-### 3. 创建 Agent
+### 2. 创建 Agent
 
 ```python
-from loom.api import AgentConfig
+from loom.agent import Agent
 
-config = AgentConfig(
-    agent_id="assistant",
-    name="智能助手",
+agent = Agent.create(
+    llm,
+    node_id="assistant",
     system_prompt="你是一个专业、友好的 AI 助手。",
 )
-
-agent = app.create_agent(config)
 ```
 
-### 4. 执行任务
+### 3. 执行任务
 
 ```python
 from loom.protocol import Task
@@ -82,23 +71,20 @@ agent.add_tool(calculator)
 
 ```python
 import asyncio
-from loom.api import LoomApp, AgentConfig
+from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 from loom.protocol import Task
 
 async def main():
-    # 初始化
-    app = LoomApp()
+    # 配置 LLM
     llm = OpenAIProvider(api_key="your-api-key")
-    app.set_llm_provider(llm)
 
     # 创建 Agent
-    config = AgentConfig(
-        agent_id="assistant",
-        name="智能助手",
+    agent = Agent.create(
+        llm,
+        node_id="assistant",
         system_prompt="你是一个专业、友好的 AI 助手。",
     )
-    agent = app.create_agent(config)
 
     # 执行任务
     task = Task(

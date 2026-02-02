@@ -9,13 +9,12 @@ Result Synthesizer - 结果合成器
 2. 移除配置类（过度设计）
 3. 保留核心合成策略
 4. 保留降级方案
-5. 集成质量指标评估
+
+Phase 5: 移除质量指标评估（预算系统的一部分）
 """
 
 import logging
 from typing import TYPE_CHECKING, Any
-
-from loom.fractal.budget import QualityEvaluator, QualityMetrics
 
 if TYPE_CHECKING:
     from loom.providers.llm.interface import LLMProvider
@@ -212,96 +211,3 @@ class ResultSynthesizer:
 
         return prompt
 
-    async def synthesize_with_quality(
-        self,
-        task: str,
-        subtask_results: list[dict[str, Any]],
-        strategy: str = "structured",
-        provider: "LLMProvider | None" = None,
-        max_tokens: int = 2000,
-        parent_context: str = "",
-    ) -> tuple[str, list[QualityMetrics]]:
-        """
-        合成子任务结果并评估质量
-
-        Args:
-            task: 原始任务描述
-            subtask_results: 子任务结果列表
-            strategy: 合成策略
-            provider: LLM provider（用于合成和质量评估）
-            max_tokens: 最大token数
-            parent_context: 父节点上下文
-
-        Returns:
-            (合成结果, 质量指标列表)
-        """
-        # 1. 创建评估器（有provider则用LLM评估）
-        evaluator = QualityEvaluator(provider=provider)
-        quality_metrics = []
-
-        for result in subtask_results:
-            subtask_desc = result.get("subtask", "")
-            metrics = await evaluator.evaluate(subtask_desc, result, parent_context)
-            quality_metrics.append(metrics)
-            result["_quality_metrics"] = metrics
-
-        # 2. 执行合成
-        synthesized = await self.synthesize(task, subtask_results, strategy, provider, max_tokens)
-
-        # 3. 记录质量统计
-        avg_score = (
-            sum(m.overall_score for m in quality_metrics) / len(quality_metrics)
-            if quality_metrics
-            else 0
-        )
-        logger.info(f"合成完成，平均质量分数: {avg_score:.2f}")
-
-        return synthesized, quality_metrics
-
-    def _structured_with_quality(self, subtask_results: list[dict[str, Any]]) -> str:
-        """带质量指标的结构化输出"""
-        lines = ["# 任务执行结果\n"]
-
-        success_count = 0
-        failure_count = 0
-        total_score = 0.0
-
-        for i, result in enumerate(subtask_results, 1):
-            is_success = result.get("success", True)
-            metrics: QualityMetrics | None = result.get("_quality_metrics")
-
-            if is_success:
-                success_count += 1
-                status = "✅ 成功"
-            else:
-                failure_count += 1
-                status = "❌ 失败"
-
-            result_text = result.get("result", str(result))
-            error = result.get("error")
-
-            lines.append(f"## 子任务 {i} - {status}\n")
-
-            # 添加质量指标
-            if metrics:
-                total_score += metrics.overall_score
-                lines.append(
-                    f"**质量**: 置信度={metrics.confidence:.2f}, "
-                    f"覆盖度={metrics.coverage:.2f}, "
-                    f"新颖度={metrics.novelty:.2f}\n"
-                )
-
-            if error:
-                lines.append(f"**错误**: {error}\n")
-            lines.append(f"{result_text}\n")
-
-        # 添加摘要
-        total = len(subtask_results)
-        avg_score = total_score / total if total > 0 else 0
-        lines.insert(
-            1,
-            f"**总计**: {total} 个子任务 | ✅ {success_count} 成功 | "
-            f"❌ {failure_count} 失败 | 平均质量: {avg_score:.2f}\n",
-        )
-
-        return "\n".join(lines)

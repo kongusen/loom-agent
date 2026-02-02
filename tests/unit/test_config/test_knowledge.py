@@ -6,7 +6,7 @@ Knowledge Configuration Unit Tests
 
 import pytest
 
-from loom.config.knowledge import KnowledgeBaseProvider, KnowledgeItem
+from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 
 
 class TestKnowledgeItem:

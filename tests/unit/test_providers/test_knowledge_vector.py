@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from loom.config.knowledge import KnowledgeItem
+from loom.providers.knowledge.base import KnowledgeItem
 from loom.providers.knowledge.vector import VectorKnowledgeBase
 
 

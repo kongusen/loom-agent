@@ -6,7 +6,7 @@ Interceptor Integration Tests
 
 import pytest
 
-from loom.orchestration.agent import Agent
+from loom.agent import Agent
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
 from loom.runtime import (
