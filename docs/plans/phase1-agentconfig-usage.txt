@@ -1,0 +1,7 @@
+./tests/unit/test_api/test_models.py:from loom.api.models import AgentConfig, MemoryConfig
+./tests/unit/test_api/test_app.py:from loom.api.models import AgentConfig
+./docs/usage/examples/fractal_tree.py:from loom.api import AgentConfig, LoomApp
+./examples/conversational_assistant_tui.py:from loom.api.models import AgentConfig
+./examples/task_executor_tui.py:from loom.api.models import AgentConfig
+./loom/api/__init__.py:from loom.api.models import AgentConfig
+./loom/api/app.py:from loom.api.models import AgentConfig
