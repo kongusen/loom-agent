@@ -333,6 +333,7 @@ class Agent(BaseNode):
         system_prompt: str = "",
         tools: list[dict[str, Any]] | None = None,
         skills: list[str] | None = None,
+        capabilities: Any | None = None,
         node_id: str | None = None,
         event_bus: Any | None = None,
         knowledge_base: Any | None = None,
@@ -348,6 +349,7 @@ class Agent(BaseNode):
             system_prompt: 系统提示词
             tools: 工具列表
             skills: 技能 ID 列表（可选，简单配置）
+            capabilities: CapabilityRegistry 实例（可选，高级配置）
             node_id: 节点 ID（可选，默认自动生成）
             event_bus: 事件总线（可选，未传入时自动创建）
             knowledge_base: 知识库提供者（可选）
@@ -362,6 +364,7 @@ class Agent(BaseNode):
             >>> from loom.agent import Agent
             >>> from loom.providers.llm.openai import OpenAIProvider
             >>>
+            >>> # 简单用法
             >>> llm = OpenAIProvider(api_key="...")
             >>> agent = Agent.create(
             ...     llm,
@@ -369,6 +372,15 @@ class Agent(BaseNode):
             ...     tools=[...],
             ...     skills=["python-dev", "testing"],
             ... )
+            >>>
+            >>> # 高级用法：传入 CapabilityRegistry
+            >>> from loom.capabilities.registry import CapabilityRegistry
+            >>> capabilities = CapabilityRegistry(
+            ...     sandbox_manager=my_tool_manager,
+            ...     skill_registry=my_skill_registry,
+            ...     skill_activator=my_skill_activator,
+            ... )
+            >>> agent = Agent.create(llm, capabilities=capabilities)
 
         Note:
             若未传入 event_bus，框架会自动创建 EventBus 实例。
@@ -376,10 +388,23 @@ class Agent(BaseNode):
 
             若传入 skills 参数，框架会使用全局 skill_market 作为 skill_registry，
             并将 skills 设置为 config.enabled_skills。
+
+            若传入 capabilities 参数（高级用法），框架会从 CapabilityRegistry 中
+            提取 sandbox_manager、skill_registry、skill_activator 并传递给 Agent。
         """
         # Phase 3 Task 1: 未传 event_bus 时自动创建
         if event_bus is None:
             event_bus = EventBus()
+
+        # Phase 3 Task 3: 处理 capabilities 参数（高级配置）
+        if capabilities is not None:
+            # 从 CapabilityRegistry 提取组件
+            if "sandbox_manager" not in kwargs and hasattr(capabilities, "tool_manager"):
+                kwargs["sandbox_manager"] = capabilities.tool_manager
+            if "skill_registry" not in kwargs and hasattr(capabilities, "skill_registry"):
+                kwargs["skill_registry"] = capabilities.skill_registry
+            if "skill_activator" not in kwargs and hasattr(capabilities, "skill_activator"):
+                kwargs["skill_activator"] = capabilities.skill_activator
 
         # Phase 3 Task 2: 处理 skills 参数（简单配置）
         if skills is not None:

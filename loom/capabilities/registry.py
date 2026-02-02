@@ -15,6 +15,7 @@ CapabilityRegistry - 统一的能力管理门面
 - 内部复用现有组件
 """
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -87,15 +88,30 @@ class CapabilityRegistry:
         self._skill_registry = skill_registry
         self._skill_activator = skill_activator
 
-    def find_relevant_capabilities(
+    @property
+    def tool_manager(self) -> Any:
+        """获取工具管理器（SandboxToolManager）"""
+        return self._tool_manager
+
+    @property
+    def skill_registry(self) -> Any:
+        """获取技能注册表（SkillRegistry）"""
+        return self._skill_registry
+
+    @property
+    def skill_activator(self) -> Any:
+        """获取技能激活器（SkillActivator）"""
+        return self._skill_activator
+
+    async def find_relevant_capabilities(
         self,
         task_description: str,
         context: dict[str, Any] | None = None,
     ) -> CapabilitySet:
         """
-        统一的能力发现接口
+        统一的能力发现接口（支持 Loader + 运行时 Skill）
 
-        根据任务描述，发现相关的 Tools 和 Skills
+        根据任务描述，发现相关的 Tools 和 Skills。
 
         Args:
             task_description: 任务描述
@@ -109,43 +125,38 @@ class CapabilityRegistry:
         # 1. 从 SandboxToolManager 获取相关工具
         if self._tool_manager:
             try:
-                # 获取所有可用工具（返回 MCPToolDefinition 列表）
                 tool_definitions = self._tool_manager.list_tools()
-                # 转换为 dict 格式
                 capabilities.tools = [
                     {
                         "name": tool.name,
                         "description": tool.description,
-                        "input_schema": tool.inputSchema,
+                        "input_schema": tool.input_schema,
                     }
                     for tool in tool_definitions
                 ]
             except Exception:
-                # 如果获取失败，返回空列表
                 capabilities.tools = []
 
-        # 2. 从 SkillRegistry 获取相关 Skills
+        # 2. 从 SkillRegistry 获取 Skill IDs（统一：运行时 + Loaders）
         if self._skill_registry:
             try:
-                # 获取所有已注册的 Skill IDs
-                all_skill_ids = self._skill_registry.list_skills()
-                # TODO: 实现基于任务描述的 Skill 过滤逻辑
-                # 目前返回所有 Skills
-                capabilities.skill_ids = all_skill_ids
+                if hasattr(self._skill_registry, "list_skills_async"):
+                    capabilities.skill_ids = await self._skill_registry.list_skills_async()
+                else:
+                    capabilities.skill_ids = self._skill_registry.list_skills()
             except Exception:
-                # 如果获取失败，返回空列表
                 capabilities.skill_ids = []
 
         return capabilities
 
-    def validate_skill_dependencies(
+    async def validate_skill_dependencies(
         self,
         skill_id: str,
     ) -> ValidationResult:
         """
-        验证 Skill 的工具依赖
+        验证 Skill 的工具依赖（统一 SkillRegistry：Loader 或运行时 dict）
 
-        检查 Skill 所需的工具是否都可用（新增功能）
+        检查 Skill 所需的工具是否都可用。
 
         Args:
             skill_id: Skill ID
@@ -153,16 +164,21 @@ class CapabilityRegistry:
         Returns:
             ValidationResult: 验证结果
         """
-        # 1. 检查 skill_registry 是否可用
         if not self._skill_registry:
             return ValidationResult(
                 is_valid=False,
                 error="SkillRegistry not available",
             )
 
-        # 2. 获取 Skill 定义
+        # 获取 Skill 定义（统一：async get_skill 支持 Loader + 运行时）
         try:
-            skill_def = self._skill_registry.get_skill(skill_id)
+            get_skill_fn = getattr(self._skill_registry, "get_skill", None)
+            if get_skill_fn and asyncio.iscoroutinefunction(get_skill_fn):
+                skill_def = await get_skill_fn(skill_id)
+            elif hasattr(self._skill_registry, "get_skill_sync"):
+                skill_def = self._skill_registry.get_skill_sync(skill_id)
+            else:
+                skill_def = get_skill_fn(skill_id) if get_skill_fn else None
             if not skill_def:
                 return ValidationResult(
                     is_valid=False,
@@ -174,19 +190,18 @@ class CapabilityRegistry:
                 error=f"Failed to get skill: {e}",
             )
 
-        # 3. 提取 Skill 的工具依赖
-        # Skill 定义是 dict 格式，metadata 存储在 _metadata 字段
+        # 提取工具依赖：SkillDefinition 或 dict（_metadata.required_tools）
         required_tools: list[str] = []
-        if isinstance(skill_def, dict) and "_metadata" in skill_def:
-            metadata = skill_def["_metadata"]
-            if isinstance(metadata, dict):
-                required_tools = metadata.get("required_tools", [])
+        if hasattr(skill_def, "required_tools"):
+            required_tools = list(skill_def.required_tools)
+        elif isinstance(skill_def, dict) and isinstance(
+            skill_def.get("_metadata"), dict
+        ):
+            required_tools = skill_def["_metadata"].get("required_tools", [])
 
-        # 如果没有工具依赖，直接返回成功
         if not required_tools:
             return ValidationResult(is_valid=True)
 
-        # 4. 检查工具是否可用
         if not self._tool_manager:
             return ValidationResult(
                 is_valid=False,
@@ -194,7 +209,6 @@ class CapabilityRegistry:
                 error="ToolManager not available",
             )
 
-        # 5. 获取可用工具列表
         try:
             tool_definitions = self._tool_manager.list_tools()
             available_tool_names = {tool.name for tool in tool_definitions}
@@ -205,15 +219,12 @@ class CapabilityRegistry:
                 error=f"Failed to get available tools: {e}",
             )
 
-        # 6. 检查缺失的工具
-        missing_tools = [tool for tool in required_tools if tool not in available_tool_names]
-
+        missing_tools = [t for t in required_tools if t not in available_tool_names]
         if missing_tools:
             return ValidationResult(
                 is_valid=False,
                 missing_tools=missing_tools,
                 error=f"Missing required tools: {', '.join(missing_tools)}",
-                can_autofix=False,  # TODO: 实现自动安装逻辑
+                can_autofix=False,
             )
-
         return ValidationResult(is_valid=True)

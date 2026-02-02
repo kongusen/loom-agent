@@ -119,3 +119,80 @@ class TestAgentCreateSkills:
 
         # 应该使用全局 skill_market 作为 skill_registry
         assert agent.skill_registry is skill_market
+
+
+class TestAgentCreateCapabilities:
+    """测试 Agent.create() 支持 capabilities 参数（Phase 3 Task 3）"""
+
+    def test_create_with_capabilities_parameter(self, mock_llm, tmp_path):
+        """测试传入 capabilities 参数时自动配置组件"""
+        from loom.capabilities.registry import CapabilityRegistry
+        from loom.tools.sandbox import Sandbox
+        from loom.tools.sandbox_manager import SandboxToolManager
+        from loom.skills.skill_registry import skill_market
+
+        # 创建组件
+        sandbox = Sandbox(tmp_path)
+        tool_manager = SandboxToolManager(sandbox)
+
+        # 创建 CapabilityRegistry
+        capabilities = CapabilityRegistry(
+            sandbox_manager=tool_manager,
+            skill_registry=skill_market,
+            skill_activator=None,
+        )
+
+        # 使用 capabilities 创建 Agent
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            capabilities=capabilities,
+        )
+
+        # 应该使用 CapabilityRegistry 中的组件
+        assert agent.sandbox_manager is tool_manager
+        assert agent.skill_registry is skill_market
+
+    def test_create_without_capabilities_parameter(self, mock_llm):
+        """测试不传 capabilities 参数时保持现有行为"""
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+        )
+
+        # 不应该自动设置这些组件
+        assert agent.sandbox_manager is None
+        assert agent.skill_registry is None
+
+    def test_create_capabilities_does_not_override_explicit_params(self, mock_llm, tmp_path):
+        """测试 capabilities 不会覆盖显式传入的参数"""
+        from loom.capabilities.registry import CapabilityRegistry
+        from loom.tools.sandbox import Sandbox
+        from loom.tools.sandbox_manager import SandboxToolManager
+        from loom.skills.skill_registry import skill_market
+
+        # 创建两套组件
+        sandbox1 = Sandbox(tmp_path / "sandbox1")
+        tool_manager1 = SandboxToolManager(sandbox1)
+
+        sandbox2 = Sandbox(tmp_path / "sandbox2")
+        tool_manager2 = SandboxToolManager(sandbox2)
+
+        # 创建 CapabilityRegistry（包含 tool_manager1）
+        capabilities = CapabilityRegistry(
+            sandbox_manager=tool_manager1,
+            skill_registry=skill_market,
+        )
+
+        # 显式传入 tool_manager2，应该优先使用显式传入的
+        agent = Agent.create(
+            mock_llm,
+            system_prompt="Test agent",
+            capabilities=capabilities,
+            sandbox_manager=tool_manager2,
+        )
+
+        # 应该使用显式传入的 tool_manager2，而不是 capabilities 中的 tool_manager1
+        assert agent.sandbox_manager is tool_manager2
+        # skill_registry 没有显式传入，应该使用 capabilities 中的
+        assert agent.skill_registry is skill_market
