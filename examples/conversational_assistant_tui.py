@@ -26,8 +26,8 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Header, Input, RichLog, Static
 
-from loom.api import LoomApp
-from loom.api.models import AgentConfig
+from loom.agent import Agent
+from loom.tools.registry import ToolRegistry
 from loom.config.llm import LLMConfig
 from loom.events import EventBus
 from loom.protocol import Task
@@ -606,9 +606,8 @@ class ConversationalAssistantApp(App):
     }
     """
 
-    def __init__(self, loom_app: LoomApp, agent: Any, session_id: str):
+    def __init__(self, agent: Any, session_id: str):
         super().__init__()
-        self.loom_app = loom_app
         self.agent = agent
         self.session_id = session_id
         self.state = ConversationState()
@@ -919,10 +918,7 @@ async def main():
     # 1. 创建EventBus
     event_bus = EventBus()
 
-    # 2. 创建LoomApp
-    app = LoomApp(event_bus=event_bus)
-
-    # 3. 配置LLM
+    # 2. 配置LLM
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         print("❌ 错误: 请设置 OPENAI_API_KEY 环境变量")
@@ -935,17 +931,17 @@ async def main():
         temperature=0.7,
     )
     llm = OpenAIProvider(llm_config)
-    app.set_llm_provider(llm)
     print("✓ LLM已配置")
 
-    # 4. 配置知识库
+    # 3. 配置知识库
     knowledge_base = ConversationalKnowledgeBase()
-    app.set_knowledge_base(knowledge_base)
     print(f"✓ 知识库已配置 ({len(knowledge_base.knowledge_data)} 条知识)")
 
-    # 5. 注册工具实现
+    # 4. 创建ToolRegistry并注册工具实现
+    tool_registry = ToolRegistry()
+
     # 注册 calculator 工具
-    app.register_tool(calculator)
+    tool_registry.register_function(calculator)
 
     # 创建 search_knowledge 的闭包，使其能访问 knowledge_base
     async def search_knowledge_impl(query: str) -> str:
@@ -963,36 +959,20 @@ async def main():
         except Exception as e:
             return f"搜索错误: {str(e)}"
 
-    app.register_tool(search_knowledge_impl, name="search_knowledge")
+    tool_registry.register_function(search_knowledge_impl, name="search_knowledge")
     print("✓ 工具已注册 (calculator, search_knowledge)")
 
+    # 5. 创建工具定义列表
+    tools = [
+        create_calculator_tool(),
+        create_search_tool(),
+    ]
+
     # 6. 集成Skills（暂时禁用，等待 tool_registry 实现）
-    # try:
-    #     from loom.skills.activator import SkillActivator
-    #     skill_activator = SkillActivator()
-    #     code_review_skill_path = "examples/skills/code_review_skill.py"
-    #     if os.path.exists(code_review_skill_path):
-    #         skill_activator.load_skill(code_review_skill_path)
-    #         compiled_tool = skill_activator.compile_skill("code_review")
-    #         if compiled_tool:
-    #             app.add_tools([compiled_tool])
-    #             print("✓ Skill已集成 (COMPILATION): code_review")
-    #     deep_analysis_skill_path = "examples/skills/deep_analysis_skill.py"
-    #     if os.path.exists(deep_analysis_skill_path):
-    #         skill_activator.load_skill(deep_analysis_skill_path)
-    #         print("✓ Skill已加载 (INSTANTIATION): deep_analysis")
-    # except Exception as e:
-    #     print(f"⚠️  Skill集成失败: {e}")
     print("✓ Skill集成已跳过（等待 tool_registry 实现）")
 
-    # 7. 创建Agent配置
-    config = AgentConfig(
-        agent_id="conversational-assistant",
-        name="对话助手",
-        capabilities=["tool_use", "multi_agent"],  # 启用工具使用和分形Agent能力
-        enable_context_tools=True,  # 启用上下文查询工具（记忆查询）
-        enable_tool_creation=False,  # 禁用工具创建，优先使用delegate_task
-        system_prompt="""你是一个友好、专业的AI对话助手。
+    # 7. 创建Agent
+    system_prompt = """你是一个友好、专业的AI对话助手。
 
 你的特点：
 - 语义连贯，表达清晰自然
@@ -1031,19 +1011,25 @@ delegate_task(
 - 用户："分析这段代码的性能问题"
   → 使用delegate_task创建专门的代码分析子Agent
 
-请用自然、流畅的语言回答用户问题，让对话像与真人交流一样自然。""",
+请用自然、流畅的语言回答用户问题，让对话像与真人交流一样自然。"""
+
+    agent = Agent.from_llm(
+        llm=llm,
+        node_id="conversational-assistant",
+        system_prompt=system_prompt,
+        tools=tools,
+        event_bus=event_bus,
+        knowledge_base=knowledge_base,
         knowledge_max_items=3,
         knowledge_relevance_threshold=0.75,
-        require_done_tool=False,  # 禁用 done tool 要求，允许直接响应
+        require_done_tool=False,
+        tool_registry=tool_registry,
     )
-
-    # 8. 创建Agent
-    agent = app.create_agent(config)
     print(f"✓ Agent已创建: {agent.node_id}")
 
     # 9. 创建TUI应用并设置事件处理器
     session_id = str(uuid4())
-    tui_app = ConversationalAssistantApp(app, agent, session_id)
+    tui_app = ConversationalAssistantApp(agent, session_id)
 
     # 创建事件处理器（用于处理事件并更新state）
     event_processor = EventProcessor(tui_app, session_id)
