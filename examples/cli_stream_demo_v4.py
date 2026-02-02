@@ -901,10 +901,10 @@ async def main() -> None:
     # Setup event bus
     event_bus = EventBus()
 
-    # Create agent
-    agent = Agent(
+    # Create agent using Agent.create() (recommended pattern)
+    agent = Agent.create(
+        llm_provider,  # First positional argument
         node_id="cli-agent",
-        llm_provider=llm_provider,
         system_prompt=(
             "You are a helpful assistant. "
             "When the user sends a message, think about your response and then call the 'done' tool. "
@@ -914,9 +914,8 @@ async def main() -> None:
             "NOT done(content='User greeted warmly.')."
         ),
         event_bus=event_bus,
-        require_done_tool=True,
-        enable_tool_creation=True,
         max_iterations=10,
+        require_done_tool=True,
         memory_config={
             "max_l1_size": 40,
             "max_l2_size": 12,
