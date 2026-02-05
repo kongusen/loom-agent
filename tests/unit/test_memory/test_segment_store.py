@@ -31,7 +31,7 @@ class TestMemorySegment:
             content="Test content",
             timestamp=123.456,
             taskId="task-1",
-            metadata={"key": "value"}
+            metadata={"key": "value"},
         )
 
         assert segment.segmentId == "seg-123"
@@ -49,11 +49,7 @@ class TestInMemorySegmentStore:
         """测试存储片段"""
         store = InMemorySegmentStore(max_segments=10)
 
-        segment = MemorySegment(
-            content="Test content",
-            timestamp=time.time(),
-            taskId="task-1"
-        )
+        segment = MemorySegment(content="Test content", timestamp=time.time(), taskId="task-1")
 
         segment_id = await store.store(segment)
 
@@ -115,11 +111,7 @@ class TestInMemorySegmentStore:
         # 存储 4 个片段
         segments = []
         for i in range(4):
-            segment = MemorySegment(
-                content=f"Content {i}",
-                timestamp=float(i),
-                taskId=f"task-{i}"
-            )
+            segment = MemorySegment(content=f"Content {i}", timestamp=float(i), taskId=f"task-{i}")
             segments.append(segment)
             await store.store(segment)
 

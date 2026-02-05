@@ -145,7 +145,9 @@ class AgentBuilder:
         self.config["session_isolation"] = mode
         return self
 
-    def with_compaction(self, compaction_config: CompactionConfig | dict[str, Any]) -> "AgentBuilder":
+    def with_compaction(
+        self, compaction_config: CompactionConfig | dict[str, Any]
+    ) -> "AgentBuilder":
         """设置记忆压缩配置"""
         self.config["compaction_config"] = compaction_config
         return self
@@ -402,6 +404,7 @@ class Agent(
                     }
                     memory_kwargs = {k: v for k, v in memory_config.items() if k in allowed}
                 else:
+
                     def _layer_value(layer: Any, key: str) -> Any | None:
                         if layer is None:
                             return None
@@ -582,9 +585,7 @@ class Agent(
             "root_context_id": self.root_context_id,
             "active_skills": list(self.active_skills),
             "dynamic_tools": self.dynamic_tools,
-            "ephemeral_outputs_count": {
-                k: len(v) for k, v in self._ephemeral_tool_outputs.items()
-            },
+            "ephemeral_outputs_count": {k: len(v) for k, v in self._ephemeral_tool_outputs.items()},
             "pending_tools_count": len(self._pending_tool_callables),
             "max_iterations": self.max_iterations,
             "enabled_skills": list(self.config.enabled_skills) if self.config else [],
@@ -713,11 +714,7 @@ class Agent(
             registry = kwargs["skill_registry"]
 
             if skills_dir is not None:
-                dirs = (
-                    skills_dir
-                    if isinstance(skills_dir, list | tuple | set)
-                    else [skills_dir]
-                )
+                dirs = skills_dir if isinstance(skills_dir, list | tuple | set) else [skills_dir]
                 for skills_path in dirs:
                     registry.register_loader(FilesystemSkillLoader(skills_path))
 
@@ -1425,6 +1422,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 def _create_wrapper(f):
                     async def _wrapped(*args: Any, **kwargs: Any) -> Any:
                         return f(*args, **kwargs)
+
                     return _wrapped
 
                 exec_func: Any = _create_wrapper(func)
@@ -1462,7 +1460,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         try:
             # 【Phase 2】检查并执行记忆压缩
-            if hasattr(self, 'memory_compactor') and self.memory_compactor:
+            if hasattr(self, "memory_compactor") and self.memory_compactor:
                 current_context = await self.context_orchestrator.build_context(task)
                 compacted = await self.memory_compactor.check_and_compact(
                     task,
@@ -1471,6 +1469,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 )
                 if compacted:
                     import logging
+
                     logging.info(f"Memory compaction triggered for task {task.taskId}")
 
             # 加载并激活相关的Skills（Progressive Disclosure + Phase 2 三种形态）
@@ -1513,7 +1512,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     ):
                         if chunk.type == "text":
                             content_str = (
-                                str(chunk.content) if isinstance(chunk.content, dict) else chunk.content
+                                str(chunk.content)
+                                if isinstance(chunk.content, dict)
+                                else chunk.content
                             )
                             full_content += content_str
                             await self.publish_thinking(

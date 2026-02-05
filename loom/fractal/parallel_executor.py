@@ -130,8 +130,7 @@ class ParallelExecutor:
 
         # 创建执行任务
         execution_tasks = [
-            asyncio.create_task(self._execute_single(task, agent_factory))
-            for task in tasks
+            asyncio.create_task(self._execute_single(task, agent_factory)) for task in tasks
         ]
 
         # 并行执行和流式输出
@@ -281,6 +280,10 @@ class ParallelExecutor:
         # 合成结果
         synthesis = None
         if synthesizer:
-            synthesis = await synthesizer(results) if asyncio.iscoroutinefunction(synthesizer) else synthesizer(results)
+            synthesis = (
+                await synthesizer(results)
+                if asyncio.iscoroutinefunction(synthesizer)
+                else synthesizer(results)
+            )
 
         return results, synthesis

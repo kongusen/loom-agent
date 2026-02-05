@@ -119,6 +119,7 @@ class CircularBufferLayer(MemoryLayer[Task]):
 @dataclass(order=True)
 class PriorityItem:
     """Priority item (for heap sorting)"""
+
     priority: float
     item: Task = field(compare=False)
 

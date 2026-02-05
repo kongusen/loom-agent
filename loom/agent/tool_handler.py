@@ -66,14 +66,16 @@ class ToolHandlerMixin:
                 if tool_name not in tool_names_seen:
                     tool_def = self.tool_registry.get_definition(tool_name)
                     if tool_def:
-                        available.append({
-                            "type": "function",
-                            "function": {
-                                "name": tool_def.name,
-                                "description": tool_def.description,
-                                "parameters": tool_def.input_schema,
-                            },
-                        })
+                        available.append(
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": tool_def.name,
+                                    "description": tool_def.description,
+                                    "parameters": tool_def.input_schema,
+                                },
+                            }
+                        )
                         tool_names_seen.add(tool_name)
 
         # 3. 沙盒工具
@@ -81,19 +83,22 @@ class ToolHandlerMixin:
             for mcp_def in self.sandbox_manager.list_tools():
                 if mcp_def.name not in tool_names_seen:
                     tool_names_seen.add(mcp_def.name)
-                    available.append({
-                        "type": "function",
-                        "function": {
-                            "name": mcp_def.name,
-                            "description": mcp_def.description,
-                            "parameters": mcp_def.input_schema,
-                        },
-                    })
+                    available.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": mcp_def.name,
+                                "description": mcp_def.description,
+                                "parameters": mcp_def.input_schema,
+                            },
+                        }
+                    )
 
         # 过滤禁用的工具
         if self.config.disabled_tools:
             available = [
-                tool for tool in available
+                tool
+                for tool in available
                 if isinstance(tool, dict)
                 and tool.get("function", {}).get("name") not in self.config.disabled_tools
             ]
@@ -171,9 +176,15 @@ class ToolHandlerMixin:
 
         # 上下文查询工具
         context_tool_names = {
-            "query_l1_memory", "query_l2_memory", "query_l3_memory", "query_l4_memory",
-            "query_events_by_action", "query_events_by_node", "query_events_by_target",
-            "query_recent_events", "query_thinking_process",
+            "query_l1_memory",
+            "query_l2_memory",
+            "query_l3_memory",
+            "query_l4_memory",
+            "query_events_by_action",
+            "query_events_by_node",
+            "query_events_by_target",
+            "query_recent_events",
+            "query_thinking_process",
         }
         if tool_name in context_tool_names and self._context_tool_executor:
             try:

@@ -151,10 +151,7 @@ class MemoryCompactor:
         logger.info(f"Starting memory compaction for task {task.taskId}")
 
         # 1. 提取需要压缩的消息（排除系统消息）
-        messages_to_compress = [
-            msg for msg in current_context
-            if msg.get("role") != "system"
-        ]
+        messages_to_compress = [msg for msg in current_context if msg.get("role") != "system"]
 
         if not messages_to_compress:
             logger.debug("No messages to compress")
@@ -172,7 +169,7 @@ class MemoryCompactor:
                         "role": msg.get("role", "unknown"),
                         "index": i,
                         "session_id": task.sessionId,
-                    }
+                    },
                 )
                 segment_id = await self.segment_store.store(segment)
                 segment_ids.append(segment_id)

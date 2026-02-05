@@ -75,7 +75,10 @@ _TOOL_REGISTRY: dict[str, tuple[str, str]] = {
     # index_context_tools
     "create_all_index_context_tools": (".index_context_tools", "create_all_index_context_tools"),
     # memory_management_tools
-    "create_all_memory_management_tools": (".memory_management_tools", "create_all_memory_management_tools"),
+    "create_all_memory_management_tools": (
+        ".memory_management_tools",
+        "create_all_memory_management_tools",
+    ),
     # tool_creation
     "create_tool_creation_tool": (".tool_creation", "create_tool_creation_tool"),
     "DynamicToolExecutor": (".tool_creation", "DynamicToolExecutor"),
@@ -90,11 +93,13 @@ def __getattr__(name: str):
     if name in _TOOL_REGISTRY:
         if name not in _loaded_tools:
             import importlib
+
             module_path, attr_name = _TOOL_REGISTRY[name]
             module = importlib.import_module(module_path, package="loom.tools")
             _loaded_tools[name] = getattr(module, attr_name)
         return _loaded_tools[name]
     raise AttributeError(f"module 'loom.tools' has no attribute '{name}'")
+
 
 __all__ = [
     # Registry

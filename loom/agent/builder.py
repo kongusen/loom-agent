@@ -59,9 +59,7 @@ class AgentBuilder:
         """配置上下文窗口（别名）"""
         return self.with_memory(max_tokens)
 
-    def with_memory_config(
-        self, memory_config: "MemoryConfig | dict[str, Any]"
-    ) -> "AgentBuilder":
+    def with_memory_config(self, memory_config: "MemoryConfig | dict[str, Any]") -> "AgentBuilder":
         """配置记忆系统（MemoryConfig 或 dict）"""
         self.config["memory_config"] = memory_config
         return self
@@ -93,9 +91,7 @@ class AgentBuilder:
         self.config["max_iterations"] = max_iterations
         return self
 
-    def with_session_isolation(
-        self, mode: "SessionIsolationMode | str"
-    ) -> "AgentBuilder":
+    def with_session_isolation(self, mode: "SessionIsolationMode | str") -> "AgentBuilder":
         """设置 Session 隔离模式（strict/advisory/none）"""
         self.config["session_isolation"] = mode
         return self
@@ -117,9 +113,7 @@ class AgentBuilder:
         self.config["skills"] = skills
         return self
 
-    def with_skills_dir(
-        self, skills_dir: str | Path | list[str | Path]
-    ) -> "AgentBuilder":
+    def with_skills_dir(self, skills_dir: str | Path | list[str | Path]) -> "AgentBuilder":
         """设置 Skills 目录（SKILL.md 包）"""
         self.config["skills_dir"] = skills_dir
         return self
@@ -129,9 +123,7 @@ class AgentBuilder:
         self.config["skill_loaders"] = skill_loaders
         return self
 
-    def with_tool_config(
-        self, tool_config: "ToolConfig | dict[str, Any]"
-    ) -> "AgentBuilder":
+    def with_tool_config(self, tool_config: "ToolConfig | dict[str, Any]") -> "AgentBuilder":
         """设置工具聚合配置（v0.5.1 渐进式披露）"""
         self.config["tool_config"] = tool_config
         return self

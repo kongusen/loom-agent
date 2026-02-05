@@ -194,22 +194,28 @@ class OutputCollector:
         # 提取内容
         content = task.parameters.get("content", "")
         if not content and task.result:
-            content = str(task.result) if not isinstance(task.result, dict) else task.result.get("content", "")
+            content = (
+                str(task.result)
+                if not isinstance(task.result, dict)
+                else task.result.get("content", "")
+            )
 
         # 提取工具调用
         tool_calls = []
         if task.action == "node.tool_call":
-            tool_calls.append({
-                "function": {
-                    "name": task.parameters.get("tool_name", ""),
-                    "arguments": json.dumps(
-                        task.parameters.get("tool_args", {}),
-                        ensure_ascii=False,
-                        default=str,
-                    ),
-                },
-                "type": "function",
-            })
+            tool_calls.append(
+                {
+                    "function": {
+                        "name": task.parameters.get("tool_name", ""),
+                        "arguments": json.dumps(
+                            task.parameters.get("tool_args", {}),
+                            ensure_ascii=False,
+                            default=str,
+                        ),
+                    },
+                    "type": "function",
+                }
+            )
 
         return SSEEvent(
             type=event_type,
@@ -296,13 +302,15 @@ class OutputCollector:
         Args:
             synthesized_content: 合成后的内容
         """
-        await self._queue.put(SSEEvent(
-            type="final_summary",
-            task_id="all",
-            agent_id="synthesizer",
-            data=synthesized_content,
-            metadata={"stage_count": len(self._stage_buffers)},
-        ))
+        await self._queue.put(
+            SSEEvent(
+                type="final_summary",
+                task_id="all",
+                agent_id="synthesizer",
+                data=synthesized_content,
+                metadata={"stage_count": len(self._stage_buffers)},
+            )
+        )
 
     async def close(self) -> None:
         """关闭收集器，注销 handler 并发送结束信号"""

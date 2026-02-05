@@ -959,7 +959,9 @@ class LoomMemory:
                 summaries_to_vectorize = preferred[:num_to_vectorize]
             else:
                 remaining = [s for s in self._l3_summaries if s not in preferred]
-                summaries_to_vectorize = preferred + remaining[: (num_to_vectorize - len(preferred))]
+                summaries_to_vectorize = (
+                    preferred + remaining[: (num_to_vectorize - len(preferred))]
+                )
         else:
             summaries_to_vectorize = self._l3_summaries[:num_to_vectorize]
 

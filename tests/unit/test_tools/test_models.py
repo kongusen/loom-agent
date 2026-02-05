@@ -72,7 +72,6 @@ class TestSkillDefinition:
             name="Test Skill",
             description="A test skill",
             instructions="Do something",
-
             references={"ref.md": "# Reference"},
             required_tools=["tool1", "tool2"],
         )
@@ -93,7 +92,6 @@ class TestSkillDefinition:
             name="Test Skill",
             description="A test skill",
             instructions="Do something",
-
             source="database",
         )
 

@@ -28,10 +28,7 @@ class TestCompactionConfig:
     def test_custom_config(self):
         """测试自定义配置"""
         config = CompactionConfig(
-            enabled=False,
-            threshold=0.9,
-            cooldown_seconds=600,
-            strategy="explicit"
+            enabled=False, threshold=0.9, cooldown_seconds=600, strategy="explicit"
         )
 
         assert config.enabled is False

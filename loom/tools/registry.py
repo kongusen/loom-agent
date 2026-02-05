@@ -134,11 +134,13 @@ class CapabilityRegistry:
                 for tool in tool_definitions:
                     # 如果没有关键词，返回所有工具；否则按相关性过滤
                     if not keywords or self._is_relevant(tool.name, tool.description, keywords):
-                        capabilities.tools.append({
-                            "name": tool.name,
-                            "description": tool.description,
-                            "input_schema": tool.input_schema,
-                        })
+                        capabilities.tools.append(
+                            {
+                                "name": tool.name,
+                                "description": tool.description,
+                                "input_schema": tool.input_schema,
+                            }
+                        )
             except Exception:
                 capabilities.tools = []
 

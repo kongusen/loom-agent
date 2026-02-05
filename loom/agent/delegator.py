@@ -134,6 +134,7 @@ class DelegatorMixin:
         )
 
         from typing import cast
+
         result = await self.event_bus.publish(delegation_task, wait_result=True)
         return cast(Task, result)
 
@@ -255,9 +256,7 @@ class DelegatorMixin:
             for hint_id in context_hints:
                 entry = await self.memory.read(hint_id)
                 if entry:
-                    await child.memory.write(
-                        hint_id, entry.content, scope=MemoryScope.INHERITED
-                    )
+                    await child.memory.write(hint_id, entry.content, scope=MemoryScope.INHERITED)
 
         return child
 

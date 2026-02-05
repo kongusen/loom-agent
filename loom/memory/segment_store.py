@@ -26,6 +26,7 @@ class MemorySegment:
         taskId: 关联的任务ID
         metadata: 元数据（可选）
     """
+
     segmentId: str = field(default_factory=lambda: str(uuid4()))
     content: str = ""
     timestamp: float = 0.0
@@ -110,10 +111,7 @@ class InMemorySegmentStore:
         # 简单的 FIFO 清理
         if len(self._segments) > self.max_segments:
             # 按时间戳排序，删除最旧的
-            sorted_segments = sorted(
-                self._segments.items(),
-                key=lambda x: x[1].timestamp
-            )
+            sorted_segments = sorted(self._segments.items(), key=lambda x: x[1].timestamp)
             oldest_id = sorted_segments[0][0]
             del self._segments[oldest_id]
 

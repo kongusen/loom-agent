@@ -104,10 +104,7 @@ class TestParallelExecutor:
         bus = EventBus()
         executor = ParallelExecutor(bus, max_concurrency=3)
 
-        tasks = [
-            ParallelTask(task_id=f"task_{i}", content=f"内容_{i}")
-            for i in range(3)
-        ]
+        tasks = [ParallelTask(task_id=f"task_{i}", content=f"内容_{i}") for i in range(3)]
 
         execution_order = []
 
@@ -214,9 +211,7 @@ class TestParallelExecutor:
         def synthesizer(results: list[ParallelResult]) -> str:
             return ",".join(r.result for r in results if r.success)
 
-        results, synthesis = await executor.execute_and_synthesize(
-            tasks, factory, synthesizer
-        )
+        results, synthesis = await executor.execute_and_synthesize(tasks, factory, synthesizer)
 
         assert len(results) == 2
         assert "A" in synthesis

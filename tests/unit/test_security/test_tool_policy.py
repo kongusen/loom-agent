@@ -4,7 +4,6 @@ ToolPolicy 单元测试
 测试工具权限策略功能
 """
 
-
 from loom.exceptions import PermissionDenied
 from loom.security.tool_policy import BlacklistPolicy, ToolContext, WhitelistPolicy
 
@@ -23,10 +22,7 @@ class TestPermissionDenied:
 
     def test_permission_denied_with_reason(self):
         """测试带原因的 PermissionDenied 异常"""
-        exc = PermissionDenied(
-            tool_name="dangerous_tool",
-            reason="Tool not in whitelist"
-        )
+        exc = PermissionDenied(tool_name="dangerous_tool", reason="Tool not in whitelist")
 
         assert exc.tool_name == "dangerous_tool"
         assert exc.reason == "Tool not in whitelist"

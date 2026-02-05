@@ -188,9 +188,7 @@ class PlannerMixin:
 
         raise TaskComplete(message=final_answer)
 
-    def _build_plan_summary(
-        self, goal: str, reasoning: str, steps: list[str]
-    ) -> str:
+    def _build_plan_summary(self, goal: str, reasoning: str, steps: list[str]) -> str:
         """构建计划摘要"""
         summary = f"Goal: {goal}\n"
         if reasoning:

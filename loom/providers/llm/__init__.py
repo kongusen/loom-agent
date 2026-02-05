@@ -56,6 +56,7 @@ def __getattr__(name: str):
     if name in _PROVIDER_REGISTRY:
         if name not in _loaded_providers:
             import importlib
+
             module = importlib.import_module(_PROVIDER_REGISTRY[name])
             _loaded_providers[name] = getattr(module, name)
         return _loaded_providers[name]

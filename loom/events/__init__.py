@@ -52,4 +52,3 @@ __all__ = [
 # 只有在nats-py可用时才导出NATSTransport
 if _NATS_AVAILABLE:
     __all__.append("NATSTransport")
-

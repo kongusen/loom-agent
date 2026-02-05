@@ -238,6 +238,7 @@ class SandboxToolManager:
             def _create_mcp_func(tool_def: MCPToolDefinition, adapter_inst: MCPAdapter):
                 async def _mcp_wrapper(**kwargs: Any) -> Any:
                     return await adapter_inst.call_tool(tool_def.name, kwargs)
+
                 return _mcp_wrapper
 
             wrapper = ToolWrapper(

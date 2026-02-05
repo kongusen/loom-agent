@@ -274,10 +274,7 @@ class MemoryManager:
 
     def get_scope_stats(self) -> dict[str, int]:
         """获取各作用域的记忆条目统计"""
-        return {
-            scope.value: len(entries)
-            for scope, entries in self._memory_by_scope.items()
-        }
+        return {scope.value: len(entries) for scope, entries in self._memory_by_scope.items()}
 
     def get_manager_state(self) -> dict[str, Any]:
         """获取 MemoryManager 完整状态"""

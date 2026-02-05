@@ -73,6 +73,7 @@ class ContextConfig(LoomBaseConfig):
         if value is None:
             return value
         from loom.memory.compaction import CompactionConfig
+
         if isinstance(value, CompactionConfig):
             return value
         if isinstance(value, dict):

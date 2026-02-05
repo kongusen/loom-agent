@@ -59,6 +59,7 @@ class TestEventBusHierarchy:
 
         # 等待异步传播
         import asyncio
+
         await asyncio.sleep(0.05)
 
         # 父级应该收到事件
@@ -81,6 +82,7 @@ class TestEventBusHierarchy:
 
         # 并发发布
         import asyncio
+
         task1 = Task(task_id="task_from_child1", action="action1")
         task2 = Task(task_id="task_from_child2", action="action2")
 
@@ -115,6 +117,7 @@ class TestEventBusHierarchy:
         await level2.publish(task)
 
         import asyncio
+
         await asyncio.sleep(0.1)  # 等待两层传播
 
         # 根级应该收到事件
