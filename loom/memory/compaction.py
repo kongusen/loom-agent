@@ -10,15 +10,15 @@ Memory Compaction - 记忆压缩
 符合 Loom 框架原则：提供机制，应用选择策略
 """
 
-import time
 import logging
+import time
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
-from loom.memory.manager import MemoryManager
-from loom.memory.tokenizer import TokenCounter
-from loom.memory.segment_store import SegmentStore, MemorySegment
 from loom.fractal.memory import MemoryScope
+from loom.memory.manager import MemoryManager
+from loom.memory.segment_store import MemorySegment, SegmentStore
+from loom.memory.tokenizer import TokenCounter
 from loom.protocol import Task
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ class MemoryCompactor:
         config: CompactionConfig,
         memory_manager: MemoryManager,
         token_counter: TokenCounter,
-        segment_store: Optional[SegmentStore] = None,
+        segment_store: SegmentStore | None = None,
     ):
         """
         初始化压缩器

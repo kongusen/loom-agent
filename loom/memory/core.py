@@ -10,15 +10,16 @@
 - L4: 向量存储（语义检索）
 """
 
-from datetime import datetime, timedelta
 import heapq
 import logging
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
+
+from loom.config.memory import MemoryStrategyType
 
 from .fact_extractor import FactExtractor
 from .layers import CircularBufferLayer, PriorityQueueLayer
 from .types import Fact, MemoryTier, TaskSummary
-from loom.config.memory import MemoryStrategyType
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ class LoomMemory:
         self._l3_summaries: list[TaskSummary] = []
 
         # L4: 向量存储（延迟初始化）
-        self._l4_vector_store: "VectorStoreProvider | None" = None
+        self._l4_vector_store: VectorStoreProvider | None = None
         self.embedding_provider = None
         self._l4_count = 0
         self._l4_index: dict[str, datetime] = {}
@@ -107,7 +108,7 @@ class LoomMemory:
         self._l4_last_pruned_at: datetime | None = None
 
         # Task索引（用于快速查找）
-        self._task_index: dict[str, "Task"] = {}
+        self._task_index: dict[str, Task] = {}
 
         # Fact索引（用于快速查找）
         self._fact_index: dict[str, Fact] = {}
@@ -183,7 +184,7 @@ class LoomMemory:
         if created_at is None:
             return False
         cutoff = datetime.now() - timedelta(hours=retention_hours)
-        return created_at < cutoff
+        return bool(created_at < cutoff)
 
     def _apply_retention(self) -> None:
         """按层级清理过期任务"""
@@ -228,7 +229,7 @@ class LoomMemory:
 
     def _rebuild_task_index(self) -> None:
         """根据 L1/L2 重新构建任务索引（用于保留清理后的一致性）"""
-        active: dict[str, "Task"] = {}
+        active: dict[str, Task] = {}
         for task in list(self._l1_layer._buffer):
             active[task.task_id] = task
         for item in self._l2_layer._heap:
@@ -238,14 +239,14 @@ class LoomMemory:
     def _should_summarize_l2(self, task: "Task") -> bool:
         """判断 L2 任务是否应被摘要到 L3"""
         if self.strategy == MemoryStrategyType.IMPORTANCE_BASED:
-            importance = task.metadata.get("importance", 0.5)
+            importance = float(task.metadata.get("importance", 0.5))
             return importance < self.importance_threshold
         if self.strategy == MemoryStrategyType.TIME_BASED:
             if self.l2_retention_hours is None:
                 return False
             return self._is_task_expired(task, self.l2_retention_hours)
         # SIMPLE: access-count based
-        access_count = task.metadata.get("loom_access_count", 0)
+        access_count = int(task.metadata.get("loom_access_count", 0))
         return access_count < self.l2_promote_threshold
 
     async def _prune_l4(self) -> None:
@@ -354,19 +355,19 @@ class LoomMemory:
     def remove_task(self, task_id: str) -> bool:
         """
         从 L1/L2 和索引中移除任务
-        
+
         Args:
             task_id: 任务ID
-            
+
         Returns:
             是否成功移除
         """
         # 1. 移除索引
         if task_id in self._task_index:
             del self._task_index[task_id]
-        
+
         removed = False
-        
+
         # 2. 尝试从 L1 移除
         # L1 是 deque，移除特定元素效率较低 O(N)
         try:
@@ -378,7 +379,7 @@ class LoomMemory:
                     break
         except ValueError:
             pass
-            
+
         # 3. 尝试从 L2 移除
         # L2 是 heap，只能重建
         # 检查是否在 L2
@@ -387,12 +388,12 @@ class LoomMemory:
             if item.item.task_id == task_id:
                 found_in_l2 = True
                 break
-        
+
         if found_in_l2:
             self._l2_layer._heap = [i for i in self._l2_layer._heap if i.item.task_id != task_id]
             heapq.heapify(self._l2_layer._heap)
             removed = True
-            
+
         return removed
 
     def _ensure_importance(self, task: "Task") -> None:
@@ -509,10 +510,7 @@ class LoomMemory:
         if session_id:
             tasks = [t for t in tasks if t.session_id == session_id]
 
-        if limit is None:
-            selected = tasks
-        else:
-            selected = tasks[:limit]
+        selected = tasks if limit is None else tasks[:limit]
 
         for task in selected:
             self._mark_access(task)
@@ -557,10 +555,7 @@ class LoomMemory:
         summaries = self._l3_summaries
         if session_id:
             summaries = [s for s in summaries if s.session_id == session_id]
-        if limit is None:
-            selected = summaries.copy()
-        else:
-            selected = summaries[-limit:]
+        selected = summaries.copy() if limit is None else summaries[-limit:]
         for summary in selected:
             summary.access_count += 1
         return selected
@@ -1037,7 +1032,9 @@ class LoomMemory:
             "l2_size": len(self._l2_layer._heap),
             "l3_size": len(self._l3_summaries),
             "l4_size": self._l4_count,
+            "l4_index_size": len(self._l4_index),
             "total_tasks": len(self._task_index),
+            "total_facts": len(self._fact_index),
             "max_l1_size": self.max_l1_size,
             "max_l2_size": self.max_l2_size,
             "max_l3_size": self.max_l3_size,
@@ -1046,6 +1043,8 @@ class LoomMemory:
             "l4_last_pruned_at": (
                 self._l4_last_pruned_at.isoformat() if self._l4_last_pruned_at else None
             ),
+            "has_vector_store": self._l4_vector_store is not None,
+            "has_embedding_provider": self.embedding_provider is not None,
         }
 
     def clear_all(self) -> None:

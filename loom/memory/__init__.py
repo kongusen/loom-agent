@@ -40,13 +40,13 @@ from loom.memory.core import LoomMemory
 from loom.memory.factory import MemoryFactory
 from loom.memory.manager import MemoryManager
 from loom.memory.sanitizers import ContentSanitizer
+from loom.memory.task_context import BudgetConfig, ContextBudgeter
 from loom.memory.tokenizer import (
     AnthropicCounter,
     EstimateCounter,
     TiktokenCounter,
     TokenCounter,
 )
-from loom.memory.task_context import BudgetConfig, ContextBudgeter
 from loom.memory.types import (
     MemoryQuery,
     MemoryStatus,

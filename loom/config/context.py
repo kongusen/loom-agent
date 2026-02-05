@@ -10,15 +10,14 @@ Context Configuration - 上下文流动配置
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import Field, field_validator
 
 from loom.config.base import LoomBaseConfig
 from loom.config.memory import MemoryConfig
 from loom.memory.task_context import BudgetConfig
 from loom.runtime.session_lane import SessionIsolationMode
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from loom.memory.compaction import CompactionConfig
@@ -36,17 +35,14 @@ class ContextConfig(LoomBaseConfig):
     memory: MemoryConfig | None = Field(
         default=None,
         description="记忆系统配置",
-        validation_alias=AliasChoices("memory", "memory_config"),
     )
     budget: BudgetConfig | None = Field(
         default=None,
         description="上下文预算配置",
-        validation_alias=AliasChoices("budget", "context_budget_config"),
     )
-    compaction: "CompactionConfig | None" = Field(
+    compaction: CompactionConfig | None = Field(
         default=None,
         description="记忆压缩配置",
-        validation_alias=AliasChoices("compaction", "compaction_config"),
     )
     session_isolation: SessionIsolationMode = Field(
         default=SessionIsolationMode.STRICT,

@@ -14,13 +14,9 @@ Loom Framework - 统一对外API
 """
 
 # A1: 统一接口公理 - 协议层
-from loom.protocol import (
-    AgentCapability,
-    AgentCard,
-    NodeProtocol,
-    Task,
-    TaskStatus,
-)
+# 配置层
+from loom.config import ContextConfig
+from loom.config.tool import ToolConfig
 
 # A2: 事件主权公理 - 事件层
 from loom.events import EventBus, SSEFormatter
@@ -36,12 +32,15 @@ from loom.memory import (
     MemoryType,
     MemoryUnit,
 )
-
-# 配置层
-from loom.config import ContextConfig
-from loom.config.tool import ToolConfig
 from loom.memory.compaction import CompactionConfig
 from loom.memory.task_context import BudgetConfig
+from loom.protocol import (
+    AgentCapability,
+    AgentCard,
+    NodeProtocol,
+    Task,
+    TaskStatus,
+)
 
 # Runtime
 from loom.runtime import Dispatcher, Interceptor, InterceptorChain

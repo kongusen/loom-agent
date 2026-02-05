@@ -18,29 +18,11 @@ LLM Providers - 语言模型提供者（懒加载版本）
 - OpenAICompatibleProvider, CustomProvider, MockLLMProvider
 """
 
-from typing import TYPE_CHECKING
+from loom.providers.llm.base_handler import BaseResponseHandler, ToolCallAggregator
 
 # 核心接口 - 始终加载（轻量级，无外部依赖）
 from loom.providers.llm.interface import LLMProvider, LLMResponse, StreamChunk
-from loom.providers.llm.base_handler import BaseResponseHandler, ToolCallAggregator
 from loom.providers.llm.retry_handler import RetryConfig, retry_async
-
-if TYPE_CHECKING:
-    # 类型检查时导入（不影响运行时）
-    from loom.providers.llm.anthropic import AnthropicProvider as AnthropicProviderType
-    from loom.providers.llm.openai import OpenAIProvider as OpenAIProviderType
-    from loom.providers.llm.gemini import GeminiProvider as GeminiProviderType
-    from loom.providers.llm.deepseek import DeepSeekProvider as DeepSeekProviderType
-    from loom.providers.llm.qwen import QwenProvider as QwenProviderType
-    from loom.providers.llm.zhipu import ZhipuProvider as ZhipuProviderType
-    from loom.providers.llm.kimi import KimiProvider as KimiProviderType
-    from loom.providers.llm.doubao import DoubaoProvider as DoubaoProviderType
-    from loom.providers.llm.ollama import OllamaProvider as OllamaProviderType
-    from loom.providers.llm.vllm import VLLMProvider as VLLMProviderType
-    from loom.providers.llm.gpustack import GPUStackProvider as GPUStackProviderType
-    from loom.providers.llm.openai_compatible import OpenAICompatibleProvider as OpenAICompatibleProviderType
-    from loom.providers.llm.custom import CustomProvider as CustomProviderType
-    from loom.providers.llm.mock import MockLLMProvider as MockLLMProviderType
 
 # Provider 注册表（懒加载映射）
 _PROVIDER_REGISTRY: dict[str, str] = {

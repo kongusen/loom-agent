@@ -85,8 +85,9 @@ class SkillHandlerMixin:
                 if not skill_def:
                     continue
 
-                instructions = await self.skill_activator.activate_injection(skill_def)
-                result["injected_instructions"].append(instructions)
+                activation_result = await self.skill_activator.activate(skill_def)
+                if activation_result.success and activation_result.content:
+                    result["injected_instructions"].append(activation_result.content)
 
         except Exception as e:
             print(f"Error activating skills: {e}")

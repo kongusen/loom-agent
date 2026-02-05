@@ -16,8 +16,12 @@ CapabilityRegistry - 统一的能力管理门面
 """
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.converters import FunctionToMCP
 
 
 @dataclass
@@ -106,7 +110,6 @@ class CapabilityRegistry:
     async def find_relevant_capabilities(
         self,
         task_description: str,
-        context: dict[str, Any] | None = None,
     ) -> CapabilitySet:
         """
         统一的能力发现接口（支持 Loader + 运行时 Skill）
@@ -115,7 +118,6 @@ class CapabilityRegistry:
 
         Args:
             task_description: 任务描述
-            context: 可选的上下文信息
 
         Returns:
             CapabilitySet: 包含相关 Tools 和 Skills 的能力集合
@@ -295,10 +297,6 @@ class CapabilityRegistry:
 
 
 # ==================== ToolRegistry (兼容旧 API) ====================
-
-from collections.abc import Callable
-from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.converters import FunctionToMCP
 
 
 class ToolRegistry:

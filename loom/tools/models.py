@@ -93,6 +93,15 @@ class ActivationResult:
     # 成功时: 注入内容
     content: str | None = None
 
+    # 激活模式 (INJECTION)
+    mode: str | None = None
+
+    # 工具名称列表
+    tool_names: list[str] | None = None
+
+    # 关联的节点
+    node: Any | None = None
+
     # 失败时的信息
     error: str | None = None
     missing_tools: list[str] | None = None

@@ -20,13 +20,13 @@ Base Node - 节点基类
 
 import time
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from loom.protocol import AgentCard, Task, TaskStatus
 
 
-class NodeState(str, Enum):
+class NodeState(StrEnum):
     """节点状态枚举"""
 
     IDLE = "idle"
@@ -129,9 +129,9 @@ class BaseNode:
 
         # 创建事件Task
         event_task = Task(
-            task_id=f"{task_id}:event:{action}",
-            source_agent=self.node_id,
-            target_agent="observer",
+            taskId=f"{task_id}:event:{action}",
+            sourceAgent=self.node_id,
+            targetAgent="observer",
             action=action,
             parameters={
                 "node_id": self.node_id,
@@ -140,8 +140,8 @@ class BaseNode:
                 **parameters,
             },
             status=TaskStatus.COMPLETED,
-            session_id=session_id,
-            parent_task_id=task_id,
+            sessionId=session_id,
+            parentTaskId=task_id,
         )
 
         # 发布事件（fire-and-forget）
@@ -249,9 +249,9 @@ class BaseNode:
             return
 
         event_task = Task(
-            task_id=f"{task_id}:event:node.message",
-            source_agent=self.node_id,
-            target_agent=target_agent,
+            taskId=f"{task_id}:event:node.message",
+            sourceAgent=self.node_id,
+            targetAgent=target_agent,
             action="node.message",
             parameters={
                 "content": content,
@@ -262,8 +262,8 @@ class BaseNode:
                 "metadata": metadata or {},
             },
             status=TaskStatus.COMPLETED,
-            session_id=session_id,
-            parent_task_id=task_id,
+            sessionId=session_id,
+            parentTaskId=task_id,
         )
 
         await self.event_bus.publish(event_task, wait_result=False)

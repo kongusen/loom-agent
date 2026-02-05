@@ -6,11 +6,9 @@ ExecutorMixin - 执行循环
 从 core.py 拆分，遵循单一职责原则。
 """
 
-import json
 from typing import TYPE_CHECKING, Any
 
-from loom.exceptions import TaskComplete
-from loom.protocol import Task, TaskStatus
+from loom.protocol import Task
 
 if TYPE_CHECKING:
     pass
@@ -44,7 +42,6 @@ class ExecutorMixin:
     def _filter_ephemeral_messages(
         self,
         messages: list[dict[str, Any]],
-        tool_call_counts: dict[str, int],
     ) -> list[dict[str, Any]]:
         """
         过滤 ephemeral 工具消息

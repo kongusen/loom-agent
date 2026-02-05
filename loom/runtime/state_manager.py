@@ -114,14 +114,14 @@ class StateManager:
         from loom.protocol.task import TaskStatus
 
         return Task(
-            task_id=data["taskId"],
-            source_agent=data["sourceAgent"],
-            target_agent=data["targetAgent"],
+            taskId=data["taskId"],
+            sourceAgent=data["sourceAgent"],
+            targetAgent=data["targetAgent"],
             action=data["action"],
             parameters=data["parameters"],
             status=TaskStatus(data["status"]),
-            created_at=datetime.fromisoformat(data["createdAt"]),
-            updated_at=datetime.fromisoformat(data["updatedAt"]),
+            createdAt=datetime.fromisoformat(data["createdAt"]),
+            updatedAt=datetime.fromisoformat(data["updatedAt"]),
             result=data.get("result"),
             error=data.get("error"),
         )

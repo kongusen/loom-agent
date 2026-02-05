@@ -78,17 +78,17 @@ class FunctionToMCP:
         Returns:
             JSON Schema类型字符串
         """
-        if py_type == str:
+        if py_type is str:
             return "string"
-        elif py_type == int:
+        elif py_type is int:
             return "integer"
-        elif py_type == float:
+        elif py_type is float:
             return "number"
-        elif py_type == bool:
+        elif py_type is bool:
             return "boolean"
-        elif py_type == list or getattr(py_type, "__origin__", None) == list:
+        elif py_type is list or getattr(py_type, "__origin__", None) is list:
             return "array"
-        elif py_type == dict or getattr(py_type, "__origin__", None) == dict:
+        elif py_type is dict or getattr(py_type, "__origin__", None) is dict:
             return "object"
         else:
             return "string"  # 默认降级为string

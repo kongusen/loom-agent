@@ -17,6 +17,15 @@ Loom Tools - 统一的工具和能力管理系统（懒加载版本）
 
 from typing import TYPE_CHECKING
 
+from .activator import SkillActivator
+from .converters import FunctionToMCP
+from .executor import ToolExecutor
+from .loader import SkillLoader
+from .mcp_adapter import MCPAdapter
+
+# Skill 加载 - 始终加载（核心功能）
+from .models import ActivationResult, SkillDefinition
+
 # 核心注册表 - 始终加载
 from .registry import CapabilityRegistry, CapabilitySet, ValidationResult
 
@@ -25,28 +34,20 @@ from .sandbox import Sandbox, SandboxViolation
 
 # 工具管理 - 始终加载
 from .sandbox_manager import SandboxToolManager, ToolScope, ToolWrapper
-from .executor import ToolExecutor
-from .mcp_adapter import MCPAdapter
-from .converters import FunctionToMCP
-
-# Skill 加载 - 始终加载（核心功能）
-from .models import SkillDefinition, ActivationResult
-from .activator import SkillActivator
 from .skill_loader import FilesystemSkillLoader
-from .loader import SkillLoader
 from .skill_registry import SkillRegistry, skill_market
 
 if TYPE_CHECKING:
     from .bash_tool import create_bash_tool, register_bash_tool_to_manager
+    from .context_tools import ContextToolExecutor, create_all_context_tools
+    from .done_tool import create_done_tool, execute_done_tool
     from .file_tools import create_file_tools, register_file_tools_to_manager
     from .http_tool import create_http_tool, register_http_tool_to_manager
-    from .search_tools import create_search_tools, register_search_tools_to_manager
-    from .done_tool import create_done_tool, execute_done_tool
-    from .todo_tool import create_todo_tool, register_todo_tool_to_manager
-    from .context_tools import create_all_context_tools, ContextToolExecutor
     from .index_context_tools import create_all_index_context_tools
     from .memory_management_tools import create_all_memory_management_tools
-    from .tool_creation import create_tool_creation_tool, DynamicToolExecutor
+    from .search_tools import create_search_tools, register_search_tools_to_manager
+    from .todo_tool import create_todo_tool, register_todo_tool_to_manager
+    from .tool_creation import DynamicToolExecutor, create_tool_creation_tool
 
 # 内置工具注册表（懒加载映射）
 _TOOL_REGISTRY: dict[str, tuple[str, str]] = {

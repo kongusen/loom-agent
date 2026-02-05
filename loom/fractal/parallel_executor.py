@@ -20,7 +20,7 @@ from loom.events.event_bus import EventBus
 from loom.events.output_collector import OutputCollector, OutputStrategy, SSEEvent
 
 if TYPE_CHECKING:
-    from loom.agent import Agent
+    pass
 
 T = TypeVar("T")
 

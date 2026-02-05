@@ -184,7 +184,7 @@ class SandboxToolManager:
 
             event = Task(
                 action="tool.registered",
-                source_agent="sandbox_manager",
+                sourceAgent="sandbox_manager",
                 parameters={
                     "tool_name": name,
                     "scope": scope.value,
@@ -276,7 +276,7 @@ class SandboxToolManager:
 
             event = Task(
                 action="tool.executing",
-                source_agent="sandbox_manager",
+                sourceAgent="sandbox_manager",
                 parameters={
                     "tool_name": name,
                     "scope": wrapper.scope.value,
@@ -301,7 +301,7 @@ class SandboxToolManager:
 
                 event = Task(
                     action="tool.completed",
-                    source_agent="sandbox_manager",
+                    sourceAgent="sandbox_manager",
                     parameters={
                         "tool_name": name,
                         "success": True,
@@ -318,7 +318,7 @@ class SandboxToolManager:
 
                 event = Task(
                     action="tool.completed",
-                    source_agent="sandbox_manager",
+                    sourceAgent="sandbox_manager",
                     parameters={
                         "tool_name": name,
                         "success": False,

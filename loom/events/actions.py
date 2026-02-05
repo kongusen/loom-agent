@@ -4,10 +4,10 @@
 提供类型安全的事件动作枚举，替代字符串键值。
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class TaskAction(str, Enum):
+class TaskAction(StrEnum):
     """任务动作类型（类型安全）"""
 
     EXECUTE = "execute"
@@ -16,7 +16,7 @@ class TaskAction(str, Enum):
     STREAM = "stream"
 
 
-class MemoryAction(str, Enum):
+class MemoryAction(StrEnum):
     """记忆动作类型（类型安全）"""
 
     READ = "read_memory"
@@ -25,7 +25,7 @@ class MemoryAction(str, Enum):
     SYNC = "sync_memory"
 
 
-class AgentAction(str, Enum):
+class AgentAction(StrEnum):
     """Agent动作类型（类型安全）"""
 
     START = "start_agent"

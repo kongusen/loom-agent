@@ -113,7 +113,7 @@ class MCPAdapter:
 
                 event = Task(
                     action="mcp.tool.called",
-                    source_agent=f"mcp/{server_id}",
+                    sourceAgent=f"mcp/{server_id}",
                     parameters={
                         "tool_name": tool_name,
                         "arguments": arguments,
@@ -135,7 +135,7 @@ class MCPAdapter:
 
                 event = Task(
                     action="mcp.tool.failed",
-                    source_agent=f"mcp/{server_id}",
+                    sourceAgent=f"mcp/{server_id}",
                     parameters={
                         "tool_name": tool_name,
                         "arguments": arguments,

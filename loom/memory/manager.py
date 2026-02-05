@@ -79,7 +79,7 @@ class MemoryManager:
         }
 
         # 子节点列表（用于 propagate_down）
-        self._children: list["MemoryManager"] = []
+        self._children: list[MemoryManager] = []
 
         # 如果有父节点，注册为子节点
         if self.parent:
@@ -264,3 +264,27 @@ class MemoryManager:
     def set_embedding_provider(self, provider: Any) -> None:
         """设置嵌入提供者"""
         self._loom_memory.set_embedding_provider(provider)
+
+    # ==================== 状态检查方法 ====================
+
+    @property
+    def children_count(self) -> int:
+        """子 MemoryManager 数量"""
+        return len(self._children)
+
+    def get_scope_stats(self) -> dict[str, int]:
+        """获取各作用域的记忆条目统计"""
+        return {
+            scope.value: len(entries)
+            for scope, entries in self._memory_by_scope.items()
+        }
+
+    def get_manager_state(self) -> dict[str, Any]:
+        """获取 MemoryManager 完整状态"""
+        return {
+            "node_id": self.node_id,
+            "children_count": self.children_count,
+            "scope_stats": self.get_scope_stats(),
+            "has_parent": self.parent is not None,
+            "loom_memory_stats": self._loom_memory.get_stats(),
+        }

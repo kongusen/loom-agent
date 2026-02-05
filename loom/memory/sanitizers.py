@@ -97,7 +97,4 @@ class ContentSanitizer:
             return False
 
         # 检查是否包含有效字符
-        if not any(c.isalnum() for c in content):
-            return False
-
-        return True
+        return any(c.isalnum() for c in content)

@@ -102,6 +102,21 @@ class EventBus:
         """获取父级事件总线"""
         return self._parent_bus
 
+    @property
+    def registered_handlers(self) -> dict[str, int]:
+        """获取已注册的处理器统计"""
+        return {action: len(handlers) for action, handlers in self._handlers.items()}
+
+    @property
+    def pending_tasks_count(self) -> int:
+        """获取待处理的后台任务数量"""
+        return len(self._background_tasks)
+
+    @property
+    def is_transport_connected(self) -> bool:
+        """传输层是否已连接"""
+        return self._transport_initialized
+
     async def _ensure_transport_connected(self) -> None:
         """确保传输层已连接"""
         if self._transport and not self._transport_initialized:

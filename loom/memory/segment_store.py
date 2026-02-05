@@ -10,7 +10,7 @@ Memory Segment Store - 记忆片段存储
 """
 
 from dataclasses import dataclass, field
-from typing import Protocol, List
+from typing import Protocol
 from uuid import uuid4
 
 
@@ -56,7 +56,7 @@ class SegmentStore(Protocol):
         """
         ...
 
-    async def retrieve(self, segment_ids: List[str]) -> List[MemorySegment]:
+    async def retrieve(self, segment_ids: list[str]) -> list[MemorySegment]:
         """
         检索片段
 
@@ -119,7 +119,7 @@ class InMemorySegmentStore:
 
         return segment.segmentId
 
-    async def retrieve(self, segment_ids: List[str]) -> List[MemorySegment]:
+    async def retrieve(self, segment_ids: list[str]) -> list[MemorySegment]:
         """检索片段"""
         result = []
         for seg_id in segment_ids:

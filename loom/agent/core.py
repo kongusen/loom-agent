@@ -36,24 +36,24 @@ from loom.agent.executor import ExecutorMixin
 from loom.agent.planner import PlannerMixin
 from loom.agent.skill_handler import SkillHandlerMixin
 from loom.agent.tool_handler import ToolHandlerMixin
-from loom.events.event_bus import EventBus
-from loom.exceptions import TaskComplete, PermissionDenied
-from loom.memory.manager import MemoryManager
 from loom.config.context import ContextConfig
 from loom.config.memory import MemoryConfig
 from loom.config.tool import ToolConfig
+from loom.events.event_bus import EventBus
+from loom.exceptions import PermissionDenied, TaskComplete
 from loom.memory.compaction import CompactionConfig, MemoryCompactor
-from loom.memory.segment_store import SegmentStore
-from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
-from loom.security.tool_policy import ToolPolicy
+from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
-from loom.memory.task_context import MemoryContextSource
+from loom.memory.segment_store import SegmentStore
+from loom.memory.task_context import BudgetConfig, MemoryContextSource
 from loom.memory.tokenizer import TiktokenCounter
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
-from loom.tools.skill_registry import skill_market
+from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
+from loom.security.tool_policy import ToolPolicy
 from loom.tools.context_tools import ContextToolExecutor, create_all_context_tools
 from loom.tools.done_tool import create_done_tool, execute_done_tool
+from loom.tools.skill_registry import skill_market
 from loom.tools.tool_creation import (
     DynamicToolExecutor,
     ToolCreationError,
@@ -69,6 +69,7 @@ except ImportError:
 # Type checking imports (avoid circular imports)
 if TYPE_CHECKING:
     from loom.agent.agent_node import NodeType
+    from loom.tools.activator import SkillActivator
 
 
 class AgentBuilder:
@@ -240,7 +241,7 @@ class Agent(
         parent_memory: "MemoryManager | None" = None,  # 父节点的 MemoryManager
         root_context_id: str | None = None,
         memory_config: dict[str, Any] | None = None,
-        context_budget_config: dict[str, float | int] | None = None,
+        context_budget_config: "BudgetConfig | dict[str, float | int] | None" = None,
         knowledge_base: Any | None = None,  # KnowledgeBaseProvider
         knowledge_max_items: int = 3,  # 知识库查询最大条目数
         knowledge_relevance_threshold: float = 0.7,  # 知识相关度阈值
@@ -324,7 +325,7 @@ class Agent(
         self._active_skills: set[str] = set()
 
         # 创建 SkillActivator（如果未提供且有 skill_registry）
-        self.skill_activator: "SkillActivator | None"
+        self.skill_activator: "SkillActivator | None"  # noqa: UP037
         if skill_activator is None and skill_registry is not None:
             from loom.tools.activator import SkillActivator
 
@@ -489,7 +490,7 @@ class Agent(
             if isinstance(context_budget_config, BudgetConfig):
                 budget_config = context_budget_config
             elif isinstance(context_budget_config, dict):
-                budget_config = BudgetConfig(**context_budget_config)
+                budget_config = BudgetConfig(**context_budget_config)  # type: ignore[arg-type]
             else:
                 raise TypeError("context_budget_config must be BudgetConfig or dict")
 
@@ -532,6 +533,62 @@ class Agent(
         # AgentNode 统一抽象：节点类型
         # BaseNode 已经设置了 self.node_type = "agent"
         # 我们提供 get_node_type() 方法来获取枚举值
+
+    # ==================== 状态检查属性 ====================
+
+    @property
+    def active_skills(self) -> set[str]:
+        """当前激活的技能集合（只读）"""
+        return self._active_skills.copy()
+
+    @property
+    def current_task_id(self) -> str | None:
+        """当前执行的任务ID（只读）"""
+        return getattr(self, "_current_task_id", None)
+
+    @property
+    def recursive_depth(self) -> int:
+        """当前递归深度（只读）"""
+        return self._recursive_depth
+
+    @property
+    def root_context_id(self) -> str | None:
+        """根上下文ID（只读）"""
+        return self._root_context_id
+
+    @property
+    def ephemeral_tool_outputs(self) -> dict[str, list[Any]]:
+        """临时工具输出历史（只读）"""
+        return {k: list(v) for k, v in self._ephemeral_tool_outputs.items()}
+
+    @property
+    def dynamic_tools(self) -> list[str]:
+        """已创建的动态工具列表（只读）"""
+        if self._dynamic_tool_executor:
+            return list(self._dynamic_tool_executor.created_tools.keys())
+        return []
+
+    def get_agent_state(self) -> dict[str, Any]:
+        """
+        获取 Agent 完整状态快照（用于调试和可观测性）
+
+        Returns:
+            包含所有关键状态的字典
+        """
+        return {
+            "node_id": self.node_id,
+            "current_task_id": self.current_task_id,
+            "recursive_depth": self.recursive_depth,
+            "root_context_id": self.root_context_id,
+            "active_skills": list(self.active_skills),
+            "dynamic_tools": self.dynamic_tools,
+            "ephemeral_outputs_count": {
+                k: len(v) for k, v in self._ephemeral_tool_outputs.items()
+            },
+            "pending_tools_count": len(self._pending_tool_callables),
+            "max_iterations": self.max_iterations,
+            "enabled_skills": list(self.config.enabled_skills) if self.config else [],
+        }
 
     @classmethod
     def create(
@@ -796,7 +853,7 @@ class Agent(
             >>> result = await agent.run("帮我分析这段代码")
         """
         task = Task(
-            task_id=str(uuid4()), action="execute", parameters={"content": content, **kwargs}
+            taskId=str(uuid4()), action="execute", parameters={"content": content, **kwargs}
         )
         result = await self.execute_task(task)
 
@@ -990,8 +1047,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     continue
 
                 # Activate via injection
-                instructions = await self.skill_activator.activate_injection(skill_def)
-                result["injected_instructions"].append(instructions)
+                activation_result = await self.skill_activator.activate(skill_def)
+                if activation_result.success and activation_result.content:
+                    result["injected_instructions"].append(activation_result.content)
 
         except Exception as e:
             # Log error but don't fail - skills are optional enhancement
@@ -1287,7 +1345,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 )
                 # 重建工具列表以包含新创建的工具
                 self.all_tools = self._build_tool_list()
-                return result
+                return str(result)
             except ToolCreationError as e:
                 return f"工具创建失败: {str(e)}"
             except Exception as e:
@@ -1368,7 +1426,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     async def _wrapped(*args: Any, **kwargs: Any) -> Any:
                         return f(*args, **kwargs)
                     return _wrapped
-                
+
                 exec_func: Any = _create_wrapper(func)
             else:
                 exec_func = func
@@ -1398,10 +1456,10 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         # 记录任务到分形共享记忆（用于子节点继承上下文）
         await self._ensure_shared_task_context(task)
-        
+
         # P3 FIX: 设置当前任务上下文
         self._current_task_id = task.taskId
-        
+
         try:
             # 【Phase 2】检查并执行记忆压缩
             if hasattr(self, 'memory_compactor') and self.memory_compactor:
@@ -1471,7 +1529,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                             else:
                                 # 如果不是dict，尝试解析
                                 import json
-                                
+
                                 try:
                                     tool_calls.append(json.loads(str(chunk.content)))
                                 except (json.JSONDecodeError, TypeError):
@@ -1810,13 +1868,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
             # 创建委派任务
             delegated_task = Task(
-                task_id=f"{parent_task_id}:delegated:{target_agent_id}",
-                source_agent=self.node_id,
-                target_agent=target_agent_id,
+                taskId=f"{parent_task_id}:delegated:{target_agent_id}",
+                sourceAgent=self.node_id,
+                targetAgent=target_agent_id,
                 action="execute",
                 parameters={"content": subtask},
-                parent_task_id=parent_task_id,
-                session_id=session_id,
+                parentTaskId=parent_task_id,
+                sessionId=session_id,
             )
 
             # 直接调用目标 agent
@@ -1917,7 +1975,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         for idx, step in enumerate(steps):
             # 创建子任务（标记为计划步骤，并传递父计划）
             subtask = Task(
-                task_id=f"{parent_task.taskId}-step-{idx+1}-{uuid4()}",
+                taskId=f"{parent_task.taskId}-step-{idx+1}-{uuid4()}",
                 action="execute",
                 parameters={
                     "content": step,
@@ -1928,12 +1986,11 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     "parent_plan": parent_plan_summary,  # 传递父计划
                     "root_context_id": root_context_id,
                 },
-                session_id=parent_task.sessionId,
+                sessionId=parent_task.sessionId,
             )
 
             # 创建子节点并执行
             child_node = await self._create_child_node(
-                subtask=subtask,
                 context_hints=context_hints,
             )
 
@@ -2025,14 +2082,14 @@ IMPORTANT:
             # 这里我们需要模拟一个 parent_task，但由于此方法可能被直接调用，
             # 我们创建一个临时任务对象
             parent_task = Task(
-                task_id=f"{self.node_id}-delegate-{uuid4()}",
+                taskId=f"{self.node_id}-delegate-{uuid4()}",
                 action="execute",
                 parameters={
                     "content": subtask,
                     **kwargs,
                 },
-                source_agent="user",
-                target_agent=self.node_id,
+                sourceAgent="user",
+                targetAgent=self.node_id,
             )
 
             # 调用现有的 _auto_delegate 方法
@@ -2043,7 +2100,7 @@ IMPORTANT:
 
             # 将结果转换为 Task 对象
             result_task = Task(
-                task_id=parent_task.taskId + ":result",
+                taskId=parent_task.taskId + ":result",
                 action="execute",
                 parameters={"result": result_str},
                 status=TaskStatus.COMPLETED,
@@ -2058,13 +2115,13 @@ IMPORTANT:
 
         # 创建委派任务
         delegation_task = Task(
-            task_id=str(uuid4()),
-            source_agent=self.node_id,
-            target_agent=target_node_id,
+            taskId=str(uuid4()),
+            sourceAgent=self.node_id,
+            targetAgent=target_node_id,
             action="execute",
             parameters={"task": subtask, **kwargs},
-            parent_task_id=getattr(self, "_current_task_id", None),
-            session_id=getattr(self, "_session_id", None),
+            parentTaskId=getattr(self, "_current_task_id", None),
+            sessionId=getattr(self, "_session_id", None),
         )
 
         # 通过 EventBus 发布（遵循 A2 公理）
@@ -2103,14 +2160,14 @@ IMPORTANT:
         # 1. 创建子任务
         root_context_id = parent_task.parameters.get("root_context_id") or self._root_context_id
         subtask = Task(
-            task_id=f"{parent_task.taskId}-child-{uuid4()}",
+            taskId=f"{parent_task.taskId}-child-{uuid4()}",
             action="execute",
             parameters={
                 "content": subtask_description,
                 "parent_task_id": parent_task.taskId,
                 "root_context_id": root_context_id,
             },
-            session_id=parent_task.sessionId,
+            sessionId=parent_task.sessionId,
         )
 
         # 2. 创建子节点（使用_create_child_node）
@@ -2121,7 +2178,6 @@ IMPORTANT:
                 context_hints.append(cid)
 
         child_node = await self._create_child_node(
-            subtask=subtask,
             context_hints=context_hints,
         )
 
@@ -2142,13 +2198,8 @@ IMPORTANT:
 
     async def _create_child_node(
         self,
-        subtask: Task,
-        context_hints: list[str],
-        # === Phase 3: 配置继承参数（12.5.3）===
-        add_skills: set[str] | None = None,
-        remove_skills: set[str] | None = None,
-        add_tools: set[str] | None = None,
-        remove_tools: set[str] | None = None,
+        context_hints: list[str] | None = None,
+        **kwargs: Any,
     ) -> "Agent":
         """
         创建子节点
@@ -2173,6 +2224,12 @@ IMPORTANT:
         Returns:
             配置好的子Agent实例
         """
+        # 从 kwargs 提取参数
+        add_skills: set[str] | None = kwargs.get("add_skills")
+        remove_skills: set[str] | None = kwargs.get("remove_skills")
+        add_tools: set[str] | None = kwargs.get("add_tools")
+        remove_tools: set[str] | None = kwargs.get("remove_tools")
+        subtask: Task | None = kwargs.get("subtask")
 
         # === Phase 3: 配置继承（12.5.3）===
         from loom.config.agent import AgentConfig
@@ -2187,7 +2244,7 @@ IMPORTANT:
 
         # 1. 为子节点提供上下文（不限制能力，只提供信息）
         child_system_prompt = self.system_prompt
-        if subtask.parameters.get("is_plan_step"):
+        if subtask and subtask.parameters.get("is_plan_step"):
             parent_plan = subtask.parameters.get("parent_plan", "")
             step_index = subtask.parameters.get("step_index", "?")
             total_steps = subtask.parameters.get("total_steps", "?")
@@ -2208,8 +2265,9 @@ Prefer ReAct (direct tool use) for most tasks.
 
         # 2. 创建子 Agent（parent_memory=self.memory，子节点拥有独立 MemoryManager）
         # 子节点的 MemoryManager 会自动通过 parent_memory 继承父节点的 SHARED/GLOBAL 记忆
+        child_node_id = subtask.taskId if subtask else f"{self.node_id}-child-{uuid4()}"
         child_agent = Agent(
-            node_id=subtask.taskId,
+            node_id=child_node_id,
             llm_provider=self.llm_provider,
             system_prompt=child_system_prompt,
             tools=self.tools,

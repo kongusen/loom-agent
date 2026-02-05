@@ -84,6 +84,11 @@ class DelegatorMixin:
     _root_context_id: str | None
     _recursive_depth: int
 
+    # 方法声明（由 Agent 类实现）
+    def _publish_event(
+        self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
+    ) -> Any: ...
+
     async def delegate(
         self,
         subtask: str,
@@ -97,11 +102,11 @@ class DelegatorMixin:
         """
         if target_node_id is None:
             parent_task = Task(
-                task_id=f"{self.node_id}-delegate-{uuid4()}",
+                taskId=f"{self.node_id}-delegate-{uuid4()}",
                 action="execute",
                 parameters={"content": subtask, **kwargs},
-                source_agent="user",
-                target_agent=self.node_id,
+                sourceAgent="user",
+                targetAgent=self.node_id,
             )
 
             result_str = await self._auto_delegate(
@@ -110,7 +115,7 @@ class DelegatorMixin:
             )
 
             return Task(
-                task_id=parent_task.taskId + ":result",
+                taskId=parent_task.taskId + ":result",
                 action="execute",
                 parameters={"result": result_str},
                 status=TaskStatus.COMPLETED,
@@ -121,9 +126,9 @@ class DelegatorMixin:
             raise RuntimeError("Cannot delegate: no event_bus available")
 
         delegation_task = Task(
-            task_id=str(uuid4()),
-            source_agent=self.node_id,
-            target_agent=target_node_id,
+            taskId=str(uuid4()),
+            sourceAgent=self.node_id,
+            targetAgent=target_node_id,
             action="execute",
             parameters={"task": subtask, **kwargs},
         )
@@ -155,19 +160,31 @@ class DelegatorMixin:
 
         # 创建子任务
         subtask = Task(
-            task_id=f"{parent_task.taskId}-sub-{uuid4()}",
+            taskId=f"{parent_task.taskId}-sub-{uuid4()}",
             action="execute",
             parameters={
                 "content": subtask_description,
                 "parent_task_id": parent_task.taskId,
                 "root_context_id": root_context_id,
             },
+            sessionId=parent_task.sessionId,
+        )
+
+        # 发布委派开始事件
+        await self._publish_event(
+            action="delegation.started",
+            parameters={
+                "subtask_id": subtask.taskId,
+                "subtask_description": subtask_description,
+                "parent_task_id": parent_task.taskId,
+                "context_hints": context_hints,
+            },
+            task_id=parent_task.taskId,
             session_id=parent_task.sessionId,
         )
 
         # 创建子节点
         child_node = await self._create_child_node(
-            subtask=subtask,
             context_hints=context_hints,
         )
 
@@ -175,7 +192,21 @@ class DelegatorMixin:
         result = await child_node.execute_task(subtask)
         await self._sync_memory_from_child(child_node)
 
-        if result.status == TaskStatus.COMPLETED:
+        # 发布委派完成事件
+        success = result.status == TaskStatus.COMPLETED
+        await self._publish_event(
+            action="delegation.completed",
+            parameters={
+                "subtask_id": subtask.taskId,
+                "success": success,
+                "child_node_id": child_node.node_id,
+                "error": result.error if not success else None,
+            },
+            task_id=parent_task.taskId,
+            session_id=parent_task.sessionId,
+        )
+
+        if success:
             return (
                 result.result.get("content", str(result.result))
                 if isinstance(result.result, dict)
@@ -185,7 +216,6 @@ class DelegatorMixin:
 
     async def _create_child_node(
         self,
-        subtask: Task,
         context_hints: list[str] | None = None,
     ) -> "Agent":
         """

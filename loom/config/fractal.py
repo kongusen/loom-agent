@@ -12,14 +12,14 @@ Fractal Configuration - 分形编排配置
 3. 性能优化 - 自动修剪低效节点
 """
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import Field
 
 from loom.config.base import LoomBaseConfig
 
 
-class GrowthTrigger(str, Enum):
+class GrowthTrigger(StrEnum):
     """
     增长触发条件
 
@@ -32,7 +32,7 @@ class GrowthTrigger(str, Enum):
     NEVER = "never"  # 禁用分形模式
 
 
-class GrowthStrategy(str, Enum):
+class GrowthStrategy(StrEnum):
     """
     增长策略
 

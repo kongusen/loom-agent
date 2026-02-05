@@ -6,13 +6,13 @@
 基于 A1 公理（统一接口公理）和 A4 公理（记忆层次公理）
 """
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class MemoryOperation(str, Enum):
+class MemoryOperation(StrEnum):
     """
     记忆操作类型
 

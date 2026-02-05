@@ -18,14 +18,14 @@
 """
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from loom.memory.core import LoomMemory
 
 
-class MemoryScope(Enum):
+class MemoryScope(StrEnum):
     """
     记忆作用域
 

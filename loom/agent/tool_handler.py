@@ -113,13 +113,25 @@ class ToolHandlerMixin:
         """
         import json
 
+        from loom.security import ToolContext
         from loom.tools.tool_creation import ToolCreationError
 
         # 权限检查
         if self.tool_policy:
-            context = {"tool_name": tool_name, "tool_args": tool_args}
-            if not self.tool_policy.is_allowed(tool_name, context):
-                reason = self.tool_policy.get_denial_reason(tool_name)
+            # 解析参数用于权限检查
+            if isinstance(tool_args, str):
+                try:
+                    check_args = json.loads(tool_args)
+                except json.JSONDecodeError:
+                    check_args = {}
+            elif isinstance(tool_args, dict):
+                check_args = tool_args
+            else:
+                check_args = {}
+
+            context = ToolContext(tool_name=tool_name, tool_args=check_args)
+            if not self.tool_policy.is_allowed(context):
+                reason = self.tool_policy.get_denial_reason(context)
                 raise PermissionDenied(tool_name=tool_name, reason=reason)
 
         # 解析参数
@@ -143,7 +155,7 @@ class ToolHandlerMixin:
                     implementation=parsed_args.get("implementation", ""),
                 )
                 self.all_tools = self._build_tool_list()
-                return result
+                return str(result)
             except ToolCreationError as e:
                 return f"工具创建失败: {str(e)}"
             except Exception as e:

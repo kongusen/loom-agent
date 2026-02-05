@@ -604,7 +604,7 @@ class MemoryScopeContextSource(ContextSource):
                 message = f"[{label}] {content}"
             tasks.append(
                 Task(
-                    task_id=f"fractal:{entry_id}",
+                    taskId=f"fractal:{entry_id}",
                     action="node.message",
                     parameters={
                         "content": message,
@@ -613,7 +613,7 @@ class MemoryScopeContextSource(ContextSource):
                         "scope": scope_label,
                         "label": label,
                     },
-                    session_id=current_task.session_id,
+                    sessionId=current_task.session_id,
                 )
             )
 

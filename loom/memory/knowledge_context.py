@@ -82,14 +82,14 @@ class KnowledgeContextSource(ContextSource):
             for knowledge in cached_knowledge:
                 tasks.append(
                     Task(
-                        task_id=f"knowledge:cached:{knowledge.get('id', 'unknown')}",
+                        taskId=f"knowledge:cached:{knowledge.get('id', 'unknown')}",
                         action="node.message",
                         parameters={
                             "content": f"📚 Cached Knowledge: {knowledge['content']}\n"
                             f"(Source: {knowledge['source']}, Cached)",
                             "context_role": "system",
                         },
-                        session_id=current_task.session_id,
+                        sessionId=current_task.session_id,
                     )
                 )
             return tasks
@@ -106,14 +106,14 @@ class KnowledgeContextSource(ContextSource):
         for item in filtered_items:
             tasks.append(
                 Task(
-                    task_id=f"knowledge:{item.id}",
+                    taskId=f"knowledge:{item.id}",
                     action="node.message",
                     parameters={
                         "content": f"📚 Domain Knowledge: {item.content}\n"
                         f"(Source: {item.source}, Relevance: {item.relevance:.2f})",
                         "context_role": "system",
                     },
-                    session_id=current_task.session_id,
+                    sessionId=current_task.session_id,
                 )
             )
 

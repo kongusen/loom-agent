@@ -11,7 +11,8 @@ from typing import Any
 
 from loom.providers.llm.interface import LLMProvider
 from loom.tools.sandbox_manager import SandboxToolManager
-from .models import SkillDefinition
+
+from .models import ActivationResult, SkillDefinition
 
 
 class SkillActivator:
@@ -37,7 +38,7 @@ class SkillActivator:
     ) -> list[str]:
         """
         查找相关的 Skills (简单实现：关键词匹配)
-        
+
         目前 Agent.core 中调用此方法。
         使用简单的关键词匹配作为临时方案，直到集成向量搜索。
         """
@@ -55,7 +56,7 @@ class SkillActivator:
             for kw in keywords:
                 if len(kw) > 3 and kw in text:  # 忽略短词
                     score += 1
-            
+
             if score > 0:
                 scored_skills.append((score, m["skill_id"]))
 
@@ -63,11 +64,64 @@ class SkillActivator:
         scored_skills.sort(key=lambda x: x[0], reverse=True)
         return [s[1] for s in scored_skills[:max_skills]]
 
-    async def activate_injection(self, skill: SkillDefinition) -> str:
+    async def activate(
+        self,
+        skill: SkillDefinition,
+        tool_manager: SandboxToolManager | None = None,
+        event_bus: Any | None = None,
+    ) -> ActivationResult:
         """
-        激活知识注入模式
-        
+        激活 Skill（统一入口）
+
+        Args:
+            skill: Skill 定义
+            tool_manager: 工具管理器（用于依赖验证）
+            event_bus: 事件总线（可选）
+
         Returns:
-            要注入到 system prompt 的指令内容
+            ActivationResult: 激活结果
         """
-        return skill.get_full_instructions()
+        # 1. 验证工具依赖
+        missing_tools: list[str] = []
+        if skill.required_tools and tool_manager:
+            available_tools = set(tool_manager.list_tools())
+            for tool_name in skill.required_tools:
+                if tool_name not in available_tools:
+                    missing_tools.append(tool_name)
+
+        if missing_tools:
+            return ActivationResult(
+                success=False,
+                skill_id=skill.skill_id,
+                error=f"Missing required tools: {', '.join(missing_tools)}",
+                missing_tools=missing_tools,
+            )
+
+        try:
+            # 2. 获取注入内容
+            content = skill.get_full_instructions()
+
+            # 3. 发布激活事件
+            if event_bus:
+                await event_bus.publish(
+                    "skill.activated",
+                    {
+                        "skill_id": skill.skill_id,
+                        "mode": "INJECTION",
+                        "tool_names": list(skill.required_tools) if skill.required_tools else [],
+                    },
+                )
+
+            return ActivationResult(
+                success=True,
+                skill_id=skill.skill_id,
+                content=content,
+                mode="INJECTION",
+                tool_names=list(skill.required_tools) if skill.required_tools else None,
+            )
+        except Exception as e:
+            return ActivationResult(
+                success=False,
+                skill_id=skill.skill_id,
+                error=str(e),
+            )

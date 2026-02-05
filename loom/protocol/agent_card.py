@@ -9,11 +9,11 @@ Agent Card - A2A协议能力声明
 """
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class AgentCapability(str, Enum):
+class AgentCapability(StrEnum):
     """
     代理能力枚举
 

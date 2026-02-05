@@ -11,8 +11,8 @@ Session Lane - 同 session 串行控制
 
 import asyncio
 import logging
-from enum import Enum
-from typing import Dict, Tuple
+from enum import StrEnum
+from typing import Any
 
 from loom.protocol import Task
 from loom.runtime.interceptor import Interceptor
@@ -20,7 +20,7 @@ from loom.runtime.interceptor import Interceptor
 logger = logging.getLogger(__name__)
 
 
-class SessionIsolationMode(str, Enum):
+class SessionIsolationMode(StrEnum):
     """Session 隔离模式"""
 
     STRICT = "strict"  # 严格串行（默认）
@@ -44,10 +44,10 @@ class SessionLaneInterceptor(Interceptor):
             mode: 隔离模式（strict/advisory/none）
         """
         self.mode = mode
-        self._locks: Dict[Tuple[str, str], asyncio.Lock] = {}
+        self._locks: dict[tuple[str, str], asyncio.Lock] = {}
         self._lock_registry = asyncio.Lock()
-        self._task_locks: Dict[str, asyncio.Lock] = {}  # taskId -> lock 映射
-        self._lock_usage_count: Dict[Tuple[str, str], int] = {}  # 锁使用计数
+        self._task_locks: dict[str, asyncio.Lock] = {}  # taskId -> lock 映射
+        self._lock_usage_count: dict[tuple[str, str], int] = {}  # 锁使用计数
 
     async def before(self, task: Task) -> Task:
         """
@@ -123,3 +123,23 @@ class SessionLaneInterceptor(Interceptor):
                         self._lock_usage_count.pop(lock_key, None)
 
         return task
+
+    # ==================== 状态检查方法 ====================
+
+    @property
+    def active_task_ids(self) -> list[str]:
+        """当前持有锁的任务ID列表"""
+        return list(self._task_locks.keys())
+
+    @property
+    def active_locks_count(self) -> int:
+        """当前活跃的锁数量"""
+        return len(self._locks)
+
+    def get_lock_stats(self) -> dict[str, Any]:
+        """获取锁统计信息"""
+        return {
+            "active_locks": len(self._locks),
+            "active_tasks": len(self._task_locks),
+            "lock_usage": dict(self._lock_usage_count),
+        }

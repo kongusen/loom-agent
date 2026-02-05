@@ -12,7 +12,7 @@ Memory Configuration - 记忆系统配置
 3. 合理默认 - 提供开箱即用的默认值
 """
 
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import Field
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from loom.providers.knowledge.base import KnowledgeBaseProvider
 
 
-class MemoryStrategyType(str, Enum):
+class MemoryStrategyType(StrEnum):
     """
     记忆策略类型
 

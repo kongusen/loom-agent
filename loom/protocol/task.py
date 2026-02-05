@@ -10,14 +10,14 @@ v0.5.0: 迁移为 Pydantic BaseModel，使用驼峰命名（与 A2A 协议一致
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """任务状态"""
 
     PENDING = "pending"  # 待处理

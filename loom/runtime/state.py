@@ -11,11 +11,11 @@ State - 状态类型定义
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class AgentStatus(str, Enum):
+class AgentStatus(StrEnum):
     """
     Agent运行状态
 

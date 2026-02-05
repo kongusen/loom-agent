@@ -13,7 +13,7 @@ from loom.exceptions import TaskComplete
 from loom.protocol import Task, TaskStatus
 
 if TYPE_CHECKING:
-    from .core import Agent
+    pass
 
 
 def create_plan_tool() -> dict[str, Any]:
@@ -64,6 +64,19 @@ class PlannerMixin:
     system_prompt: str
     _root_context_id: str | None
     _recursive_depth: int
+
+    # 方法声明（由 Agent 类实现）
+    def _publish_event(
+        self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
+    ) -> Any: ...
+
+    def _ensure_shared_task_context(self, task: Task) -> Any: ...
+
+    def _create_child_node(self, context_hints: list[str] | None = None, **kwargs: Any) -> Any: ...
+
+    def _sync_memory_from_child(self, child: Any) -> Any: ...
+
+    def execute_task(self, task: Task) -> Any: ...
 
     async def _execute_plan(
         self,
@@ -119,7 +132,7 @@ class PlannerMixin:
 
         for idx, step in enumerate(steps):
             subtask = Task(
-                task_id=f"{parent_task.taskId}-step-{idx+1}-{uuid4()}",
+                taskId=f"{parent_task.taskId}-step-{idx+1}-{uuid4()}",
                 action="execute",
                 parameters={
                     "content": step,
@@ -130,18 +143,19 @@ class PlannerMixin:
                     "parent_plan": parent_plan_summary,
                     "root_context_id": root_context_id,
                 },
-                session_id=parent_task.sessionId,
+                sessionId=parent_task.sessionId,
             )
 
             child_node = await self._create_child_node(
-                subtask=subtask,
                 context_hints=context_hints,
             )
 
             result = await child_node.execute_task(subtask)
             await self._sync_memory_from_child(child_node)
 
-            if result.status == TaskStatus.COMPLETED:
+            # 确定步骤结果
+            success = result.status == TaskStatus.COMPLETED
+            if success:
                 step_result = (
                     result.result.get("content", str(result.result))
                     if isinstance(result.result, dict)
@@ -149,7 +163,23 @@ class PlannerMixin:
                 )
                 results.append(f"Step {idx+1}: {step_result}")
             else:
-                results.append(f"Step {idx+1}: Failed - {result.error or 'Unknown error'}")
+                step_result = result.error or "Unknown error"
+                results.append(f"Step {idx+1}: Failed - {step_result}")
+
+            # 发布步骤完成事件
+            await self._publish_event(
+                action="plan.step_completed",
+                parameters={
+                    "step_index": idx + 1,
+                    "total_steps": len(steps),
+                    "step_description": step,
+                    "success": success,
+                    "result_summary": step_result[:200] if len(step_result) > 200 else step_result,
+                    "child_node_id": child_node.node_id,
+                },
+                task_id=parent_task.taskId,
+                session_id=parent_task.sessionId,
+            )
 
         # 聚合结果
         final_answer = await self._synthesize_plan_results(
@@ -194,6 +224,6 @@ IMPORTANT:
                 messages=[{"role": "user", "content": synthesis_prompt}],
                 max_tokens=1000,
             )
-            return response.content
+            return str(response.content)
         except Exception:
             return f"Plan '{goal}' completed:\n" + steps_context
