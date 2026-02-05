@@ -85,9 +85,9 @@ class DelegatorMixin:
     _recursive_depth: int
 
     # 方法声明（由 Agent 类实现）
-    def _publish_event(
+    async def _publish_event(
         self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
-    ) -> Any: ...
+    ) -> None: ...
 
     async def delegate(
         self,

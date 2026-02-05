@@ -66,9 +66,9 @@ class PlannerMixin:
     _recursive_depth: int
 
     # 方法声明（由 Agent 类实现）
-    def _publish_event(
+    async def _publish_event(
         self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
-    ) -> Any: ...
+    ) -> None: ...
 
     def _ensure_shared_task_context(self, task: Task) -> Any: ...
 

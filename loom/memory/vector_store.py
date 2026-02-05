@@ -218,7 +218,7 @@ class InMemoryVectorStore(VectorStoreProvider):
                 if actual not in expected:
                     return False
             elif op == "contains":
-                if isinstance(actual, (list, tuple, set)):
+                if isinstance(actual, list | tuple | set):
                     if expected not in actual:
                         return False
                 elif isinstance(actual, str):

@@ -6,7 +6,6 @@ OutputCollector Unit Tests
 
 import asyncio
 import json
-from unittest.mock import AsyncMock
 
 import pytest
 

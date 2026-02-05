@@ -148,6 +148,6 @@ class TestEventBusHierarchy:
         """测试parent_bus属性"""
         parent = EventBus()
         child = parent.create_child_bus("child")
-        
+
         assert parent.parent_bus is None
         assert child.parent_bus is parent

@@ -152,7 +152,7 @@ class EventBus:
         """
         # 将枚举转换为字符串值
         action_key = (
-            action.value if isinstance(action, (TaskAction, MemoryAction, AgentAction)) else action
+            action.value if isinstance(action, TaskAction | MemoryAction | AgentAction) else action
         )
         self._handlers[action_key].append(handler)
 
@@ -168,7 +168,7 @@ class EventBus:
             是否成功注销（如果 handler 不存在返回 False）
         """
         action_key = (
-            action.value if isinstance(action, (TaskAction, MemoryAction, AgentAction)) else action
+            action.value if isinstance(action, TaskAction | MemoryAction | AgentAction) else action
         )
         if action_key in self._handlers and handler in self._handlers[action_key]:
             self._handlers[action_key].remove(handler)

@@ -5,6 +5,7 @@ Session Lane 单元测试
 """
 
 import asyncio
+
 import pytest
 
 from loom.protocol import Task
@@ -187,7 +188,7 @@ class TestSessionLaneInterceptorLockManagement:
         interceptor = SessionLaneInterceptor(mode=SessionIsolationMode.STRICT)
 
         task1 = Task(taskId="task1", sessionId="session-1", action="test")
-        task2 = Task(taskId="task2", sessionId="session-1", action="test")
+        _task2 = Task(taskId="task2", sessionId="session-1", action="test")  # noqa: F841
 
         # 两个相同 session 的任务应该使用相同的锁（当前实现使用 default node_id）
         await interceptor.before(task1)

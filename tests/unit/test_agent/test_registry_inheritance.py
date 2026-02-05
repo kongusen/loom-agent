@@ -9,8 +9,8 @@ from loom.agent.core import Agent
 from loom.config.agent import AgentConfig
 from loom.protocol import Task
 from loom.providers.llm.mock import MockLLMProvider
-from loom.tools.skill_registry import SkillRegistry
 from loom.tools.registry import ToolRegistry
+from loom.tools.skill_registry import SkillRegistry
 
 
 @pytest.fixture

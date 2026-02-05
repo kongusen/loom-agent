@@ -475,7 +475,7 @@ class LoomMemory:
         """
         import heapq
 
-        from loom.memory.layers.priority import PriorityItem
+        from loom.memory.layers import PriorityItem
 
         importance = task.metadata.get("importance", 0.5)
         # 使用负数实现最大堆

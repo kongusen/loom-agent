@@ -4,9 +4,9 @@ MemoryCompactor 单元测试
 测试记忆压缩功能
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-import time
-from unittest.mock import AsyncMock, MagicMock
 
 from loom.memory.compaction import CompactionConfig, MemoryCompactor
 from loom.memory.segment_store import InMemorySegmentStore

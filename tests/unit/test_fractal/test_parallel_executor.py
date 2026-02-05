@@ -10,7 +10,6 @@ import pytest
 
 from loom.events import EventBus, OutputStrategy
 from loom.fractal import ParallelExecutor, ParallelResult, ParallelTask
-from loom.protocol import Task, TaskStatus
 
 
 class TestParallelTask:

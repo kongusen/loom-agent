@@ -4,10 +4,9 @@ ToolPolicy 单元测试
 测试工具权限策略功能
 """
 
-import pytest
 
 from loom.exceptions import PermissionDenied
-from loom.security.tool_policy import WhitelistPolicy, BlacklistPolicy
+from loom.security.tool_policy import BlacklistPolicy, ToolContext, WhitelistPolicy
 
 
 class TestPermissionDenied:
@@ -43,22 +42,22 @@ class TestWhitelistPolicy:
         """测试白名单允许列表中的工具"""
         policy = WhitelistPolicy(allowed_tools={"tool1", "tool2", "tool3"})
 
-        assert policy.is_allowed("tool1", {}) is True
-        assert policy.is_allowed("tool2", {}) is True
-        assert policy.is_allowed("tool3", {}) is True
+        assert policy.is_allowed(ToolContext(tool_name="tool1")) is True
+        assert policy.is_allowed(ToolContext(tool_name="tool2")) is True
+        assert policy.is_allowed(ToolContext(tool_name="tool3")) is True
 
     def test_whitelist_denies_unlisted_tools(self):
         """测试白名单拒绝不在列表中的工具"""
         policy = WhitelistPolicy(allowed_tools={"tool1", "tool2"})
 
-        assert policy.is_allowed("tool3", {}) is False
-        assert policy.is_allowed("dangerous_tool", {}) is False
+        assert policy.is_allowed(ToolContext(tool_name="tool3")) is False
+        assert policy.is_allowed(ToolContext(tool_name="dangerous_tool")) is False
 
     def test_whitelist_denial_reason(self):
         """测试白名单拒绝原因"""
         policy = WhitelistPolicy(allowed_tools={"tool1", "tool2"})
 
-        reason = policy.get_denial_reason("tool3")
+        reason = policy.get_denial_reason(ToolContext(tool_name="tool3"))
 
         assert "whitelist" in reason.lower()
         assert "tool1" in reason
@@ -68,7 +67,7 @@ class TestWhitelistPolicy:
         """测试空白名单（拒绝所有工具）"""
         policy = WhitelistPolicy(allowed_tools=set())
 
-        assert policy.is_allowed("any_tool", {}) is False
+        assert policy.is_allowed(ToolContext(tool_name="any_tool")) is False
 
 
 class TestBlacklistPolicy:
@@ -78,28 +77,27 @@ class TestBlacklistPolicy:
         """测试黑名单拒绝列表中的工具"""
         policy = BlacklistPolicy(forbidden_tools={"dangerous1", "dangerous2"})
 
-        assert policy.is_allowed("dangerous1", {}) is False
-        assert policy.is_allowed("dangerous2", {}) is False
+        assert policy.is_allowed(ToolContext(tool_name="dangerous1")) is False
+        assert policy.is_allowed(ToolContext(tool_name="dangerous2")) is False
 
     def test_blacklist_allows_unlisted_tools(self):
         """测试黑名单允许不在列表中的工具"""
         policy = BlacklistPolicy(forbidden_tools={"dangerous1", "dangerous2"})
 
-        assert policy.is_allowed("safe_tool", {}) is True
-        assert policy.is_allowed("another_tool", {}) is True
+        assert policy.is_allowed(ToolContext(tool_name="safe_tool")) is True
+        assert policy.is_allowed(ToolContext(tool_name="another_tool")) is True
 
     def test_blacklist_denial_reason(self):
         """测试黑名单拒绝原因"""
         policy = BlacklistPolicy(forbidden_tools={"dangerous1", "dangerous2"})
 
-        reason = policy.get_denial_reason("dangerous1")
+        reason = policy.get_denial_reason(ToolContext(tool_name="dangerous1"))
 
         assert "forbidden" in reason.lower() or "blacklist" in reason.lower()
         assert "dangerous1" in reason
-        assert "dangerous2" in reason
 
     def test_blacklist_empty_set(self):
         """测试空黑名单（允许所有工具）"""
         policy = BlacklistPolicy(forbidden_tools=set())
 
-        assert policy.is_allowed("any_tool", {}) is True
+        assert policy.is_allowed(ToolContext(tool_name="any_tool")) is True

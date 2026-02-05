@@ -12,8 +12,8 @@ from loom.providers.llm.mock import MockLLMProvider
 from loom.tools.activator import SkillActivator
 from loom.tools.loader import SkillLoader
 from loom.tools.models import SkillDefinition
-from loom.tools.skill_registry import SkillRegistry
 from loom.tools.registry import ToolRegistry
+from loom.tools.skill_registry import SkillRegistry
 
 
 class InMemorySkillLoader(SkillLoader):

@@ -4,10 +4,11 @@ SegmentStore 单元测试
 测试记忆片段存储功能
 """
 
-import pytest
 import time
 
-from loom.memory.segment_store import MemorySegment, InMemorySegmentStore
+import pytest
+
+from loom.memory.segment_store import InMemorySegmentStore, MemorySegment
 
 
 class TestMemorySegment:

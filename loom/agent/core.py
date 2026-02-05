@@ -715,7 +715,7 @@ class Agent(
             if skills_dir is not None:
                 dirs = (
                     skills_dir
-                    if isinstance(skills_dir, (list, tuple, set))
+                    if isinstance(skills_dir, list | tuple | set)
                     else [skills_dir]
                 )
                 for skills_path in dirs:
