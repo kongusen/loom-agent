@@ -136,4 +136,3 @@ class TestBaseNode:
         assert node.stats["execution_count"] == 0
         assert node.stats["success_count"] == 0
         assert node.stats["total_duration"] == 0.0
-

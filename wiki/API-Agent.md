@@ -31,6 +31,41 @@ agent = Agent.create(
 )
 ```
 
+### 运行时与权限控制
+
+```python
+from loom.config import ContextConfig
+from loom.memory import BudgetConfig
+from loom.memory.compaction import CompactionConfig
+from loom.runtime import SessionIsolationMode
+from loom.security import WhitelistPolicy
+
+context_config = ContextConfig(
+    session_isolation=SessionIsolationMode.STRICT,
+    compaction=CompactionConfig(threshold=0.85, strategy="silent"),
+    budget=BudgetConfig(l1_ratio=0.35, l2_ratio=0.25, l3_l4_ratio=0.20),
+)
+
+agent = Agent.create(
+    llm,
+    node_id="assistant",
+    context_config=context_config,
+    tool_policy=WhitelistPolicy(allowed_tools={"done", "store_memory", "recall_memory"}),
+)
+```
+
+### Skills 包（Anthropic 格式）
+
+```python
+from loom.agent import Agent
+
+agent = Agent.create(
+    llm,
+    node_id="assistant",
+    skills_dir="./skills",
+)
+```
+
 ## 执行任务
 
 ### 同步执行

@@ -210,4 +210,3 @@ class ResultSynthesizer:
 综合答案："""
 
         return prompt
-

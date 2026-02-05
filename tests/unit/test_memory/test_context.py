@@ -108,9 +108,7 @@ class TestSlidingWindowStrategy:
         # 创建不同时间的记忆单元
         now = datetime.now(UTC)
         units = [
-            MemoryUnit(
-                content="old", importance=0.5, created_at=datetime(2024, 1, 1, tzinfo=UTC)
-            ),
+            MemoryUnit(content="old", importance=0.5, created_at=datetime(2024, 1, 1, tzinfo=UTC)),
             MemoryUnit(content="recent", importance=0.5, created_at=now),
             MemoryUnit(
                 content="middle", importance=0.5, created_at=datetime(2024, 6, 1, tzinfo=UTC)

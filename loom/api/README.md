@@ -8,6 +8,20 @@
 - **类型安全**：完整类型注解，IDE 友好
 - **事件驱动**：通信基于 CloudEvents，可观测
 
+## 渐进式披露（v0.5.1）
+
+Agent.create() 支持三层渐进式披露，按需暴露复杂度：
+
+| 层级 | 参数 | 适用场景 |
+|------|------|----------|
+| Level 1 | `llm`, `system_prompt` | 快速原型 |
+| Level 2 | `tools`, `skills`, `max_iterations` | 工具集成 |
+| Level 3 | `tool_config`, `context_config` | 高级配置 |
+
+**聚合配置**：
+- `ToolConfig` 聚合：tools, skills, skills_dir, skill_loaders
+- `ContextConfig` 聚合：memory, budget, compaction, session_isolation
+
 ## 创建 Agent（推荐）
 
 Agent 不再通过 `loom.api` 创建，请直接使用 **loom.agent**：
@@ -38,6 +52,14 @@ agent = (
     .with_system_prompt("You are a helpful AI assistant")
     .with_tools([...])
     .with_memory(max_tokens=4000)
+    .with_context_config(
+        {
+            "session_isolation": "strict",
+            "compaction": {"threshold": 0.85, "strategy": "silent"},
+            "budget": {"l1_ratio": 0.35, "l2_ratio": 0.25, "l3_l4_ratio": 0.20},
+        }
+    )
+    .with_skills_dir("./skills")
     .build()
 )
 ```
@@ -120,14 +142,22 @@ agent = Agent.create(
 - `MemoryType` - 记忆类型
 - `MemoryQuery` - 记忆查询
 
-### 编排层（A5）
-- `RouterOrchestrator` - 路由编排
-- `CrewOrchestrator` - 团队编排
+### 配置层
+- `ContextConfig` - 上下文聚合配置（记忆/预算/压缩/隔离）
+- `ToolConfig` - 工具聚合配置（工具/技能/加载器）
+- `CompactionConfig` - 压缩配置
+- `BudgetConfig` - 预算配置
 
 ### 运行时
 - `Dispatcher` - 调度器
 - `Interceptor` - 拦截器
 - `InterceptorChain` - 拦截器链
+- `SessionIsolationMode` - 会话隔离模式
+
+### 安全层
+- `ToolPolicy` - 工具策略基类
+- `WhitelistPolicy` - 白名单策略
+- `BlacklistPolicy` - 黑名单策略
 
 ### 流式观测
 - 使用 `from loom.api.stream_api import StreamAPI` 获取流式观测能力。

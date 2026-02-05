@@ -69,6 +69,10 @@ class Dispatcher:
 
         if not target_node:
             # 通过事件总线发布
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Dispatch target '{task.target_agent}' not found in nodes. Publishing to EventBus as fallback.")
+            
             return await self.event_bus.publish(task)
 
         # 直接执行

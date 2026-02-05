@@ -24,6 +24,7 @@ from loom.runtime.example_interceptors import (
     TimingInterceptor,
 )
 from loom.runtime.interceptor import Interceptor, InterceptorChain
+from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
 from loom.runtime.state import AgentState, AgentStatus
 from loom.runtime.state_manager import StateManager
 from loom.runtime.state_store import MemoryStateStore, StateStore
@@ -32,6 +33,8 @@ __all__ = [
     "Dispatcher",
     "Interceptor",
     "InterceptorChain",
+    "SessionIsolationMode",
+    "SessionLaneInterceptor",
     "LoggingInterceptor",
     "TimingInterceptor",
     "MetricsInterceptor",

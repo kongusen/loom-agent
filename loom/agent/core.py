@@ -26,19 +26,32 @@ Agent - 自主智能体基类
 """
 
 from collections import defaultdict, deque
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from loom.agent.base import BaseNode
+from loom.agent.delegator import DelegatorMixin
+from loom.agent.executor import ExecutorMixin
+from loom.agent.planner import PlannerMixin
+from loom.agent.skill_handler import SkillHandlerMixin
+from loom.agent.tool_handler import ToolHandlerMixin
 from loom.events.event_bus import EventBus
-from loom.exceptions import TaskComplete
+from loom.exceptions import TaskComplete, PermissionDenied
 from loom.memory.manager import MemoryManager
+from loom.config.context import ContextConfig
+from loom.config.memory import MemoryConfig
+from loom.config.tool import ToolConfig
+from loom.memory.compaction import CompactionConfig, MemoryCompactor
+from loom.memory.segment_store import SegmentStore
+from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
+from loom.security.tool_policy import ToolPolicy
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import TiktokenCounter
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
-from loom.skills.skill_registry import skill_market
+from loom.tools.skill_registry import skill_market
 from loom.tools.context_tools import ContextToolExecutor, create_all_context_tools
 from loom.tools.done_tool import create_done_tool, execute_done_tool
 from loom.tools.tool_creation import (
@@ -88,8 +101,27 @@ class AgentBuilder:
         return self
 
     def with_memory(self, max_tokens: int = 4000) -> "AgentBuilder":
-        """配置记忆系统"""
+        """配置上下文窗口（token上限）"""
         self.config["max_context_tokens"] = max_tokens
+        return self
+
+    def with_context_window(self, max_tokens: int = 4000) -> "AgentBuilder":
+        """配置上下文窗口（别名）"""
+        return self.with_memory(max_tokens)
+
+    def with_memory_config(self, memory_config: MemoryConfig | dict[str, Any]) -> "AgentBuilder":
+        """配置记忆系统（MemoryConfig 或 dict）"""
+        self.config["memory_config"] = memory_config
+        return self
+
+    def with_context_budget(self, budget_config: Any) -> "AgentBuilder":
+        """配置上下文预算（BudgetConfig 或 dict）"""
+        self.config["context_budget_config"] = budget_config
+        return self
+
+    def with_context_config(self, context_config: ContextConfig | dict[str, Any]) -> "AgentBuilder":
+        """配置上下文流动（ContextConfig 或 dict）"""
+        self.config["context_config"] = context_config
         return self
 
     def with_knowledge_base(self, knowledge_base: Any) -> "AgentBuilder":
@@ -105,6 +137,46 @@ class AgentBuilder:
     def with_iterations(self, max_iterations: int) -> "AgentBuilder":
         """设置最大迭代次数"""
         self.config["max_iterations"] = max_iterations
+        return self
+
+    def with_session_isolation(self, mode: SessionIsolationMode | str) -> "AgentBuilder":
+        """设置 Session 隔离模式（strict/advisory/none）"""
+        self.config["session_isolation"] = mode
+        return self
+
+    def with_compaction(self, compaction_config: CompactionConfig | dict[str, Any]) -> "AgentBuilder":
+        """设置记忆压缩配置"""
+        self.config["compaction_config"] = compaction_config
+        return self
+
+    def with_tool_policy(self, tool_policy: ToolPolicy) -> "AgentBuilder":
+        """设置工具权限策略"""
+        self.config["tool_policy"] = tool_policy
+        return self
+
+    def with_skills(self, skills: list[str]) -> "AgentBuilder":
+        """设置技能列表"""
+        self.config["skills"] = skills
+        return self
+
+    def with_skills_dir(self, skills_dir: str | Path | list[str | Path]) -> "AgentBuilder":
+        """设置 Skills 目录（SKILL.md 包）"""
+        self.config["skills_dir"] = skills_dir
+        return self
+
+    def with_skill_loaders(self, skill_loaders: list[Any]) -> "AgentBuilder":
+        """设置 Skills 加载器列表"""
+        self.config["skill_loaders"] = skill_loaders
+        return self
+
+    def with_tool_config(self, tool_config: ToolConfig | dict[str, Any]) -> "AgentBuilder":
+        """设置工具聚合配置（v0.5.1 渐进式披露）"""
+        self.config["tool_config"] = tool_config
+        return self
+
+    def with_capabilities(self, capabilities: Any) -> "AgentBuilder":
+        """设置能力注册表（CapabilityRegistry）"""
+        self.config["capabilities"] = capabilities
         return self
 
     def with_knowledge_config(
@@ -126,18 +198,25 @@ class AgentBuilder:
         return Agent.create(self.llm, **self.config)
 
 
-class Agent(BaseNode):
+class Agent(
+    ToolHandlerMixin,
+    SkillHandlerMixin,
+    PlannerMixin,
+    DelegatorMixin,
+    ExecutorMixin,
+    BaseNode,
+):
     """
     统一的智能体基类
 
-    继承自BaseNode，集成了观测、记忆、上下文管理等所有基础能力。
-    所有自定义智能体都应该继承此类。
+    继承自BaseNode和多个Mixin，集成了观测、记忆、上下文管理等所有基础能力。
 
-    属性：
-        llm_provider: LLM提供者
-        system_prompt: 系统提示词
-        memory: MemoryManager实例（L1-L4分层记忆 + 作用域管理）
-        context_orchestrator: ContextOrchestrator（智能上下文编排）
+    Mixin职责：
+    - ToolHandlerMixin: 工具管理
+    - SkillHandlerMixin: 技能管理
+    - PlannerMixin: 规划逻辑
+    - DelegatorMixin: 委派逻辑
+    - ExecutorMixin: 执行循环辅助
     """
 
     def __init__(
@@ -165,6 +244,10 @@ class Agent(BaseNode):
         knowledge_base: Any | None = None,  # KnowledgeBaseProvider
         knowledge_max_items: int = 3,  # 知识库查询最大条目数
         knowledge_relevance_threshold: float = 0.7,  # 知识相关度阈值
+        session_isolation: SessionIsolationMode = SessionIsolationMode.STRICT,  # Session 隔离模式
+        compaction_config: "CompactionConfig | None" = None,  # 记忆压缩配置
+        segment_store: "SegmentStore | None" = None,  # 片段存储（用于 Fact Indexing）
+        tool_policy: "ToolPolicy | None" = None,  # 工具权限策略
         **kwargs,
     ):
         """
@@ -203,6 +286,20 @@ class Agent(BaseNode):
             **kwargs,
         )
 
+        # 规范化 session_isolation（允许传入字符串）
+        if isinstance(session_isolation, str):
+            try:
+                session_isolation = SessionIsolationMode(session_isolation)
+            except ValueError as exc:
+                raise ValueError(
+                    "session_isolation must be one of: strict, advisory, none"
+                ) from exc
+        elif not isinstance(session_isolation, SessionIsolationMode):
+            raise TypeError("session_isolation must be SessionIsolationMode or str")
+
+        # 注入 Session Lane 拦截器（默认 strict 模式）
+        self.interceptor_chain.add(SessionLaneInterceptor(mode=session_isolation))
+
         self.llm_provider = llm_provider
 
         # Build full system prompt (user prompt + framework capabilities)
@@ -229,7 +326,7 @@ class Agent(BaseNode):
         # 创建 SkillActivator（如果未提供且有 skill_registry）
         self.skill_activator: "SkillActivator | None"
         if skill_activator is None and skill_registry is not None:
-            from loom.skills.activator import SkillActivator
+            from loom.tools.activator import SkillActivator
 
             self.skill_activator = SkillActivator(
                 llm_provider=llm_provider,
@@ -239,10 +336,14 @@ class Agent(BaseNode):
         else:
             from typing import cast
 
-            self.skill_activator = cast("SkillActivator | None", skill_activator)  # Phase 2: Skill激活器
+            self.skill_activator = cast(
+                "SkillActivator | None", skill_activator
+            )  # Phase 2: Skill激活器
 
         self.sandbox_manager = sandbox_manager  # NEW: 存储沙盒工具管理器
-        self._pending_tool_callables: list[Any] = _pending_tool_callables  # Phase 3 Task 4: 首次执行时注册到 sandbox_manager
+        self._pending_tool_callables: list[Any] = (
+            _pending_tool_callables  # Phase 3 Task 4: 首次执行时注册到 sandbox_manager
+        )
         self.knowledge_base = knowledge_base  # 知识库提供者（用于智能RAG）
         self.knowledge_max_items = knowledge_max_items  # 知识库查询最大条目数
         self.knowledge_relevance_threshold = knowledge_relevance_threshold  # 知识相关度阈值
@@ -253,9 +354,90 @@ class Agent(BaseNode):
         if self.require_done_tool:
             self.tools.append(create_done_tool())
 
+        # 规范化 memory_config（支持 MemoryConfig / dict / 分层配置）
+        memory_kwargs: dict[str, Any] = {}
+        if memory_config is not None:
+            if isinstance(memory_config, MemoryConfig):
+                memory_kwargs = {
+                    "max_l1_size": memory_config.l1.capacity,
+                    "max_l2_size": memory_config.l2.capacity,
+                    "max_l3_size": memory_config.l3.capacity,
+                    "max_l4_size": memory_config.l4.capacity,
+                    "l1_retention_hours": memory_config.l1.retention_hours,
+                    "l2_retention_hours": memory_config.l2.retention_hours,
+                    "l3_retention_hours": memory_config.l3.retention_hours,
+                    "l4_retention_hours": memory_config.l4.retention_hours,
+                    "l1_promote_threshold": memory_config.l1.promote_threshold,
+                    "l2_promote_threshold": memory_config.l2.promote_threshold,
+                    "l3_promote_threshold": memory_config.l3.promote_threshold,
+                    "l2_auto_compress": memory_config.l2.auto_compress,
+                    "l3_auto_compress": memory_config.l3.auto_compress,
+                    "enable_auto_migration": memory_config.enable_auto_migration,
+                    "enable_compression": memory_config.enable_compression,
+                    "strategy": memory_config.strategy,
+                    "importance_threshold": memory_config.importance_threshold,
+                }
+            elif isinstance(memory_config, dict):
+                # 兼容两种风格：直接 max_l* 或分层 l1/l2/l3
+                if any(k in memory_config for k in ("max_l1_size", "max_l2_size", "max_l3_size")):
+                    allowed = {
+                        "max_l1_size",
+                        "max_l2_size",
+                        "max_l3_size",
+                        "max_l4_size",
+                        "l1_retention_hours",
+                        "l2_retention_hours",
+                        "l3_retention_hours",
+                        "l4_retention_hours",
+                        "l1_promote_threshold",
+                        "l2_promote_threshold",
+                        "l3_promote_threshold",
+                        "l2_auto_compress",
+                        "l3_auto_compress",
+                        "enable_auto_migration",
+                        "enable_compression",
+                        "strategy",
+                        "importance_threshold",
+                    }
+                    memory_kwargs = {k: v for k, v in memory_config.items() if k in allowed}
+                else:
+                    def _layer_value(layer: Any, key: str) -> Any | None:
+                        if layer is None:
+                            return None
+                        if isinstance(layer, dict):
+                            return layer.get(key)
+                        return getattr(layer, key, None)
+
+                    l1 = memory_config.get("l1")
+                    l2 = memory_config.get("l2")
+                    l3 = memory_config.get("l3")
+                    l4 = memory_config.get("l4")
+                    memory_kwargs = {
+                        "max_l1_size": _layer_value(l1, "capacity"),
+                        "max_l2_size": _layer_value(l2, "capacity"),
+                        "max_l3_size": _layer_value(l3, "capacity"),
+                        "max_l4_size": _layer_value(l4, "capacity"),
+                        "l1_retention_hours": _layer_value(l1, "retention_hours"),
+                        "l2_retention_hours": _layer_value(l2, "retention_hours"),
+                        "l3_retention_hours": _layer_value(l3, "retention_hours"),
+                        "l4_retention_hours": _layer_value(l4, "retention_hours"),
+                        "l1_promote_threshold": _layer_value(l1, "promote_threshold"),
+                        "l2_promote_threshold": _layer_value(l2, "promote_threshold"),
+                        "l3_promote_threshold": _layer_value(l3, "promote_threshold"),
+                        "l2_auto_compress": _layer_value(l2, "auto_compress"),
+                        "l3_auto_compress": _layer_value(l3, "auto_compress"),
+                        "enable_auto_migration": memory_config.get("enable_auto_migration"),
+                        "enable_compression": memory_config.get("enable_compression"),
+                        "strategy": memory_config.get("strategy"),
+                        "importance_threshold": memory_config.get("importance_threshold"),
+                    }
+                    memory_kwargs = {k: v for k, v in memory_kwargs.items() if v is not None}
+            else:
+                raise TypeError("memory_config must be MemoryConfig or dict")
+
         # 创建 MemoryManager（统一的内存管理系统）
         self.memory = MemoryManager(
-            node_id=node_id, parent=parent_memory, event_bus=event_bus, **(memory_config or {})
+            node_id=node_id, parent=parent_memory, event_bus=event_bus, **memory_kwargs
         )
 
         # 上下文工具执行器（始终创建，LLM 自主决定是否使用）
@@ -299,13 +481,43 @@ class Agent(BaseNode):
         # Note: EventBusContextSource removed in Phase 3 refactoring
         # Context now only queries Memory, which automatically receives Tasks from EventBus
 
+        # 规范化 context_budget_config（支持 BudgetConfig / dict）
+        from loom.memory.task_context import BudgetConfig
+
+        budget_config = None
+        if context_budget_config is not None:
+            if isinstance(context_budget_config, BudgetConfig):
+                budget_config = context_budget_config
+            elif isinstance(context_budget_config, dict):
+                budget_config = BudgetConfig(**context_budget_config)
+            else:
+                raise TypeError("context_budget_config must be BudgetConfig or dict")
+
         self.context_orchestrator = ContextOrchestrator(
             token_counter=TiktokenCounter(model="gpt-4"),
             sources=sources,
             max_tokens=max_context_tokens,
             system_prompt=self.system_prompt,
-            budget_config=context_budget_config,  # type: ignore[arg-type]
+            budget_config=budget_config,
         )
+
+        # 【Phase 2】创建记忆压缩器
+        if compaction_config is None:
+            compaction_config = CompactionConfig()
+        elif isinstance(compaction_config, dict):
+            compaction_config = CompactionConfig(**compaction_config)
+        elif not isinstance(compaction_config, CompactionConfig):
+            raise TypeError("compaction_config must be CompactionConfig or dict")
+
+        self.memory_compactor = MemoryCompactor(
+            config=compaction_config,
+            memory_manager=self.memory,
+            token_counter=self.context_orchestrator.token_counter,
+            segment_store=segment_store,
+        )
+
+        # 【Phase 3】存储工具权限策略
+        self.tool_policy = tool_policy
 
         # 构建完整工具列表（普通工具 + 元工具）
         self.all_tools = self._build_tool_list()
@@ -331,66 +543,99 @@ class Agent(BaseNode):
         skills: list[str] | None = None,
         capabilities: Any | None = None,
         node_id: str | None = None,
+        parent_node_id: str | None = None,  # 父节点ID（用于结构化命名）
+        agent_role: str | None = None,  # Agent角色（用于SSE识别）
         event_bus: Any | None = None,
         knowledge_base: Any | None = None,
         max_context_tokens: int = 4000,
         max_iterations: int = 10,
+        tool_policy: ToolPolicy | None = None,
+        # v0.5.1: 聚合配置（渐进式披露）
+        tool_config: ToolConfig | dict[str, Any] | None = None,
+        context_config: ContextConfig | dict[str, Any] | None = None,
+        # 以下参数已弃用，请使用 tool_config / context_config
+        skills_dir: str | Path | list[str | Path] | None = None,
+        skill_loaders: list[Any] | None = None,
+        memory_config: MemoryConfig | dict[str, Any] | None = None,
+        context_budget_config: Any | None = None,
+        session_isolation: SessionIsolationMode | str | None = None,
+        compaction_config: CompactionConfig | dict[str, Any] | None = None,
         **kwargs,
     ) -> "Agent":
         """
         创建 Agent 的推荐方式（一步到位）。
 
+        v0.5.1: 支持渐进式披露的聚合配置
+
         Args:
             llm: LLM 提供者
             system_prompt: 系统提示词
-            tools: 工具列表
-            skills: 技能 ID 列表（可选，简单配置）
-            capabilities: CapabilityRegistry 实例（可选，高级配置）
+            tools: 工具列表（简单用法，或使用 tool_config）
+            skills: 技能 ID 列表（简单用法，或使用 tool_config）
+            capabilities: CapabilityRegistry 实例（高级配置）
             node_id: 节点 ID（可选，默认自动生成）
             event_bus: 事件总线（可选，未传入时自动创建）
             knowledge_base: 知识库提供者（可选）
             max_context_tokens: 最大上下文 token 数
             max_iterations: 最大迭代次数
+            tool_policy: 工具权限策略（可选）
+            tool_config: 工具聚合配置（ToolConfig 或 dict）
+            context_config: 上下文聚合配置（ContextConfig 或 dict）
             **kwargs: 其他参数传递给 __init__
 
         Returns:
             Agent 实例
 
         Examples:
-            >>> from loom.agent import Agent
-            >>> from loom.providers.llm.openai import OpenAIProvider
-            >>>
-            >>> # 简单用法
-            >>> llm = OpenAIProvider(api_key="...")
+            简单用法（渐进式披露 Level 1）：
+            >>> agent = Agent.create(llm, system_prompt="你是AI助手")
+
+            工具用法（渐进式披露 Level 2）：
             >>> agent = Agent.create(
             ...     llm,
-            ...     system_prompt="你是一个AI助手",
+            ...     system_prompt="你是AI助手",
             ...     tools=[...],
-            ...     skills=["python-dev", "testing"],
+            ...     skills=["python-dev"],
             ... )
-            >>>
-            >>> # 高级用法：传入 CapabilityRegistry
-            >>> from loom.capabilities.registry import CapabilityRegistry
-            >>> capabilities = CapabilityRegistry(
-            ...     sandbox_manager=my_tool_manager,
-            ...     skill_registry=my_skill_registry,
-            ...     skill_activator=my_skill_activator,
+
+            聚合配置（渐进式披露 Level 3）：
+            >>> agent = Agent.create(
+            ...     llm,
+            ...     tool_config=ToolConfig(
+            ...         tools=[...],
+            ...         skills=["python-dev"],
+            ...         skills_dir="./skills",
+            ...     ),
+            ...     context_config=ContextConfig(
+            ...         session_isolation="strict",
+            ...         compaction={"threshold": 0.85},
+            ...     ),
             ... )
-            >>> agent = Agent.create(llm, capabilities=capabilities)
 
         Note:
             若未传入 event_bus，框架会自动创建 EventBus 实例。
             多 Agent 需共享 EventBus 时，请显式传入同一 EventBus 实例。
-
-            若传入 skills 参数，框架会使用全局 skill_market 作为 skill_registry，
-            并将 skills 设置为 config.enabled_skills。
-
-            若传入 capabilities 参数（高级用法），框架会从 CapabilityRegistry 中
-            提取 sandbox_manager、skill_registry、skill_activator 并传递给 Agent。
         """
         # Phase 3 Task 1: 未传 event_bus 时自动创建
         if event_bus is None:
             event_bus = EventBus()
+
+        # v0.5.1: 处理 tool_config（聚合配置）
+        if tool_config is not None:
+            if isinstance(tool_config, dict):
+                tool_config = ToolConfig(**tool_config)
+            elif not isinstance(tool_config, ToolConfig):
+                raise TypeError("tool_config must be ToolConfig or dict")
+
+            # 从 tool_config 提取参数（优先级：直接参数 > tool_config）
+            if tools is None and tool_config.tools is not None:
+                tools = tool_config.tools
+            if skills is None and tool_config.skills is not None:
+                skills = tool_config.skills
+            if skills_dir is None and tool_config.skills_dir is not None:
+                skills_dir = tool_config.skills_dir
+            if skill_loaders is None and tool_config.skill_loaders is not None:
+                skill_loaders = tool_config.skill_loaders
 
         # Phase 3 Task 3: 处理 capabilities 参数（高级配置）
         if capabilities is not None:
@@ -402,6 +647,27 @@ class Agent(BaseNode):
             if "skill_activator" not in kwargs and hasattr(capabilities, "skill_activator"):
                 kwargs["skill_activator"] = capabilities.skill_activator
 
+        # 处理 Skills 目录 / Loader（优先在 skills 参数之前）
+        if skills_dir is not None or skill_loaders:
+            from loom.tools.skill_loader import FilesystemSkillLoader
+
+            if "skill_registry" not in kwargs:
+                kwargs["skill_registry"] = skill_market
+            registry = kwargs["skill_registry"]
+
+            if skills_dir is not None:
+                dirs = (
+                    skills_dir
+                    if isinstance(skills_dir, (list, tuple, set))
+                    else [skills_dir]
+                )
+                for skills_path in dirs:
+                    registry.register_loader(FilesystemSkillLoader(skills_path))
+
+            if skill_loaders:
+                for loader in skill_loaders:
+                    registry.register_loader(loader)
+
         # Phase 3 Task 2: 处理 skills 参数（简单配置）
         if skills is not None:
             # 使用全局 skill_market 作为 skill_registry
@@ -411,10 +677,42 @@ class Agent(BaseNode):
             # 设置 config.enabled_skills
             if "config" not in kwargs:
                 from loom.config.agent import AgentConfig
+
                 kwargs["config"] = AgentConfig(enabled_skills=set(skills))
             else:
                 # 如果已有 config，更新其 enabled_skills
                 kwargs["config"].enabled_skills = set(skills)
+
+        # 处理上下文配置（聚合入口）
+        if context_config is not None:
+            if isinstance(context_config, dict):
+                context_config = ContextConfig(**context_config)
+            elif not isinstance(context_config, ContextConfig):
+                raise TypeError("context_config must be ContextConfig or dict")
+
+            if memory_config is None and context_config.memory is not None:
+                memory_config = context_config.memory
+            if context_budget_config is None and context_config.budget is not None:
+                context_budget_config = context_config.budget
+            if compaction_config is None and context_config.compaction is not None:
+                compaction_config = context_config.compaction
+            if session_isolation is None:
+                session_isolation = context_config.session_isolation
+
+        if session_isolation is None:
+            session_isolation = SessionIsolationMode.STRICT
+
+        # 显式参数合并到 kwargs（便于 __init__ 统一处理）
+        if memory_config is not None:
+            kwargs["memory_config"] = memory_config
+        if context_budget_config is not None:
+            kwargs["context_budget_config"] = context_budget_config
+        if session_isolation is not None:
+            kwargs["session_isolation"] = session_isolation
+        if compaction_config is not None:
+            kwargs["compaction_config"] = compaction_config
+        if tool_policy is not None:
+            kwargs["tool_policy"] = tool_policy
 
         # Phase 3 Task 4: 仅传 tools= 且含可调用对象时，自动创建 SandboxToolManager
         tools_list = tools or []
@@ -432,10 +730,25 @@ class Agent(BaseNode):
             manager = SandboxToolManager(sandbox, event_bus=event_bus)
             kwargs["sandbox_manager"] = manager
             kwargs["_pending_tool_callables"] = tools_callables
-            tools = tools_dicts  # 仅把 dict 形态传给 cls，可调用对象在首次执行时注册到 sandbox_manager
+            tools = (
+                tools_dicts  # 仅把 dict 形态传给 cls，可调用对象在首次执行时注册到 sandbox_manager
+            )
+
+        # Generate structured node_id from parent_node_id and agent_role
+        # Format: {parent_node_id}:{agent_role} for SSE source identification
+        effective_node_id = node_id
+        if effective_node_id is None:
+            if parent_node_id and agent_role:
+                effective_node_id = f"{parent_node_id}:{agent_role}"
+            elif parent_node_id:
+                effective_node_id = f"{parent_node_id}:{str(uuid4())[:8]}"
+            elif agent_role:
+                effective_node_id = f"{agent_role}:{str(uuid4())[:8]}"
+            else:
+                effective_node_id = str(uuid4())
 
         return cls(
-            node_id=node_id or str(uuid4()),
+            node_id=effective_node_id,
             llm_provider=llm,
             system_prompt=system_prompt,
             tools=tools,
@@ -635,26 +948,20 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
     async def _activate_skills(self, task_description: str) -> dict[str, Any]:
         """
-        Activate relevant skills for the task (Phase 2 - Three Forms)
+        Activate relevant skills for the task.
 
-        Handles all three Skill activation forms:
-        - Form 1 (INJECTION): Inject instructions into system_prompt
-        - Form 2 (COMPILATION): Compile scripts to Tools
-        - Form 3 (INSTANTIATION): Create SkillAgentNode instances
+        Finds and activates skills via INJECTION mode (instructions injected
+        into system_prompt).
 
         Args:
             task_description: Description of the task to find relevant skills
 
         Returns:
             Dictionary with:
-            - injected_instructions: list[str] - Form 1 instructions
-            - compiled_tools: list[str] - Form 2 tool names
-            - instantiated_nodes: list[SkillAgentNode] - Form 3 nodes
+            - injected_instructions: list[str] - Skill instructions to inject
         """
         result: dict[str, Any] = {
             "injected_instructions": [],
-            "compiled_tools": [],
-            "instantiated_nodes": [],
         }
 
         # Check if skill_activator is available
@@ -682,31 +989,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 if not skill_def:
                     continue
 
-                # Determine activation mode
-                mode = self.skill_activator.determine_activation_mode(skill_def)
-
-                # Activate based on mode
-                from loom.skills.models import SkillActivationMode
-
-                if mode == SkillActivationMode.INJECTION:
-                    # Form 1: Knowledge injection
-                    instructions = self.skill_activator.activate_injection(skill_def)
-                    result["injected_instructions"].append(instructions)
-
-                elif mode == SkillActivationMode.COMPILATION:
-                    # Form 2: Script compilation
-                    if self.sandbox_manager is not None:
-                        tool_names = await self.skill_activator.activate_compilation(
-                            skill_def, self.sandbox_manager
-                        )
-                        result["compiled_tools"].extend(tool_names)
-
-                elif mode == SkillActivationMode.INSTANTIATION:
-                    # Form 3: Instantiation as SkillAgentNode
-                    skill_node = self.skill_activator.activate_instantiation(
-                        skill_def, self.event_bus
-                    )
-                    result["instantiated_nodes"].append(skill_node)
+                # Activate via injection
+                instructions = await self.skill_activator.activate_injection(skill_def)
+                result["injected_instructions"].append(instructions)
 
         except Exception as e:
             # Log error but don't fail - skills are optional enhancement
@@ -716,13 +1001,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
     async def _activate_skill(self, skill_id: str) -> dict[str, Any]:
         """
-        激活单个 Skill 并验证依赖（Phase 3: 12.5.5）
+        激活单个 Skill 并验证依赖
 
         流程：
         1. 检查 skill 是否在 enabled_skills 中
         2. 检查是否已激活（避免重复）
         3. 验证绑定的 tools 是否可用
-        4. 激活 Skill（三种形态）
+        4. 激活 Skill（INJECTION 模式）
         5. 记录激活状态
 
         Args:
@@ -733,10 +1018,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             {
                 "success": bool,
                 "already_active": bool,
-                "mode": SkillActivationMode,
-                "content": str,  # Form 1
-                "tool_names": list[str],  # Form 2
-                "node": SkillAgentNode,  # Form 3
+                "content": str,  # 注入的指令内容
                 "error": str,
             }
         """
@@ -771,7 +1053,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 }
 
             # 激活（带依赖验证）
-            from loom.skills.models import ActivationResult
+            from loom.tools.models import ActivationResult
 
             result: ActivationResult = await self.skill_activator.activate(
                 skill=skill_def,
@@ -920,7 +1202,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         )
 
         # 添加分形委派元工具（自动创建子节点）
-        from loom.agent.meta_tools import create_delegate_task_tool
+        from loom.agent.delegator import create_delegate_task_tool
 
         tools.append(create_delegate_task_tool())
 
@@ -931,8 +1213,8 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 {
                     "type": "function",
                     "function": {
-                        "name": "delegate_task",
-                        "description": f"将子任务委派给其他专业agent。可用的agents: {agent_list}",
+                        "name": "delegate_to_agent",
+                        "description": f"将子任务委派给指定的专业agent。可用的agents: {agent_list}",
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -974,6 +1256,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         Returns:
             工具执行结果
         """
+        # 【Phase 3】权限检查
+        if self.tool_policy:
+            context = {"tool_name": tool_name, "tool_args": tool_args}
+            if not self.tool_policy.is_allowed(tool_name, context):
+                reason = self.tool_policy.get_denial_reason(tool_name)
+                raise PermissionDenied(tool_name=tool_name, reason=reason)
+
         import json
 
         # 如果tool_args是字符串，解析为字典
@@ -1074,11 +1363,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             name = getattr(func, "__name__", "unknown")
             definition = FunctionToMCP.convert(func, name=name)
             if not asyncio.iscoroutinefunction(func):
-
-                async def _wrapped(*args: Any, _f: Any = func, **kwargs: Any) -> Any:
-                    return _f(*args, **kwargs)
-
-                exec_func: Any = _wrapped
+                # Use factory to avoid closure capture issues
+                def _create_wrapper(f):
+                    async def _wrapped(*args: Any, **kwargs: Any) -> Any:
+                        return f(*args, **kwargs)
+                    return _wrapped
+                
+                exec_func: Any = _create_wrapper(func)
             else:
                 exec_func = func
             await self.sandbox_manager.register_tool(
@@ -1107,214 +1398,230 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         # 记录任务到分形共享记忆（用于子节点继承上下文）
         await self._ensure_shared_task_context(task)
-
-        # 加载并激活相关的Skills（Progressive Disclosure + Phase 2 三种形态）
-        task_content = task.parameters.get("content", "")
-        activated_skills = await self._load_relevant_skills(task_content)
-
-        # 提取激活结果
-        injected_instructions = activated_skills.get("injected_instructions", [])
-        activated_skills.get("compiled_tools", [])
-        instantiated_nodes = activated_skills.get("instantiated_nodes", [])
-
-        # Form 2: 编译的工具已经注册到 SandboxToolManager，会自动可用
-        # Form 3: 实例化的节点存储起来，供后续委派使用
-        self._active_skill_nodes = instantiated_nodes
-
-        # Agent 循环
-        accumulated_messages: list[dict[str, Any]] = []
-        final_content = ""
-
+        
+        # P3 FIX: 设置当前任务上下文
+        self._current_task_id = task.taskId
+        
         try:
-            for iteration in range(self.max_iterations):
-                # 1. 过滤 ephemeral 消息（第一层防护）
-                filtered_messages = self._filter_ephemeral_messages(accumulated_messages)
+            # 【Phase 2】检查并执行记忆压缩
+            if hasattr(self, 'memory_compactor') and self.memory_compactor:
+                current_context = await self.context_orchestrator.build_context(task)
+                compacted = await self.memory_compactor.check_and_compact(
+                    task,
+                    current_context,
+                    self.context_orchestrator.max_tokens,
+                )
+                if compacted:
+                    import logging
+                    logging.info(f"Memory compaction triggered for task {task.taskId}")
 
-                # 2. 构建优化上下文（第二层防护）
-                messages = await self.context_orchestrator.build_context(task)
+            # 加载并激活相关的Skills（Progressive Disclosure + Phase 2 三种形态）
+            task_content = task.parameters.get("content", "")
+            activated_skills = await self._load_relevant_skills(task_content)
 
-                # Form 1: 添加Skills指令（知识注入）
-                if injected_instructions and iteration == 0:  # 只在第一次迭代添加
-                    skill_instructions = "\n\n=== Available Skills ===\n\n"
-                    skill_instructions += "\n\n".join(injected_instructions)
-                    messages.append({"role": "system", "content": skill_instructions})
+            # 提取激活结果
+            injected_instructions = activated_skills.get("injected_instructions", [])
+            injected_instructions = activated_skills.get("injected_instructions", [])
 
-                # 添加过滤后的累积消息
-                if filtered_messages:
-                    messages.extend(filtered_messages)
+            # Agent 循环
+            accumulated_messages: list[dict[str, Any]] = []
+            final_content = ""
+            iteration = 0  # Initialize to avoid NameError if max_iterations is 0
 
-                # 2. 调用 LLM（流式）
-                full_content = ""
-                tool_calls = []
+            try:
+                for iteration in range(self.max_iterations):
+                    # 1. 过滤 ephemeral 消息（第一层防护）
+                    filtered_messages = self._filter_ephemeral_messages(accumulated_messages)
 
-                async for chunk in self.llm_provider.stream_chat(
-                    messages, tools=self.all_tools if self.all_tools else None
-                ):
-                    if chunk.type == "text":
-                        content_str = (
-                            str(chunk.content) if isinstance(chunk.content, dict) else chunk.content
-                        )
-                        full_content += content_str
-                        await self.publish_thinking(
-                            content=content_str,
-                            task_id=task.task_id,
-                            metadata={"iteration": iteration},
-                            session_id=task.session_id,
-                        )
+                    # 2. 构建优化上下文（第二层防护）
+                    messages = await self.context_orchestrator.build_context(task)
 
-                    elif chunk.type == "tool_call_complete":
-                        if isinstance(chunk.content, dict):
-                            tool_calls.append(chunk.content)
+                    # Form 1: 添加Skills指令（知识注入）
+                    if injected_instructions and iteration == 0:  # 只在第一次迭代添加
+                        skill_instructions = "\n\n=== Available Skills ===\n\n"
+                        skill_instructions += "\n\n".join(injected_instructions)
+                        messages.append({"role": "system", "content": skill_instructions})
+
+                    # 添加过滤后的累积消息
+                    if filtered_messages:
+                        messages.extend(filtered_messages)
+
+                    # 2. 调用 LLM（流式）
+                    full_content = ""
+                    tool_calls = []
+
+                    async for chunk in self.llm_provider.stream_chat(
+                        messages, tools=self.all_tools if self.all_tools else None
+                    ):
+                        if chunk.type == "text":
+                            content_str = (
+                                str(chunk.content) if isinstance(chunk.content, dict) else chunk.content
+                            )
+                            full_content += content_str
+                            await self.publish_thinking(
+                                content=content_str,
+                                task_id=task.taskId,
+                                metadata={"iteration": iteration},
+                                session_id=task.sessionId,
+                            )
+
+                        elif chunk.type == "tool_call_complete":
+                            if isinstance(chunk.content, dict):
+                                tool_calls.append(chunk.content)
+                            else:
+                                # 如果不是dict，尝试解析
+                                import json
+                                
+                                try:
+                                    tool_calls.append(json.loads(str(chunk.content)))
+                                except (json.JSONDecodeError, TypeError):
+                                    tool_calls.append(
+                                        {"name": "", "arguments": {}, "content": str(chunk.content)}
+                                    )
+
+                        elif chunk.type == "error":
+                            await self._publish_event(
+                                action="node.error",
+                                parameters={"error": chunk.content},
+                                task_id=task.taskId,
+                            )
+
+                    final_content = full_content
+
+                    # 3. 检查是否有工具调用
+                    if not tool_calls:
+                        if self.require_done_tool:
+                            # 要求 done tool，但 LLM 没有调用
+                            # 提醒 LLM 调用 done
+                            accumulated_messages.append(
+                                {
+                                    "role": "system",
+                                    "content": "Please call the 'done' tool when you have completed the task.",
+                                }
+                            )
+                            continue
                         else:
-                            # 如果不是dict，尝试解析
+                            # 不要求 done tool，直接结束
+                            break
+
+                    # 4. 执行工具调用
+                    # 先添加一次 assistant 消息（避免在循环中重复添加）
+                    if tool_calls:
+                        accumulated_messages.append(
+                            {
+                                "role": "assistant",
+                                "content": full_content or "",
+                            }
+                        )
+
+                    for tool_call in tool_calls:
+                        if not isinstance(tool_call, dict):
+                            continue
+                        tool_name = tool_call.get("name", "")
+                        tool_args = tool_call.get("arguments", {})
+                        if isinstance(tool_args, str):
                             import json
 
                             try:
-                                tool_calls.append(json.loads(str(chunk.content)))
-                            except (json.JSONDecodeError, TypeError):
-                                tool_calls.append(
-                                    {"name": "", "arguments": {}, "content": str(chunk.content)}
-                                )
-
-                    elif chunk.type == "error":
-                        await self._publish_event(
-                            action="node.error",
-                            parameters={"error": chunk.content},
-                            task_id=task.task_id,
-                        )
-
-                final_content = full_content
-
-                # 3. 检查是否有工具调用
-                if not tool_calls:
-                    if self.require_done_tool:
-                        # 要求 done tool，但 LLM 没有调用
-                        # 提醒 LLM 调用 done
-                        accumulated_messages.append(
-                            {
-                                "role": "system",
-                                "content": "Please call the 'done' tool when you have completed the task.",
-                            }
-                        )
-                        continue
-                    else:
-                        # 不要求 done tool，直接结束
-                        break
-
-                # 4. 执行工具调用
-                for tool_call in tool_calls:
-                    if not isinstance(tool_call, dict):
-                        continue
-                    tool_name = tool_call.get("name", "")
-                    tool_args = tool_call.get("arguments", {})
-                    if isinstance(tool_args, str):
-                        import json
-
-                        try:
-                            tool_args = json.loads(tool_args)
-                        except json.JSONDecodeError:
+                                tool_args = json.loads(tool_args)
+                            except json.JSONDecodeError:
+                                tool_args = {}
+                        if not isinstance(tool_args, dict):
                             tool_args = {}
-                    if not isinstance(tool_args, dict):
-                        tool_args = {}
 
-                    # 发布工具调用事件
-                    await self.publish_tool_call(
-                        tool_name=tool_name,
-                        tool_args=tool_args,
-                        task_id=task.task_id,
-                        session_id=task.session_id,
-                    )
+                        # 发布工具调用事件
+                        await self.publish_tool_call(
+                            tool_name=tool_name,
+                            tool_args=tool_args,
+                            task_id=task.taskId,
+                            session_id=task.sessionId,
+                        )
 
-                    # 检查是否是 done tool
-                    if tool_name == "done":
-                        # 执行 done tool（会抛出 TaskComplete）
-                        await execute_done_tool(tool_args)
+                        # 检查是否是 done tool
+                        if tool_name == "done":
+                            # 执行 done tool（会抛出 TaskComplete）
+                            await execute_done_tool(tool_args)
 
-                    # 处理元工具
-                    if tool_name == "create_plan":
-                        result = await self._execute_plan(tool_args, task)
-                    elif tool_name == "delegate_task":
-                        # Check if this is fractal delegation or named agent delegation
-                        if "target_agent" in tool_args:
-                            # Old-style delegation to named agent
+                        # 处理元工具
+                        if tool_name == "create_plan":
+                            result = await self._execute_plan(tool_args, task)
+                        elif tool_name == "delegate_task":
+                            # Fractal-based delegation (auto-create child)
+                            result = await self._auto_delegate(tool_args, task)
+                        elif tool_name == "delegate_to_agent":
+                            # Delegation to named agent
                             target_agent = tool_args.get("target_agent", "")
                             subtask = tool_args.get("subtask", "")
                             result = await self._execute_delegate_task(
-                                target_agent, subtask, task.task_id, session_id=task.session_id
+                                target_agent, subtask, task.taskId, session_id=task.sessionId
                             )
                         else:
-                            # New fractal-based delegation (auto-create child)
-                            from loom.agent.meta_tools import execute_delegate_task
+                            # 执行普通工具
+                            result = await self._execute_single_tool(tool_name, tool_args)
 
-                            result = await execute_delegate_task(self, tool_args, task)
-                    else:
-                        # 执行普通工具
-                        result = await self._execute_single_tool(tool_name, tool_args)
+                        # 发布工具执行结果事件
+                        await self.publish_tool_result(
+                            tool_name=tool_name,
+                            result=result,
+                            task_id=task.taskId,
+                            session_id=task.sessionId,
+                        )
 
-                    # 发布工具执行结果事件
-                    await self.publish_tool_result(
-                        tool_name=tool_name,
-                        result=result,
-                        task_id=task.task_id,
-                        session_id=task.session_id,
-                    )
+                        # 累积 tool 消息（标记工具名称用于 ephemeral 过滤）
+                        # 注意：assistant 消息已在循环外添加，这里只添加 tool 结果
+                        accumulated_messages.append(
+                            {
+                                "role": "tool",
+                                "content": result,
+                                "tool_call_id": tool_call.get("id", ""),
+                                "tool_name": tool_name,  # 标记工具名称
+                            }
+                        )
 
-                    # 累积消息（标记工具名称用于 ephemeral 过滤）
-                    accumulated_messages.append(
-                        {
-                            "role": "assistant",
-                            "content": full_content or "",
-                        }
-                    )
-                    accumulated_messages.append(
-                        {
-                            "role": "tool",
-                            "content": result,
-                            "tool_call_id": tool_call.get("id", ""),
-                            "tool_name": tool_name,  # 标记工具名称
-                        }
-                    )
+            except TaskComplete as e:
+                # 捕获 TaskComplete 异常，正常结束
+                task.status = TaskStatus.COMPLETED
+                task.result = {
+                    "content": e.message,
+                    "completed_explicitly": True,
+                }
+                # 自我评估
+                await self._self_evaluate(task)
+                self.memory.add_task(task)
+                # 触发异步记忆升级（L3→L4向量化）
+                await self.memory.promote_tasks_async()
+                return task
 
-        except TaskComplete as e:
-            # 捕获 TaskComplete 异常，正常结束
+            # 如果循环正常结束（没有调用 done）
+            if not final_content:
+                tool_outputs = [
+                    m.get("content", "")
+                    for m in accumulated_messages
+                    if m.get("role") == "tool" and m.get("content")
+                ]
+                if tool_outputs:
+                    final_content = "\n".join(tool_outputs)
+
             task.status = TaskStatus.COMPLETED
             task.result = {
-                "content": e.message,
-                "completed_explicitly": True,
+                "content": final_content,
+                "completed_explicitly": False,
+                "iterations": iteration + 1,
             }
+
             # 自我评估
             await self._self_evaluate(task)
+
+            # 存储完成的任务到记忆
             self.memory.add_task(task)
             # 触发异步记忆升级（L3→L4向量化）
             await self.memory.promote_tasks_async()
+
             return task
-
-        # 如果循环正常结束（没有调用 done）
-        if not final_content:
-            tool_outputs = [
-                m.get("content", "")
-                for m in accumulated_messages
-                if m.get("role") == "tool" and m.get("content")
-            ]
-            if tool_outputs:
-                final_content = "\n".join(tool_outputs)
-
-        task.status = TaskStatus.COMPLETED
-        task.result = {
-            "content": final_content,
-            "completed_explicitly": False,
-            "iterations": iteration + 1,
-        }
-
-        # 自我评估
-        await self._self_evaluate(task)
-
-        # 存储完成的任务到记忆
-        self.memory.add_task(task)
-        # 触发异步记忆升级（L3→L4向量化）
-        await self.memory.promote_tasks_async()
-
-        return task
+        finally:
+            # P3 FIX: 清理任务上下文
+            if hasattr(self, "_current_task_id"):
+                del self._current_task_id
 
     # ==================== Ephemeral 消息过滤 ====================
 
@@ -1529,47 +1836,8 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             except Exception as e:
                 return f"Delegation error: {str(e)}"
 
-        # Tier 2: 检查激活的 Skill 节点（Form 3 - Phase 3）
-        # 如果目标不在 available_agents 中，检查是否是激活的 SkillAgentNode
-        active_skill_nodes = getattr(self, "_active_skill_nodes", [])
-        for skill_node in active_skill_nodes:
-            # 匹配 node_id 或 skill_id
-            node_id = getattr(skill_node, "node_id", None)
-            skill_id = getattr(skill_node, "skill_id", None)
-
-            if node_id == target_agent_id or skill_id == target_agent_id:
-                # 找到匹配的 SkillAgentNode，创建委派任务
-                delegated_task = Task(
-                    task_id=f"{parent_task_id}:delegated:{target_agent_id}",
-                    source_agent=self.node_id,
-                    target_agent=target_agent_id,
-                    action="execute",
-                    parameters={"content": subtask},
-                    parent_task_id=parent_task_id,
-                    session_id=session_id,
-                )
-
-                # 执行任务
-                try:
-                    result_task = await skill_node.execute_task(delegated_task)
-
-                    if result_task.status == TaskStatus.COMPLETED:
-                        # 提取结果内容
-                        if isinstance(result_task.result, dict):
-                            content = result_task.result.get("content", str(result_task.result))
-                            return str(content)
-                        else:
-                            return str(result_task.result)
-                    else:
-                        return f"Delegation to skill node failed: {result_task.error or 'Unknown error'}"
-
-                except Exception as e:
-                    return f"Skill node delegation error: {str(e)}"
-
-        # 找不到目标 agent（既不在 available_agents 也不在 active_skill_nodes）
-        return (
-            f"Error: Agent '{target_agent_id}' not found in available_agents or active_skill_nodes"
-        )
+        # 找不到目标 agent（既不在 available_agents 中）
+        return f"Error: Agent '{target_agent_id}' not found in available_agents"
 
     async def _execute_plan(
         self,
@@ -1606,8 +1874,8 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 "reasoning": reasoning,
                 "step_count": len(steps),
             },
-            task_id=parent_task.task_id,
-            session_id=parent_task.session_id,
+            task_id=parent_task.taskId,
+            session_id=parent_task.sessionId,
         )
 
         # 将计划写入 MemoryManager 的 SHARED 作用域，让子节点能看到
@@ -1620,7 +1888,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         for idx, step in enumerate(steps, 1):
             plan_content += f"  {idx}. {step}\n"
 
-        plan_entry_id = f"plan:{parent_task.task_id}"
+        plan_entry_id = f"plan:{parent_task.taskId}"
         await self.memory.write(plan_entry_id, plan_content, scope=MemoryScope.SHARED)
 
         # DEBUG: 验证写入成功
@@ -1649,18 +1917,18 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         for idx, step in enumerate(steps):
             # 创建子任务（标记为计划步骤，并传递父计划）
             subtask = Task(
-                task_id=f"{parent_task.task_id}-step-{idx+1}-{uuid4()}",
+                task_id=f"{parent_task.taskId}-step-{idx+1}-{uuid4()}",
                 action="execute",
                 parameters={
                     "content": step,
-                    "parent_task_id": parent_task.task_id,
+                    "parent_task_id": parent_task.taskId,
                     "step_index": idx + 1,
                     "total_steps": len(steps),
                     "is_plan_step": True,  # 标记这是一个计划步骤
                     "parent_plan": parent_plan_summary,  # 传递父计划
                     "root_context_id": root_context_id,
                 },
-                session_id=parent_task.session_id,
+                session_id=parent_task.sessionId,
             )
 
             # 创建子节点并执行
@@ -1775,7 +2043,7 @@ IMPORTANT:
 
             # 将结果转换为 Task 对象
             result_task = Task(
-                task_id=parent_task.task_id + ":result",
+                task_id=parent_task.taskId + ":result",
                 action="execute",
                 parameters={"result": result_str},
                 status=TaskStatus.COMPLETED,
@@ -1835,14 +2103,14 @@ IMPORTANT:
         # 1. 创建子任务
         root_context_id = parent_task.parameters.get("root_context_id") or self._root_context_id
         subtask = Task(
-            task_id=f"{parent_task.task_id}-child-{uuid4()}",
+            task_id=f"{parent_task.taskId}-child-{uuid4()}",
             action="execute",
             parameters={
                 "content": subtask_description,
-                "parent_task_id": parent_task.task_id,
+                "parent_task_id": parent_task.taskId,
                 "root_context_id": root_context_id,
             },
-            session_id=parent_task.session_id,
+            session_id=parent_task.sessionId,
         )
 
         # 2. 创建子节点（使用_create_child_node）
@@ -1941,7 +2209,7 @@ Prefer ReAct (direct tool use) for most tasks.
         # 2. 创建子 Agent（parent_memory=self.memory，子节点拥有独立 MemoryManager）
         # 子节点的 MemoryManager 会自动通过 parent_memory 继承父节点的 SHARED/GLOBAL 记忆
         child_agent = Agent(
-            node_id=subtask.task_id,
+            node_id=subtask.taskId,
             llm_provider=self.llm_provider,
             system_prompt=child_system_prompt,
             tools=self.tools,
@@ -1968,12 +2236,12 @@ Prefer ReAct (direct tool use) for most tasks.
         if not content:
             return None
 
-        entry_id = f"task:{task.task_id}:content"
+        entry_id = f"task:{task.taskId}:content"
 
         from loom.fractal.memory import MemoryScope
 
-        if self._recursive_depth == 0 and task.session_id:
-            root_entry_id = f"session:{task.session_id}:goal"
+        if self._recursive_depth == 0 and task.sessionId:
+            root_entry_id = f"session:{task.sessionId}:goal"
             await self.memory.write(root_entry_id, content, scope=MemoryScope.SHARED)
             self._root_context_id = root_entry_id
             if "root_context_id" not in task.parameters:

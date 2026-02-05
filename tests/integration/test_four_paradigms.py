@@ -358,7 +358,7 @@ class TestMultiAgentParadigm:
                 {"type": "text", "content": "I'll delegate this to the specialist..."},
                 {
                     "type": "tool_call",
-                    "name": "delegate_task",
+                    "name": "delegate_to_agent",
                     "arguments": {
                         "target_agent": "specialist-agent",
                         "subtask": "Process the data",

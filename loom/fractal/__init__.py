@@ -8,6 +8,7 @@ A3: 分形自相似公理 (Fractal Self-Similarity Axiom)
 本模块提供分形能力的核心组件：
 - NodeContainer: 节点容器（支持递归组合）
 - ResultSynthesizer: 结果合成器（智能合成子任务结果）
+- ParallelExecutor: 并行执行器（多Agent并行执行和SSE汇聚）
 
 Phase 5: 预算控制系统已移除，只保留核心分形组件。
 
@@ -17,9 +18,14 @@ Phase 5: 预算控制系统已移除，只保留核心分形组件。
 """
 
 from loom.fractal.container import NodeContainer
+from loom.fractal.parallel_executor import ParallelExecutor, ParallelResult, ParallelTask
 from loom.fractal.synthesizer import ResultSynthesizer
 
 __all__ = [
     "NodeContainer",
     "ResultSynthesizer",
+    "ParallelExecutor",
+    "ParallelTask",
+    "ParallelResult",
 ]
+

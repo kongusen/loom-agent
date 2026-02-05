@@ -59,8 +59,49 @@ agent = Agent.create(
 - **`tool_registry`** (ToolRegistry): Tool registry for managing tools
   - Default: None
 
-- **`memory_config`** (MemoryConfig): Memory configuration for the agent
+- **`memory_config`** (MemoryConfig | dict): Memory configuration for the agent
   - Default: None
+  - Supports either `MemoryConfig` (recommended) or a dict with `max_l1_size/max_l2_size/max_l3_size`
+  - Note: v0.5.0 maps `MemoryConfig.l1/l2/l3.capacity` to L1–L3 sizes
+  - Retention: `l1/l2/l3.retention_hours` will evict expired items
+  - Promotion: `l1.promote_threshold` (access-count) and `l2.promote_threshold` (summarization bias)
+  - L3: `l3.promote_threshold` used as access-count threshold for vectorization
+  - Importance: `importance_threshold` for IMPORTANCE_BASED strategy
+  - Compression: `l2.auto_compress` / `l3.auto_compress` gate L2→L3 / L3→L4
+  - `enable_auto_migration` / `enable_compression` toggle automatic promotion/compression
+  - L4 retention/capacity are best-effort; require a vector store that supports delete (InMemory supports)
+  - Strategy: SIMPLE (access-count), IMPORTANCE_BASED (importance), TIME_BASED (age)
+  - Default strategy is IMPORTANCE_BASED
+
+- **`context_budget_config`** (BudgetConfig | dict): Context budget configuration
+  - Default: None
+  - Controls L1/L2/L3+ budget ratios and minimum items
+
+- **`context_config`** (ContextConfig | dict): Unified context-flow configuration
+  - Default: None
+  - Aggregates memory/budget/compaction/session isolation
+  - Explicit parameters override values from `context_config`
+  - Dict accepts aliases: `memory_config`, `context_budget_config`, `compaction_config`
+
+- **`session_isolation`** (SessionIsolationMode | str): Session lane isolation mode
+  - Default: `"strict"`
+  - Options: `"strict"`, `"advisory"`, `"none"`
+
+- **`compaction_config`** (CompactionConfig | dict): Memory compaction configuration
+  - Default: CompactionConfig()
+  - Controls silent compaction threshold, cooldown, and strategy
+
+- **`tool_policy`** (ToolPolicy): Tool permission policy (optional)
+  - Default: None
+  - Use `WhitelistPolicy` / `BlacklistPolicy` for explicit control
+
+- **`skills_dir`** (str | Path | list): Skills package directory (SKILL.md format)
+  - Default: None
+  - Auto-registers `FilesystemSkillLoader` and enables progressive disclosure
+
+- **`skill_loaders`** (list[SkillLoader]): Custom skill loaders
+  - Default: None
+  - Use for database/HTTP/custom sources
 
 - **`skills`** (list[str]): List of skill IDs to enable
   - Default: None
@@ -117,6 +158,55 @@ agent = Agent.create(
     system_prompt="You help with weather queries",
     tools=tools,
     tool_registry=tool_registry,
+)
+```
+
+## Runtime & Safety Controls
+
+Configure session isolation, memory compaction, and tool permissions:
+
+```python
+from loom.agent import Agent
+from loom.config import ContextConfig
+from loom.memory import BudgetConfig
+from loom.memory.compaction import CompactionConfig
+from loom.runtime import SessionIsolationMode
+from loom.security import WhitelistPolicy
+
+context_config = ContextConfig(
+    session_isolation=SessionIsolationMode.STRICT,
+    compaction=CompactionConfig(threshold=0.85, strategy="silent"),
+    budget=BudgetConfig(l1_ratio=0.35, l2_ratio=0.25, l3_l4_ratio=0.20),
+)
+
+agent = Agent.create(
+    llm,
+    node_id="assistant",
+    context_config=context_config,
+    tool_policy=WhitelistPolicy(allowed_tools={"done", "store_memory", "recall_memory"}),
+)
+```
+
+## L4 Vector Store Setup
+
+```python
+from loom.memory.vector_store import InMemoryVectorStore
+from loom.providers.embedding.openai import OpenAIEmbeddingProvider
+
+agent.memory.set_vector_store(InMemoryVectorStore())
+agent.memory.set_embedding_provider(OpenAIEmbeddingProvider(api_key="your-api-key"))
+```
+
+## Skill Packages (Anthropic-style)
+
+```python
+from loom.agent import Agent
+
+# skills/your-skill/SKILL.md + scripts/ + references/
+agent = Agent.create(
+    llm,
+    node_id="assistant",
+    skills_dir="./skills",
 )
 ```
 

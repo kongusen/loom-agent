@@ -46,6 +46,7 @@ from loom.memory.tokenizer import (
     TiktokenCounter,
     TokenCounter,
 )
+from loom.memory.task_context import BudgetConfig, ContextBudgeter
 from loom.memory.types import (
     MemoryQuery,
     MemoryStatus,
@@ -77,6 +78,8 @@ __all__ = [
     "TiktokenCounter",
     "AnthropicCounter",
     "EstimateCounter",
+    "BudgetConfig",
+    "ContextBudgeter",
     "ContextStrategy",
     "PriorityContextStrategy",
     "SlidingWindowStrategy",

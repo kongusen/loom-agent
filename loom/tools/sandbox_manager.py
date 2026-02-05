@@ -83,19 +83,30 @@ class ToolWrapper:
 
     async def _execute_sandboxed(self, args: dict, sandbox: Sandbox) -> Any:
         """执行沙盒化工具"""
-        # 检查函数签名是否需要 sandbox 参数
         import inspect
 
         sig = inspect.signature(self.func)
         if "sandbox" in sig.parameters:
-            return await self.func(**args, sandbox=sandbox)
+            # 检查是否是异步函数
+            if inspect.iscoroutinefunction(self.func):
+                return await self.func(**args, sandbox=sandbox)
+            else:
+                return self.func(**args, sandbox=sandbox)
         else:
             # 函数不需要 sandbox，可能是已绑定的方法
-            return await self.func(**args)
+            if inspect.iscoroutinefunction(self.func):
+                return await self.func(**args)
+            else:
+                return self.func(**args)
 
     async def _execute_direct(self, args: dict) -> Any:
         """直接执行工具（不注入 sandbox）"""
-        return await self.func(**args)
+        import inspect
+
+        if inspect.iscoroutinefunction(self.func):
+            return await self.func(**args)
+        else:
+            return self.func(**args)
 
 
 class SandboxToolManager:
@@ -221,14 +232,17 @@ class SandboxToolManager:
         mcp_tools = await self._mcp_adapter.discover_tools(server_id)
 
         # 为每个 MCP 工具创建包装器
+        # 为每个 MCP 工具创建包装器
         for mcp_tool in mcp_tools:
-            # 创建一个调用 MCP 适配器的函数
-            async def mcp_func(tool=mcp_tool, adapter=self._mcp_adapter, **kwargs):
-                return await adapter.call_tool(tool.name, kwargs)
+            # 使用工厂函数避免闭包变量捕获问题
+            def _create_mcp_func(tool_def: MCPToolDefinition, adapter_inst: MCPAdapter):
+                async def _mcp_wrapper(**kwargs: Any) -> Any:
+                    return await adapter_inst.call_tool(tool_def.name, kwargs)
+                return _mcp_wrapper
 
             wrapper = ToolWrapper(
                 name=mcp_tool.name,
-                func=mcp_func,
+                func=_create_mcp_func(mcp_tool, self._mcp_adapter),
                 definition=mcp_tool,
                 scope=ToolScope.MCP,
                 server_id=server_id,

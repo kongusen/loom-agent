@@ -10,10 +10,10 @@ from enum import Enum
 class TaskAction(str, Enum):
     """任务动作类型（类型安全）"""
 
-    EXECUTE = "execute_task"
-    CANCEL = "cancel_task"
-    QUERY = "query_task"
-    STREAM = "stream_task"
+    EXECUTE = "execute"
+    CANCEL = "cancel"
+    QUERY = "query"
+    STREAM = "stream"
 
 
 class MemoryAction(str, Enum):

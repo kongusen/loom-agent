@@ -8,7 +8,7 @@ import pytest
 from loom.agent.core import Agent
 from loom.config.agent import AgentConfig
 from loom.providers.llm.mock import MockLLMProvider
-from loom.skills.registry import SkillRegistry
+from loom.tools.skill_registry import SkillRegistry
 from loom.tools.registry import ToolRegistry
 
 

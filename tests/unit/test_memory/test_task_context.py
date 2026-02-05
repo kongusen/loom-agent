@@ -536,7 +536,14 @@ class TestMemoryScopeContextSource:
         # Mock read to return root goal entry
         async def mock_read(entry_id):
             if entry_id == "root-goal-123":
-                return type('Entry', (), {'content': 'Complete the project', 'scope': type('Scope', (), {'value': 'shared'})})()
+                return type(
+                    "Entry",
+                    (),
+                    {
+                        "content": "Complete the project",
+                        "scope": type("Scope", (), {"value": "shared"}),
+                    },
+                )()
             return None
 
         mock_memory.read = mock_read
@@ -547,7 +554,7 @@ class TestMemoryScopeContextSource:
         current_task = Task(
             task_id="current",
             action="execute",
-            parameters={"root_context_id": "root-goal-123", "content": "work on task"}
+            parameters={"root_context_id": "root-goal-123", "content": "work on task"},
         )
 
         context = await source.get_context(current_task, max_items=10)
@@ -569,7 +576,14 @@ class TestMemoryScopeContextSource:
 
         async def mock_read(entry_id):
             if entry_id == "task:parent-123:content":
-                return type('Entry', (), {'content': 'Parent task description', 'scope': type('Scope', (), {'value': 'shared'})})()
+                return type(
+                    "Entry",
+                    (),
+                    {
+                        "content": "Parent task description",
+                        "scope": type("Scope", (), {"value": "shared"}),
+                    },
+                )()
             return None
 
         mock_memory.read = mock_read
@@ -580,7 +594,8 @@ class TestMemoryScopeContextSource:
         current_task = Task(
             task_id="current",
             action="execute",
-            parameters={"parent_task_id": "parent-123", "content": "child task"}
+            parent_task_id="parent-123",
+            parameters={"content": "child task"},
         )
 
         context = await source.get_context(current_task, max_items=10)
@@ -640,9 +655,7 @@ class TestMemoryScopeContextSource:
         source = MemoryScopeContextSource(mock_memory, max_items=10, include_additional=False)
 
         current_task = Task(
-            task_id="current",
-            action="execute",
-            parameters={"content": "test task"}
+            task_id="current", action="execute", parameters={"content": "test task"}
         )
 
         context = await source.get_context(current_task, max_items=10)
@@ -687,4 +700,3 @@ class TestMemoryScopeContextSource:
 
         # 长内容应该有惩罚，分数更低
         assert score_short > score_long
-

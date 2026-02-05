@@ -6,8 +6,7 @@ Memory Layers Unit Tests
 
 import pytest
 
-from loom.memory.layers.circular import CircularBufferLayer
-from loom.memory.layers.priority import PriorityQueueLayer
+from loom.memory.layers import CircularBufferLayer, PriorityQueueLayer
 from loom.protocol import Task
 
 
@@ -291,4 +290,3 @@ class TestPriorityQueueLayer:
         layer.clear()
 
         assert layer.size() == 0
-

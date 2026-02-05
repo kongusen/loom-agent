@@ -196,9 +196,7 @@ class TestDynamicToolList:
         assert sandbox_tool_1_def["type"] == "function"
         assert sandbox_tool_1_def["function"]["description"] == "沙盒工具 1"
 
-    def test_get_available_tools_with_both_managers(
-        self, mock_llm, tool_registry, sandbox_manager
-    ):
+    def test_get_available_tools_with_both_managers(self, mock_llm, tool_registry, sandbox_manager):
         """测试同时提供 sandbox_manager 和 tool_registry 时的工具合并（P2 验证）"""
         # 同时提供 sandbox_manager 和 tool_registry
         agent = Agent(

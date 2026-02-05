@@ -108,7 +108,7 @@ agent = Agent.create(
 
 ```python
 from loom.agent import Agent
-from loom.capabilities.registry import CapabilityRegistry
+from loom.tools.registry import CapabilityRegistry
 from loom.tools.sandbox import Sandbox
 from loom.tools.sandbox_manager import SandboxToolManager
 from loom.skills.registry import SkillRegistry  # or from loom.skills import skill_market
@@ -265,7 +265,7 @@ print(f"Agents share event bus: {agent1.event_bus is agent2.event_bus}")
 
 ```python
 from loom.agent import Agent
-from loom.capabilities.registry import CapabilityRegistry
+from loom.tools.registry import CapabilityRegistry
 from loom.tools.sandbox import Sandbox
 from loom.tools.sandbox_manager import SandboxToolManager
 from loom.skills.skill_registry import skill_market

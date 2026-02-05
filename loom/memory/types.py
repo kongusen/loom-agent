@@ -144,6 +144,7 @@ class TaskSummary:
     result_summary: str  # 结果摘要（而非完整结果）
     tags: list[str] = field(default_factory=list)
     importance: float = 0.5
+    access_count: int = 0
     created_at: datetime = field(default_factory=datetime.now)
     session_id: str | None = None
 

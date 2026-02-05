@@ -118,6 +118,32 @@ class TestInMemoryVectorStore:
         assert len(vector_store._metadata) == 0
 
     @pytest.mark.asyncio
+    async def test_delete_by_metadata_id_in(self, vector_store):
+        """测试按ID批量删除"""
+        await vector_store.add("vec-1", [1.0, 0.0, 0.0], {"name": "a"})
+        await vector_store.add("vec-2", [0.0, 1.0, 0.0], {"name": "b"})
+        await vector_store.add("vec-3", [0.0, 0.0, 1.0], {"name": "c"})
+
+        deleted = await vector_store.delete_by_metadata({"id__in": ["vec-1", "vec-3"]})
+
+        assert deleted == 2
+        assert "vec-1" not in vector_store._vectors
+        assert "vec-3" not in vector_store._vectors
+        assert "vec-2" in vector_store._vectors
+
+    @pytest.mark.asyncio
+    async def test_delete_by_metadata_filter(self, vector_store):
+        """测试按元数据过滤删除"""
+        await vector_store.add("vec-1", [1.0, 0.0, 0.0], {"tag": "keep"})
+        await vector_store.add("vec-2", [0.0, 1.0, 0.0], {"tag": "delete"})
+
+        deleted = await vector_store.delete_by_metadata({"tag": "delete"})
+
+        assert deleted == 1
+        assert "vec-2" not in vector_store._vectors
+        assert "vec-1" in vector_store._vectors
+
+    @pytest.mark.asyncio
     async def test_search_results_format(self, vector_store):
         """测试搜索结果格式"""
         await vector_store.add("vec-1", [1.0, 0.0, 0.0], {"key": "value"})

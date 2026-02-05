@@ -103,6 +103,9 @@ class EventStreamConverter:
                 event_type="disconnected",
                 data=json.dumps({"status": "disconnected"}),
             )
+        finally:
+            # 注销 handler 防止内存泄漏
+            self.event_bus.unregister_handler(action_pattern, event_handler)
 
     def _convert_task_to_sse(self, task: Task) -> str:
         """

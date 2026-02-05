@@ -10,6 +10,7 @@ A2: 事件主权公理 (Event Sovereignty Axiom)
 - TaskAction, MemoryAction, AgentAction: 类型安全的动作枚举
 - TaskHandler, MemoryHandler, AgentHandler: 处理器协议
 - SSEFormatter: SSE格式化工具（SSE消息格式化）
+- OutputCollector, OutputStrategy, SSEEvent: 输出收集器（多Agent并行SSE支持）
 - Transport: 传输层抽象接口
 - MemoryTransport: 内存传输层（单机、测试）
 - NATSTransport: NATS传输层（分布式、生产）- 需要安装nats-py
@@ -19,6 +20,7 @@ from loom.events.actions import AgentAction, MemoryAction, TaskAction
 from loom.events.event_bus import EventBus
 from loom.events.handlers import AgentHandler, MemoryHandler, TaskHandler
 from loom.events.memory_transport import MemoryTransport
+from loom.events.output_collector import OutputCollector, OutputStrategy, SSEEvent
 from loom.events.sse_formatter import SSEFormatter
 from loom.events.transport import Transport
 
@@ -40,6 +42,9 @@ __all__ = [
     "MemoryHandler",
     "AgentHandler",
     "SSEFormatter",
+    "OutputCollector",
+    "OutputStrategy",
+    "SSEEvent",
     "Transport",
     "MemoryTransport",
 ]
@@ -47,3 +52,4 @@ __all__ = [
 # 只有在nats-py可用时才导出NATSTransport
 if _NATS_AVAILABLE:
     __all__.append("NATSTransport")
+

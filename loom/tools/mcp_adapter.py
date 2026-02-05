@@ -146,8 +146,6 @@ class MCPAdapter:
 
             raise
 
-            raise
-
     def list_tools(self) -> list[str]:
         """
         列出所有已注册的工具名称

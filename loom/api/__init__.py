@@ -8,31 +8,12 @@ Loom Framework - 统一对外API
 - 事件层（A2）
 - 分形层（A3）
 - 记忆层（A4）
-- 编排层（A5）
-- 范式层（A6）
+- 配置层
 - 运行时
+- 安全层
 """
 
-# A1: 统一接口公理
-# 注意: LoomApp 和 AgentConfig 已在 v0.4.7 废弃，将在 v0.5.0 移除
-# 请使用 Agent.create() 替代（链式配置可用 Agent.builder(llm).with_*().build()）
-
-# A2: 事件主权公理
-from loom.events import EventBus, SSEFormatter
-
-# A3: 分形自相似公理
-from loom.fractal import NodeContainer
-
-# A4: 记忆层次公理
-from loom.memory import (
-    MemoryManager,
-    MemoryQuery,
-    MemoryTier,
-    MemoryType,
-    MemoryUnit,
-)
-
-# A6: 四范式工作公理 - 现已集成到 Agent 基础能力中
+# A1: 统一接口公理 - 协议层
 from loom.protocol import (
     AgentCapability,
     AgentCard,
@@ -41,10 +22,35 @@ from loom.protocol import (
     TaskStatus,
 )
 
+# A2: 事件主权公理 - 事件层
+from loom.events import EventBus, SSEFormatter
+
+# A3: 分形自相似公理 - 分形层
+from loom.fractal import NodeContainer
+
+# A4: 记忆层次公理 - 记忆层
+from loom.memory import (
+    MemoryManager,
+    MemoryQuery,
+    MemoryTier,
+    MemoryType,
+    MemoryUnit,
+)
+
+# 配置层
+from loom.config import ContextConfig
+from loom.config.tool import ToolConfig
+from loom.memory.compaction import CompactionConfig
+from loom.memory.task_context import BudgetConfig
+
 # Runtime
 from loom.runtime import Dispatcher, Interceptor, InterceptorChain
+from loom.runtime.session_lane import SessionIsolationMode
 
-__version__ = "0.5.0"
+# Security
+from loom.security import BlacklistPolicy, ToolPolicy, WhitelistPolicy
+
+__version__ = "0.5.1"
 
 __all__ = [
     # Protocol
@@ -64,8 +70,17 @@ __all__ = [
     "MemoryTier",
     "MemoryType",
     "MemoryQuery",
+    "ContextConfig",
+    "ToolConfig",
+    "CompactionConfig",
+    "BudgetConfig",
     # Runtime
     "Dispatcher",
     "Interceptor",
     "InterceptorChain",
+    "SessionIsolationMode",
+    # Security
+    "ToolPolicy",
+    "WhitelistPolicy",
+    "BlacklistPolicy",
 ]

@@ -8,6 +8,7 @@ Loom Configuration System
 """
 
 from loom.config.base import LoomBaseConfig
+from loom.config.context import ContextConfig
 from loom.config.execution import ExecutionConfig
 from loom.config.fractal import FractalConfig, GrowthStrategy, GrowthTrigger
 from loom.config.llm import LLMConfig
@@ -16,6 +17,7 @@ from loom.config.tool import ToolConfig
 
 __all__ = [
     "LoomBaseConfig",
+    "ContextConfig",
     "MemoryConfig",
     "MemoryLayerConfig",
     "MemoryStrategyType",

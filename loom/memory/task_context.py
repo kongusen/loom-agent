@@ -574,7 +574,7 @@ class MemoryScopeContextSource(ContextSource):
             if root_entry and root_entry.content:
                 root_content = str(root_entry.content)
 
-        parent_task_id = current_task.parameters.get("parent_task_id")
+        parent_task_id = current_task.parent_task_id
         parent_content = ""
         if parent_task_id:
             entries.append(("PARENT TASK", f"task:{parent_task_id}:content"))

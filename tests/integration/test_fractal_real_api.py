@@ -56,9 +56,7 @@ class TestFractalRealAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.xfail(reason="Real API test - may timeout without proper API configuration")
-    async def test_fractal_delegation_with_memory_flow(
-        self, llm_provider, event_bus
-    ):
+    async def test_fractal_delegation_with_memory_flow(self, llm_provider, event_bus):
         """
         测试分形委派和记忆流动
 

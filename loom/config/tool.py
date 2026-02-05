@@ -4,17 +4,57 @@
 提供工具相关的配置选项。
 
 基于 Phase 4 配置系统
+
+v0.5.1: 扩展为聚合配置，支持渐进式披露
 """
+
+from pathlib import Path
+from typing import Any
+
+from pydantic import Field
 
 from loom.config.base import LoomBaseConfig
 
 
 class ToolConfig(LoomBaseConfig):
     """
-    工具配置
+    工具配置（聚合）
 
-    管理工具的注册和使用
+    v0.5.1: 扩展为聚合配置，支持渐进式披露
+
+    聚合以下Agent.create()参数：
+    - tools: 工具定义列表
+    - skills: 技能ID列表
+    - skills_dir: 技能目录路径
+    - skill_loaders: 技能加载器列表
+
+    运行时配置：
+    - tool_timeout, max_tool_calls, etc.
     """
+
+    # ==================== 聚合参数（来自Agent.create） ====================
+
+    tools: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="工具定义列表（OpenAI格式）",
+    )
+
+    skills: list[str] | None = Field(
+        default=None,
+        description="技能ID列表",
+    )
+
+    skills_dir: str | Path | list[str | Path] | None = Field(
+        default=None,
+        description="技能目录路径（SKILL.md格式）",
+    )
+
+    skill_loaders: list[Any] | None = Field(
+        default=None,
+        description="自定义技能加载器列表",
+    )
+
+    # ==================== 运行时配置 ====================
 
     enabled: bool = True
     """是否启用工具系统"""

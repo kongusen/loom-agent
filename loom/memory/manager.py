@@ -10,6 +10,7 @@ Memory Manager - 内存管理器
 
 from typing import Any, Optional
 
+from loom.config.memory import MemoryStrategyType
 from loom.fractal.memory import MemoryEntry, MemoryScope
 from loom.memory.core import LoomMemory
 from loom.protocol import Task
@@ -25,7 +26,22 @@ class MemoryManager:
         max_l1_size: int = 50,
         max_l2_size: int = 100,
         max_l3_size: int = 500,
+        max_l4_size: int | None = None,
         event_bus: Any = None,
+        # MemoryConfig support
+        strategy: Any = None,
+        enable_auto_migration: bool = True,
+        enable_compression: bool = True,
+        l1_retention_hours: int | None = None,
+        l2_retention_hours: int | None = None,
+        l3_retention_hours: int | None = None,
+        l4_retention_hours: int | None = None,
+        l1_promote_threshold: int = 3,
+        l2_promote_threshold: int = 5,
+        l3_promote_threshold: int = 10,
+        l2_auto_compress: bool = True,
+        l3_auto_compress: bool = True,
+        importance_threshold: float = 0.6,
     ):
         self.node_id = node_id
         self.parent = parent
@@ -36,13 +52,48 @@ class MemoryManager:
             max_l1_size=max_l1_size,
             max_l2_size=max_l2_size,
             max_l3_size=max_l3_size,
+            max_l4_size=max_l4_size,
             event_bus=event_bus,
+            strategy=(
+                strategy
+                if strategy is not None
+                else MemoryStrategyType.IMPORTANCE_BASED  # 与 MemoryConfig 默认值一致
+            ),
+            enable_auto_migration=enable_auto_migration,
+            enable_compression=enable_compression,
+            l1_retention_hours=l1_retention_hours,
+            l2_retention_hours=l2_retention_hours,
+            l3_retention_hours=l3_retention_hours,
+            l4_retention_hours=l4_retention_hours,
+            l1_promote_threshold=l1_promote_threshold,
+            l2_promote_threshold=l2_promote_threshold,
+            l3_promote_threshold=l3_promote_threshold,
+            l2_auto_compress=l2_auto_compress,
+            l3_auto_compress=l3_auto_compress,
+            importance_threshold=importance_threshold,
         )
 
         # 作用域索引
         self._memory_by_scope: dict[MemoryScope, dict[str, MemoryEntry]] = {
             scope: {} for scope in MemoryScope
         }
+
+        # 子节点列表（用于 propagate_down）
+        self._children: list["MemoryManager"] = []
+
+        # 如果有父节点，注册为子节点
+        if self.parent:
+            self.parent.register_child(self)
+
+    def register_child(self, child: "MemoryManager") -> None:
+        """注册子节点（用于 propagate_down）"""
+        if child not in self._children:
+            self._children.append(child)
+
+    def unregister_child(self, child: "MemoryManager") -> None:
+        """注销子节点"""
+        if child in self._children:
+            self._children.remove(child)
 
     async def write(
         self, entry_id: str, content: Any, scope: MemoryScope = MemoryScope.LOCAL
@@ -87,6 +138,14 @@ class MemoryManager:
         if policy.propagate_up and self.parent:
             await self.parent.write(entry_id, content, scope)
 
+        # 实现向下传播（propagate_down）
+        # 注意：向下传播时使用 INHERITED 作用域，子节点只读
+        if policy.propagate_down and self._children:
+            for child in self._children:
+                # 使子节点的 INHERITED 缓存失效（通过删除旧缓存）
+                if entry_id in child._memory_by_scope[MemoryScope.INHERITED]:
+                    del child._memory_by_scope[MemoryScope.INHERITED][entry_id]
+
         return entry
 
     async def read(
@@ -107,17 +166,28 @@ class MemoryManager:
 
         # 按优先级搜索本地作用域：LOCAL > SHARED > INHERITED > GLOBAL
         for scope in search_scopes:
+            if scope == MemoryScope.INHERITED:
+                # INHERITED 需要特殊处理：检查缓存是否过期
+                continue
             if entry_id in self._memory_by_scope[scope]:
                 return self._memory_by_scope[scope][entry_id]
 
-        # 如果是 INHERITED 作用域，尝试从父节点读取
+        # 处理 INHERITED 作用域（带缓存失效检查）
         if MemoryScope.INHERITED in search_scopes and self.parent:
+            cached = self._memory_by_scope[MemoryScope.INHERITED].get(entry_id)
+
+            # 从父节点获取最新版本
             parent_entry = await self.parent.read(
                 entry_id,
                 search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED],
             )
+
             if parent_entry:
-                # 创建只读副本并缓存
+                # 检查缓存是否过期
+                if cached and cached.parent_version == parent_entry.version:
+                    return cached  # 缓存有效，直接返回
+
+                # 缓存过期或不存在，创建新的缓存
                 inherited_entry = MemoryEntry(
                     id=parent_entry.id,
                     content=parent_entry.content,
@@ -185,3 +255,12 @@ class MemoryManager:
     async def promote_tasks_async(self) -> None:
         """异步触发任务提升"""
         await self._loom_memory.promote_tasks_async()
+
+    # L4 配置透传
+    def set_vector_store(self, store: Any) -> None:
+        """设置 L4 向量存储"""
+        self._loom_memory.set_vector_store(store)
+
+    def set_embedding_provider(self, provider: Any) -> None:
+        """设置嵌入提供者"""
+        self._loom_memory.set_embedding_provider(provider)

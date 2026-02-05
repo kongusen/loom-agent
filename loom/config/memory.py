@@ -81,8 +81,15 @@ class MemoryConfig(LoomBaseConfig):
     """
 
     strategy: MemoryStrategyType = Field(
-        MemoryStrategyType.SIMPLE,
+        MemoryStrategyType.IMPORTANCE_BASED,
         description="记忆管理策略",
+    )
+
+    importance_threshold: float = Field(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="重要性提升阈值（IMPORTANCE_BASED 策略）",
     )
 
     l1: MemoryLayerConfig = Field(

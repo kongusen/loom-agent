@@ -91,6 +91,10 @@ class NodeContainer:
             task.metadata["_container_depth"] = current_depth
             return result
 
+        # 无子节点时设置失败状态
+        from loom.protocol import TaskStatus
+
+        task.status = TaskStatus.FAILED
         task.error = "No child to execute task"
         return task
 

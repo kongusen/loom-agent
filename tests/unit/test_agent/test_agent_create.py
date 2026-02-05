@@ -109,7 +109,7 @@ class TestAgentCreateSkills:
 
     def test_create_with_skills_uses_skill_market(self, mock_llm):
         """测试 skills 参数使用全局 skill_market"""
-        from loom.skills.skill_registry import skill_market
+        from loom.tools.skill_registry import skill_market
 
         agent = Agent.create(
             mock_llm,
@@ -126,8 +126,8 @@ class TestAgentCreateCapabilities:
 
     def test_create_with_capabilities_parameter(self, mock_llm, tmp_path):
         """测试传入 capabilities 参数时自动配置组件"""
-        from loom.capabilities.registry import CapabilityRegistry
-        from loom.skills.skill_registry import skill_market
+        from loom.tools.registry import CapabilityRegistry
+        from loom.tools.skill_registry import skill_market
         from loom.tools.sandbox import Sandbox
         from loom.tools.sandbox_manager import SandboxToolManager
 
@@ -166,8 +166,8 @@ class TestAgentCreateCapabilities:
 
     def test_create_capabilities_does_not_override_explicit_params(self, mock_llm, tmp_path):
         """测试 capabilities 不会覆盖显式传入的参数"""
-        from loom.capabilities.registry import CapabilityRegistry
-        from loom.skills.skill_registry import skill_market
+        from loom.tools.registry import CapabilityRegistry
+        from loom.tools.skill_registry import skill_market
         from loom.tools.sandbox import Sandbox
         from loom.tools.sandbox_manager import SandboxToolManager
 
@@ -203,6 +203,7 @@ class TestAgentCreateToolsAutoSandbox:
 
     def test_create_with_callables_auto_sandbox_manager(self, mock_llm):
         """仅传 tools=[callable] 时自动创建 SandboxToolManager 并挂载待注册列表"""
+
         def get_weather(city: str) -> str:
             """Get weather for a city."""
             return f"Weather in {city}: Sunny"
@@ -219,6 +220,7 @@ class TestAgentCreateToolsAutoSandbox:
     @pytest.mark.asyncio
     async def test_pending_tools_registered_on_first_execute(self, mock_llm):
         """首次执行时 pending 工具注册到 sandbox_manager，工具列表与执行来源一致"""
+
         def get_weather(city: str) -> str:
             """Get weather for a city."""
             return f"Weather in {city}: Sunny"
@@ -241,10 +243,16 @@ class TestAgentCreateToolsAutoSandbox:
 
     def test_create_with_dicts_only_no_auto_sandbox(self, mock_llm):
         """仅传 tools=[dict, ...]（无 callable）时不自动创建 SandboxToolManager"""
-        tools_schema = [{
-            "type": "function",
-            "function": {"name": "get_weather", "description": "Get weather", "parameters": {"type": "object"}},
-        }]
+        tools_schema = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather",
+                    "parameters": {"type": "object"},
+                },
+            }
+        ]
         agent = Agent.create(
             mock_llm,
             system_prompt="Test agent",

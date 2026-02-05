@@ -25,9 +25,9 @@ Just as biological organisms metabolize food into energy and waste, Loom metabol
 ### The Metabolic Process
 
 1.  **Ingest (L1)**: Raw interactions entering the system.
-2.  **Digest (L2)**: Important items are promoted to L2 based on access frequency (≥3 accesses).
+2.  **Digest (L2)**: Important items are promoted to L2 based on the configured strategy (importance-based by default).
 3.  **Assimilate (L3)**: key sessions are summarized and stored as episodes.
-4.  **Sediment (L4)**: High-value insights are compressed, vectorized, and stored in the permanent knowledge base.
+4.  **Sediment (L4)**: High-value insights are compressed, vectorized, and stored in the permanent knowledge base (L3 access-count can bias what gets vectorized).
 
 ---
 
@@ -82,9 +82,6 @@ memory_config = MemoryConfig(
     # Metabolic Configuration
     l1=MemoryLayerConfig(capacity=20, retention_hours=1),
     l4=MemoryLayerConfig(capacity=1000, retention_hours=None),
-
-    # Fractal Features
-    enable_scopes=True
 )
 
 agent = Agent.create(
@@ -93,7 +90,20 @@ agent = Agent.create(
     system_prompt="You are a helpful assistant",
     memory_config=memory_config
 )
+
+# Optional: configure L4 vector store + embeddings
+from loom.memory.vector_store import InMemoryVectorStore
+from loom.providers.embedding.openai import OpenAIEmbeddingProvider
+
+agent.memory.set_vector_store(InMemoryVectorStore())
+agent.memory.set_embedding_provider(OpenAIEmbeddingProvider(api_key="your-api-key"))
 ```
+
+Note:
+- `retention_hours` is enforced for L1–L3.
+- `l2/l3.auto_compress` and `enable_compression` gate L2→L3 and L3→L4.
+- L4 retention/capacity are best-effort and require a vector store that supports delete (InMemory does).
+- L4 pruning logs at INFO and exposes counters via `memory.get_stats()`.
 
 ## Best Practices
 
