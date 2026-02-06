@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.5.1"
+version = "0.5.2"
 description = "Enterprise-grade recursive state machine agent framework with event sourcing, multi-agent collaboration, hierarchical memory, and RAG integration"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
@@ -106,7 +106,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ARG"] # Allow unused arguments in test files
 "examples/**/*.py" = ["ARG"] # Examples may have unused params for demonstration
-"loom/tools/toolset.py" = ["ARG"] # Deprecated sync functions with stub implementations
+"loom/tools/toolset.py" = [
+  "ARG",
+] # Deprecated sync functions with stub implementations
 "loom/capabilities/registry.py" = ["ARG"] # TODO: Implement filtering logic
 "loom/agent/core.py" = ["ARG002"] # TODO: Implement context_hints usage
 

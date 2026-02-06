@@ -49,7 +49,7 @@ from loom.runtime.session_lane import SessionIsolationMode
 # Security
 from loom.security import BlacklistPolicy, ToolPolicy, WhitelistPolicy
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 __all__ = [
     # Protocol
