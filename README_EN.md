@@ -164,19 +164,41 @@ pip install loom-agent
 Loom provides a minimal declarative API:
 
 ```python
+import os
+import asyncio
 from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
+from loom.config.llm import LLMConfig
 
-# 1. Configure Model Service
-llm = OpenAIProvider(api_key="your-api-key")
+async def main():
+    # 1. Configure Model Service
+    api_key = os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("OPENAI_BASE_URL")  # Optional, for custom endpoint
+    if not api_key:
+        print("Please set OPENAI_API_KEY environment variable")
+        return
 
-# 2. Create Agent
-agent = Agent.create(
-    llm,
-    node_id="assistant",
-    system_prompt="You are a professional, rigorous AI assistant.",
-)
-print(f"Agent Ready: {agent.node_id}")
+    config = LLMConfig(
+        provider="openai",
+        model="gpt-4o-mini",
+        api_key=api_key,
+        base_url=base_url,
+    )
+    llm = OpenAIProvider(config)
+
+    # 2. Create Agent
+    agent = Agent.create(
+        llm=llm,
+        system_prompt="You are a helpful assistant.",
+        max_iterations=5,
+    )
+
+    # 3. Run Task
+    result = await agent.run("Introduce Python in one sentence.")
+    print(f"Result: {result}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ### Build a Fractal Team
@@ -198,7 +220,7 @@ team_node = CompositeNode(
 await team_node.execute_task(task)
 ```
 
-> For more examples, please refer to the [Getting Started Guide](docs/usage/getting-started.md).
+> For more examples, please refer to the [Getting Started Guide](docs/usage/getting-started.md) and [Demo Examples](examples/demo/).
 
 ---
 

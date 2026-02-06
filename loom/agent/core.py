@@ -1166,13 +1166,28 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
         # 1. 基础工具
         for tool in self.tools:
-            # Skip non-dictionary tools (e.g., raw functions from old tests)
-            if not isinstance(tool, dict):
-                continue
-            tool_name = tool.get("function", {}).get("name")
-            if tool_name and tool_name not in tool_names_seen:
-                available.append(tool)
-                tool_names_seen.add(tool_name)
+            if isinstance(tool, dict):
+                # OpenAI 格式的工具定义
+                tool_name = tool.get("function", {}).get("name")
+                if tool_name and tool_name not in tool_names_seen:
+                    available.append(tool)
+                    tool_names_seen.add(tool_name)
+            elif hasattr(tool, "name") and hasattr(tool, "input_schema"):
+                # MCPToolDefinition 或类似的对象（支持 FunctionToMCP.convert 返回值）
+                tool_name = tool.name
+                if tool_name and tool_name not in tool_names_seen:
+                    available.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": tool.name,
+                                "description": getattr(tool, "description", ""),
+                                "parameters": tool.input_schema,
+                            },
+                        }
+                    )
+                    tool_names_seen.add(tool_name)
+            # Skip other types (e.g., raw functions from old tests)
 
         # 2. 已激活 Skills 绑定的工具
         # 注意：Skills 的工具已经通过 sandbox_manager 注册，会在后面统一添加
@@ -1241,8 +1256,12 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         if self._user_wants_no_tools:
             return tools
 
+        # 获取禁用的工具列表
+        disabled = self.config.disabled_tools if self.config else set()
+
         # 添加规划元工具
-        tools.append(
+        if "create_plan" not in disabled:
+            tools.append(
             {
                 "type": "function",
                 "function": {
@@ -1274,12 +1293,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         )
 
         # 添加分形委派元工具（自动创建子节点）
-        from loom.agent.delegator import create_delegate_task_tool
+        if "delegate_task" not in disabled:
+            from loom.agent.delegator import create_delegate_task_tool
 
-        tools.append(create_delegate_task_tool())
+            tools.append(create_delegate_task_tool())
 
         # 添加委派元工具（如果有可用的agents）
-        if self.available_agents:
+        if self.available_agents and "delegate_to_agent" not in disabled:
             agent_list = ", ".join(self.available_agents.keys())
             tools.append(
                 {
@@ -1308,11 +1328,12 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             )
 
         # 添加上下文查询工具（统一工具）
-        if self.memory:
+        if self.memory and "query_memory" not in disabled:
             tools.append(create_unified_memory_tool())
 
         # 添加工具创建元工具（始终提供，LLM 自主决定是否使用）
-        tools.append(create_tool_creation_tool())
+        if "create_tool" not in disabled:
+            tools.append(create_tool_creation_tool())
         tools.extend(self._dynamic_tool_executor.get_tool_definitions())
 
         return tools

@@ -158,23 +158,44 @@ pip install loom-agent
 ```
 
 ```python
+import os
+import asyncio
 from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
+from loom.config.llm import LLMConfig
 
-# 1. 配置模型服务
-llm = OpenAIProvider(api_key="your-api-key")
+async def main():
+    # 1. 配置模型服务
+    api_key = os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("OPENAI_BASE_URL")  # 可选，用于自定义端点
+    if not api_key:
+        print("请设置 OPENAI_API_KEY 环境变量")
+        return
 
-# 2. 创建 Agent
-agent = Agent.create(
-    llm,
-    node_id="architect",
-    system_prompt="你是一个专注于长期任务执行的 AI 架构师。",
-)
+    config = LLMConfig(
+        provider="openai",
+        model="gpt-4o-mini",
+        api_key=api_key,
+        base_url=base_url,
+    )
+    llm = OpenAIProvider(config)
 
-print(f"Agent 已就绪: {agent.node_id}")
+    # 2. 创建 Agent
+    agent = Agent.create(
+        llm=llm,
+        system_prompt="你是一个有帮助的助手。",
+        max_iterations=5,
+    )
+
+    # 3. 运行任务
+    result = await agent.run("请用一句话介绍 Python 语言。")
+    print(f"结果: {result}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-> 更多示例请参阅 [快速开始文档](docs/usage/getting-started.md)。
+> 更多示例请参阅 [快速开始文档](docs/usage/getting-started.md) 和 [示例代码](examples/demo/)。
 
 ---
 

@@ -8,6 +8,7 @@ Loom Framework - 统一对外API
 - 事件层（A2）
 - 分形层（A3）
 - 记忆层（A4）
+- 流式API
 - 配置层
 - 运行时
 - 安全层
@@ -49,7 +50,24 @@ from loom.runtime.session_lane import SessionIsolationMode
 # Security
 from loom.security import BlacklistPolicy, ToolPolicy, WhitelistPolicy
 
-__version__ = "0.5.2"
+# Stream API - 分形流式观测
+from loom.api.stream_api import (
+    FractalEvent,
+    FractalStreamAPI,
+    OutputStrategy,
+    StreamAPI,
+)
+
+# Version API - 版本管理
+from loom.api.version import (
+    ChangeType,
+    VersionAPI,
+    VersionInfo,
+    get_version,
+    get_version_info,
+)
+
+__version__ = "0.5.3"
 
 __all__ = [
     # Protocol
@@ -82,4 +100,15 @@ __all__ = [
     "ToolPolicy",
     "WhitelistPolicy",
     "BlacklistPolicy",
+    # Stream API
+    "StreamAPI",
+    "FractalStreamAPI",
+    "FractalEvent",
+    "OutputStrategy",
+    # Version API
+    "VersionAPI",
+    "VersionInfo",
+    "ChangeType",
+    "get_version",
+    "get_version_info",
 ]
