@@ -4,7 +4,7 @@ Skill Models Unit Tests
 测试技能模型的核心功能
 """
 
-from loom.tools.models import SkillDefinition
+from loom.tools.skills.models import SkillDefinition
 
 
 class TestSkillDefinition:

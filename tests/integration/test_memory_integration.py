@@ -275,7 +275,7 @@ class TestFractalMemory:
         """测试Agent执行任务后将任务存储到记忆中"""
         from loom.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
-        from loom.tools.registry import ToolRegistry
+        from loom.tools.core.registry import ToolRegistry
 
         # 1. 创建工具注册表
         tool_registry = ToolRegistry()
@@ -345,7 +345,7 @@ class TestFractalMemory:
         """测试子节点继承父节点的记忆（MemoryManager 父子关系）"""
         from loom.agent import Agent
         from loom.providers.llm.mock import MockLLMProvider
-        from loom.tools.registry import ToolRegistry
+        from loom.tools.core.registry import ToolRegistry
 
         # 1. 创建父Agent
         tool_registry = ToolRegistry()
@@ -394,7 +394,7 @@ class TestFractalMemory:
         from loom.agent import Agent
         from loom.fractal.memory import MemoryScope
         from loom.providers.llm.mock import MockLLMProvider
-        from loom.tools.registry import ToolRegistry
+        from loom.tools.core.registry import ToolRegistry
 
         tool_registry = ToolRegistry()
         llm = MockLLMProvider()

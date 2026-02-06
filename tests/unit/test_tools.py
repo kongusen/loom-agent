@@ -7,8 +7,8 @@ Tools Module Unit Tests
 import pytest
 
 from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.converters import FunctionToMCP
-from loom.tools.registry import ToolRegistry
+from loom.tools.core.converters import FunctionToMCP
+from loom.tools.core.registry import ToolRegistry
 
 
 class TestToolRegistry:
@@ -218,7 +218,7 @@ class TestToolExecutor:
 
     def test_init(self):
         """测试初始化"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor()
         assert executor.parallel_execution is True
@@ -228,7 +228,7 @@ class TestToolExecutor:
 
     def test_is_read_only(self):
         """测试只读工具判断"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor()
 
@@ -249,7 +249,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_batch_empty(self):
         """测试执行空批次"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor()
 
@@ -262,7 +262,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_batch_single_tool(self):
         """测试执行单个工具"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor()
 
@@ -281,7 +281,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_batch_parallel_read_only(self):
         """测试并行执行只读工具"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor(parallel_execution=True)
 
@@ -306,7 +306,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_batch_serial_write_tools(self):
         """测试串行执行写入工具"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor(parallel_execution=True)
 
@@ -331,7 +331,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_batch_mixed_tools(self):
         """测试混合执行只读和写入工具"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor(parallel_execution=True)
 
@@ -357,7 +357,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_batch_with_error(self):
         """测试执行时的错误处理"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor()
 
@@ -383,7 +383,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_batch_no_parallel(self):
         """测试禁用并行执行"""
-        from loom.tools.executor import ToolExecutor
+        from loom.tools.core.executor import ToolExecutor
 
         executor = ToolExecutor(parallel_execution=False)
 

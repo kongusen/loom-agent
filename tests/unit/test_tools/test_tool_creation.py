@@ -4,7 +4,7 @@ Tests for Tool Creation
 
 import pytest
 
-from loom.tools.tool_creation import (
+from loom.tools.builtin.creation import (
     DynamicToolExecutor,
     ToolCreationError,
     create_tool_creation_tool,

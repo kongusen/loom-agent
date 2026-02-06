@@ -6,8 +6,8 @@ Skill Loader Unit Tests
 
 import pytest
 
-from loom.tools.loader import SkillLoader
-from loom.tools.models import SkillDefinition
+from loom.tools.skills.loader import SkillLoader
+from loom.tools.skills.models import SkillDefinition
 
 
 class MockSkillLoader(SkillLoader):

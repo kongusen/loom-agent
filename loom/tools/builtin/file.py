@@ -12,11 +12,11 @@ File Tools - 文件操作工具集
 """
 
 from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.sandbox import Sandbox, SandboxViolation
+from loom.tools.core.sandbox import Sandbox, SandboxViolation
 
 # Optional import for SandboxToolManager
 try:
-    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+    from loom.tools.core.sandbox_manager import SandboxToolManager, ToolScope
 except ImportError:
     SandboxToolManager = None  # type: ignore
     ToolScope = None  # type: ignore

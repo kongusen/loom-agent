@@ -5,7 +5,7 @@ Tests for Tool Converters
 """
 
 from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.converters import FunctionToMCP
+from loom.tools.core.converters import FunctionToMCP
 
 
 class TestFunctionToMCPConvert:

@@ -15,7 +15,7 @@ import pytest
 from loom.agent import Agent
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
-from loom.tools.registry import ToolRegistry
+from loom.tools.core.registry import ToolRegistry
 
 
 class TestToolUseParadigm:

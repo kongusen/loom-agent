@@ -76,7 +76,7 @@ class PlannerMixin:
 
     def _sync_memory_from_child(self, child: Any) -> Any: ...
 
-    def execute_task(self, task: Task) -> Any: ...
+    # execute_task is inherited from BaseNode - do NOT redeclare here
 
     async def _execute_plan(
         self,

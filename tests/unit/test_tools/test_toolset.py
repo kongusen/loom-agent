@@ -6,7 +6,7 @@ Tests for Toolset
 
 import pytest
 
-from loom.tools.toolset import (
+from loom.tools.core.toolset import (
     create_coding_toolset,
     create_minimal_toolset,
     create_sandbox_toolset,

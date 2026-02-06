@@ -255,8 +255,8 @@ class Sandbox:
             # 编译受限代码
             byte_code = compile_restricted(code, "<sandbox>", "exec")
 
-            if byte_code.errors:
-                raise SandboxViolation(f"Code compilation errors: {byte_code.errors}")
+            # if byte_code.errors:
+            #     raise SandboxViolation(f"Code compilation errors: {byte_code.errors}")
 
             # 创建安全环境
             safe_env = self._create_safe_environment(params or {})
@@ -264,7 +264,7 @@ class Sandbox:
             # 执行代码（带超时）
             loop = asyncio.get_event_loop()
             await asyncio.wait_for(
-                loop.run_in_executor(None, exec, byte_code.code, safe_env),
+                loop.run_in_executor(None, exec, byte_code, safe_env),
                 timeout=self.python_timeout,
             )
 
@@ -298,8 +298,24 @@ class Sandbox:
             except ImportError:
                 pass
 
+        # 复制 __builtins__ 以避免修改全局变量
+        safe_env["__builtins__"] = safe_env["__builtins__"].copy()
+
         # 添加安全的内置函数
-        safe_env["_print_"] = lambda x: print(x)
+        def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name in self.allowed_modules:
+                return __import__(name, globals, locals, fromlist, level)
+            raise ImportError(f"Import of '{name}' is not allowed")
+
+        safe_env["__builtins__"]["__import__"] = safe_import
+
+        class MockPrintCollector:
+            def _call_print(self, *args, **kwargs):
+                print(*args, **kwargs)
+            def __call__(self, *args, **kwargs):
+                print(*args, **kwargs)
+
+        safe_env["_print_"] = MockPrintCollector()
         safe_env["_getattr_"] = getattr
 
         return safe_env

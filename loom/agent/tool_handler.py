@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from loom.exceptions import PermissionDenied
 
 if TYPE_CHECKING:
-    from loom.tools.sandbox_manager import SandboxToolManager
+    from loom.tools.core.sandbox_manager import SandboxToolManager
 
 
 class ToolHandlerMixin:
@@ -32,7 +32,8 @@ class ToolHandlerMixin:
     sandbox_manager: "SandboxToolManager | None"
     tool_policy: Any
     config: Any
-    _context_tool_executor: Any
+    memory: Any  # LoomMemory instance for unified tools
+    event_bus: Any  # EventBus instance for unified tools
     _dynamic_tool_executor: Any
     _pending_tool_callables: list[Any]
 
@@ -119,7 +120,7 @@ class ToolHandlerMixin:
         import json
 
         from loom.security import ToolContext
-        from loom.tools.tool_creation import ToolCreationError
+        from loom.tools.builtin.creation import ToolCreationError
 
         # 权限检查
         if self.tool_policy:
@@ -174,24 +175,30 @@ class ToolHandlerMixin:
             except Exception as e:
                 return f"动态工具执行错误: {str(e)}"
 
-        # 上下文查询工具
-        context_tool_names = {
-            "query_l1_memory",
-            "query_l2_memory",
-            "query_l3_memory",
-            "query_l4_memory",
-            "query_events_by_action",
-            "query_events_by_node",
-            "query_events_by_target",
-            "query_recent_events",
-            "query_thinking_process",
+        # 统一工具（unified tools）
+        from loom.tools.memory.browse import execute_unified_browse_tool
+        from loom.tools.memory.events import execute_unified_events_tool
+        from loom.tools.memory.manage import execute_unified_manage_tool
+        from loom.tools.memory.query import execute_unified_memory_tool
+
+        unified_tool_executors = {
+            "query_memory": (execute_unified_memory_tool, "memory"),
+            "browse_memory": (execute_unified_browse_tool, "memory"),
+            "manage_memory": (execute_unified_manage_tool, "memory"),
+            "query_events": (execute_unified_events_tool, "event_bus"),
         }
-        if tool_name in context_tool_names and self._context_tool_executor:
+        if tool_name in unified_tool_executors:
+            executor_func, resource_type = unified_tool_executors[tool_name]
             try:
-                result = await self._context_tool_executor.execute(tool_name, parsed_args)
+                if resource_type == "memory" and self.memory:
+                    result = await executor_func(parsed_args, self.memory)  # type: ignore[operator]
+                elif resource_type == "event_bus" and self.event_bus:
+                    result = await executor_func(parsed_args, self.event_bus)  # type: ignore[operator]
+                else:
+                    return f"错误：{resource_type} 未初始化"
                 return json.dumps(result, ensure_ascii=False, default=str)
             except Exception as e:
-                return f"错误：上下文工具执行失败 - {str(e)}"
+                return f"错误：统一工具执行失败 - {str(e)}"
 
         # 沙盒工具
         if self.sandbox_manager and tool_name in self.sandbox_manager:
@@ -219,8 +226,11 @@ class ToolHandlerMixin:
         """构建完整工具列表（普通工具 + 元工具）"""
         from loom.agent.delegator import create_delegate_task_tool
         from loom.agent.planner import create_plan_tool
-        from loom.tools.context_tools import create_all_context_tools
-        from loom.tools.tool_creation import create_tool_creation_tool
+        from loom.tools.builtin.creation import create_tool_creation_tool
+        from loom.tools.memory.browse import create_unified_browse_tool
+        from loom.tools.memory.events import create_unified_events_tool
+        from loom.tools.memory.manage import create_unified_manage_tool
+        from loom.tools.memory.query import create_unified_memory_tool
 
         tools = self._get_available_tools()
 
@@ -230,9 +240,13 @@ class ToolHandlerMixin:
         # 委派元工具
         tools.append(create_delegate_task_tool())
 
-        # 上下文查询工具
-        if self._context_tool_executor:
-            tools.extend(create_all_context_tools())
+        # 统一工具（unified tools）
+        if self.memory:
+            tools.append(create_unified_memory_tool())
+            tools.append(create_unified_browse_tool())
+            tools.append(create_unified_manage_tool())
+        if self.event_bus:
+            tools.append(create_unified_events_tool())
 
         # 工具创建元工具
         tools.append(create_tool_creation_tool())

@@ -8,8 +8,8 @@ import json
 
 import pytest
 
-from loom.tools.sandbox import Sandbox
-from loom.tools.todo_tool import TodoTool, create_todo_tool
+from loom.tools.builtin.todo import TodoTool, create_todo_tool
+from loom.tools.core.sandbox import Sandbox
 
 
 class TestTodoToolInit:

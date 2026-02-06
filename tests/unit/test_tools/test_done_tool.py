@@ -5,7 +5,7 @@ Tests for Done Tool
 import pytest
 
 from loom.exceptions import TaskComplete
-from loom.tools.done_tool import create_done_tool, execute_done_tool
+from loom.tools.builtin.done import create_done_tool, execute_done_tool
 
 
 class TestCreateDoneTool:

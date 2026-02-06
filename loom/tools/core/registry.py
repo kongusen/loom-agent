@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.converters import FunctionToMCP
+from loom.tools.core.converters import FunctionToMCP
 
 
 @dataclass

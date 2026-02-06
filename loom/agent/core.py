@@ -51,25 +51,28 @@ from loom.protocol import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
 from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
 from loom.security.tool_policy import ToolPolicy
-from loom.tools.context_tools import ContextToolExecutor, create_all_context_tools
-from loom.tools.done_tool import create_done_tool, execute_done_tool
-from loom.tools.skill_registry import skill_market
-from loom.tools.tool_creation import (
+from loom.tools.builtin.creation import (
     DynamicToolExecutor,
     ToolCreationError,
     create_tool_creation_tool,
 )
+from loom.tools.builtin.done import create_done_tool, execute_done_tool
+from loom.tools.memory.browse import execute_unified_browse_tool
+from loom.tools.memory.events import execute_unified_events_tool
+from loom.tools.memory.manage import execute_unified_manage_tool
+from loom.tools.memory.query import create_unified_memory_tool, execute_unified_memory_tool
+from loom.tools.skills.registry import skill_market
 
 # Optional import for SandboxToolManager
 try:
-    from loom.tools.sandbox_manager import SandboxToolManager
+    from loom.tools.core.sandbox_manager import SandboxToolManager
 except ImportError:
     SandboxToolManager = None  # type: ignore
 
 # Type checking imports (avoid circular imports)
 if TYPE_CHECKING:
     from loom.agent.agent_node import NodeType
-    from loom.tools.activator import SkillActivator
+    from loom.tools.skills.activator import SkillActivator
 
 
 class AgentBuilder:
@@ -308,10 +311,20 @@ class Agent(
         # Build full system prompt (user prompt + framework capabilities)
         # Framework capabilities are always added automatically (non-configurable)
         self.system_prompt = self._build_full_system_prompt(system_prompt)
+
+        # Detect if user explicitly wants no tools (tools=[] vs tools=None)
+        # This allows tools to be truly optional, not forced
+        self._user_wants_no_tools = tools is not None and len(tools) == 0
         self.tools = tools or []
         self.available_agents = available_agents or {}
         self.max_iterations = max_iterations
-        self.require_done_tool = require_done_tool
+
+        # Auto-disable done_tool requirement when no tools are wanted
+        # This prevents infinite loops when LLM has no tools to call
+        if self._user_wants_no_tools:
+            self.require_done_tool = False
+        else:
+            self.require_done_tool = require_done_tool
 
         # === Phase 3: 配置体系（12.5.2）===
         from loom.config.agent import AgentConfig
@@ -329,7 +342,7 @@ class Agent(
         # 创建 SkillActivator（如果未提供且有 skill_registry）
         self.skill_activator: "SkillActivator | None"  # noqa: UP037
         if skill_activator is None and skill_registry is not None:
-            from loom.tools.activator import SkillActivator
+            from loom.tools.skills.activator import SkillActivator
 
             self.skill_activator = SkillActivator(
                 llm_provider=llm_provider,
@@ -443,11 +456,6 @@ class Agent(
         self.memory = MemoryManager(
             node_id=node_id, parent=parent_memory, event_bus=event_bus, **memory_kwargs
         )
-
-        # 上下文工具执行器（始终创建，LLM 自主决定是否使用）
-        self._context_tool_executor: ContextToolExecutor | None = None
-        if event_bus:
-            self._context_tool_executor = ContextToolExecutor(self.memory)  # type: ignore[arg-type]
 
         # 动态工具执行器（始终创建，LLM 自主决定是否使用）
         self._dynamic_tool_executor = DynamicToolExecutor(sandbox_manager=self.sandbox_manager)
@@ -707,7 +715,7 @@ class Agent(
 
         # 处理 Skills 目录 / Loader（优先在 skills 参数之前）
         if skills_dir is not None or skill_loaders:
-            from loom.tools.skill_loader import FilesystemSkillLoader
+            from loom.tools.skills.filesystem_loader import FilesystemSkillLoader
 
             if "skill_registry" not in kwargs:
                 kwargs["skill_registry"] = skill_market
@@ -776,8 +784,8 @@ class Agent(
         if tools_callables and sandbox_manager_in is None:
             import tempfile
 
-            from loom.tools.sandbox import Sandbox
-            from loom.tools.sandbox_manager import SandboxToolManager
+            from loom.tools.core.sandbox import Sandbox
+            from loom.tools.core.sandbox_manager import SandboxToolManager
 
             sandbox_path = tempfile.mkdtemp(prefix="loom_agent_")
             sandbox = Sandbox(sandbox_path, auto_create=True)
@@ -928,7 +936,8 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
 
   <context_query>
     Query historical information when needed:
-    - query_l1_memory, query_l2_memory, query_events_by_action
+    - query_memory (unified memory query with auto layer selection)
+    - query_events (unified event query)
   </context_query>
 </secondary_methods>
 
@@ -1108,7 +1117,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 }
 
             # 激活（带依赖验证）
-            from loom.tools.models import ActivationResult
+            from loom.tools.skills.models import ActivationResult
 
             result: ActivationResult = await self.skill_activator.activate(
                 skill=skill_def,
@@ -1218,11 +1227,19 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         """
         构建完整工具列表（普通工具 + 元工具）
 
+        如果用户明确传入 tools=[]，则不添加任何元工具，
+        让工具成为真正可选的增强能力。
+
         Returns:
             完整的工具列表
         """
         # 使用动态工具列表（基于配置和已激活的 Skills）
         tools = self._get_available_tools()
+
+        # If user explicitly wants no tools (tools=[]), respect that choice
+        # Tools should be optional enhancements, not forced dependencies
+        if self._user_wants_no_tools:
+            return tools
 
         # 添加规划元工具
         tools.append(
@@ -1290,9 +1307,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 }
             )
 
-        # 添加上下文查询工具（始终提供，LLM 自主决定是否使用）
-        if self._context_tool_executor:
-            tools.extend(create_all_context_tools())
+        # 添加上下文查询工具（统一工具）
+        if self.memory:
+            tools.append(create_unified_memory_tool())
 
         # 添加工具创建元工具（始终提供，LLM 自主决定是否使用）
         tools.append(create_tool_creation_tool())
@@ -1358,24 +1375,25 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             except Exception as e:
                 return f"动态工具执行错误: {str(e)}"
 
-        # 检查是否是上下文查询工具
-        context_tool_names = {
-            "query_l1_memory",
-            "query_l2_memory",
-            "query_l3_memory",
-            "query_l4_memory",
-            "query_events_by_action",
-            "query_events_by_node",
-            "query_events_by_target",
-            "query_recent_events",
-            "query_thinking_process",
+        # 检查是否是统一工具（unified tools）
+        unified_tool_executors = {
+            "query_memory": (execute_unified_memory_tool, "memory"),
+            "browse_memory": (execute_unified_browse_tool, "memory"),
+            "manage_memory": (execute_unified_manage_tool, "memory"),
+            "query_events": (execute_unified_events_tool, "event_bus"),
         }
-        if tool_name in context_tool_names and self._context_tool_executor:
+        if tool_name in unified_tool_executors:
+            executor_func, resource_type = unified_tool_executors[tool_name]
             try:
-                result = await self._context_tool_executor.execute(tool_name, parsed_args)  # type: ignore[assignment]
+                if resource_type == "memory" and self.memory:
+                    result = await executor_func(parsed_args, self.memory)  # type: ignore[operator]
+                elif resource_type == "event_bus" and self.event_bus:
+                    result = await executor_func(parsed_args, self.event_bus)  # type: ignore[operator]
+                else:
+                    return f"错误：{resource_type} 未初始化"
                 return json.dumps(result, ensure_ascii=False, default=str)
             except Exception as e:
-                return f"错误：上下文工具执行失败 - {str(e)}"
+                return f"错误：统一工具执行失败 - {str(e)}"
 
         # 检查是否在沙盒工具管理器中（NEW）
         if self.sandbox_manager and tool_name in self.sandbox_manager:
@@ -1409,8 +1427,8 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             return
         import asyncio
 
-        from loom.tools.converters import FunctionToMCP
-        from loom.tools.sandbox_manager import ToolScope
+        from loom.tools.core.converters import FunctionToMCP
+        from loom.tools.core.sandbox_manager import ToolScope
 
         pending = list(self._pending_tool_callables)
         self._pending_tool_callables = []

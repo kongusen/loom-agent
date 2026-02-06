@@ -9,11 +9,11 @@ import pytest
 from loom.agent import Agent
 from loom.protocol import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
-from loom.tools.activator import SkillActivator
-from loom.tools.loader import SkillLoader
-from loom.tools.models import SkillDefinition
-from loom.tools.registry import ToolRegistry
-from loom.tools.skill_registry import SkillRegistry
+from loom.tools.core.registry import ToolRegistry
+from loom.tools.skills.activator import SkillActivator
+from loom.tools.skills.loader import SkillLoader
+from loom.tools.skills.models import SkillDefinition
+from loom.tools.skills.registry import SkillRegistry
 
 
 class InMemorySkillLoader(SkillLoader):

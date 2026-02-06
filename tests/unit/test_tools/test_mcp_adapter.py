@@ -8,7 +8,7 @@ import pytest
 
 from loom.events import EventBus
 from loom.protocol.mcp import MCPServer, MCPToolDefinition, MCPToolResult
-from loom.tools.mcp_adapter import MCPAdapter
+from loom.tools.core.mcp_adapter import MCPAdapter
 
 
 class MockMCPServer(MCPServer):

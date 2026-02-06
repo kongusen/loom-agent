@@ -21,8 +21,8 @@ from typing import Any
 
 from loom.events import EventBus
 from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.mcp_adapter import MCPAdapter
-from loom.tools.sandbox import Sandbox
+from loom.tools.core.mcp_adapter import MCPAdapter
+from loom.tools.core.sandbox import Sandbox
 
 
 class ToolScope(Enum):

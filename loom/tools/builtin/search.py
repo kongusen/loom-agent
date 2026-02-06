@@ -13,11 +13,11 @@ Search Tools - 搜索工具集
 import re
 
 from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.sandbox import Sandbox
+from loom.tools.core.sandbox import Sandbox
 
 # Optional import for SandboxToolManager
 try:
-    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+    from loom.tools.core.sandbox_manager import SandboxToolManager, ToolScope
 except ImportError:
     SandboxToolManager = None  # type: ignore
     ToolScope = None  # type: ignore

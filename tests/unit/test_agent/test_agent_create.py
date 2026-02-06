@@ -109,7 +109,7 @@ class TestAgentCreateSkills:
 
     def test_create_with_skills_uses_skill_market(self, mock_llm):
         """测试 skills 参数使用全局 skill_market"""
-        from loom.tools.skill_registry import skill_market
+        from loom.tools.skills.registry import skill_market
 
         agent = Agent.create(
             mock_llm,
@@ -126,10 +126,10 @@ class TestAgentCreateCapabilities:
 
     def test_create_with_capabilities_parameter(self, mock_llm, tmp_path):
         """测试传入 capabilities 参数时自动配置组件"""
-        from loom.tools.registry import CapabilityRegistry
-        from loom.tools.sandbox import Sandbox
-        from loom.tools.sandbox_manager import SandboxToolManager
-        from loom.tools.skill_registry import skill_market
+        from loom.tools.core.registry import CapabilityRegistry
+        from loom.tools.core.sandbox import Sandbox
+        from loom.tools.core.sandbox_manager import SandboxToolManager
+        from loom.tools.skills.registry import skill_market
 
         # 创建组件
         sandbox = Sandbox(tmp_path)
@@ -166,10 +166,10 @@ class TestAgentCreateCapabilities:
 
     def test_create_capabilities_does_not_override_explicit_params(self, mock_llm, tmp_path):
         """测试 capabilities 不会覆盖显式传入的参数"""
-        from loom.tools.registry import CapabilityRegistry
-        from loom.tools.sandbox import Sandbox
-        from loom.tools.sandbox_manager import SandboxToolManager
-        from loom.tools.skill_registry import skill_market
+        from loom.tools.core.registry import CapabilityRegistry
+        from loom.tools.core.sandbox import Sandbox
+        from loom.tools.core.sandbox_manager import SandboxToolManager
+        from loom.tools.skills.registry import skill_market
 
         # 创建两套组件
         sandbox1 = Sandbox(tmp_path / "sandbox1")
@@ -264,8 +264,8 @@ class TestAgentCreateToolsAutoSandbox:
 
     def test_create_with_explicit_sandbox_manager_no_pending(self, mock_llm, tmp_path):
         """显式传入 sandbox_manager 时即使 tools 含 callable 也不设 _pending_tool_callables"""
-        from loom.tools.sandbox import Sandbox
-        from loom.tools.sandbox_manager import SandboxToolManager
+        from loom.tools.core.sandbox import Sandbox
+        from loom.tools.core.sandbox_manager import SandboxToolManager
 
         def get_weather(city: str) -> str:
             return f"Weather in {city}: Sunny"

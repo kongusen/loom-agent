@@ -12,8 +12,8 @@ import pytest
 
 from loom.events import EventBus
 from loom.protocol.mcp import MCPToolDefinition
-from loom.tools.sandbox import Sandbox
-from loom.tools.sandbox_manager import SandboxToolManager, ToolScope, ToolWrapper
+from loom.tools.core.sandbox import Sandbox
+from loom.tools.core.sandbox_manager import SandboxToolManager, ToolScope, ToolWrapper
 
 
 class TestToolScope:

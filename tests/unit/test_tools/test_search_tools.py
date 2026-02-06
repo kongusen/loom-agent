@@ -6,8 +6,8 @@ Tests for SearchTools
 
 import pytest
 
-from loom.tools.sandbox import Sandbox
-from loom.tools.search_tools import SearchTools, create_search_tools
+from loom.tools.builtin.search import SearchTools, create_search_tools
+from loom.tools.core.sandbox import Sandbox
 
 
 class TestSearchToolsInit:

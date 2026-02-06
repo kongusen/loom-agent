@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from loom.tools.registry import (
+from loom.tools.core.registry import (
     CapabilityRegistry,
     CapabilitySet,
     ValidationResult,

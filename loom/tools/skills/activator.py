@@ -10,7 +10,7 @@ Skill Activator - Skill 激活控制器
 from typing import Any
 
 from loom.providers.llm.interface import LLMProvider
-from loom.tools.sandbox_manager import SandboxToolManager
+from loom.tools.core.sandbox_manager import SandboxToolManager
 
 from .models import ActivationResult, SkillDefinition
 

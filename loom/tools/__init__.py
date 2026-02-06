@@ -1,87 +1,111 @@
 """
 Loom Tools - 统一的工具和能力管理系统（懒加载版本）
 
-整合了 Tools 和 Skills 的统一管理：
-- Tools: 内置工具 + MCP 工具 + 动态工具
-- Skills: Anthropic SKILL.md 格式的能力包
+目录结构:
+- core/: 核心基础设施（Registry, Sandbox, Executor）
+- skills/: Skill 系统（Loader, Activator, Registry）
+- builtin/: 内置工具（bash, file, http, search, done, todo, creation）
+- memory/: 记忆操作工具（query, browse, manage, events）
 
-核心组件（始终加载）：
-- CapabilityRegistry: 统一能力发现和管理门面
-- SandboxToolManager: 工具注册和执行
-- Sandbox: 沙盒执行环境
-
-内置工具（懒加载）：
-- bash_tool, file_tools, http_tool, search_tools
-- done_tool, todo_tool, context_tools, etc.
+所有导出保持兼容：
+>>> from loom.tools import CapabilityRegistry, Sandbox, create_bash_tool
+>>> from loom.tools import FilesystemSkillLoader, skill_market
 """
 
 from typing import TYPE_CHECKING
 
-from .activator import SkillActivator
-from .converters import FunctionToMCP
-from .executor import ToolExecutor
-from .loader import SkillLoader
-from .mcp_adapter import MCPAdapter
+# === 核心基础设施（始终加载）===
+from .core import (
+    CapabilityRegistry,
+    CapabilitySet,
+    FunctionToMCP,
+    MCPAdapter,
+    Sandbox,
+    SandboxToolManager,
+    SandboxViolation,
+    ToolExecutor,
+    ToolScope,
+    ToolWrapper,
+    ValidationResult,
+)
 
-# Skill 加载 - 始终加载（核心功能）
-from .models import ActivationResult, SkillDefinition
-
-# 核心注册表 - 始终加载
-from .registry import CapabilityRegistry, CapabilitySet, ValidationResult
-
-# 沙盒环境 - 始终加载
-from .sandbox import Sandbox, SandboxViolation
-
-# 工具管理 - 始终加载
-from .sandbox_manager import SandboxToolManager, ToolScope, ToolWrapper
-from .skill_loader import FilesystemSkillLoader
-from .skill_registry import SkillRegistry, skill_market
+# === Skill 系统（始终加载）===
+from .skills import (
+    ActivationResult,
+    FilesystemSkillLoader,
+    SkillActivator,
+    SkillDefinition,
+    SkillLoader,
+    SkillRegistry,
+    skill_market,
+)
 
 if TYPE_CHECKING:
-    from .bash_tool import create_bash_tool, register_bash_tool_to_manager
-    from .context_tools import ContextToolExecutor, create_all_context_tools
-    from .done_tool import create_done_tool, execute_done_tool
-    from .file_tools import create_file_tools, register_file_tools_to_manager
-    from .http_tool import create_http_tool, register_http_tool_to_manager
-    from .index_context_tools import create_all_index_context_tools
-    from .memory_management_tools import create_all_memory_management_tools
-    from .search_tools import create_search_tools, register_search_tools_to_manager
-    from .todo_tool import create_todo_tool, register_todo_tool_to_manager
-    from .tool_creation import DynamicToolExecutor, create_tool_creation_tool
+    # Builtin tools (lazy loaded)
+    from .builtin import (
+        DynamicToolExecutor,
+        create_bash_tool,
+        create_done_tool,
+        create_file_tools,
+        create_http_tool,
+        create_search_tools,
+        create_todo_tool,
+        create_tool_creation_tool,
+        execute_done_tool,
+        register_bash_tool_to_manager,
+        register_file_tools_to_manager,
+        register_http_tool_to_manager,
+        register_search_tools_to_manager,
+        register_todo_tool_to_manager,
+    )
+
+    # Memory tools (lazy loaded)
+    from .memory import (
+        create_unified_browse_tool,
+        create_unified_events_tool,
+        create_unified_manage_tool,
+        create_unified_memory_tool,
+        execute_unified_browse_tool,
+        execute_unified_events_tool,
+        execute_unified_manage_tool,
+        execute_unified_memory_tool,
+    )
 
 # 内置工具注册表（懒加载映射）
 _TOOL_REGISTRY: dict[str, tuple[str, str]] = {
-    # bash_tool
-    "create_bash_tool": (".bash_tool", "create_bash_tool"),
-    "register_bash_tool_to_manager": (".bash_tool", "register_bash_tool_to_manager"),
-    # file_tools
-    "create_file_tools": (".file_tools", "create_file_tools"),
-    "register_file_tools_to_manager": (".file_tools", "register_file_tools_to_manager"),
-    # http_tool
-    "create_http_tool": (".http_tool", "create_http_tool"),
-    "register_http_tool_to_manager": (".http_tool", "register_http_tool_to_manager"),
-    # search_tools
-    "create_search_tools": (".search_tools", "create_search_tools"),
-    "register_search_tools_to_manager": (".search_tools", "register_search_tools_to_manager"),
-    # done_tool
-    "create_done_tool": (".done_tool", "create_done_tool"),
-    "execute_done_tool": (".done_tool", "execute_done_tool"),
-    # todo_tool
-    "create_todo_tool": (".todo_tool", "create_todo_tool"),
-    "register_todo_tool_to_manager": (".todo_tool", "register_todo_tool_to_manager"),
-    # context_tools
-    "create_all_context_tools": (".context_tools", "create_all_context_tools"),
-    "ContextToolExecutor": (".context_tools", "ContextToolExecutor"),
-    # index_context_tools
-    "create_all_index_context_tools": (".index_context_tools", "create_all_index_context_tools"),
-    # memory_management_tools
-    "create_all_memory_management_tools": (
-        ".memory_management_tools",
-        "create_all_memory_management_tools",
-    ),
-    # tool_creation
-    "create_tool_creation_tool": (".tool_creation", "create_tool_creation_tool"),
-    "DynamicToolExecutor": (".tool_creation", "DynamicToolExecutor"),
+    # builtin/bash
+    "create_bash_tool": (".builtin.bash", "create_bash_tool"),
+    "register_bash_tool_to_manager": (".builtin.bash", "register_bash_tool_to_manager"),
+    # builtin/file
+    "create_file_tools": (".builtin.file", "create_file_tools"),
+    "register_file_tools_to_manager": (".builtin.file", "register_file_tools_to_manager"),
+    # builtin/http
+    "create_http_tool": (".builtin.http", "create_http_tool"),
+    "register_http_tool_to_manager": (".builtin.http", "register_http_tool_to_manager"),
+    # builtin/search
+    "create_search_tools": (".builtin.search", "create_search_tools"),
+    "register_search_tools_to_manager": (".builtin.search", "register_search_tools_to_manager"),
+    # builtin/done
+    "create_done_tool": (".builtin.done", "create_done_tool"),
+    "execute_done_tool": (".builtin.done", "execute_done_tool"),
+    # builtin/todo
+    "create_todo_tool": (".builtin.todo", "create_todo_tool"),
+    "register_todo_tool_to_manager": (".builtin.todo", "register_todo_tool_to_manager"),
+    # builtin/creation
+    "create_tool_creation_tool": (".builtin.creation", "create_tool_creation_tool"),
+    "DynamicToolExecutor": (".builtin.creation", "DynamicToolExecutor"),
+    # memory/query
+    "create_unified_memory_tool": (".memory.query", "create_unified_memory_tool"),
+    "execute_unified_memory_tool": (".memory.query", "execute_unified_memory_tool"),
+    # memory/browse
+    "create_unified_browse_tool": (".memory.browse", "create_unified_browse_tool"),
+    "execute_unified_browse_tool": (".memory.browse", "execute_unified_browse_tool"),
+    # memory/manage
+    "create_unified_manage_tool": (".memory.manage", "create_unified_manage_tool"),
+    "execute_unified_manage_tool": (".memory.manage", "execute_unified_manage_tool"),
+    # memory/events
+    "create_unified_events_tool": (".memory.events", "create_unified_events_tool"),
+    "execute_unified_events_tool": (".memory.events", "execute_unified_events_tool"),
 }
 
 # 缓存已加载的工具
@@ -102,14 +126,14 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    # Registry
+    # Core - Registry
     "CapabilityRegistry",
     "CapabilitySet",
     "ValidationResult",
-    # Sandbox
+    # Core - Sandbox
     "Sandbox",
     "SandboxViolation",
-    # Tool Management
+    # Core - Tool Management
     "SandboxToolManager",
     "ToolScope",
     "ToolWrapper",
@@ -137,10 +161,15 @@ __all__ = [
     "execute_done_tool",
     "create_todo_tool",
     "register_todo_tool_to_manager",
-    "create_all_context_tools",
-    "ContextToolExecutor",
-    "create_all_index_context_tools",
-    "create_all_memory_management_tools",
     "create_tool_creation_tool",
     "DynamicToolExecutor",
+    # Memory Tools
+    "create_unified_memory_tool",
+    "execute_unified_memory_tool",
+    "create_unified_browse_tool",
+    "execute_unified_browse_tool",
+    "create_unified_manage_tool",
+    "execute_unified_manage_tool",
+    "create_unified_events_tool",
+    "execute_unified_events_tool",
 ]

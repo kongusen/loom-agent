@@ -14,7 +14,7 @@ from loom.runtime import (
     MetricsInterceptor,
     TimingInterceptor,
 )
-from loom.tools.registry import ToolRegistry
+from loom.tools.core.registry import ToolRegistry
 
 
 class TestInterceptorIntegration:

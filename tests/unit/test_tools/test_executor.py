@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from loom.tools.executor import ToolExecutor
+from loom.tools.core.executor import ToolExecutor
 
 
 class TestToolExecutorInit:

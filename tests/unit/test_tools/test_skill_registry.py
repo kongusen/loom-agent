@@ -4,7 +4,7 @@ Skill Registry Unit Tests
 测试统一 Skill 注册表（Loader + 运行时）功能
 """
 
-from loom.tools.skill_registry import SkillRegistry
+from loom.tools.skills.registry import SkillRegistry
 
 
 class TestSkillRegistryInit:

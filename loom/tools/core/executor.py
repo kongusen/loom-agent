@@ -19,7 +19,7 @@ from typing import Any
 
 # Optional import for SandboxToolManager
 try:
-    from loom.tools.sandbox_manager import SandboxToolManager, ToolScope
+    from loom.tools.core.sandbox_manager import SandboxToolManager, ToolScope
 except ImportError:
     SandboxToolManager = None  # type: ignore
     ToolScope = None  # type: ignore

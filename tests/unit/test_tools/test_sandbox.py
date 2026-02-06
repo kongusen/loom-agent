@@ -4,7 +4,7 @@ Tests for Sandbox
 
 import pytest
 
-from loom.tools.sandbox import RESTRICTED_PYTHON_AVAILABLE, Sandbox, SandboxViolation
+from loom.tools.core.sandbox import RESTRICTED_PYTHON_AVAILABLE, Sandbox, SandboxViolation
 
 
 class TestSandboxInit:
@@ -320,9 +320,6 @@ class TestSandboxExecutePython:
         """Create a sandbox instance"""
         return Sandbox(tmp_path)
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
     async def test_execute_python_simple_code(self, sandbox):
         """Test executing simple Python code (触发line 248-284)"""
@@ -333,9 +330,6 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 4
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
     async def test_execute_python_with_params(self, sandbox):
         """Test executing code with parameters"""
@@ -347,9 +341,6 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 15
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
     async def test_execute_python_with_allowed_module(self, sandbox):
         """Test using allowed module (math)"""
@@ -360,9 +351,6 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 4.0
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
     async def test_execute_python_with_json_module(self, sandbox):
         """Test using allowed module (json)"""
@@ -373,9 +361,6 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == '{"key": "value"}'
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
     async def test_execute_python_invalid_code(self, sandbox):
         """Test executing invalid Python code"""
@@ -386,12 +371,10 @@ class TestSandboxExecutePython:
         assert result["success"] is False
         assert "error" in result
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
-    async def test_execute_python_timeout(self, sandbox):
+    async def test_execute_python_timeout(self, tmp_path):
         """Test code execution timeout"""
+        sandbox = Sandbox(tmp_path, python_timeout=1)
         code = "while True: pass"
 
         result = await sandbox.execute_python(code)
@@ -413,26 +396,21 @@ class TestSandboxExecutePython:
         else:
             assert result["success"] is False or result["result"] is None
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
+    @pytest.mark.xfail(reason="Print support requires complex RestrictedPython configuration", strict=False)
     @pytest.mark.asyncio
     async def test_execute_python_with_print(self, sandbox):
-        """Test using _print_ in sandboxed code"""
-        code = "_print_('Hello from sandbox'); result = 'printed'"
+        """Test using print in sandboxed code"""
+        code = "print('Hello from sandbox'); result = 'printed'"
 
         result = await sandbox.execute_python(code)
 
         assert result["success"] is True
         assert result["result"] == "printed"
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
     async def test_execute_python_custom_timeout(self, tmp_path):
         """Test custom timeout setting"""
-        sandbox = Sandbox(tmp_path, python_timeout=1)
+        sandbox = Sandbox(tmp_path, python_timeout=1, allowed_modules=["time"])
         code = "import time; time.sleep(2); result = 'done'"
 
         result = await sandbox.execute_python(code)
@@ -440,9 +418,6 @@ class TestSandboxExecutePython:
         assert result["success"] is False
         assert "timeout" in result["error"].lower()
 
-    @pytest.mark.xfail(
-        reason="Sandbox.execute_python needs fix for current RestrictedPython API", strict=False
-    )
     @pytest.mark.asyncio
     async def test_execute_python_custom_allowed_modules(self, tmp_path):
         """Test custom allowed modules"""
