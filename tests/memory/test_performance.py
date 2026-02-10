@@ -9,7 +9,7 @@ import time
 import pytest
 
 from loom.memory.layers import CircularBufferLayer, PriorityQueueLayer
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class TestPerformance:

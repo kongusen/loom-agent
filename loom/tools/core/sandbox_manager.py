@@ -20,7 +20,7 @@ from enum import Enum
 from typing import Any
 
 from loom.events import EventBus
-from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.mcp_types import MCPToolDefinition
 from loom.tools.core.mcp_adapter import MCPAdapter
 from loom.tools.core.sandbox import Sandbox
 
@@ -180,7 +180,7 @@ class SandboxToolManager:
 
         # 发布工具注册事件
         if self.event_bus:
-            from loom.protocol import Task
+            from loom.runtime import Task
 
             event = Task(
                 action="tool.registered",
@@ -273,7 +273,7 @@ class SandboxToolManager:
 
         # 发布工具执行开始事件
         if self.event_bus:
-            from loom.protocol import Task
+            from loom.runtime import Task
 
             event = Task(
                 action="tool.executing",
@@ -298,7 +298,7 @@ class SandboxToolManager:
 
             # 发布工具执行成功事件
             if self.event_bus:
-                from loom.protocol import Task
+                from loom.runtime import Task
 
                 event = Task(
                     action="tool.completed",
@@ -315,7 +315,7 @@ class SandboxToolManager:
         except Exception as e:
             # 发布工具执行失败事件
             if self.event_bus:
-                from loom.protocol import Task
+                from loom.runtime import Task
 
                 event = Task(
                     action="tool.completed",

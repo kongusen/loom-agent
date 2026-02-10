@@ -8,7 +8,7 @@ from datetime import datetime
 
 import pytest
 
-from loom.protocol.task import Task, TaskStatus
+from loom.runtime.task import Task, TaskStatus
 from loom.runtime import (
     AgentState,
     AgentStatus,

@@ -8,7 +8,7 @@ ExecutorMixin - 执行循环
 
 from typing import TYPE_CHECKING, Any
 
-from loom.protocol import Task
+from loom.runtime import Task
 
 if TYPE_CHECKING:
     pass

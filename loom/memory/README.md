@@ -4,110 +4,144 @@
 
 ## 设计理念
 
-A4层实现四层记忆系统，支持有损压缩和自动迁移。
-每层之间通过压缩机制实现信息的层次化存储。
+A4层实现四层记忆系统，采用 **Token-First Design** 原则。
+基于 Anthropic Context Engineering 最佳实践，所有容量以 token 为单位计量。
+
+### Token-First 设计原则
+
+1. **Token-First** - 所有操作以 token 为单位，而非条目数
+2. **Quality over Quantity** - 按重要性和信息密度排序
+3. **Just-in-Time Context** - 按需加载，避免预加载
+4. **Context Compaction** - 智能压缩，最大化信息密度
+
+**注意**: 上下文构建逻辑已迁移到 `loom.context` 模块。本模块专注于记忆存储。
 
 ## 核心组件
 
-### 1. MemoryLayer (`layer.py`)
-记忆层抽象基类：
-- `store()`: 存储记忆
-- `retrieve()`: 检索记忆
-- `compress()`: 压缩记忆（准备迁移）
+### 1. LoomMemory (`core.py`)
+基于 Task 的分层记忆系统：
+- `add_task()`: 添加任务到指定层级
+- `get_l1_tasks()`: 获取 L1 最近任务
+- `get_l2_tasks()`: 获取 L2 重要任务
+- `promote_tasks()`: 触发层间迁移
+- `search_tasks()`: 语义检索任务
 
-### 2. 四层记忆系统 (`hierarchy.py`)
+### 2. MemoryManager (`manager.py`)
+整合 LoomMemory 和 FractalMemory：
+- 管理 L1-L4 分层存储
+- 管理 LOCAL/SHARED/INHERITED/GLOBAL 作用域
+- 父子节点关系管理
+- 统一的读写接口
 
-**L1: 直连 + 近期记忆**
-- 容量: 10项
-- 特点: 短期、高频访问
-- 压缩策略: 低频项迁移
+### 3. 四层记忆系统 (Token-First)
 
-**L2: 会话工作记忆（Bus相关）**
-- 容量: 50项
-- 特点: 中期存储
-- 压缩策略: 旧项迁移
+**L1: 直连 + 近期记忆 (`TokenBudgetLayer`)**
+- Token 预算: 8,000 tokens（可配置）
+- 特点: 短期、高频访问、FIFO 驱逐
+- 存储: 完整 Task 对象
+- 驱逐策略: 超出 token 预算时移除最旧的
+
+**L2: 会话工作记忆 (`PriorityTokenLayer`)**
+- Token 预算: 16,000 tokens（可配置）
+- 特点: 按重要性排序、堆结构
+- 存储: 重要 Task 对象（importance > 0.6）
+- 驱逐策略: 超出 token 预算时移除最低重要性的
 
 **L3: 会话摘要**
-- 容量: 200项
-- 特点: 会话内长期存储
-- 压缩策略: 语义摘要
+- Token 预算: 32,000 tokens（可配置）
+- 特点: 压缩表示、节省空间
+- 存储: TaskSummary 对象
+- 驱逐策略: 超出 token 预算时移除最旧的
 
 **L4: 跨会话记忆**
-- 容量: 1000项
-- 特点: 永久存储、高度压缩
-- 压缩策略: 不再压缩
-
-### Session ID（由上层定义）
-
-本模块支持显式 `session_id`，由上层业务定义何时开启/切换会话。  
-当 `session_id` 存在时：
-- L1/L2/L3 默认按 session 过滤  
-- L4 为跨会话记忆，不默认过滤  
+- Token 预算: 100,000 tokens（可配置）
+- 特点: 向量化存储、语义检索
+- 依赖: embedding provider + vector store
 
 ## L1-L4 迭代机制（压缩与迁移）
 
-记忆层之间通过“重要性提升 + 容量触发压缩”进行自动迁移：
+记忆层之间通过"重要性提升 + Token 预算触发压缩"进行自动迁移：
 
 **L1 → L2（重要性提升）**
-- 规则：`importance > 0.6` 的 Task 提升到 L2  
-- L2 使用优先队列，仅保留高重要性任务  
+- 规则：`importance > 0.6` 的 Task 提升到 L2
+- L2 使用优先队列，仅保留高重要性任务
 
 **L2 → L3（会话摘要）**
-- 触发：L2 使用率达到 90%  
-- 策略：将最不重要的 20% 压缩为 `TaskSummary` 写入 L3  
-- 结果：降低存储成本，保留会话内核心信息  
+- 触发：L2 token 使用率达到 85%
+- 策略：将最不重要的任务压缩为 `TaskSummary` 写入 L3
+- 目标：释放到 80% 使用率
 
 **L3 → L4（跨会话向量记忆）**
-- 触发：L3 使用率达到 90%  
-- 策略：将最旧的 20% 摘要向量化并存入 L4  
-- 依赖：需要 embedding provider 和 vector store，否则跳过  
+- 触发：L3 token 使用率达到 90%
+- 策略：将最旧的 20% 摘要向量化并存入 L4
 
-> 入口方法：`promote_tasks()` / `promote_tasks_async()`  
+## 与 context 模块的关系
 
-## 上下文管理机制（与 L1-L4 联动）
+- `memory/` - 负责存储（存什么）
+- `context/` - 负责构建（用什么）
 
-上下文由 `TaskContextManager` 构建，和记忆分层结合：
-
-**预算分配（可配置）**
-- `l1_ratio`：L1 预算（直连消息 + L1 近期记忆）
-- `l2_ratio`：L2 预算（Bus 相关上下文）
-- `l3_l4_ratio`：L3/L4 预算（摘要/跨会话检索）
-
-**上下文来源**
-- **Direct（点对点）**：EventBus `query_by_target`  
-  - 进入 L1 预算，且有最小保留条数  
-- **Bus（集体）**：EventBus `query_by_task` / `query_recent`  
-  - 经评分排序后进入 L2 预算  
-- **L3/L4**：通过工具按需查询  
-  - `query_l3_memory` / `query_l4_memory`  
-
-**Session 过滤**
-- `session_id` 存在时，L1/L2/L3 和 EventBus 事件按 session 过滤  
-- L4 默认不做 session 限制（跨会话），但 session_id 会被记录  
-
-### 3. MemoryHierarchy
-四层记忆管理器：
-- 统一存储接口
-- 跨层检索
-- 自动层间迁移
-
-## 与公理系统的关系
-
-- **A4（记忆层次）**: L1 ⊂ L2 ⊂ L3 ⊂ L4
-- **有损压缩**: Li → Li+1 保持语义，减少细节
-- **自动迁移**: 容量满时触发压缩和迁移
+上下文构建请使用 `loom.context` 模块。
 
 ## 使用示例
 
 ```python
-from loom.memory import MemoryHierarchy
+from loom.memory import MemoryManager, LoomMemory
 
-# 创建记忆系统
-memory = MemoryHierarchy()
+# 创建记忆管理器（Token-First 配置）
+memory = MemoryManager(
+    node_id="agent-1",
+    l1_token_budget=8000,   # L1: 8K tokens
+    l2_token_budget=16000,  # L2: 16K tokens
+    l3_token_budget=32000,  # L3: 32K tokens
+    l4_token_budget=100000, # L4: 100K tokens
+)
 
-# 存储记忆
-memory_id = await memory.store("重要信息")
+# 添加任务
+memory.add_task(task)
 
-# 检索记忆
-results = await memory.retrieve("重要")
+# 获取 L1 最近任务
+recent_tasks = memory.get_l1_tasks(limit=10)
+
+# 获取 L2 重要任务
+important_tasks = memory.get_l2_tasks(limit=10)
+
+# 触发层间迁移
+memory.promote_tasks()
+
+# 获取统计信息（Token-First）
+stats = memory._loom_memory.get_stats()
+print(f"L1 token usage: {stats['l1_token_usage']}/{stats['l1_token_budget']}")
+print(f"L2 token usage: {stats['l2_token_usage']}/{stats['l2_token_budget']}")
+```
+
+## 与上下文模块配合使用
+
+```python
+from loom.memory import LoomMemory
+from loom.memory.tokenizer import EstimateCounter
+from loom.context import ContextOrchestrator
+from loom.context.sources import L1RecentSource, L2ImportantSource
+
+# 创建记忆（Token-First 配置）
+memory = LoomMemory(
+    node_id="agent-1",
+    l1_token_budget=8000,
+    l2_token_budget=16000,
+)
+
+# 创建上下文源（从 memory 读取）
+sources = [
+    L1RecentSource(memory),
+    L2ImportantSource(memory),
+]
+
+# 创建编排器
+orchestrator = ContextOrchestrator(
+    token_counter=EstimateCounter(),
+    sources=sources,
+    model_context_window=128000,
+)
+
+# 构建上下文
+messages = await orchestrator.build_context(query="用户问题")
 ```

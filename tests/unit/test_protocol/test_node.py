@@ -4,9 +4,8 @@ Tests for NodeProtocol
 
 import pytest
 
-from loom.protocol.agent_card import AgentCapability, AgentCard
-from loom.protocol.node import NodeProtocol
-from loom.protocol.task import Task, TaskStatus
+from loom.agent.card import AgentCapability, AgentCard, NodeProtocol
+from loom.runtime.task import Task, TaskStatus
 
 
 class MockNode(NodeProtocol):

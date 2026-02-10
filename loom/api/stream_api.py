@@ -26,7 +26,7 @@ from typing import Any
 
 from loom.events import EventBus
 from loom.events.sse_formatter import SSEFormatter
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class OutputStrategy(Enum):

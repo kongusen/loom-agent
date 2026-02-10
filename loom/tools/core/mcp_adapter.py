@@ -19,7 +19,7 @@ MCP Adapter - MCP 协议适配器
 from typing import Any
 
 from loom.events import EventBus
-from loom.protocol.mcp import MCPServer, MCPToolDefinition
+from loom.tools.mcp_types import MCPServer, MCPToolDefinition
 
 
 class MCPAdapter:
@@ -109,7 +109,7 @@ class MCPAdapter:
 
             # 发送事件（如果有事件总线）
             if self.event_bus:
-                from loom.protocol import Task
+                from loom.runtime import Task
 
                 event = Task(
                     action="mcp.tool.called",
@@ -131,7 +131,7 @@ class MCPAdapter:
         except Exception as e:
             # 发送错误事件
             if self.event_bus:
-                from loom.protocol import Task
+                from loom.runtime import Task
 
                 event = Task(
                     action="mcp.tool.failed",

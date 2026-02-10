@@ -1,7 +1,11 @@
 """
 记忆系统类型定义
 
-基于A4公理（记忆层次公理）的简化实现
+基于A4公理（记忆层次公理）的实现
+
+设计原则：
+1. Token-First Design - 所有记忆单元携带 token 计数
+2. Quality over Quantity - 通过 importance 和 information_density 评估质量
 """
 
 import uuid
@@ -18,10 +22,10 @@ class MemoryTier(Enum):
     基于A4公理：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
     """
 
-    L1_RAW_IO = 1  # 原始IO（循环缓冲区）
-    L2_WORKING = 2  # 工作记忆（任务相关）
-    L3_SESSION = 3  # 会话记忆（会话摘要）
-    L4_GLOBAL = 4  # 跨会话记忆（持久化）
+    L1_RAW_IO = 1  # 原始IO（工作记忆）
+    L2_WORKING = 2  # 工作记忆（会话重要内容）
+    L3_SESSION = 3  # 会话记忆（摘要）
+    L4_GLOBAL = 4  # 跨会话记忆（向量化）
 
 
 class MemoryType(Enum):
@@ -57,9 +61,11 @@ class MemoryStatus(Enum):
 @dataclass
 class MemoryUnit:
     """
-    记忆单元 - 增强版
+    记忆单元（Token-First Design）
 
-    包含完整的生命周期管理和溯源追踪功能
+    核心改动：
+    - token_count: 必须字段，存储时计算
+    - information_density: 信息密度评估（token 效率）
     """
 
     # 核心字段
@@ -68,10 +74,17 @@ class MemoryUnit:
     tier: MemoryTier = MemoryTier.L2_WORKING
     type: MemoryType = MemoryType.MESSAGE
 
+    # Token-First: 必须字段
+    token_count: int = 0
+
+    # 质量评估
+    importance: float = 0.5  # 0.0-1.0
+    information_density: float = 1.0  # token 效率（越高越好）
+
     # 溯源追踪
-    source_node: str | None = None  # 生成此记忆的节点ID
-    parent_id: str | None = None  # 父记忆ID（用于因果链）
-    session_id: str | None = None  # 会话ID（由上层定义）
+    source_node: str | None = None
+    parent_id: str | None = None
+    session_id: str | None = None
 
     # 时间戳
     created_at: datetime = field(default_factory=datetime.now)
@@ -82,9 +95,6 @@ class MemoryUnit:
 
     # L4语义搜索
     embedding: list[float] | None = None
-
-    # L4压缩需要
-    importance: float = 0.5  # 0.0-1.0
 
     # 生命周期状态
     status: MemoryStatus = MemoryStatus.ACTIVE

@@ -15,7 +15,7 @@ import json
 from typing import Any
 
 from loom.api import __version__
-from loom.protocol.mcp import MCPPrompt, MCPResource, MCPToolDefinition, MCPToolResult
+from loom.tools.mcp_types import MCPPrompt, MCPResource, MCPToolDefinition, MCPToolResult
 from loom.providers.mcp.interface import MCPProvider
 
 

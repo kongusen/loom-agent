@@ -10,14 +10,29 @@ Context Configuration - 上下文流动配置
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator
 
 from loom.config.base import LoomBaseConfig
 from loom.config.memory import MemoryConfig
-from loom.memory.task_context import BudgetConfig
 from loom.runtime.session_lane import SessionIsolationMode
+
+
+@dataclass
+class BudgetConfig:
+    """
+    上下文预算配置
+
+    用于配置各层的预算分配比例。
+    """
+
+    l1_ratio: float = 0.25
+    l2_ratio: float = 0.20
+    l3_l4_ratio: float = 0.30
+    rag_ratio: float = 0.15
+    inherited_ratio: float = 0.10
 
 if TYPE_CHECKING:
     from loom.memory.compaction import CompactionConfig

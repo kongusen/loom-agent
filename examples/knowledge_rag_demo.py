@@ -17,7 +17,7 @@ import asyncio
 import os
 
 from loom.agent import Agent
-from loom.protocol import Task
+from loom.runtime import Task
 from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.providers.llm.openai import OpenAIProvider
 

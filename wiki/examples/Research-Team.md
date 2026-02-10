@@ -12,7 +12,7 @@ from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 from loom.fractal import CompositeNode
 from loom.fractal.strategies import SequentialStrategy
-from loom.protocol import Task
+from loom.runtime import Task
 
 async def main():
     # 配置 LLM

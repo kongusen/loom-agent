@@ -7,7 +7,7 @@ Ensures all layer implementations conform to the MemoryLayer interface contract.
 import pytest
 
 from loom.memory.layers import CircularBufferLayer, MemoryLayer, PriorityQueueLayer
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class TestLayerContract:

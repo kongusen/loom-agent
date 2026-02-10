@@ -30,7 +30,7 @@ if str(project_root) not in sys.path:
 from loom.agent import Agent  # noqa: E402
 from loom.config.llm import LLMConfig  # noqa: E402
 from loom.events import EventBus  # noqa: E402
-from loom.protocol import Task  # noqa: E402
+loom.runtime import Task  # noqa: E402
 from loom.providers.llm.openai import OpenAIProvider  # noqa: E402
 from loom.providers.llm.qwen import QwenProvider  # noqa: E402
 

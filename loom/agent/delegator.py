@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from loom.fractal.memory import MemoryScope
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 if TYPE_CHECKING:
     from .core import Agent
@@ -84,10 +84,11 @@ class DelegatorMixin:
     _root_context_id: str | None
     _recursive_depth: int
 
-    # 方法声明（由 Agent 类实现）
-    async def _publish_event(
-        self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
-    ) -> None: ...
+    # 方法声明移到 TYPE_CHECKING 块中，避免覆盖 BaseNode 的实际实现
+    if TYPE_CHECKING:
+        async def _publish_event(
+            self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
+        ) -> None: ...
 
     async def delegate(
         self,

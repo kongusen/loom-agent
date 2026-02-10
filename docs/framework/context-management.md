@@ -163,7 +163,7 @@ To avoid schema drift between modules, all point-to-point (direct) messages must
 
 **Example**:
 ```python
-from loom.protocol import Task
+from loom.runtime import Task
 
 direct_msg = Task(
     task_id="task-123:event:node.message",
@@ -222,7 +222,7 @@ When messages exceed `max_tokens`, the system applies a **recency-based truncati
 
 ```python
 from loom.memory.task_context import TaskContextManager
-from loom.protocol import Task
+from loom.runtime import Task
 
 # Build context for current task
 current_task = Task(
@@ -246,7 +246,7 @@ When a `session_id` is present:
 - L4 remains cross-session (no default filter)
 
 ```python
-from loom.protocol import Task
+from loom.runtime import Task
 
 current_task = Task(
     task_id="task_123",

@@ -13,7 +13,7 @@ from typing import Any, Optional
 from loom.config.memory import MemoryStrategyType
 from loom.fractal.memory import MemoryEntry, MemoryScope
 from loom.memory.core import LoomMemory
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class MemoryManager:
@@ -23,10 +23,11 @@ class MemoryManager:
         self,
         node_id: str,
         parent: Optional["MemoryManager"] = None,
-        max_l1_size: int = 50,
-        max_l2_size: int = 100,
-        max_l3_size: int = 500,
-        max_l4_size: int | None = None,
+        # Token-First: 使用 token 预算而非条目数
+        l1_token_budget: int = 8000,
+        l2_token_budget: int = 16000,
+        l3_token_budget: int = 32000,
+        l4_token_budget: int = 100000,
         event_bus: Any = None,
         # MemoryConfig support
         strategy: Any = None,
@@ -37,8 +38,7 @@ class MemoryManager:
         l3_retention_hours: int | None = None,
         l4_retention_hours: int | None = None,
         l1_promote_threshold: int = 3,
-        l2_promote_threshold: int = 5,
-        l3_promote_threshold: int = 10,
+        l3_promote_threshold: int = 3,
         l2_auto_compress: bool = True,
         l3_auto_compress: bool = True,
         importance_threshold: float = 0.6,
@@ -46,18 +46,18 @@ class MemoryManager:
         self.node_id = node_id
         self.parent = parent
 
-        # 底层存储：LoomMemory 管理 L1-L4
+        # 底层存储：LoomMemory 管理 L1-L4（Token-First Design）
         self._loom_memory = LoomMemory(
             node_id=node_id,
-            max_l1_size=max_l1_size,
-            max_l2_size=max_l2_size,
-            max_l3_size=max_l3_size,
-            max_l4_size=max_l4_size,
+            l1_token_budget=l1_token_budget,
+            l2_token_budget=l2_token_budget,
+            l3_token_budget=l3_token_budget,
+            l4_token_budget=l4_token_budget,
             event_bus=event_bus,
             strategy=(
                 strategy
                 if strategy is not None
-                else MemoryStrategyType.IMPORTANCE_BASED  # 与 MemoryConfig 默认值一致
+                else MemoryStrategyType.IMPORTANCE_BASED
             ),
             enable_auto_migration=enable_auto_migration,
             enable_compression=enable_compression,
@@ -66,7 +66,6 @@ class MemoryManager:
             l3_retention_hours=l3_retention_hours,
             l4_retention_hours=l4_retention_hours,
             l1_promote_threshold=l1_promote_threshold,
-            l2_promote_threshold=l2_promote_threshold,
             l3_promote_threshold=l3_promote_threshold,
             l2_auto_compress=l2_auto_compress,
             l3_auto_compress=l3_auto_compress,

@@ -10,7 +10,7 @@ import pytest
 
 from loom.memory import LoomMemory
 from loom.memory.types import Fact, FactType, MemoryTier
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 class TestFactExtraction:

@@ -29,7 +29,7 @@ from textual.widgets import Footer, Header, Input, RichLog, Static
 from loom.agent import Agent
 from loom.config.llm import LLMConfig
 from loom.events import EventBus
-from loom.protocol import Task
+from loom.runtime import Task
 from loom.providers.knowledge.base import KnowledgeBaseProvider, KnowledgeItem
 from loom.providers.llm.openai import OpenAIProvider
 from loom.tools.registry import ToolRegistry

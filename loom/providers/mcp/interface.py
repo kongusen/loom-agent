@@ -14,7 +14,7 @@ MCP Provider 负责：
 from abc import ABC, abstractmethod
 from typing import Any
 
-from loom.protocol.mcp import MCPPrompt, MCPResource, MCPToolDefinition, MCPToolResult
+from loom.tools.mcp_types import MCPPrompt, MCPResource, MCPToolDefinition, MCPToolResult
 
 
 class MCPProvider(ABC):

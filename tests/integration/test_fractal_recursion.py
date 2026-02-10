@@ -7,7 +7,7 @@ Fractal Recursion Tests
 import pytest
 
 from loom.fractal.container import NodeContainer
-from loom.protocol import AgentCapability, AgentCard, Task, TaskStatus
+from loom.agent.card import AgentCapability, AgentCard, Task, TaskStatus
 from tests.integration.mock_agents import MockAnalysisAgent
 
 

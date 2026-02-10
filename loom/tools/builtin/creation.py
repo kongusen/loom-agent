@@ -11,7 +11,7 @@ import inspect
 from collections.abc import Callable
 from typing import Any
 
-from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.mcp_types import MCPToolDefinition
 
 # Optional import for SandboxToolManager
 try:

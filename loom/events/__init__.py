@@ -17,10 +17,12 @@ A2: 事件主权公理 (Event Sovereignty Axiom)
 """
 
 from loom.events.actions import AgentAction, MemoryAction, TaskAction
+from loom.events.context_controller import ContextController
 from loom.events.event_bus import EventBus
 from loom.events.handlers import AgentHandler, MemoryHandler, TaskHandler
 from loom.events.memory_transport import MemoryTransport
 from loom.events.output_collector import OutputCollector, OutputStrategy, SSEEvent
+from loom.events.session import Session, SessionStatus
 from loom.events.sse_formatter import SSEFormatter
 from loom.events.transport import Transport
 
@@ -35,6 +37,9 @@ except ImportError:
 
 __all__ = [
     "EventBus",
+    "ContextController",
+    "Session",
+    "SessionStatus",
     "TaskAction",
     "MemoryAction",
     "AgentAction",

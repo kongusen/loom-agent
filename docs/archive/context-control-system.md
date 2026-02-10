@@ -319,7 +319,7 @@ from collections import deque
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from loom.protocol import Task
+    from loom.runtime import Task
 
 class LoomMemory:
     """

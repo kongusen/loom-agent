@@ -20,7 +20,13 @@ from loom.config import ContextConfig
 from loom.config.tool import ToolConfig
 
 # A2: 事件主权公理 - 事件层
-from loom.events import EventBus, SSEFormatter
+from loom.events import (
+    ContextController,
+    EventBus,
+    Session,
+    SessionStatus,
+    SSEFormatter,
+)
 
 # A3: 分形自相似公理 - 分形层
 from loom.fractal import NodeContainer
@@ -34,14 +40,9 @@ from loom.memory import (
     MemoryUnit,
 )
 from loom.memory.compaction import CompactionConfig
-from loom.memory.task_context import BudgetConfig
-from loom.protocol import (
-    AgentCapability,
-    AgentCard,
-    NodeProtocol,
-    Task,
-    TaskStatus,
-)
+from loom.config.context import BudgetConfig
+# A1: 统一接口公理 - 协议层（Task 已迁移到 runtime）
+from loom.runtime import Task, TaskStatus
 
 # Runtime
 from loom.runtime import Dispatcher, Interceptor, InterceptorChain
@@ -67,17 +68,17 @@ from loom.api.version import (
     get_version_info,
 )
 
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 
 __all__ = [
-    # Protocol
-    "NodeProtocol",
+    # Protocol (Task moved to Runtime)
     "Task",
     "TaskStatus",
-    "AgentCard",
-    "AgentCapability",
     # Events
     "EventBus",
+    "Session",
+    "SessionStatus",
+    "ContextController",
     "SSEFormatter",
     # Fractal
     "NodeContainer",

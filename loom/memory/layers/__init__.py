@@ -1,5 +1,5 @@
 """
-Memory Layer Abstractions
+Memory Layer Abstractions (Token-First Design)
 
 Provides unified interfaces for all memory layers (L1-L4).
 
@@ -12,6 +12,17 @@ from loom.memory.layers_merged import (
     MemoryLayer,
     PriorityItem,
     PriorityQueueLayer,
+    PriorityTokenLayer,
+    TokenBudgetLayer,
+    TokenItem,
 )
 
-__all__ = ["MemoryLayer", "CircularBufferLayer", "PriorityQueueLayer", "PriorityItem"]
+__all__ = [
+    "MemoryLayer",
+    "TokenBudgetLayer",
+    "PriorityTokenLayer",
+    "CircularBufferLayer",
+    "PriorityQueueLayer",
+    "PriorityItem",
+    "TokenItem",
+]

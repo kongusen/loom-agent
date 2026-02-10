@@ -12,7 +12,7 @@ import pytest
 
 from loom.agent import Agent
 from loom.fractal.memory import MemoryScope
-from loom.protocol import Task
+from loom.runtime import Task
 from loom.providers.llm.mock import MockLLMProvider
 
 

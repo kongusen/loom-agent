@@ -192,7 +192,7 @@ agent = components.create_agent(...)
 ```python
 # 直接使用底层组件
 from loom import EventBus, Dispatcher, MemoryHierarchy
-from loom.protocol import AgentCard, Task
+from loom.agent.card import AgentCard, Task
 from loom.orchestration import RouterOrchestrator
 
 # 手动创建和配置所有组件

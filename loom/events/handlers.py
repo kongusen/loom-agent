@@ -6,7 +6,7 @@
 
 from typing import Any, Protocol
 
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class TaskHandler(Protocol):

@@ -7,31 +7,37 @@ Task-Based Memory System Unit Tests
 import pytest
 
 from loom.memory import LoomMemory, MemoryTier
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class TestLoomMemoryInit:
     """测试 LoomMemory 初始化"""
 
     def test_init_default(self):
-        """测试默认初始化"""
+        """测试默认初始化（Token-First Design）"""
         memory = LoomMemory(node_id="test_node")
 
         assert memory.node_id == "test_node"
-        assert memory.max_l1_size == 50
-        assert memory.max_l2_size == 100
-        assert memory.max_l3_size == 500
+        # Token-First: 使用 token 预算而非条目数
+        assert memory.l1_token_budget == 8000
+        assert memory.l2_token_budget == 16000
+        assert memory.l3_token_budget == 32000
         assert len(memory._l1_tasks) == 0
         assert len(memory._l2_tasks) == 0
         assert len(memory._l3_summaries) == 0
 
     def test_init_custom_sizes(self):
-        """测试自定义大小初始化"""
-        memory = LoomMemory(node_id="test_node", max_l1_size=30, max_l2_size=50, max_l3_size=200)
+        """测试自定义 token 预算初始化"""
+        memory = LoomMemory(
+            node_id="test_node",
+            l1_token_budget=4000,
+            l2_token_budget=8000,
+            l3_token_budget=16000
+        )
 
-        assert memory.max_l1_size == 30
-        assert memory.max_l2_size == 50
-        assert memory.max_l3_size == 200
+        assert memory.l1_token_budget == 4000
+        assert memory.l2_token_budget == 8000
+        assert memory.l3_token_budget == 16000
 
     def test_init_with_cleanup_limits(self):
         """测试带清理限制的初始化"""
@@ -42,11 +48,11 @@ class TestLoomMemoryInit:
 
 
 class TestL1TaskStorage:
-    """测试 L1 任务存储"""
+    """测试 L1 任务存储（Token-First Design）"""
 
     def test_add_task_to_l1(self):
         """测试添加任务到L1"""
-        memory = LoomMemory(node_id="test_node", max_l1_size=3)
+        memory = LoomMemory(node_id="test_node", l1_token_budget=1000)
 
         task = Task(task_id="task1", action="test_action", parameters={"key": "value"})
 
@@ -56,22 +62,21 @@ class TestL1TaskStorage:
         assert memory._l1_tasks[0].task_id == "task1"
         assert task.task_id in memory._task_index
 
-    def test_l1_circular_buffer(self):
-        """测试L1循环缓冲区"""
-        memory = LoomMemory(node_id="test_node", max_l1_size=3)
+    def test_l1_token_budget_eviction(self):
+        """测试L1 token 预算驱逐（Token-First Design）"""
+        # 使用小的 token 预算来测试驱逐
+        # 每个任务约 "test_action: {'index': 0} -> None" = ~30 chars = ~8 tokens
+        memory = LoomMemory(node_id="test_node", l1_token_budget=30)
 
-        # 添加4个任务，应该只保留最后3个
+        # 添加4个任务，应该根据 token 预算驱逐旧的
         for i in range(4):
             task = Task(task_id=f"task{i}", action="test_action", parameters={"index": i})
             memory.add_task(task, tier=MemoryTier.L1_RAW_IO)
 
-        assert len(memory._l1_tasks) == 3
-        # 最旧的task0应该被驱逐
-        task_ids = [t.task_id for t in memory._l1_tasks]
-        assert "task0" not in task_ids
-        assert "task1" in task_ids
-        assert "task2" in task_ids
-        assert "task3" in task_ids
+        # Token-First: 检查 token 使用率在预算内
+        assert memory._l1_layer.token_usage() <= memory.l1_token_budget
+        # 应该发生了驱逐
+        assert len(memory._l1_tasks) < 4
 
     def test_get_l1_tasks(self):
         """测试获取L1任务"""
@@ -89,11 +94,11 @@ class TestL1TaskStorage:
 
 
 class TestL2TaskStorage:
-    """测试 L2 工作记忆存储"""
+    """测试 L2 工作记忆存储（Token-First Design）"""
 
     def test_add_task_to_l2(self):
         """测试添加任务到L2"""
-        memory = LoomMemory(node_id="test_node", max_l2_size=5)
+        memory = LoomMemory(node_id="test_node", l2_token_budget=1000)
 
         task = Task(task_id="task1", action="test_action", parameters={"key": "value"})
         task.metadata["importance"] = 0.8
@@ -105,7 +110,7 @@ class TestL2TaskStorage:
 
     def test_l2_importance_sorting(self):
         """测试L2按重要性排序"""
-        memory = LoomMemory(node_id="test_node", max_l2_size=5)
+        memory = LoomMemory(node_id="test_node", l2_token_budget=1000)
 
         # 添加不同重要性的任务
         for i, importance in enumerate([0.3, 0.9, 0.5, 0.7]):
@@ -118,9 +123,11 @@ class TestL2TaskStorage:
         assert importances == sorted(importances, reverse=True)
         assert memory._l2_tasks[0].task_id == "task1"  # 0.9最高
 
-    def test_l2_capacity_limit(self):
-        """测试L2容量限制"""
-        memory = LoomMemory(node_id="test_node", max_l2_size=3)
+    def test_l2_token_budget_eviction(self):
+        """测试L2 token 预算驱逐（Token-First Design）"""
+        # 使用非常小的 token 预算来测试驱逐
+        # 每个任务约 4 tokens，预算 12 tokens 只能容纳 3 个
+        memory = LoomMemory(node_id="test_node", l2_token_budget=12)
 
         # 添加4个任务，最不重要的应该被移除
         for i, importance in enumerate([0.5, 0.8, 0.6, 0.9]):
@@ -128,10 +135,10 @@ class TestL2TaskStorage:
             task.metadata["importance"] = importance
             memory.add_task(task, tier=MemoryTier.L2_WORKING)
 
-        assert len(memory._l2_tasks) == 3
-        # task0 (0.5) 应该被移除
-        task_ids = [t.task_id for t in memory._l2_tasks]
-        assert "task0" not in task_ids
+        # Token-First: 检查 token 使用率在预算内
+        assert memory._l2_layer.token_usage() <= memory.l2_token_budget
+        # 应该发生了驱逐（低优先级的被移除）
+        assert len(memory._l2_tasks) < 4
 
     def test_get_l2_tasks(self):
         """测试获取L2任务"""
@@ -193,9 +200,12 @@ class TestL3TaskSummaries:
         assert len(summaries) == 1
         assert summaries[0].task_id == "task1"
 
-    def test_l3_capacity_limit(self):
-        """测试L3容量限制"""
-        memory = LoomMemory(node_id="test_node", max_l3_size=3)
+    def test_l3_token_budget_eviction(self):
+        """测试L3 token 预算驱逐（Token-First Design）"""
+        # 使用非常小的 token 预算来测试驱逐
+        # 每个摘要约 "test: params -> result" = 20 chars = ~5 tokens
+        # 预算 15 tokens 只能容纳 3 个摘要
+        memory = LoomMemory(node_id="test_node", l3_token_budget=15)
 
         from datetime import datetime
 
@@ -212,10 +222,10 @@ class TestL3TaskSummaries:
             )
             memory._add_to_l3(summary)
 
-        # 应该只保留最后3个
-        assert len(memory._l3_summaries) == 3
-        task_ids = [s.task_id for s in memory._l3_summaries]
-        assert "task0" not in task_ids  # 最旧的被移除
+        # Token-First: 检查 token 使用率在预算内
+        assert memory._l3_token_usage <= memory.l3_token_budget
+        # 应该发生了驱逐
+        assert len(memory._l3_summaries) < 4
 
 
 class TestTaskPromotion:
@@ -416,7 +426,7 @@ class TestGeneralOperations:
     """测试通用操作"""
 
     def test_get_stats(self):
-        """测试获取统计信息"""
+        """测试获取统计信息（Token-First Design）"""
         memory = LoomMemory(node_id="test_node")
 
         # 添加一些任务
@@ -426,11 +436,13 @@ class TestGeneralOperations:
 
         stats = memory.get_stats()
 
-        assert stats["l1_size"] == 3
-        assert stats["l2_size"] == 0
-        assert stats["l3_size"] == 0
+        # Token-First: 使用新的统计字段名
+        assert stats["l1_item_count"] == 3
+        assert stats["l2_item_count"] == 0
+        assert stats["l3_item_count"] == 0
         assert stats["total_tasks"] == 3
-        assert stats["max_l1_size"] == 50
+        assert "l1_token_usage" in stats
+        assert "l1_token_budget" in stats
 
     def test_clear_all(self):
         """测试清空所有记忆"""
@@ -479,7 +491,7 @@ class TestEventBusSubscription:
     @pytest.mark.asyncio
     async def test_on_task_adds_to_l1(self):
         """测试_on_task自动添加Task到L1"""
-        memory = LoomMemory(node_id="test_node", max_l1_size=5)
+        memory = LoomMemory(node_id="test_node", l1_token_budget=1000)
 
         task = Task(task_id="task1", action="test_action", parameters={"key": "value"})
 
@@ -496,7 +508,7 @@ class TestEventBusSubscription:
     @pytest.mark.asyncio
     async def test_on_task_selective_l2_storage(self):
         """测试_on_task根据重要性选择性添加到L2"""
-        memory = LoomMemory(node_id="test_node", max_l2_size=10)
+        memory = LoomMemory(node_id="test_node", l2_token_budget=1000)
 
         # 低重要性任务（不应该添加到L2）
         task1 = Task(task_id="task1", action="test")
@@ -518,7 +530,7 @@ class TestEventBusSubscription:
     @pytest.mark.asyncio
     async def test_on_task_importance_threshold(self):
         """测试_on_task的重要性阈值（0.6）"""
-        memory = LoomMemory(node_id="test_node", max_l2_size=10)
+        memory = LoomMemory(node_id="test_node", l2_token_budget=1000)
 
         # 测试边界值
         test_cases = [
@@ -543,7 +555,7 @@ class TestEventBusSubscription:
     @pytest.mark.asyncio
     async def test_on_task_default_importance(self):
         """测试_on_task处理没有importance的Task"""
-        memory = LoomMemory(node_id="test_node", max_l2_size=10)
+        memory = LoomMemory(node_id="test_node", l2_token_budget=1000)
 
         # 没有设置importance的任务（默认0.5）
         task = Task(task_id="task1", action="test")
@@ -577,7 +589,7 @@ class TestEventBusSubscription:
 
         event_bus = EventBus()
         memory = LoomMemory(
-            node_id="test_node", event_bus=event_bus, max_l1_size=10, max_l2_size=10
+            node_id="test_node", event_bus=event_bus, l1_token_budget=1000, l2_token_budget=1000
         )
 
         # 通过EventBus发布任务

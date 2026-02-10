@@ -15,7 +15,7 @@ HTTP Tool - HTTP 请求工具
 import json
 from typing import Any
 
-from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.mcp_types import MCPToolDefinition
 
 try:
     import httpx

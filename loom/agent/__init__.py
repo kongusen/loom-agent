@@ -13,6 +13,7 @@ v0.5.1 重构：
 
 from .base import BaseNode, NodeState
 from .builder import AgentBuilder
+from .card import AgentCapability, AgentCard, NodeProtocol
 from .core import Agent
 from .delegator import create_delegate_task_tool
 from .planner import create_plan_tool
@@ -23,6 +24,10 @@ __all__ = [
     "NodeState",
     "Agent",
     "AgentBuilder",
+    # Card
+    "AgentCard",
+    "AgentCapability",
+    "NodeProtocol",
     # Meta-tools
     "create_delegate_task_tool",
     "create_plan_tool",

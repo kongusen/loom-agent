@@ -23,7 +23,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from loom.protocol import AgentCard, Task, TaskStatus
+from loom.agent.card import AgentCard
+from loom.runtime import Task, TaskStatus
 
 
 class NodeState(StrEnum):

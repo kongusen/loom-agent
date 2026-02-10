@@ -21,6 +21,8 @@ demo/
 ├── 12_task_delegation.py    # 任务委派
 ├── 13_parallel_execution.py # 并行执行
 ├── 14_workflow_pipeline.py  # 工作流管道
+├── 15_memory_hierarchy.py   # 记忆层级与跨Session共享
+├── 16_interceptors.py       # 拦截器示例
 └── skills/
     └── code-review/
         └── SKILL.md
@@ -57,3 +59,5 @@ python 02_custom_tools.py
 | 12 | 父子 Agent 任务委派 |
 | 13 | ParallelExecutor 并行执行 |
 | 14 | 工作流管道与结果合成 |
+| 15 | 记忆层级 L1-L4 与跨Session共享 |
+| 16 | 拦截器：日志、性能监控、指标收集 |

@@ -245,7 +245,7 @@ print(f"Created agents: {assistant.node_id}, {analyst.node_id}")
 from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
 from loom.tools.registry import ToolRegistry
-from loom.protocol import Task
+from loom.runtime import Task
 
 # 1. Create LLM provider
 llm = OpenAIProvider(api_key="your-api-key", model="gpt-4")

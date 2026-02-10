@@ -43,7 +43,7 @@ Node = SubNode₁ + SubNode₂ + ... + SubNodeₘ
 
 ```python
 from loom.fractal import NodeContainer, FractalOrchestrator
-from loom.protocol import AgentCard, AgentCapability
+from loom.agent.card import AgentCard, AgentCapability
 
 # 创建容器
 container = NodeContainer(

@@ -19,7 +19,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Optional
 
 from loom.events.actions import AgentAction, MemoryAction, TaskAction
-from loom.protocol.task import Task
+from loom.runtime.task import Task
 
 if TYPE_CHECKING:
     from loom.events.transport import Transport

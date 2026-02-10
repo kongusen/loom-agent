@@ -4,7 +4,7 @@ import pytest
 
 from loom.fractal.memory import MemoryScope
 from loom.memory.manager import MemoryManager
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 @pytest.mark.asyncio

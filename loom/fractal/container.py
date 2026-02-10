@@ -12,7 +12,8 @@ Node Container - 节点容器
 3. 透明性 - 容器和叶子节点实现相同接口
 """
 
-from loom.protocol import AgentCard, NodeProtocol, Task
+from loom.agent.card import AgentCard, NodeProtocol
+from loom.runtime import Task
 
 
 class NodeContainer:
@@ -76,7 +77,7 @@ class NodeContainer:
         current_depth = task.metadata.get("_container_depth", 0)
 
         if current_depth >= self.max_depth:
-            from loom.protocol import TaskStatus
+            from loom.runtime import TaskStatus
 
             task.status = TaskStatus.FAILED
             task.error = f"Container recursion depth exceeded: {current_depth} >= {self.max_depth}"
@@ -92,7 +93,7 @@ class NodeContainer:
             return result
 
         # 无子节点时设置失败状态
-        from loom.protocol import TaskStatus
+        from loom.runtime import TaskStatus
 
         task.status = TaskStatus.FAILED
         task.error = "No child to execute task"

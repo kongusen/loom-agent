@@ -11,7 +11,7 @@ Memory Integration Tests
 import pytest
 
 from loom.memory.core import LoomMemory, MemoryTier
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 class TestL1Memory:

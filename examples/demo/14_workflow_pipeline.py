@@ -17,7 +17,7 @@ from loom.events import EventBus
 from loom.providers.llm import OpenAIProvider
 from loom.config.llm import LLMConfig
 from loom.fractal import ResultSynthesizer
-from loom.protocol import Task
+from loom.runtime import Task
 
 # 加载 .env 文件
 load_dotenv(Path(__file__).parent.parent.parent / ".env")

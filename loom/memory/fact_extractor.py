@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from .types import Fact, FactType
 
 if TYPE_CHECKING:
-    from loom.protocol import Task
+    from loom.runtime import Task
 
 
 class FactExtractor:

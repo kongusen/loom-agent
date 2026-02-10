@@ -9,8 +9,9 @@ Dispatcher - 事件调度器
 3. 高性能 - 高效的事件分发
 """
 
+from loom.agent.card import NodeProtocol
 from loom.events import EventBus
-from loom.protocol import NodeProtocol, Task
+from loom.runtime import Task
 
 
 class Dispatcher:

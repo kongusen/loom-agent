@@ -39,7 +39,7 @@ SSE传输层 - 任务序列化和传输：
 
 ```python
 from loom.events import EventBus
-from loom.protocol import Task
+from loom.runtime import Task
 
 # 创建事件总线
 bus = EventBus()

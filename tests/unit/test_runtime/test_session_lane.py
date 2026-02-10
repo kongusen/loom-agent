@@ -8,7 +8,7 @@ import asyncio
 
 import pytest
 
-from loom.protocol import Task
+from loom.runtime import Task
 from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
 
 

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from loom.events.event_bus import EventBus
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 class TestEventBusInit:

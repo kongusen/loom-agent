@@ -234,7 +234,7 @@ async def fractal_task_execution(agent: Agent, complex_task: str):
     4. 子节点结果同步回父节点
     """
     from loom.fractal.memory import MemoryScope
-    from loom.protocol import Task
+    from loom.runtime import Task
 
     # 1. 分析任务，生成计划
     plan = await agent.analyze_and_plan(complex_task)

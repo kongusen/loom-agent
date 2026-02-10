@@ -61,7 +61,7 @@ agent = Agent.create(
 ### 3. 使用 Agent
 
 ```python
-from loom.protocol import Task
+from loom.runtime import Task
 
 # 创建任务
 task = Task(

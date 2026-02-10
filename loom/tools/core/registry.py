@@ -20,7 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.mcp_types import MCPToolDefinition
 from loom.tools.core.converters import FunctionToMCP
 
 

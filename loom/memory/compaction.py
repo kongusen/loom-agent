@@ -19,7 +19,7 @@ from loom.fractal.memory import MemoryScope
 from loom.memory.manager import MemoryManager
 from loom.memory.segment_store import MemorySegment, SegmentStore
 from loom.memory.tokenizer import TokenCounter
-from loom.protocol import Task
+from loom.runtime import Task
 
 logger = logging.getLogger(__name__)
 

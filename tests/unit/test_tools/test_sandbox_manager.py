@@ -11,7 +11,7 @@ Tests for SandboxToolManager
 import pytest
 
 from loom.events import EventBus
-from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.mcp_types import MCPToolDefinition
 from loom.tools.core.sandbox import Sandbox
 from loom.tools.core.sandbox_manager import SandboxToolManager, ToolScope, ToolWrapper
 
@@ -375,7 +375,7 @@ class TestSandboxToolManagerMCP:
     async def test_mcp_adapter_created_after_registration(self, manager):
         """测试注册 MCP 服务器后创建适配器"""
         # 导入 MCPToolResult
-        from loom.protocol.mcp import MCPToolResult
+        from loom.tools.mcp_types import MCPToolResult
 
         # 创建一个 mock MCP 服务器
         class MockMCPServer:

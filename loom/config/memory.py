@@ -7,9 +7,10 @@ Memory Configuration - 记忆系统配置
 配置记忆的容量、保留时间和管理策略。
 
 设计原则：
-1. 分层配置 - 每层独立配置
-2. 策略灵活 - 支持多种记忆策略
-3. 合理默认 - 提供开箱即用的默认值
+1. Token-First Design - 所有容量以 token 为单位
+2. Quality over Quantity - 质量优于数量
+3. Just-in-Time Context - 按需加载
+4. Context Compaction - 智能压缩
 """
 
 from enum import StrEnum
@@ -37,16 +38,16 @@ class MemoryStrategyType(StrEnum):
 
 class MemoryLayerConfig(LoomBaseConfig):
     """
-    单层记忆配置
+    单层记忆配置（Token-First Design）
 
-    配置单个记忆层的参数。
+    配置单个记忆层的参数，所有容量以 token 为单位。
     """
 
-    capacity: int = Field(
-        10,
-        ge=1,
-        le=10000,
-        description="层容量（最大记忆项数量）",
+    token_budget: int = Field(
+        4000,
+        ge=100,
+        le=1000000,
+        description="层 token 预算（最大 token 数）",
     )
 
     retention_hours: int | None = Field(
@@ -60,24 +61,32 @@ class MemoryLayerConfig(LoomBaseConfig):
         description="是否自动压缩",
     )
 
-    promote_threshold: int = Field(
-        3,
-        ge=0,
-        description="提升阈值（访问次数），0 表示不提升",
+    compress_threshold: float = Field(
+        0.9,
+        ge=0.5,
+        le=1.0,
+        description="压缩触发阈值（使用率）",
+    )
+
+    importance_threshold: float = Field(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="重要性阈值（低于此值的内容优先压缩）",
     )
 
 
 class MemoryConfig(LoomBaseConfig):
     """
-    记忆系统配置
+    记忆系统配置（Token-First Design）
 
-    配置完整的四层记忆系统。
+    配置完整的四层记忆系统，所有容量以 token 为单位。
 
     层级说明：
-    - L1: 工作记忆（Working Memory）- 当前对话上下文
-    - L2: 会话记忆（Session Memory）- 当前会话历史
-    - L3: 情节记忆（Episodic Memory）- 跨会话的重要事件
-    - L4: 语义记忆（Semantic Memory）- 长期知识和事实
+    - L1: 工作记忆（Working Memory）- 当前对话上下文，高频访问
+    - L2: 会话记忆（Session Memory）- 当前会话重要内容
+    - L3: 情节记忆（Episodic Memory）- 会话摘要
+    - L4: 语义记忆（Semantic Memory）- 跨会话向量记忆
     """
 
     strategy: MemoryStrategyType = Field(
@@ -85,49 +94,46 @@ class MemoryConfig(LoomBaseConfig):
         description="记忆管理策略",
     )
 
-    importance_threshold: float = Field(
-        0.6,
-        ge=0.0,
-        le=1.0,
-        description="重要性提升阈值（IMPORTANCE_BASED 策略）",
-    )
-
     l1: MemoryLayerConfig = Field(
         default_factory=lambda: MemoryLayerConfig(
-            capacity=10,
+            token_budget=8000,
             retention_hours=1,
             auto_compress=True,
-            promote_threshold=3,
+            compress_threshold=0.9,
+            importance_threshold=0.5,
         ),
         description="L1 工作记忆配置",
     )
 
     l2: MemoryLayerConfig = Field(
         default_factory=lambda: MemoryLayerConfig(
-            capacity=50,
+            token_budget=16000,
             retention_hours=24,
             auto_compress=True,
-            promote_threshold=5,
+            compress_threshold=0.85,
+            importance_threshold=0.6,
         ),
         description="L2 会话记忆配置",
     )
 
     l3: MemoryLayerConfig = Field(
         default_factory=lambda: MemoryLayerConfig(
-            capacity=200,
+            token_budget=32000,
             retention_hours=168,  # 7 days
             auto_compress=True,
-            promote_threshold=10,
+            compress_threshold=0.9,
+            importance_threshold=0.4,
         ),
         description="L3 情节记忆配置",
     )
 
     l4: MemoryLayerConfig = Field(
         default_factory=lambda: MemoryLayerConfig(
-            capacity=1000,
+            token_budget=100000,
             retention_hours=None,  # 永久保留
             auto_compress=False,
-            promote_threshold=0,  # L4 不再提升
+            compress_threshold=0.95,
+            importance_threshold=0.3,
         ),
         description="L4 语义记忆配置",
     )

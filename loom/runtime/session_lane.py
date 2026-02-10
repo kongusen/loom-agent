@@ -14,7 +14,7 @@ import logging
 from enum import StrEnum
 from typing import Any
 
-from loom.protocol import Task
+from loom.runtime import Task
 from loom.runtime.interceptor import Interceptor
 
 logger = logging.getLogger(__name__)

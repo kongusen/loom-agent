@@ -17,7 +17,7 @@ memory = LoomMemory(
 ### 添加任务
 
 ```python
-from loom.protocol import Task
+from loom.runtime import Task
 
 task = Task(
     task_id="task-1",

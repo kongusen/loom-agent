@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from loom.events.event_bus import EventBus
 from loom.events.stream_converter import EventStreamConverter
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 class TestEventStreamConverterInit:

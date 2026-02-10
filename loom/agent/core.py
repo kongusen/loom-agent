@@ -39,15 +39,15 @@ from loom.agent.tool_handler import ToolHandlerMixin
 from loom.config.context import ContextConfig
 from loom.config.memory import MemoryConfig
 from loom.config.tool import ToolConfig
+from loom.context import ContextOrchestrator
+from loom.context.sources import L1RecentSource, L2ImportantSource
 from loom.events.event_bus import EventBus
 from loom.exceptions import PermissionDenied, TaskComplete
 from loom.memory.compaction import CompactionConfig, MemoryCompactor
 from loom.memory.manager import MemoryManager
-from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.segment_store import SegmentStore
-from loom.memory.task_context import BudgetConfig, MemoryContextSource
 from loom.memory.tokenizer import TiktokenCounter
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 from loom.providers.llm.interface import LLMProvider
 from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
 from loom.security.tool_policy import ToolPolicy
@@ -461,56 +461,39 @@ class Agent(
         self._dynamic_tool_executor = DynamicToolExecutor(sandbox_manager=self.sandbox_manager)
 
         # 创建 ContextOrchestrator（统一的上下文编排器）
-        from loom.memory.task_context import ContextSource
+        from loom.context import ContextSource
+        from loom.context.sources import InheritedSource, RAGKnowledgeSource
 
         sources: list[ContextSource] = []
-        sources.append(MemoryContextSource(self.memory))  # type: ignore[arg-type]
-        # 添加作用域记忆上下文源（MemoryManager 提供 LOCAL/SHARED/INHERITED/GLOBAL）
-        from loom.memory.task_context import MemoryScopeContextSource
-
-        sources.append(
-            MemoryScopeContextSource(
-                self.memory,
-                include_additional=True,
-                max_items=6,
-                max_additional=4,
-            )
-        )
+        sources.append(L1RecentSource(self.memory))
+        sources.append(L2ImportantSource(self.memory))
+        sources.append(InheritedSource(self.memory))
 
         # 添加知识库上下文源（如果提供）
         if self.knowledge_base:
-            from loom.memory.knowledge_context import KnowledgeContextSource
-
             sources.append(
-                KnowledgeContextSource(
+                RAGKnowledgeSource(
                     knowledge_base=self.knowledge_base,
-                    memory=self.memory,
-                    max_items=self.knowledge_max_items,
                     relevance_threshold=self.knowledge_relevance_threshold,
                 )
             )
 
-        # Note: EventBusContextSource removed in Phase 3 refactoring
-        # Context now only queries Memory, which automatically receives Tasks from EventBus
-
-        # 规范化 context_budget_config（支持 BudgetConfig / dict）
-        from loom.memory.task_context import BudgetConfig
-
-        budget_config = None
+        # 构建预算分配比例
+        allocation_ratios = None
         if context_budget_config is not None:
-            if isinstance(context_budget_config, BudgetConfig):
-                budget_config = context_budget_config
-            elif isinstance(context_budget_config, dict):
-                budget_config = BudgetConfig(**context_budget_config)  # type: ignore[arg-type]
-            else:
-                raise TypeError("context_budget_config must be BudgetConfig or dict")
+            if isinstance(context_budget_config, dict):
+                allocation_ratios = {
+                    "L1_recent": context_budget_config.get("l1_ratio", 0.25),
+                    "L2_important": context_budget_config.get("l2_ratio", 0.20),
+                    "INHERITED": context_budget_config.get("inherited_ratio", 0.10),
+                    "RAG_knowledge": context_budget_config.get("rag_ratio", 0.15),
+                }
 
         self.context_orchestrator = ContextOrchestrator(
             token_counter=TiktokenCounter(model="gpt-4"),
             sources=sources,
-            max_tokens=max_context_tokens,
-            system_prompt=self.system_prompt,
-            budget_config=budget_config,
+            model_context_window=max_context_tokens,
+            allocation_ratios=allocation_ratios,
         )
 
         # 【Phase 2】创建记忆压缩器
@@ -1605,12 +1588,23 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     # 4. 执行工具调用
                     # 先添加一次 assistant 消息（避免在循环中重复添加）
                     if tool_calls:
-                        accumulated_messages.append(
-                            {
-                                "role": "assistant",
-                                "content": full_content or "",
-                            }
-                        )
+                        # OpenAI API 要求 assistant 消息包含 tool_calls
+                        assistant_msg = {
+                            "role": "assistant",
+                            "content": full_content or "",
+                            "tool_calls": [
+                                {
+                                    "id": tc.get("id", f"call_{i}"),
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.get("name", ""),
+                                        "arguments": tc.get("arguments", "{}") if isinstance(tc.get("arguments"), str) else json.dumps(tc.get("arguments", {}))
+                                    }
+                                }
+                                for i, tc in enumerate(tool_calls)
+                            ]
+                        }
+                        accumulated_messages.append(assistant_msg)
 
                     for tool_call in tool_calls:
                         if not isinstance(tool_call, dict):
@@ -2113,7 +2107,7 @@ IMPORTANT:
         """
         from uuid import uuid4
 
-        from loom.protocol import Task
+        from loom.runtime import Task
 
         # 如果没有指定目标，使用现有的 _auto_delegate 逻辑
         if target_node_id is None:

@@ -8,7 +8,7 @@ import inspect
 from collections.abc import Callable
 from typing import Any, get_type_hints
 
-from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.mcp_types import MCPToolDefinition
 
 
 class FunctionToMCP:

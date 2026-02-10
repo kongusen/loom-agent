@@ -1,11 +1,17 @@
 """
-记忆系统核心实现 - 基于Task的分层存储
+记忆系统核心实现 - 基于Task的分层存储（Token-First Design）
 
 基于A4公理（记忆层次公理）：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
 
+设计原则：
+1. Token-First Design - 所有容量以 token 为单位
+2. Quality over Quantity - 按重要性和信息密度排序
+3. Just-in-Time Context - 按需加载
+4. Context Compaction - 智能压缩
+
 核心改动：
-- L1: 存储完整Task对象（循环缓冲区）
-- L2: 存储重要Task对象（按重要性排序）
+- L1: 存储完整Task对象（token 预算）
+- L2: 存储重要Task对象（按重要性排序，token 预算）
 - L3: 存储TaskSummary（压缩表示）
 - L4: 向量存储（语义检索）
 """
@@ -18,38 +24,47 @@ from typing import TYPE_CHECKING, Any
 from loom.config.memory import MemoryStrategyType
 
 from .fact_extractor import FactExtractor
-from .layers import CircularBufferLayer, PriorityQueueLayer
+from .layers import TokenBudgetLayer, PriorityTokenLayer
+from .tokenizer import EstimateCounter, TokenCounter
 from .types import Fact, MemoryTier, TaskSummary
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from loom.protocol import Task
+    from loom.runtime import Task
 
     from .vector_store import VectorStoreProvider
 
 
 class LoomMemory:
     """
-    基于Task的分层记忆系统
+    基于Task的分层记忆系统（Token-First Design）
 
-    L1: 完整Task对象（循环缓冲区，最近50个）
-    L2: 会话工作记忆（按重要性排序，最多100个）
-    L3: 会话摘要（最多500个）
-    L4: 跨会话向量记忆（无限）
+    L1: 完整Task对象（token 预算，默认 8000 tokens）
+    L2: 会话工作记忆（按重要性排序，默认 16000 tokens）
+    L3: 会话摘要（默认 32000 tokens）
+    L4: 跨会话向量记忆（默认 100000 tokens）
     """
 
     def __init__(
         self,
         node_id: str,
-        max_l1_size: int = 50,
-        max_l2_size: int = 100,
-        max_l3_size: int = 500,
+        # Token-First: 使用 token 预算而非条目数
+        l1_token_budget: int = 8000,
+        l2_token_budget: int = 16000,
+        l3_token_budget: int = 32000,
+        l4_token_budget: int = 100000,
+        # 向后兼容：旧参数（已废弃，仅用于迁移）
+        max_l1_size: int | None = None,
+        max_l2_size: int | None = None,
+        max_l3_size: int | None = None,
         max_l4_size: int | None = None,
         enable_l4_vectorization: bool = True,
         max_task_index_size: int = 1000,
         max_fact_index_size: int = 5000,
         event_bus: "Any | None" = None,
+        # Token 计数器
+        token_counter: TokenCounter | None = None,
         # MemoryConfig support
         strategy: MemoryStrategyType = MemoryStrategyType.IMPORTANCE_BASED,
         enable_auto_migration: bool = True,
@@ -58,17 +73,34 @@ class LoomMemory:
         l2_retention_hours: int | None = None,
         l3_retention_hours: int | None = None,
         l4_retention_hours: int | None = None,
-        l1_promote_threshold: int = 3,
-        l2_promote_threshold: int = 5,
-        l3_promote_threshold: int = 10,
+        # 压缩阈值
+        l1_compress_threshold: float = 0.9,
+        l2_compress_threshold: float = 0.85,
+        l3_compress_threshold: float = 0.9,
+        importance_threshold: float = 0.6,
+        # 自动压缩开关
         l2_auto_compress: bool = True,
         l3_auto_compress: bool = True,
-        importance_threshold: float = 0.6,
+        # 提升阈值（用于 SIMPLE 策略）
+        l1_promote_threshold: int = 3,
+        l3_promote_threshold: int = 3,
     ):
         self.node_id = node_id
+
+        # Token-First: 存储 token 预算
+        self.l1_token_budget = l1_token_budget
+        self.l2_token_budget = l2_token_budget
+        self.l3_token_budget = l3_token_budget
+        self.l4_token_budget = l4_token_budget
+
+        # Token 计数器
+        self._token_counter = token_counter or EstimateCounter()
+
+        # 向后兼容：旧参数
         self.max_l1_size = max_l1_size
         self.max_l2_size = max_l2_size
         self.max_l3_size = max_l3_size
+        self.max_l4_size = max_l4_size
         self.max_l4_size = max_l4_size
         self.enable_l4_vectorization = enable_l4_vectorization
         self.max_task_index_size = max_task_index_size
@@ -83,21 +115,24 @@ class LoomMemory:
         self.l2_retention_hours = l2_retention_hours
         self.l3_retention_hours = l3_retention_hours
         self.l4_retention_hours = l4_retention_hours
-        self.l1_promote_threshold = l1_promote_threshold
-        self.l2_promote_threshold = l2_promote_threshold
-        self.l3_promote_threshold = l3_promote_threshold
+        self.l1_compress_threshold = l1_compress_threshold
+        self.l2_compress_threshold = l2_compress_threshold
+        self.l3_compress_threshold = l3_compress_threshold
+        self.importance_threshold = importance_threshold
         self.l2_auto_compress = l2_auto_compress
         self.l3_auto_compress = l3_auto_compress
-        self.importance_threshold = importance_threshold
+        self.l1_promote_threshold = l1_promote_threshold
+        self.l3_promote_threshold = l3_promote_threshold
 
-        # L1: 完整Task（使用CircularBufferLayer）
-        self._l1_layer = CircularBufferLayer(max_size=max_l1_size)
+        # L1: 完整Task（使用 TokenBudgetLayer）
+        self._l1_layer = TokenBudgetLayer(token_budget=l1_token_budget)
 
-        # L2: 重要Task（使用PriorityQueueLayer）
-        self._l2_layer = PriorityQueueLayer(max_size=max_l2_size)
+        # L2: 重要Task（使用 PriorityTokenLayer）
+        self._l2_layer = PriorityTokenLayer(token_budget=l2_token_budget)
 
-        # L3: Task摘要
+        # L3: Task摘要（token 预算）
         self._l3_summaries: list[TaskSummary] = []
+        self._l3_token_usage: int = 0
 
         # L4: 向量存储（延迟初始化）
         self._l4_vector_store: VectorStoreProvider | None = None
@@ -148,20 +183,24 @@ class LoomMemory:
         # 0. 确保有默认的重要性（用于L2提升）
         self._ensure_importance(task)
 
-        # 1. 添加到L1（所有Task）
-        self._add_to_l1(task)
+        # 1. 计算 token 数
+        token_count = self._count_task_tokens(task)
+        task.metadata["token_count"] = token_count
 
-        # 2. 根据策略决定是否添加到L2
+        # 2. 添加到L1（所有Task）
+        self._add_to_l1(task, token_count)
+
+        # 3. 根据策略决定是否添加到L2
         if self.strategy == MemoryStrategyType.IMPORTANCE_BASED:
             importance = task.metadata.get("importance", 0.5)
             if importance > self.importance_threshold:
-                self._add_to_l2(task)
+                self._add_to_l2(task, token_count)
 
-        # 3. 触发提升（L1->L2->L3->L4）
+        # 4. 触发提升（L1->L2->L3->L4）
         if self.enable_auto_migration:
             self.promote_tasks()
 
-        # 4. 返回原始Task（不修改）
+        # 5. 返回原始Task（不修改）
         return task
 
     # ==================== 内部辅助：访问与保留 ====================
@@ -196,13 +235,15 @@ class LoomMemory:
         if self.l1_retention_hours is None:
             return
         # L1 按时间顺序存储，逐个从左侧清理
-        while self._l1_layer._buffer:
-            task = self._l1_layer._buffer[0]
+        while self._l1_layer._items:
+            token_item = self._l1_layer._items[0]
+            task = token_item.item
             if not self._is_task_expired(task, self.l1_retention_hours):
                 break
-            evicted = self._l1_layer._buffer.popleft()
+            evicted = self._l1_layer._items.popleft()
+            self._l1_layer._current_tokens -= evicted.token_count
             for callback in self._l1_layer._eviction_callbacks:
-                callback(evicted)
+                callback(evicted.item)
 
     def _purge_expired_l2(self) -> None:
         if self.l2_retention_hours is None:
@@ -230,8 +271,8 @@ class LoomMemory:
     def _rebuild_task_index(self) -> None:
         """根据 L1/L2 重新构建任务索引（用于保留清理后的一致性）"""
         active: dict[str, Task] = {}
-        for task in list(self._l1_layer._buffer):
-            active[task.task_id] = task
+        for token_item in list(self._l1_layer._items):
+            active[token_item.item.task_id] = token_item.item
         for item in self._l2_layer._heap:
             active[item.item.task_id] = item.item
         self._task_index = active
@@ -318,15 +359,20 @@ class LoomMemory:
     @property
     def _l1_tasks(self) -> list["Task"]:
         """向后兼容：返回L1中的所有Task"""
-        return list(self._l1_layer._buffer)
+        return [ti.item for ti in self._l1_layer._items]
 
     def _on_l1_eviction(self, task: "Task") -> None:
         """L1驱逐回调：自动清理索引"""
         self._task_index.pop(task.task_id, None)
 
+    def _count_task_tokens(self, task: "Task") -> int:
+        """计算 Task 的 token 数"""
+        text = f"{task.action}: {task.parameters} -> {task.result}"
+        return self._token_counter.count(text)
+
     def add_task(self, task: "Task", tier: MemoryTier = MemoryTier.L1_RAW_IO) -> None:
         """
-        添加Task到指定层级
+        添加Task到指定层级（Token-First Design）
 
         Args:
             task: Task对象
@@ -335,6 +381,10 @@ class LoomMemory:
         self._apply_retention()
         # 确保有默认的重要性（用于L2提升）
         self._ensure_importance(task)
+
+        # 计算 token 数
+        token_count = self._count_task_tokens(task)
+        task.metadata["token_count"] = token_count
 
         # 添加到索引
         self._task_index[task.task_id] = task
@@ -345,12 +395,12 @@ class LoomMemory:
 
         # 根据层级分发
         if tier == MemoryTier.L1_RAW_IO:
-            self._add_to_l1(task)
+            self._add_to_l1(task, token_count)
             # 触发提升（L1->L2->L3->L4）
             if self.enable_auto_migration:
                 self.promote_tasks()
         elif tier == MemoryTier.L2_WORKING:
-            self._add_to_l2(task)
+            self._add_to_l2(task, token_count)
 
     def remove_task(self, task_id: str) -> bool:
         """
@@ -372,9 +422,10 @@ class LoomMemory:
         # L1 是 deque，移除特定元素效率较低 O(N)
         try:
             # 查找并移除
-            for task in self._l1_layer._buffer:
-                if task.task_id == task_id:
-                    self._l1_layer._buffer.remove(task)
+            for token_item in list(self._l1_layer._items):
+                if token_item.item.task_id == task_id:
+                    self._l1_layer._items.remove(token_item)
+                    self._l1_layer._current_tokens -= token_item.token_count
                     removed = True
                     break
         except ValueError:
@@ -410,17 +461,33 @@ class LoomMemory:
         """
         return 0.5
 
-    def _add_to_l1(self, task: "Task") -> None:
-        """添加到L1循环缓冲区（同步版本）"""
-        # 检查是否会发生驱逐
-        if len(self._l1_layer._buffer) == self._l1_layer._buffer.maxlen:
-            evicted = self._l1_layer._buffer[0]
-            # 触发驱逐回调
-            for callback in self._l1_layer._eviction_callbacks:
-                callback(evicted)
+    def _add_to_l1(self, task: "Task", token_count: int) -> None:
+        """添加到L1（Token-First Design）"""
+        import asyncio
 
-        # 添加任务
-        self._l1_layer._buffer.append(task)
+        # 使用异步方法添加（同步包装）
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 在异步上下文中，直接操作
+                self._l1_layer._items.append(
+                    __import__("loom.memory.layers_merged", fromlist=["TokenItem"]).TokenItem(
+                        item=task, token_count=token_count
+                    )
+                )
+                self._l1_layer._current_tokens += token_count
+                # 检查是否超预算
+                while self._l1_layer._current_tokens > self._l1_layer._token_budget:
+                    if self._l1_layer._items:
+                        evicted = self._l1_layer._items.popleft()
+                        self._l1_layer._current_tokens -= evicted.token_count
+                        for cb in self._l1_layer._eviction_callbacks:
+                            cb(evicted.item)
+            else:
+                loop.run_until_complete(self._l1_layer.add(task, token_count))
+        except RuntimeError:
+            # 没有事件循环，创建新的
+            asyncio.run(self._l1_layer.add(task, token_count))
 
     def get_l1_tasks(self, limit: int = 10, session_id: str | None = None) -> list["Task"]:
         """
@@ -434,8 +501,8 @@ class LoomMemory:
             最近的Task列表
         """
         self._apply_retention()
-        # 直接访问layer的buffer以保持同步API
-        tasks = list(self._l1_layer._buffer)
+        # 直接访问layer的items以保持同步API
+        tasks = [ti.item for ti in self._l1_layer._items]
         if session_id:
             tasks = [t for t in tasks if t.session_id == session_id]
         selected = tasks[-limit:]
@@ -451,7 +518,8 @@ class LoomMemory:
         """
         # 收集活跃的Task ID
         active_task_ids: set[str] = set()
-        active_task_ids.update(t.task_id for t in self._l1_layer._buffer)
+        active_task_ids.update(ti.item.task_id for ti in self._l1_layer._items)
+        active_task_ids.update(item.item.task_id for item in self._l2_layer._heap)
         active_task_ids.update(item.item.task_id for item in self._l2_layer._heap)
         active_task_ids.update(s.task_id for s in self._l3_summaries)
 
@@ -467,30 +535,38 @@ class LoomMemory:
         """向后兼容：返回L2中的所有Task（按重要性排序）"""
         return [item.item for item in sorted(self._l2_layer._heap)]
 
-    def _add_to_l2(self, task: "Task") -> None:
+    def _add_to_l2(self, task: "Task", token_count: int | None = None) -> None:
         """
-        添加到L2工作记忆（同步版本）
+        添加到L2工作记忆（Token-First Design）
 
-        使用PriorityQueueLayer自动按重要性排序
+        使用PriorityTokenLayer自动按重要性排序
         """
         import heapq
 
         from loom.memory.layers import PriorityItem
 
         importance = task.metadata.get("importance", 0.5)
-        # 使用负数实现最大堆
-        priority_item = PriorityItem(-importance, task)
+        if token_count is None:
+            token_count = task.metadata.get("token_count", self._count_task_tokens(task))
 
-        if len(self._l2_layer._heap) < self._l2_layer._max_size:
+        # 使用负数实现最大堆
+        priority_item = PriorityItem(-importance, token_count, task)
+
+        # Token-First: 检查 token 预算
+        if self._l2_layer._current_tokens + token_count <= self._l2_layer._token_budget:
             heapq.heappush(self._l2_layer._heap, priority_item)
+            self._l2_layer._current_tokens += token_count
         else:
             # 找到堆中重要性最低的任务（负数最大的）
-            max_item = max(self._l2_layer._heap)
-            # 如果新任务重要性更高（负数更小），替换最低重要性的任务
-            if priority_item < max_item:
-                self._l2_layer._heap.remove(max_item)
-                heapq.heapify(self._l2_layer._heap)
-                heapq.heappush(self._l2_layer._heap, priority_item)
+            if self._l2_layer._heap:
+                max_item = max(self._l2_layer._heap)
+                # 如果新任务重要性更高（负数更小），替换最低重要性的任务
+                if priority_item < max_item:
+                    self._l2_layer._heap.remove(max_item)
+                    heapq.heapify(self._l2_layer._heap)
+                    self._l2_layer._current_tokens -= max_item.token_count
+                    heapq.heappush(self._l2_layer._heap, priority_item)
+                    self._l2_layer._current_tokens += token_count
 
     def get_l2_tasks(self, limit: int | None = None, session_id: str | None = None) -> list["Task"]:
         """
@@ -528,15 +604,22 @@ class LoomMemory:
 
     def _add_to_l3(self, summary: TaskSummary) -> None:
         """
-        添加Task摘要到L3
+        添加Task摘要到L3（Token-First Design）
 
-        超过容量时移除最旧的
+        超过 token 预算时移除最旧的
         """
-        self._l3_summaries.append(summary)
+        # 计算摘要的 token 数
+        text = f"{summary.action}: {summary.param_summary} -> {summary.result_summary}"
+        token_count = self._token_counter.count(text)
 
-        # 超过容量时驱逐最旧的
-        if len(self._l3_summaries) > self.max_l3_size:
-            self._l3_summaries.pop(0)
+        # 超过预算时驱逐最旧的
+        while self._l3_token_usage + token_count > self.l3_token_budget and self._l3_summaries:
+            evicted = self._l3_summaries.pop(0)
+            evicted_text = f"{evicted.action}: {evicted.param_summary} -> {evicted.result_summary}"
+            self._l3_token_usage -= self._token_counter.count(evicted_text)
+
+        self._l3_summaries.append(summary)
+        self._l3_token_usage += token_count
 
     def get_l3_summaries(
         self, limit: int | None = None, session_id: str | None = None
@@ -660,7 +743,7 @@ class LoomMemory:
         matches = []
 
         # 搜索L1和L2中的Task
-        l1_tasks = list(self._l1_layer._buffer)
+        l1_tasks = [token_item.item for token_item in self._l1_layer._items]
         l2_tasks = [item.item for item in self._l2_layer._heap]
         all_tasks = l1_tasks + l2_tasks
 
@@ -786,20 +869,22 @@ class LoomMemory:
         # L1 → L2: 提升重要的Task
         self._promote_l1_to_l2()
 
-        # L2 → L3: 当L2满时，将旧的Task压缩为摘要
+        # L2 → L3: 当L2 token使用率超过阈值时，将低优先级Task压缩为摘要
+        l2_usage_ratio = self._l2_layer.token_usage() / self.l2_token_budget
         if (
             self.enable_compression
             and self.l2_auto_compress
-            and len(self._l2_layer._heap) >= self.max_l2_size
-        ):  # 100%阈值
+            and l2_usage_ratio >= self.l2_compress_threshold
+        ):
             self._promote_l2_to_l3()
 
-        # L3 → L4: 当L3满时，向量化摘要
+        # L3 → L4: 当L3 token使用率超过阈值时，向量化摘要
+        l3_usage_ratio = self._l3_token_usage / self.l3_token_budget
         if (
             self.enable_compression
             and self.l3_auto_compress
-            and len(self._l3_summaries) >= self.max_l3_size * 0.9
-        ):  # 90%阈值
+            and l3_usage_ratio >= self.l3_compress_threshold
+        ):
             # 注意：这是异步操作，实际应该在异步上下文中调用
             # 这里只是标记，实际向量化需要在异步方法中完成
             pass
@@ -820,19 +905,21 @@ class LoomMemory:
         # L1 → L2: 提升重要的Task
         self._promote_l1_to_l2()
 
-        # L2 → L3: 当L2满时，将旧的Task压缩为摘要
+        # L2 → L3: 当L2 token使用率超过阈值时，将低优先级Task压缩为摘要
+        l2_usage_ratio = self._l2_layer.token_usage() / self.l2_token_budget
         if (
             self.enable_compression
             and self.l2_auto_compress
-            and len(self._l2_layer._heap) >= self.max_l2_size * 0.9
+            and l2_usage_ratio >= self.l2_compress_threshold
         ):
             self._promote_l2_to_l3()
 
-        # L3 → L4: 当L3满时，向量化摘要（真正实现）
+        # L3 → L4: 当L3 token使用率超过阈值时，向量化摘要（真正实现）
+        l3_usage_ratio = self._l3_token_usage / self.l3_token_budget
         if (
             self.enable_compression
             and self.l3_auto_compress
-            and len(self._l3_summaries) >= self.max_l3_size * 0.9
+            and l3_usage_ratio >= self.l3_compress_threshold
         ):
             await self._promote_l3_to_l4()
 
@@ -848,7 +935,8 @@ class LoomMemory:
         if self.strategy == MemoryStrategyType.SIMPLE and self.l1_promote_threshold <= 0:
             return
 
-        for task in list(self._l1_layer._buffer):
+        for token_item in list(self._l1_layer._items):
+            task = token_item.item
             l2_task_ids = [item.item.task_id for item in self._l2_layer._heap]
             if task.task_id in l2_task_ids:
                 continue
@@ -870,33 +958,55 @@ class LoomMemory:
 
     def _promote_l2_to_l3(self) -> None:
         """
-        L2 → L3: 生成Task摘要
+        L2 → L3: 生成Task摘要（Token-First Design）
 
-        当L2接近满时，将最不重要的Task压缩为摘要
+        当L2 token使用率超过阈值时，将最不重要的Task压缩为摘要
         """
-        if len(self._l2_layer._heap) < self.max_l2_size:
+        # Token-First: 检查 token 使用率
+        l2_usage_ratio = self._l2_layer.token_usage() / self.l2_token_budget
+        if l2_usage_ratio < self.l2_compress_threshold:
             return
 
         # 按重要性排序（从heap中提取）
         # PriorityItem.priority = -importance, ascending gives highest importance first.
         sorted_items = sorted(self._l2_layer._heap)
 
-        # 移除最不重要的20%
-        num_to_remove = max(1, int(len(sorted_items) * 0.2))
-        candidates = [item.item for item in sorted_items if self._should_summarize_l2(item.item)]
-        if len(candidates) >= num_to_remove:
-            tasks_to_summarize = candidates[:num_to_remove]
-        else:
-            extra_needed = num_to_remove - len(candidates)
-            fallback = [item.item for item in sorted_items if item.item not in candidates]
-            tasks_to_summarize = candidates + fallback[-extra_needed:]
+        # 计算需要释放的 token 数（释放到阈值的80%）
+        target_usage = self.l2_token_budget * 0.8
+        tokens_to_free = self._l2_layer.token_usage() - target_usage
 
-        # 重建heap（移除被摘要的任务）
+        # 从最不重要的开始移除，直到释放足够的 token
+        tasks_to_summarize = []
+        tokens_freed = 0
+        # 从最不重要的开始（sorted_items 末尾是最不重要的）
+        for item in reversed(sorted_items):
+            if tokens_freed >= tokens_to_free:
+                break
+            if self._should_summarize_l2(item.item):
+                tasks_to_summarize.append(item.item)
+                tokens_freed += item.token_count
+
+        # 如果候选不够，从剩余的最不重要的补充
+        if tokens_freed < tokens_to_free:
+            remaining = [item for item in reversed(sorted_items)
+                        if item.item not in tasks_to_summarize]
+            for item in remaining:
+                if tokens_freed >= tokens_to_free:
+                    break
+                tasks_to_summarize.append(item.item)
+                tokens_freed += item.token_count
+
+        # 重建heap（移除被摘要的任务）并更新 token 计数
         summarize_ids = {t.task_id for t in tasks_to_summarize}
+        removed_tokens = sum(
+            item.token_count for item in self._l2_layer._heap
+            if item.item.task_id in summarize_ids
+        )
         self._l2_layer._heap = [
             item for item in self._l2_layer._heap if item.item.task_id not in summarize_ids
         ]
         heapq.heapify(self._l2_layer._heap)
+        self._l2_layer._current_tokens -= removed_tokens
 
         # 生成摘要并添加到L3
         for task in tasks_to_summarize:
@@ -1023,28 +1133,35 @@ class LoomMemory:
 
     def get_stats(self) -> dict[str, Any]:
         """
-        获取记忆系统统计信息
+        获取记忆系统统计信息（Token-First Design）
 
         Returns:
-            统计信息字典
+            统计信息字典，包含 token 使用情况
         """
         self._apply_retention()
         return {
-            "l1_size": len(self._l1_layer._buffer),
-            "l2_size": len(self._l2_layer._heap),
-            "l3_size": len(self._l3_summaries),
-            "l4_size": self._l4_count,
+            # Token-First: token 使用情况
+            "l1_token_usage": self._l1_layer.token_usage(),
+            "l1_token_budget": self.l1_token_budget,
+            "l2_token_usage": self._l2_layer.token_usage(),
+            "l2_token_budget": self.l2_token_budget,
+            "l3_token_usage": self._l3_token_usage,
+            "l3_token_budget": self.l3_token_budget,
+            # 条目数（辅助信息）
+            "l1_item_count": self._l1_layer.size(),
+            "l2_item_count": self._l2_layer.size(),
+            "l3_item_count": len(self._l3_summaries),
+            "l4_item_count": self._l4_count,
+            # 索引信息
             "l4_index_size": len(self._l4_index),
             "total_tasks": len(self._task_index),
             "total_facts": len(self._fact_index),
-            "max_l1_size": self.max_l1_size,
-            "max_l2_size": self.max_l2_size,
-            "max_l3_size": self.max_l3_size,
-            "max_l4_size": self.max_l4_size,
+            # L4 清理信息
             "l4_pruned_count": self._l4_pruned_count,
             "l4_last_pruned_at": (
                 self._l4_last_pruned_at.isoformat() if self._l4_last_pruned_at else None
             ),
+            # 配置信息
             "has_vector_store": self._l4_vector_store is not None,
             "has_embedding_provider": self.embedding_provider is not None,
         }
@@ -1054,6 +1171,7 @@ class LoomMemory:
         self._l1_layer.clear()
         self._l2_layer.clear()
         self._l3_summaries.clear()
+        self._l3_token_usage = 0
         self._task_index.clear()
         self._l4_count = 0
         self._l4_index.clear()

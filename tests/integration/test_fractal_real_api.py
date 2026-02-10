@@ -26,7 +26,7 @@ import pytest
 from loom.agent import Agent
 from loom.config.llm import LLMConfig
 from loom.events.event_bus import EventBus
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 from loom.providers.llm.openai import OpenAIProvider
 
 

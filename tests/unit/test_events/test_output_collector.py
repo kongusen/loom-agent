@@ -10,7 +10,7 @@ import json
 import pytest
 
 from loom.events import EventBus, OutputCollector, OutputStrategy, SSEEvent
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 class TestSSEEvent:

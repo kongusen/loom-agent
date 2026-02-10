@@ -3,7 +3,11 @@ A4: 记忆层次公理 (Memory Hierarchy Axiom)
 
 公理陈述：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
 
-本模块实现统一的记忆管理系统，整合四层记忆（L1-L4）和作用域管理。
+本模块实现统一的记忆存储系统，整合四层记忆（L1-L4）和作用域管理。
+
+注意：
+- 上下文构建逻辑已迁移到 loom.context 模块
+- Session 实体已迁移到 loom.events 模块（EventBus 层）
 
 导出内容：
 - MemoryManager: 统一的记忆管理系统（L1-L4 + 作用域）
@@ -23,24 +27,13 @@ A4: 记忆层次公理 (Memory Hierarchy Axiom)
 - TiktokenCounter: OpenAI Tiktoken 计数器
 - AnthropicCounter: Anthropic 计数器
 - EstimateCounter: 估算计数器
-- ContextStrategy: 上下文选择策略抽象接口
-- PriorityContextStrategy: 基于优先级的上下文策略
-- SlidingWindowStrategy: 滑动窗口上下文策略
-- ContextManager: 上下文管理器
 """
 
 from loom.memory.compression import L4Compressor
-from loom.memory.context import (
-    ContextManager,
-    ContextStrategy,
-    PriorityContextStrategy,
-    SlidingWindowStrategy,
-)
 from loom.memory.core import LoomMemory
 from loom.memory.factory import MemoryFactory
 from loom.memory.manager import MemoryManager
 from loom.memory.sanitizers import ContentSanitizer
-from loom.memory.task_context import BudgetConfig, ContextBudgeter
 from loom.memory.tokenizer import (
     AnthropicCounter,
     EstimateCounter,
@@ -78,10 +71,4 @@ __all__ = [
     "TiktokenCounter",
     "AnthropicCounter",
     "EstimateCounter",
-    "BudgetConfig",
-    "ContextBudgeter",
-    "ContextStrategy",
-    "PriorityContextStrategy",
-    "SlidingWindowStrategy",
-    "ContextManager",
 ]

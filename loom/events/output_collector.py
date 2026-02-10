@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from loom.protocol.task import Task
+from loom.runtime.task import Task
 
 if TYPE_CHECKING:
     from loom.events.event_bus import EventBus

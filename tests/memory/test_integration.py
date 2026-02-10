@@ -8,7 +8,7 @@ import pytest
 
 from loom.memory.core import LoomMemory
 from loom.memory.types import MemoryTier
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class TestLayerIntegration:

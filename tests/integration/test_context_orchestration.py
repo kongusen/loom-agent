@@ -6,7 +6,7 @@ from loom.memory.manager import MemoryManager
 from loom.memory.orchestrator import ContextOrchestrator
 from loom.memory.task_context import MemoryContextSource
 from loom.memory.tokenizer import EstimateCounter
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 @pytest.mark.asyncio

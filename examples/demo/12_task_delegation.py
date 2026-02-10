@@ -15,7 +15,7 @@ from loom.agent import Agent
 from loom.events import EventBus
 from loom.providers.llm import OpenAIProvider
 from loom.config.llm import LLMConfig
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 # 加载 .env 文件
 load_dotenv(Path(__file__).parent.parent.parent / ".env")

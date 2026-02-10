@@ -7,7 +7,7 @@ Test Assertions Helper
 from typing import Any
 
 from loom.memory import LoomMemory, MemoryUnit
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 def assert_task_completed(task: Task, expected_result: Any = None):

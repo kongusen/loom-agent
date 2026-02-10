@@ -71,7 +71,7 @@ agent = Agent.create(
 ### 同步执行
 
 ```python
-from loom.protocol import Task
+from loom.runtime import Task
 
 task = Task(
     task_id="task-1",

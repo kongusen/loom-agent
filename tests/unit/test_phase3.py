@@ -9,7 +9,7 @@ Phase 3 功能测试
 import pytest
 
 from loom.agent import BaseNode, NodeState
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 # ==================== BaseNode 测试 ====================
 

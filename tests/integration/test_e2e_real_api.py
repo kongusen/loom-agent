@@ -18,7 +18,7 @@ import pytest
 
 from loom.config import LLMConfig
 from loom.fractal.container import NodeContainer
-from loom.protocol import AgentCapability, AgentCard, Task, TaskStatus
+from loom.agent.card import AgentCapability, AgentCard, Task, TaskStatus
 from loom.providers.llm.openai import OpenAIProvider
 from tests.api_config import requires_real_api
 

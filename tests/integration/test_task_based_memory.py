@@ -5,7 +5,7 @@ Task-Based Memory System Integration Test
 """
 
 from loom.memory import LoomMemory, MemoryTier
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 class TestTaskBasedMemory:

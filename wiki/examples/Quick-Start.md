@@ -35,7 +35,7 @@ agent = Agent.create(
 ### 3. 执行任务
 
 ```python
-from loom.protocol import Task
+from loom.runtime import Task
 
 task = Task(
     task_id="task-1",
@@ -73,7 +73,7 @@ agent.add_tool(calculator)
 import asyncio
 from loom.agent import Agent
 from loom.providers.llm import OpenAIProvider
-from loom.protocol import Task
+from loom.runtime import Task
 
 async def main():
     # 配置 LLM

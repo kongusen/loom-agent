@@ -1,89 +1,151 @@
 """
-07_memory_scope.py - 分形记忆作用域
+07_memory_scope.py - 记忆作用域与隔离
 
 演示：
-- MemoryScope 四种作用域
-- LOCAL/SHARED/INHERITED/GLOBAL
-- 父子节点记忆继承
+- Session 级别的记忆隔离
+- L1-L2 层级记忆作用域
+- 跨 Session 记忆共享
+- ContextController 统一管理
 """
 
 import asyncio
-from loom.fractal.memory import MemoryScope
-from loom.memory import MemoryManager
+from loom.api import (
+    ContextController,
+    Session,
+    Task,
+)
 
 
 async def main():
-    # 1. 创建父节点记忆管理器
-    parent_memory = MemoryManager(node_id="parent-agent")
+    print("=" * 60)
+    print("记忆作用域与隔离 Demo")
+    print("=" * 60)
 
-    # 2. 创建子节点记忆管理器（关联父节点）
-    child_memory = MemoryManager(node_id="child-agent", parent=parent_memory)
+    # 1. 创建 ContextController（统一管理多个 Session）
+    controller = ContextController()
+    print("\n[1] 创建 ContextController")
 
-    # 3. 在父节点写入不同作用域的记忆
-    print("=== 父节点写入记忆 ===")
+    # 2. 创建两个独立的 Session（各自有独立的记忆空间）
+    session_parent = Session(session_id="parent-session")
+    session_child = Session(session_id="child-session")
 
-    # LOCAL - 节点私有（子节点不可见）
-    await parent_memory.write(
-        "parent-local",
-        "父节点本地数据",
-        scope=MemoryScope.LOCAL,
+    controller.register_session(session_parent)
+    controller.register_session(session_child)
+    print(f"[2] 注册 {len(controller.session_ids)} 个 Session: {controller.session_ids}")
+
+    # 3. 向 parent-session 写入记忆（Session 私有）
+    await demo_session_private_scope(session_parent)
+
+    # 4. 向 child-session 写入记忆（Session 私有）
+    await demo_session_private_scope_child(session_child)
+
+    # 5. 演示记忆隔离
+    await demo_memory_isolation(session_parent, session_child)
+
+    # 6. 演示跨 Session 共享
+    await demo_cross_session_sharing(controller)
+
+    # 7. 统计信息
+    demo_memory_stats(controller)
+
+    print("\n" + "=" * 60)
+    print("Demo 完成!")
+    print("=" * 60)
+
+
+async def demo_session_private_scope(session: Session):
+    """演示 Session 私有作用域"""
+    print("\n" + "-" * 40)
+    print("[3] Parent Session 写入记忆（私有作用域）")
+    print("-" * 40)
+
+    # 添加多个任务到 parent-session
+    tasks_data = [
+        ("node.message", "父节点本地数据 - 仅本 Session 可见"),
+        ("node.message", "共享数据 - 可通过 Controller 共享"),
+        ("node.message", "全局数据 - 可提升到 L3/L4"),
+    ]
+
+    for action, content in tasks_data:
+        task = Task(action=action, parameters={"content": content})
+        session.add_task(task)
+        print(f"    写入: {content[:30]}...")
+
+    print(f"    Parent Session L1 任务数: {len(session.get_l1_tasks(limit=10))}")
+
+
+async def demo_session_private_scope_child(session: Session):
+    """演示子 Session 私有作用域"""
+    print("\n" + "-" * 40)
+    print("[4] Child Session 写入记忆（私有作用域）")
+    print("-" * 40)
+
+    task = Task(
+        action="node.message",
+        parameters={"content": "子节点本地数据 - 仅本 Session 可见"},
     )
-    print("父节点写入 LOCAL: parent-local")
+    session.add_task(task)
+    print(f"    写入: 子节点本地数据")
+    print(f"    Child Session L1 任务数: {len(session.get_l1_tasks(limit=10))}")
 
-    # SHARED - 父子双向共享
-    await parent_memory.write(
-        "shared-data",
-        "共享数据 - 父子节点都可见",
-        scope=MemoryScope.SHARED,
+
+async def demo_memory_isolation(parent: Session, child: Session):
+    """演示记忆隔离 - 各 Session 记忆互不可见"""
+    print("\n" + "-" * 40)
+    print("[5] 记忆隔离演示")
+    print("-" * 40)
+
+    parent_tasks = parent.get_l1_tasks(limit=10)
+    child_tasks = child.get_l1_tasks(limit=10)
+
+    print(f"    Parent Session 可见任务: {len(parent_tasks)} 个")
+    for t in parent_tasks:
+        content = t.parameters.get("content", "")[:35]
+        print(f"      - {content}...")
+
+    print(f"    Child Session 可见任务: {len(child_tasks)} 个")
+    for t in child_tasks:
+        content = t.parameters.get("content", "")[:35]
+        print(f"      - {content}...")
+
+    print("\n    结论: 各 Session 的记忆默认是隔离的")
+
+
+async def demo_cross_session_sharing(controller: ContextController):
+    """演示跨 Session 记忆共享"""
+    print("\n" + "-" * 40)
+    print("[6] 跨 Session 记忆共享")
+    print("-" * 40)
+
+    # 从 parent-session 共享到 child-session
+    result = await controller.share_context(
+        from_session_id="parent-session",
+        to_session_ids=["child-session"],
+        task_limit=2,
     )
-    print("父节点写入 SHARED: shared-data")
 
-    # GLOBAL - 全局可见
-    await parent_memory.write(
-        "global-data",
-        "全局数据 - 所有节点可见",
-        scope=MemoryScope.GLOBAL,
-    )
-    print("父节点写入 GLOBAL: global-data")
+    print("    从 parent-session 共享到 child-session:")
+    for sid, count in result.items():
+        print(f"      → {sid}: 共享了 {count} 个任务")
 
-    # 4. 在子节点写入本地记忆
-    print("\n=== 子节点写入记忆 ===")
-    await child_memory.write(
-        "child-local",
-        "子节点本地数据",
-        scope=MemoryScope.LOCAL,
-    )
-    print("子节点写入 LOCAL: child-local")
+    # 验证共享结果
+    child = controller.get_session("child-session")
+    child_tasks = child.get_l1_tasks(limit=10)
+    print(f"\n    共享后 Child Session 任务数: {len(child_tasks)}")
 
-    # 5. 从子节点读取记忆（演示继承）
-    print("\n=== 子节点读取记忆 ===")
 
-    # 子节点读取自己的本地数据
-    child_local = await child_memory.read("child-local")
-    print(f"子节点读取 child-local: {child_local.content if child_local else 'None'}")
+def demo_memory_stats(controller: ContextController):
+    """显示记忆统计"""
+    print("\n" + "-" * 40)
+    print("[7] 记忆统计")
+    print("-" * 40)
 
-    # 子节点无法读取父节点的 LOCAL 数据
-    parent_local = await child_memory.read("parent-local")
-    print(f"子节点读取 parent-local: {parent_local.content if parent_local else 'None (父节点私有)'}")
-
-    # 子节点可以读取 SHARED 数据（通过 INHERITED 机制）
-    shared = await child_memory.read("shared-data")
-    print(f"子节点读取 shared-data: {shared.content if shared else 'None'}")
-
-    # 子节点可以读取 GLOBAL 数据
-    global_data = await child_memory.read("global-data")
-    print(f"子节点读取 global-data: {global_data.content if global_data else 'None'}")
-
-    # 6. 列出各作用域的记忆条目数
-    print("\n=== 父节点记忆统计 ===")
-    for scope in MemoryScope:
-        entries = await parent_memory.list_by_scope(scope)
-        print(f"  {scope.name}: {len(entries)} 条")
-
-    print("\n=== 子节点记忆统计 ===")
-    for scope in MemoryScope:
-        entries = await child_memory.list_by_scope(scope)
-        print(f"  {scope.name}: {len(entries)} 条")
+    for sid in controller.session_ids:
+        session = controller.get_session(sid)
+        stats = session.get_stats()
+        print(f"    {sid}:")
+        print(f"      状态: {stats['status']}")
+        print(f"      L1 任务: {len(session.get_l1_tasks(limit=100))} 个")
 
 
 if __name__ == "__main__":

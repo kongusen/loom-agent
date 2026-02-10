@@ -242,7 +242,7 @@ class HotReloadManager:
 
         # 发布事件总线
         if self.event_bus:
-            from loom.protocol.task import Task
+            from loom.runtime.task import Task
 
             task = Task(
                 action="skill.changed",

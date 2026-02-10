@@ -10,7 +10,7 @@ import pytest
 
 from loom.memory.compaction import CompactionConfig, MemoryCompactor
 from loom.memory.segment_store import InMemorySegmentStore
-from loom.protocol import Task
+from loom.runtime import Task
 
 
 class TestCompactionConfig:

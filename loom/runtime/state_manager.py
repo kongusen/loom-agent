@@ -9,7 +9,7 @@ State Manager - 状态管理器
 3. 可扩展 - 支持多种状态类型
 """
 
-from loom.protocol.task import Task
+from loom.runtime.task import Task
 from loom.runtime.state import AgentState
 from loom.runtime.state_store import MemoryStateStore, StateStore
 
@@ -111,7 +111,7 @@ class StateManager:
         # 从字典重建Task对象
         from datetime import datetime
 
-        from loom.protocol.task import TaskStatus
+        from loom.runtime.task import TaskStatus
 
         return Task(
             taskId=data["taskId"],

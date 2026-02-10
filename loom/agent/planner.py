@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from loom.exceptions import TaskComplete
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 if TYPE_CHECKING:
     pass
@@ -65,16 +65,17 @@ class PlannerMixin:
     _root_context_id: str | None
     _recursive_depth: int
 
-    # 方法声明（由 Agent 类实现）
-    async def _publish_event(
-        self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
-    ) -> None: ...
+    # 方法声明移到 TYPE_CHECKING 块中，避免覆盖 BaseNode 的实际实现
+    if TYPE_CHECKING:
+        async def _publish_event(
+            self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
+        ) -> None: ...
 
-    def _ensure_shared_task_context(self, task: Task) -> Any: ...
+        def _ensure_shared_task_context(self, task: Task) -> Any: ...
 
-    def _create_child_node(self, context_hints: list[str] | None = None, **kwargs: Any) -> Any: ...
+        def _create_child_node(self, context_hints: list[str] | None = None, **kwargs: Any) -> Any: ...
 
-    def _sync_memory_from_child(self, child: Any) -> Any: ...
+        def _sync_memory_from_child(self, child: Any) -> Any: ...
 
     # execute_task is inherited from BaseNode - do NOT redeclare here
 

@@ -17,7 +17,7 @@ Bash Tool - Bash 命令执行工具
 
 import asyncio
 
-from loom.protocol.mcp import MCPToolDefinition
+from loom.tools.mcp_types import MCPToolDefinition
 from loom.tools.core.sandbox import Sandbox
 
 # Optional import for SandboxToolManager

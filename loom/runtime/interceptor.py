@@ -11,7 +11,7 @@ Interceptor - 拦截器链
 
 from collections.abc import Awaitable, Callable
 
-from loom.protocol import Task
+from loom.runtime import Task
 
 InterceptorFunc = Callable[[Task], Awaitable[Task]]
 

@@ -8,7 +8,7 @@ import pytest
 
 from loom.memory.fact_extractor import FactExtractor
 from loom.memory.types import FactType
-from loom.protocol import Task, TaskStatus
+from loom.runtime import Task, TaskStatus
 
 
 class TestExtractApiFacts:
