@@ -4,7 +4,8 @@ Mock Agents for Fractal Testing
 提供测试用的Mock Agent实现，用于验证分形、递归、编排等机制。
 """
 
-from loom.agent.card import AgentCapability, AgentCard, Task, TaskStatus
+from loom.agent.card import AgentCapability, AgentCard
+from loom.runtime import Task, TaskStatus
 
 
 class MockAnalysisAgent:

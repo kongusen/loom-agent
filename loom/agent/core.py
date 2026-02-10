@@ -26,6 +26,7 @@ Agent - 自主智能体基类
 """
 
 from collections import defaultdict, deque
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -1339,8 +1340,6 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 reason = self.tool_policy.get_denial_reason(tool_name)
                 raise PermissionDenied(tool_name=tool_name, reason=reason)
 
-        import json
-
         # 如果tool_args是字符串，解析为字典
         if isinstance(tool_args, str):
             try:
@@ -1551,8 +1550,6 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                                 tool_calls.append(chunk.content)
                             else:
                                 # 如果不是dict，尝试解析
-                                import json
-
                                 try:
                                     tool_calls.append(json.loads(str(chunk.content)))
                                 except (json.JSONDecodeError, TypeError):
@@ -1573,11 +1570,16 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     if not tool_calls:
                         if self.require_done_tool:
                             # 要求 done tool，但 LLM 没有调用
-                            # 提醒 LLM 调用 done
+                            # 提醒 LLM 调用 done，并引导正确的使用方式
                             accumulated_messages.append(
                                 {
                                     "role": "system",
-                                    "content": "Please call the 'done' tool when you have completed the task.",
+                                    "content": (
+                                        "Please call the 'done' tool to complete the task. "
+                                        "IMPORTANT: First output your full response as text, "
+                                        "then call done() with just a brief summary (1-2 sentences). "
+                                        "Do NOT put your full response in the done() message parameter."
+                                    ),
                                 }
                             )
                             continue
@@ -1612,8 +1614,6 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                         tool_name = tool_call.get("name", "")
                         tool_args = tool_call.get("arguments", {})
                         if isinstance(tool_args, str):
-                            import json
-
                             try:
                                 tool_args = json.loads(tool_args)
                             except json.JSONDecodeError:
@@ -1674,7 +1674,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 # 捕获 TaskComplete 异常，正常结束
                 task.status = TaskStatus.COMPLETED
                 task.result = {
-                    "content": e.message,
+                    "content": final_content or e.message,  # 优先使用流式输出的内容
+                    "message": e.message,  # done 工具的简短摘要
+                    "output": e.output,  # 传递给下游节点的结构化数据
                     "completed_explicitly": True,
                 }
                 # 自我评估
@@ -1825,7 +1827,6 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                 max_tokens=200,
             )
             # 解析响应
-            import json
             import re
 
             json_match = re.search(r"\{[^}]+\}", response.content)
@@ -1970,9 +1971,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             session_id=parent_task.sessionId,
         )
 
-        # 将计划写入 MemoryManager 的 SHARED 作用域，让子节点能看到
-        from loom.fractal.memory import MemoryScope
-
+        # 将计划写入记忆
         plan_content = f"[Parent Plan] Goal: {goal}\n"
         if reasoning:
             plan_content += f"Reasoning: {reasoning}\n"
@@ -1981,14 +1980,13 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
             plan_content += f"  {idx}. {step}\n"
 
         plan_entry_id = f"plan:{parent_task.taskId}"
-        await self.memory.write(plan_entry_id, plan_content, scope=MemoryScope.SHARED)
+        await self.memory.add_context(plan_entry_id, plan_content)
 
         # DEBUG: 验证写入成功
         import logging
 
         logger = logging.getLogger(__name__)
-        logger.info(f"[DEBUG] Plan written to SHARED: {plan_entry_id}")
-        logger.info(f"[DEBUG] Plan content length: {len(plan_content)}")
+        logger.info(f"[DEBUG] Plan written: {plan_entry_id}")
 
         # 确保父任务上下文可继承
         parent_context_id = await self._ensure_shared_task_context(parent_task)
@@ -2330,39 +2328,21 @@ Prefer ReAct (direct tool use) for most tasks.
 
         entry_id = f"task:{task.taskId}:content"
 
-        from loom.fractal.memory import MemoryScope
-
         if self._recursive_depth == 0 and task.sessionId:
             root_entry_id = f"session:{task.sessionId}:goal"
-            await self.memory.write(root_entry_id, content, scope=MemoryScope.SHARED)
+            await self.memory.add_context(root_entry_id, content)
             self._root_context_id = root_entry_id
             if "root_context_id" not in task.parameters:
                 task.parameters["root_context_id"] = root_entry_id
 
-        existing = await self.memory.read(entry_id, search_scopes=[MemoryScope.SHARED])
+        existing = await self.memory.read(entry_id)
         if not existing:
-            await self.memory.write(entry_id, content, scope=MemoryScope.SHARED)
+            await self.memory.add_context(entry_id, content)
         return entry_id
 
     async def _sync_memory_from_child(self, child_agent: "Agent") -> None:
         """
-        从子节点同步记忆（双向流动）
-
-        子节点完成任务后，将其SHARED记忆同步回父节点。
-
-        Args:
-            child_agent: 子Agent实例
+        从子节点同步记忆（新架构：通过 parent_memory 自动继承）
         """
-        from loom.fractal.memory import MemoryScope
-
-        # 1. 同步 MemoryManager 的 SHARED 记忆
-        child_shared = await child_agent.memory.list_by_scope(MemoryScope.SHARED)
-        for entry in child_shared:
-            await self.memory.write(entry.id, entry.content, MemoryScope.SHARED)
-
-        # 2. 同步重要任务（L2）到父节点
-        child_l2_tasks = child_agent.memory.get_l2_tasks(limit=5)
-        for task in child_l2_tasks:
-            # 提升重要性，因为这是子节点的重要发现
-            task.metadata["importance"] = min(1.0, task.metadata.get("importance", 0.5) + 0.1)
-            self.memory.add_task(task)
+        # 新架构：通过 parent_memory 关系自动继承，无需手动同步
+        pass

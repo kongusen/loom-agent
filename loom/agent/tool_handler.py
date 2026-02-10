@@ -6,6 +6,7 @@ ToolHandlerMixin - 工具管理
 从 core.py 拆分，遵循单一职责原则。
 """
 
+import json
 from typing import TYPE_CHECKING, Any
 
 from loom.exceptions import PermissionDenied

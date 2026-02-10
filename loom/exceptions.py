@@ -15,10 +15,12 @@ class TaskComplete(LoomError):
 
     Attributes:
         message: The completion message summarizing what was accomplished.
+        output: Optional structured data to pass to downstream nodes.
     """
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, output: any = None):
         self.message = message
+        self.output = output  # 传递给下游节点的结构化数据
         super().__init__(f"Task completed: {message}")
 
 

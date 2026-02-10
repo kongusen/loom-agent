@@ -109,9 +109,7 @@ class PlannerMixin:
             session_id=parent_task.sessionId,
         )
 
-        # 写入计划到 SHARED 作用域
-        from loom.fractal.memory import MemoryScope
-
+        # 写入计划到记忆
         plan_content = f"[Parent Plan] Goal: {goal}\n"
         if reasoning:
             plan_content += f"Reasoning: {reasoning}\n"
@@ -120,7 +118,7 @@ class PlannerMixin:
             plan_content += f"  {idx}. {step}\n"
 
         plan_entry_id = f"plan:{parent_task.taskId}"
-        await self.memory.write(plan_entry_id, plan_content, scope=MemoryScope.SHARED)
+        await self.memory.add_context(plan_entry_id, plan_content)
 
         # 准备上下文
         parent_context_id = await self._ensure_shared_task_context(parent_task)
@@ -187,7 +185,15 @@ class PlannerMixin:
             goal, parent_task.parameters.get("content", goal), results
         )
 
-        raise TaskComplete(message=final_answer)
+        # 构建结构化输出，传递给下游节点
+        plan_output = {
+            "goal": goal,
+            "steps_completed": len(results),
+            "step_results": results,
+            "reasoning": reasoning,
+        }
+
+        raise TaskComplete(message=final_answer, output=plan_output)
 
     def _build_plan_summary(self, goal: str, reasoning: str, steps: list[str]) -> str:
         """构建计划摘要"""

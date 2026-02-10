@@ -1,23 +1,37 @@
 """
 Memory Manager - 内存管理器
 
-整合 FractalMemory 和 LoomMemory 的职责：
-- L1-L4 分层存储（来自 LoomMemory）
-- LOCAL/SHARED/INHERITED/GLOBAL 作用域（来自 FractalMemory）
-- 统一的读写接口
-- 父子节点关系管理
+基于 Session-EventBus 架构：
+- L1/L2: Session 私有，通过 Session 访问
+- L3/L4: Agent 级别，通过 ContextController 访问
+- 上下文存储：简单的 key-value 存储，用于任务间共享
 """
 
 from typing import Any, Optional
 
 from loom.config.memory import MemoryStrategyType
-from loom.fractal.memory import MemoryEntry, MemoryScope
 from loom.memory.core import LoomMemory
 from loom.runtime import Task
 
 
+class ContextEntry:
+    """上下文条目 - 简单的 key-value 存储"""
+
+    def __init__(self, id: str, content: Any, created_by: str):
+        self.id = id
+        self.content = content
+        self.created_by = created_by
+
+
 class MemoryManager:
-    """内存管理器 - 整合 LoomMemory（L1-L4）和 FractalMemory（作用域）"""
+    """
+    内存管理器 - 基于 Session-EventBus 架构
+
+    职责：
+    - 管理上下文存储（用于任务间共享）
+    - 代理 LoomMemory 的 L1-L4 任务管理
+    - 支持父子节点关系（用于分形架构）
+    """
 
     def __init__(
         self,
@@ -72,12 +86,10 @@ class MemoryManager:
             importance_threshold=importance_threshold,
         )
 
-        # 作用域索引
-        self._memory_by_scope: dict[MemoryScope, dict[str, MemoryEntry]] = {
-            scope: {} for scope in MemoryScope
-        }
+        # 上下文存储（简单 key-value）
+        self._context: dict[str, ContextEntry] = {}
 
-        # 子节点列表（用于 propagate_down）
+        # 子节点列表（用于分形架构）
         self._children: list[MemoryManager] = []
 
         # 如果有父节点，注册为子节点
@@ -85,7 +97,7 @@ class MemoryManager:
             self.parent.register_child(self)
 
     def register_child(self, child: "MemoryManager") -> None:
-        """注册子节点（用于 propagate_down）"""
+        """注册子节点"""
         if child not in self._children:
             self._children.append(child)
 
@@ -94,153 +106,59 @@ class MemoryManager:
         if child in self._children:
             self._children.remove(child)
 
-    async def write(
-        self, entry_id: str, content: Any, scope: MemoryScope = MemoryScope.LOCAL
-    ) -> MemoryEntry:
+    # ==================== 上下文管理 ====================
+
+    async def add_context(self, context_id: str, content: Any) -> ContextEntry:
         """
-        写入记忆到指定作用域
+        添加上下文（用于任务间共享）
 
         Args:
-            entry_id: 记忆唯一标识
-            content: 记忆内容
-            scope: 作用域（LOCAL/SHARED/INHERITED/GLOBAL）
+            context_id: 上下文唯一标识
+            content: 上下文内容
 
         Returns:
-            创建的记忆条目
+            创建的上下文条目
         """
-        from loom.fractal.memory import ACCESS_POLICIES
-
-        # 检查写权限
-        policy = ACCESS_POLICIES[scope]
-        if not policy.writable:
-            raise PermissionError(f"Scope {scope.value} is read-only")
-
-        # 如果已存在，更新版本
-        existing = self._memory_by_scope[scope].get(entry_id)
-        if existing:
-            existing.version += 1
-            existing.content = content
-            existing.updated_by = self.node_id
-            entry = existing
-        else:
-            # 创建新记忆条目
-            entry = MemoryEntry(
-                id=entry_id,
-                content=content,
-                scope=scope,
-                created_by=self.node_id,
-                updated_by=self.node_id,
-            )
-            self._memory_by_scope[scope][entry_id] = entry
-
-        # 实现向上传播（propagate_up）
-        if policy.propagate_up and self.parent:
-            await self.parent.write(entry_id, content, scope)
-
-        # 实现向下传播（propagate_down）
-        # 注意：向下传播时使用 INHERITED 作用域，子节点只读
-        if policy.propagate_down and self._children:
-            for child in self._children:
-                # 使子节点的 INHERITED 缓存失效（通过删除旧缓存）
-                if entry_id in child._memory_by_scope[MemoryScope.INHERITED]:
-                    del child._memory_by_scope[MemoryScope.INHERITED][entry_id]
-
+        entry = ContextEntry(id=context_id, content=content, created_by=self.node_id)
+        self._context[context_id] = entry
         return entry
 
-    async def read(
-        self, entry_id: str, search_scopes: list[MemoryScope] | None = None
-    ) -> MemoryEntry | None:
+    async def read(self, context_id: str) -> ContextEntry | None:
         """
-        读取记忆（支持作用域搜索和父节点继承）
+        读取上下文
 
         Args:
-            entry_id: 记忆唯一标识
-            search_scopes: 搜索的作用域列表（None = 搜索所有）
+            context_id: 上下文唯一标识
 
         Returns:
-            记忆条目，如果不存在返回 None
+            上下文条目，如果不存在则从父节点查找
         """
-        if search_scopes is None:
-            search_scopes = list(MemoryScope)
+        # 先查本地
+        if context_id in self._context:
+            return self._context[context_id]
 
-        # 按优先级搜索本地作用域：LOCAL > SHARED > INHERITED > GLOBAL
-        for scope in search_scopes:
-            if scope == MemoryScope.INHERITED:
-                # INHERITED 需要特殊处理：检查缓存是否过期
-                continue
-            if entry_id in self._memory_by_scope[scope]:
-                return self._memory_by_scope[scope][entry_id]
-
-        # 处理 INHERITED 作用域（带缓存失效检查）
-        if MemoryScope.INHERITED in search_scopes and self.parent:
-            cached = self._memory_by_scope[MemoryScope.INHERITED].get(entry_id)
-
-            # 从父节点获取最新版本
-            parent_entry = await self.parent.read(
-                entry_id,
-                search_scopes=[MemoryScope.SHARED, MemoryScope.GLOBAL, MemoryScope.INHERITED],
-            )
-
-            if parent_entry:
-                # 检查缓存是否过期
-                if cached and cached.parent_version == parent_entry.version:
-                    return cached  # 缓存有效，直接返回
-
-                # 缓存过期或不存在，创建新的缓存
-                inherited_entry = MemoryEntry(
-                    id=parent_entry.id,
-                    content=parent_entry.content,
-                    scope=MemoryScope.INHERITED,
-                    version=parent_entry.version,
-                    created_by=parent_entry.created_by,
-                    updated_by=parent_entry.updated_by,
-                    parent_version=parent_entry.version,
-                )
-                self._memory_by_scope[MemoryScope.INHERITED][entry_id] = inherited_entry
-                return inherited_entry
+        # 再查父节点（继承机制）
+        if self.parent:
+            return await self.parent.read(context_id)
 
         return None
 
-    async def list_by_scope(self, scope: MemoryScope) -> list[MemoryEntry]:
-        """
-        列出指定作用域的所有记忆
+    async def list_context(self) -> list[ContextEntry]:
+        """列出所有上下文"""
+        return list(self._context.values())
 
-        对于 INHERITED 作用域，会从父节点的 SHARED/GLOBAL 作用域获取并缓存
-        """
-        # 对于 INHERITED 作用域，需要从父节点获取
-        if scope == MemoryScope.INHERITED and self.parent:
-            # 获取父节点的 SHARED 和 GLOBAL 记忆
-            parent_shared = await self.parent.list_by_scope(MemoryScope.SHARED)
-            parent_global = await self.parent.list_by_scope(MemoryScope.GLOBAL)
+    # ==================== LoomMemory 代理接口 ====================
 
-            # 合并父节点的记忆
-            parent_entries = parent_shared + parent_global
-
-            # 缓存到本地 INHERITED 作用域（避免重复查询）
-            for parent_entry in parent_entries:
-                if parent_entry.id not in self._memory_by_scope[MemoryScope.INHERITED]:
-                    inherited_entry = MemoryEntry(
-                        id=parent_entry.id,
-                        content=parent_entry.content,
-                        scope=MemoryScope.INHERITED,
-                        version=parent_entry.version,
-                        created_by=parent_entry.created_by,
-                        updated_by=parent_entry.updated_by,
-                        parent_version=parent_entry.version,
-                    )
-                    self._memory_by_scope[MemoryScope.INHERITED][parent_entry.id] = inherited_entry
-
-        return list(self._memory_by_scope[scope].values())
-
-    # LoomMemory 兼容接口
     def add_task(self, task: Task) -> None:
+        """添加任务到 L1"""
         self._loom_memory.add_task(task)
 
     def get_l1_tasks(self, limit: int = 10, session_id: str | None = None) -> list[Task]:
+        """获取 L1 任务"""
         return self._loom_memory.get_l1_tasks(limit=limit, session_id=session_id)
 
     def get_l2_tasks(self, limit: int = 10, session_id: str | None = None) -> list[Task]:
-        """获取 L2 重要任务（兼容 LoomMemory 接口）"""
+        """获取 L2 重要任务"""
         return self._loom_memory.get_l2_tasks(limit=limit, session_id=session_id)
 
     def get_task(self, task_id: str) -> Task | None:
@@ -255,7 +173,8 @@ class MemoryManager:
         """异步触发任务提升"""
         await self._loom_memory.promote_tasks_async()
 
-    # L4 配置透传
+    # ==================== L4 配置 ====================
+
     def set_vector_store(self, store: Any) -> None:
         """设置 L4 向量存储"""
         self._loom_memory.set_vector_store(store)
@@ -264,23 +183,23 @@ class MemoryManager:
         """设置嵌入提供者"""
         self._loom_memory.set_embedding_provider(provider)
 
-    # ==================== 状态检查方法 ====================
+    # ==================== 状态检查 ====================
 
     @property
     def children_count(self) -> int:
         """子 MemoryManager 数量"""
         return len(self._children)
 
-    def get_scope_stats(self) -> dict[str, int]:
-        """获取各作用域的记忆条目统计"""
-        return {scope.value: len(entries) for scope, entries in self._memory_by_scope.items()}
+    def get_context_stats(self) -> dict[str, int]:
+        """获取上下文统计"""
+        return {"context_count": len(self._context)}
 
     def get_manager_state(self) -> dict[str, Any]:
         """获取 MemoryManager 完整状态"""
         return {
             "node_id": self.node_id,
             "children_count": self.children_count,
-            "scope_stats": self.get_scope_stats(),
+            "context_stats": self.get_context_stats(),
             "has_parent": self.parent is not None,
             "loom_memory_stats": self._loom_memory.get_stats(),
         }

@@ -9,7 +9,6 @@ DelegatorMixin - 委派逻辑
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from loom.fractal.memory import MemoryScope
 from loom.runtime import Task, TaskStatus
 
 if TYPE_CHECKING:
@@ -196,6 +195,11 @@ class DelegatorMixin:
 
         # 发布委派完成事件
         success = result.status == TaskStatus.COMPLETED
+        # 提取子任务的 output 字段（如果有）
+        child_output = None
+        if success and isinstance(result.result, dict):
+            child_output = result.result.get("output")
+
         await self._publish_event(
             action="delegation.completed",
             parameters={
@@ -203,6 +207,7 @@ class DelegatorMixin:
                 "success": success,
                 "child_node_id": child_node.node_id,
                 "error": result.error if not success else None,
+                "output": child_output,  # 传递子任务的结构化输出
             },
             task_id=parent_task.taskId,
             session_id=parent_task.sessionId,
@@ -252,26 +257,26 @@ class DelegatorMixin:
         child._root_context_id = self._root_context_id
         child._recursive_depth = self._recursive_depth + 1
 
-        # 加载上下文提示
+        # 加载上下文提示到子节点
         if context_hints:
             for hint_id in context_hints:
                 entry = await self.memory.read(hint_id)
                 if entry:
-                    await child.memory.write(hint_id, entry.content, scope=MemoryScope.INHERITED)
+                    # 直接写入子节点 memory（新架构不使用 scope）
+                    await child.memory.add_context(hint_id, entry.content)
 
         return child
 
     async def _ensure_shared_task_context(self, task: Task) -> str | None:
-        """确保任务上下文写入 SHARED 作用域"""
+        """确保任务上下文写入记忆"""
         context_id = f"task_context:{task.taskId}"
         content = task.parameters.get("content", "")
         if content:
-            await self.memory.write(context_id, content, scope=MemoryScope.SHARED)
+            await self.memory.add_context(context_id, content)
             return context_id
         return None
 
     async def _sync_memory_from_child(self, child_agent: "Agent") -> None:
-        """从子节点同步重要记忆到父节点"""
-        child_shared = await child_agent.memory.list_by_scope(MemoryScope.SHARED)
-        for entry in child_shared:
-            await self.memory.write(entry.id, entry.content, scope=MemoryScope.SHARED)
+        """从子节点同步重要记忆到父节点（通过 L2 任务）"""
+        # 新架构：通过 parent_memory 关系自动继承，无需手动同步
+        pass

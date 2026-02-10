@@ -18,7 +18,13 @@ Runtime - 运行时支持
 
 from loom.runtime.task import Task, TaskStatus
 from loom.runtime.dispatcher import Dispatcher
-from loom.runtime.interceptor import Interceptor, InterceptorChain
+from loom.runtime.interceptor import (
+    Interceptor,
+    InterceptorChain,
+    LoggingInterceptor,
+    MetricsInterceptor,
+    TimingInterceptor,
+)
 from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
 from loom.runtime.state import AgentState, AgentStatus
 from loom.runtime.state_manager import StateManager
@@ -30,6 +36,9 @@ __all__ = [
     "Dispatcher",
     "Interceptor",
     "InterceptorChain",
+    "LoggingInterceptor",
+    "TimingInterceptor",
+    "MetricsInterceptor",
     "SessionIsolationMode",
     "SessionLaneInterceptor",
     "AgentStatus",

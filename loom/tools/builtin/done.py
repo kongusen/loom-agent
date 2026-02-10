@@ -33,14 +33,22 @@ def create_done_tool() -> dict:
         "type": "function",
         "function": {
             "name": "done",
-            "description": "Signal task completion. Call this when you have fully completed the task and want to return the final result.",
+            "description": (
+                "Signal task completion. IMPORTANT: First output your full response as text, "
+                "then call this tool with a brief summary. Do NOT put your full response in the message parameter - "
+                "the message should only be a short summary (1-2 sentences)."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {
                         "type": "string",
-                        "description": "Summary of what was accomplished and the final result",
-                    }
+                        "description": "Brief summary (1-2 sentences) of what was accomplished. NOT the full response.",
+                    },
+                    "output": {
+                        "type": "object",
+                        "description": "Optional structured data to pass to downstream nodes in a workflow.",
+                    },
                 },
                 "required": ["message"],
             },
@@ -53,10 +61,11 @@ async def execute_done_tool(args: dict) -> NoReturn:
     执行 done 工具
 
     Args:
-        args: 工具参数 {"message": "..."}
+        args: 工具参数 {"message": "...", "output": {...}}
 
     Raises:
         TaskComplete: 总是抛出此异常来信号任务完成
     """
     message = args.get("message", "Task completed")
-    raise TaskComplete(message)
+    output = args.get("output", None)
+    raise TaskComplete(message, output=output)
