@@ -71,6 +71,11 @@ class ContextOrchestrator:
             summarizer=summarizer,
         )
 
+    @property
+    def max_tokens(self) -> int:
+        """获取模型上下文窗口大小（兼容属性）"""
+        return self.budget_manager.model_context_window
+
     async def build_context(
         self,
         query: str,
