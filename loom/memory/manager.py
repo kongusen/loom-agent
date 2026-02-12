@@ -169,6 +169,10 @@ class MemoryManager:
         """触发任务提升（L1→L2→L3→L4）"""
         self._loom_memory.promote_tasks()
 
+    def promote_task_to_l2(self, task) -> bool:
+        """将单个 Task 立即提升到 L2（基于 importance）"""
+        return self._loom_memory.promote_task_to_l2(task)
+
     async def promote_tasks_async(self) -> None:
         """异步触发任务提升"""
         await self._loom_memory.promote_tasks_async()
@@ -203,3 +207,110 @@ class MemoryManager:
             "has_parent": self.parent is not None,
             "loom_memory_stats": self._loom_memory.get_stats(),
         }
+
+    # ==================== Checkpoint 快照 ====================
+
+    def export_snapshot(self) -> dict[str, Any]:
+        """
+        导出 L1/L2 记忆快照（用于 Checkpoint 持久化）
+
+        Returns:
+            可序列化的快照字典
+        """
+        # L1: 从 TokenBudgetLayer 导出
+        l1_items = []
+        for token_item in self._loom_memory._l1_layer._items:
+            task = token_item.item
+            l1_items.append({
+                "task_data": task.to_dict() if hasattr(task, "to_dict") else {
+                    "taskId": getattr(task, "taskId", ""),
+                    "sourceAgent": getattr(task, "sourceAgent", ""),
+                    "action": getattr(task, "action", ""),
+                    "parameters": getattr(task, "parameters", {}),
+                    "result": getattr(task, "result", None),
+                    "status": getattr(task, "status", "pending"),
+                    "metadata": getattr(task, "metadata", {}),
+                },
+                "token_count": token_item.token_count,
+            })
+
+        # L2: 从 PriorityTokenLayer 导出
+        l2_items = []
+        for priority_item in self._loom_memory._l2_layer._heap:
+            task = priority_item.item
+            l2_items.append({
+                "task_data": task.to_dict() if hasattr(task, "to_dict") else {
+                    "taskId": getattr(task, "taskId", ""),
+                    "sourceAgent": getattr(task, "sourceAgent", ""),
+                    "action": getattr(task, "action", ""),
+                    "parameters": getattr(task, "parameters", {}),
+                    "result": getattr(task, "result", None),
+                    "status": getattr(task, "status", "pending"),
+                    "metadata": getattr(task, "metadata", {}),
+                },
+                "token_count": priority_item.token_count,
+                "priority": priority_item.priority,
+            })
+
+        # 上下文存储
+        context_data = {
+            k: {"id": v.id, "content": v.content, "created_by": v.created_by}
+            for k, v in self._context.items()
+        }
+
+        return {
+            "node_id": self.node_id,
+            "l1_items": l1_items,
+            "l2_items": l2_items,
+            "context": context_data,
+        }
+
+    def restore_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """
+        从 Checkpoint 快照恢复 L1/L2 记忆
+
+        Args:
+            snapshot: export_snapshot() 返回的快照字典
+        """
+        if not snapshot:
+            return
+
+        # 清空当前状态
+        self._loom_memory._l1_layer.clear()
+        self._loom_memory._l2_layer.clear()
+        self._context.clear()
+
+        # 恢复 L1
+        import asyncio
+        for item_data in snapshot.get("l1_items", []):
+            task_dict = item_data.get("task_data", {})
+            token_count = item_data.get("token_count", 0)
+            try:
+                task = Task(**{k: v for k, v in task_dict.items()
+                              if k in Task.model_fields})
+                asyncio.get_event_loop().run_until_complete(
+                    self._loom_memory._l1_layer.add(task, token_count)
+                )
+            except Exception:
+                pass  # 跳过无法恢复的条目
+
+        # 恢复 L2
+        for item_data in snapshot.get("l2_items", []):
+            task_dict = item_data.get("task_data", {})
+            token_count = item_data.get("token_count", 0)
+            try:
+                task = Task(**{k: v for k, v in task_dict.items()
+                              if k in Task.model_fields})
+                asyncio.get_event_loop().run_until_complete(
+                    self._loom_memory._l2_layer.add(task, token_count)
+                )
+            except Exception:
+                pass
+
+        # 恢复上下文
+        for k, v in snapshot.get("context", {}).items():
+            self._context[k] = ContextEntry(
+                id=v.get("id", k),
+                content=v.get("content"),
+                created_by=v.get("created_by", ""),
+            )

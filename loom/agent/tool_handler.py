@@ -118,7 +118,6 @@ class ToolHandlerMixin:
         Returns:
             工具执行结果
         """
-        import json
 
         from loom.security import ToolContext
         from loom.tools.builtin.creation import ToolCreationError
@@ -180,10 +179,8 @@ class ToolHandlerMixin:
         from loom.tools.memory.browse import execute_unified_browse_tool
         from loom.tools.memory.events import execute_unified_events_tool
         from loom.tools.memory.manage import execute_unified_manage_tool
-        from loom.tools.memory.query import execute_unified_memory_tool
 
         unified_tool_executors = {
-            "query_memory": (execute_unified_memory_tool, "memory"),
             "browse_memory": (execute_unified_browse_tool, "memory"),
             "manage_memory": (execute_unified_manage_tool, "memory"),
             "query_events": (execute_unified_events_tool, "event_bus"),
@@ -231,7 +228,6 @@ class ToolHandlerMixin:
         from loom.tools.memory.browse import create_unified_browse_tool
         from loom.tools.memory.events import create_unified_events_tool
         from loom.tools.memory.manage import create_unified_manage_tool
-        from loom.tools.memory.query import create_unified_memory_tool
 
         tools = self._get_available_tools()
 
@@ -243,7 +239,6 @@ class ToolHandlerMixin:
 
         # 统一工具（unified tools）
         if self.memory:
-            tools.append(create_unified_memory_tool())
             tools.append(create_unified_browse_tool())
             tools.append(create_unified_manage_tool())
         if self.event_bus:

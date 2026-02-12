@@ -19,9 +19,9 @@ class TestLayerIntegration:
         """Create a LoomMemory instance for testing"""
         return LoomMemory(
             node_id="test-node",
-            max_l1_size=10,
-            max_l2_size=5,
-            max_l3_size=10,
+            l1_token_budget=100,
+            l2_token_budget=35,
+            l3_token_budget=200,
             enable_l4_vectorization=False,
         )
 

@@ -11,12 +11,14 @@
 import asyncio
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
+
 from loom.agent import Agent
-from loom.events import EventBus
-from loom.providers.llm import OpenAIProvider
 from loom.config.llm import LLMConfig
+from loom.events import EventBus
 from loom.fractal import ResultSynthesizer
+from loom.providers.llm import OpenAIProvider
 from loom.runtime import Task
 
 # 加载 .env 文件

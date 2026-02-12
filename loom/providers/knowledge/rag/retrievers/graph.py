@@ -38,7 +38,7 @@ class GraphRetriever(BaseRetriever):
         query: str,
         limit: int = 10,
         n_hop: int = 2,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> tuple[list[Entity], list[Relation], list[TextChunk]]:
         """
         图检索

@@ -16,7 +16,7 @@ Runtime - 运行时支持
 - StateManager: 状态管理器
 """
 
-from loom.runtime.task import Task, TaskStatus
+from loom.runtime.checkpoint import CheckpointData, CheckpointManager, CheckpointStatus
 from loom.runtime.dispatcher import Dispatcher
 from loom.runtime.interceptor import (
     Interceptor,
@@ -29,6 +29,7 @@ from loom.runtime.session_lane import SessionIsolationMode, SessionLaneIntercept
 from loom.runtime.state import AgentState, AgentStatus
 from loom.runtime.state_manager import StateManager
 from loom.runtime.state_store import MemoryStateStore, StateStore
+from loom.runtime.task import Task, TaskStatus
 
 __all__ = [
     "Task",
@@ -46,4 +47,7 @@ __all__ = [
     "StateStore",
     "MemoryStateStore",
     "StateManager",
+    "CheckpointData",
+    "CheckpointManager",
+    "CheckpointStatus",
 ]

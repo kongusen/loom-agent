@@ -64,8 +64,11 @@ class OpenAIProvider(LLMProvider, BaseResponseHandler):
         self.temperature = config.temperature
         self.max_tokens = config.max_tokens
 
-        # 创建 OpenAI 客户端
-        self.client = AsyncOpenAI(
+        # 创建 OpenAI 客户端（通过连接池共享）
+        from loom.providers.llm.client_pool import LLMClientPool
+
+        self.client = LLMClientPool.get_instance().get_or_create(
+            AsyncOpenAI,
             api_key=config.api_key,
             base_url=config.base_url,
             timeout=config.timeout,

@@ -7,11 +7,11 @@ import pytest
 
 from loom.agent.core import Agent
 from loom.config.agent import AgentConfig
-from loom.tools.mcp_types import MCPToolDefinition
 from loom.providers.llm.mock import MockLLMProvider
 from loom.tools.core.registry import ToolRegistry
 from loom.tools.core.sandbox import Sandbox
 from loom.tools.core.sandbox_manager import SandboxToolManager, ToolScope
+from loom.tools.mcp_types import MCPToolDefinition
 
 
 @pytest.fixture

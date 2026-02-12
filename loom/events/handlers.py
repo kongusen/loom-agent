@@ -4,9 +4,12 @@
 提供类型安全的处理器协议，确保处理器签名正确。
 """
 
-from typing import Any, Protocol
+from __future__ import annotations
 
-from loom.runtime import Task
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from loom.runtime import Task
 
 
 class TaskHandler(Protocol):

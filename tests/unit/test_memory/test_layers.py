@@ -6,7 +6,7 @@ Memory Layers Unit Tests (Token-First Design)
 
 import pytest
 
-from loom.memory.layers import TokenBudgetLayer, PriorityTokenLayer
+from loom.memory.layers import PriorityTokenLayer, TokenBudgetLayer
 from loom.runtime import Task
 
 

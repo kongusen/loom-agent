@@ -1,5 +1,102 @@
 # Changelog
 
+## [0.5.6] - 2026-02-12
+
+### 🔭 可观测性系统（全新模块）
+
+- **LoomTracer**：结构化追踪，支持嵌套 Span（Agent → Iteration → LLM → Tool），12 种 SpanKind
+- **LoomMetrics**：Counter / Gauge / Histogram 三类指标，14 个预定义指标常量
+- **导出器**：LogSpanExporter（日志）、InMemoryExporter（测试）、`trace_operation` 装饰器
+- **零侵入集成**：tracer/metrics 均为可选参数，不传则无开销
+
+### 🔍 统一检索系统
+
+- **双通道设计**：主动通道（Agent 调用 `query` 工具）+ 被动通道（上下文构建时自动检索）
+- **UnifiedSearchToolBuilder**：根据是否配置 knowledge_base 动态生成工具定义和描述
+- **UnifiedSearchExecutor**：L1 缓存 → 路由 → QueryRewriter 查询增强 → 并行检索 → Reranker 四信号重排序
+- **UnifiedRetrievalSource**：被动通道，L4 语义 + RAG 知识库并行召回，预算感知注入
+- **QueryRewriter**：纯文本处理，从对话上下文提取高频实词追加到查询
+- **Reranker**：VectorScore(0.4) + QueryOverlap(0.35) + OriginDiversity(0.15) + ContentLength(0.1)
+
+### 📚 RAG 知识管线重构
+
+- **GraphRAGKnowledgeBase.from_config()**：根据可用能力自动选择检索策略（hybrid / graph_first / vector_first / graph_only）
+- **HybridStrategy 三路融合**：图检索 + 向量检索并行，新增图谱扩展（chunk→entity→relation→entity→chunk），三路加权融合
+- **图谱扩展**：向量命中 chunk 沿 `entity_ids` 桥接到知识图谱，1-hop 遍历发现结构相关 chunk
+- **检索观测集成**：策略层自动记录 Span 属性（strategy / graph_count / vector_count / expansion_count / parallel_ms 等）
+- **ExtractionConfig**：Skill 模式的实体/关系提取配置，用户配置方向，框架提供提取逻辑
+- **关键词提取**：chunker 自动提取 CamelCase / snake_case / ALL_CAPS / dotted.path 标识符
+
+### 🤝 SharedMemoryPool（跨 Agent 共享记忆）
+
+- **进程内共享**：多个 Agent 持有同一 pool 引用进行读写
+- **版本控制**：自增版本号，可选乐观锁（`expected_version` 参数）
+- **EventBus 集成**：写入/删除自动发布事件
+- **上下文自动注入**：SharedPoolSource 将共享条目以 `[SHARED:key]` 前缀注入 LLM 上下文
+- **分形继承**：子节点自动继承父节点的 shared_pool 引用
+
+### 🧠 记忆系统增强
+
+- **L4Compressor 保真度检查**：FidelityChecker 通过 embedding 余弦相似度(0.6) + 关键词保留率(0.4) 评估压缩质量，低于阈值保留原始 facts
+- **MemoryReranker**：统一重排序器，支持 recency / importance / relevance / frequency 四信号
+- **AdaptiveBudgetManager**：根据任务阶段动态调整上下文预算分配比例
+
+### 🏗️ Agent 架构重构
+
+- **ExecutionEngine**：从 Agent.core 提取的独立执行引擎
+- **AgentFactory**：从 Agent.create() 提取的工厂类，处理渐进式披露配置
+- **ToolRouter**：从 core.py 提取的工具路由组件，分发元工具 / 沙盒工具 / 动态工具 / 检索工具
+- **Checkpoint**：运行时检查点系统
+
+### 📖 Wiki 全面重写
+
+- 删除 20+ 旧 wiki 页面（API-Agent, Fractal-Architecture, Memory-Layers 等）
+- 新建 10 个聚焦页面：Agent, Architecture, Config, Context, Events, Fractal, Memory, Providers, Runtime, Tools
+- Observability.md 全面重写：12 种 SpanKind、14 个预定义指标、知识检索观测章节
+- Providers.md 新增 RAG 检索流程详细文档：四种策略数据流、双向关联使用表、权重配置
+
+### 🧹 清理与整合
+
+- 删除 `docs/` 目录全部 40+ 旧文档（archive, features, framework, optimization, refactoring, usage）
+- 删除旧示例（cli_stream_demo, conversational_assistant, task_executor 等）
+- 新增 4 个 demo：17_memory_rag_autowiring, 18_adaptive_budget, 19_tracing_metrics, 20_checkpoint
+- 新增 README_CN.md 中文说明
+- 更新 16 个现有 demo 适配新 API
+
+### ✅ 测试
+
+- 新增测试：test_knowledge/, test_phase4_observability, test_phase5_wiring, test_unified_search, test_shared_pool, test_client_pool, test_tokenizer_cache
+- 全量回归：1267 passed, 10 skipped, 0 failures
+
+---
+
+## [0.5.5] - 2026-02-10
+
+- 清理 FractalMemory，采用统一 Session-EventBus 架构
+- 移除 FractalMemory 独立模块，记忆统一由 MemoryManager 管理
+
+## [0.5.4] - 2026-02-09
+
+- Context 模块重构：ContextOrchestrator 统一入口，多源收集 + 预算管理 + 压缩
+- 多 Agent 协作系统：OutputCollector 支持 interleaved/sequential/grouped 三种输出策略
+
+## [0.5.3] - 2026-02-08
+
+- FractalStreamAPI：分形架构的流式 API 支持
+- Version API：版本信息查询接口
+
+## [0.5.2] - 2026-02-07
+
+- Tools 模块重构：SandboxToolManager 统一工具注册和沙盒执行
+- Skills 热更新系统：运行时 Skill 发现和激活
+
+## [0.5.1] - 2026-02-05
+
+- 隐藏变量暴露：Agent 内部状态可观测
+- 可观测性改进：性能优化和模块重构
+
+---
+
 ## [0.5.0] - 2026-02-03
 
 ### ⚠️ BREAKING CHANGES

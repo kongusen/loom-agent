@@ -4,12 +4,200 @@ L4记忆压缩器
 基于A4公理，保持L4全局知识库在合理规模（~150 facts）
 """
 
+import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 import numpy as np
 
 from .types import MemoryTier, MemoryType, MemoryUnit
+
+_STOP_WORDS = frozenset({
+    # English
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "dare", "ought",
+    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+    "as", "into", "through", "during", "before", "after", "above", "below",
+    "between", "out", "off", "over", "under", "again", "further", "then",
+    "once", "here", "there", "when", "where", "why", "how", "all", "each",
+    "every", "both", "few", "more", "most", "other", "some", "such", "no",
+    "nor", "not", "only", "own", "same", "so", "than", "too", "very",
+    "just", "because", "but", "and", "or", "if", "while", "that", "this",
+    "these", "those", "it", "its", "i", "me", "my", "we", "our", "you",
+    "your", "he", "him", "his", "she", "her", "they", "them", "their",
+    "what", "which", "who", "whom",
+    # Chinese
+    "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一",
+    "一个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有",
+    "看", "好", "自己", "这", "他", "她", "它", "们", "那", "些", "什么",
+    "没", "把", "又", "被", "从", "这个", "那个", "但", "还", "而", "对",
+    "以", "可以", "这样", "已经", "因为", "如果", "所以", "但是", "就是",
+    "可能", "这些", "那些", "或者", "虽然", "然后", "之后", "之前", "通过",
+    "进行", "使用", "需要", "应该", "其中", "以及", "关于", "对于",
+    "随着", "由于", "为了",
+})
+
+# Pre-computed Chinese stop word list sorted by length (longest first)
+# Used to split Chinese character runs into keyword segments
+_CN_STOPS_SORTED: list[str] = sorted(
+    (w for w in _STOP_WORDS if all("\u4e00" <= c <= "\u9fff" for c in w)),
+    key=len,
+    reverse=True,
+)
+
+
+@dataclass
+class FidelityResult:
+    """压缩保真度度量结果"""
+
+    embedding_similarity: float
+    keyword_retention: float
+    composite_score: float
+    passed: bool
+    cluster_size: int
+    retained_keywords: list[str] = field(default_factory=list)
+    lost_keywords: list[str] = field(default_factory=list)
+
+    def to_metadata(self) -> dict[str, Any]:
+        return {
+            "fidelity_embedding_similarity": round(self.embedding_similarity, 4),
+            "fidelity_keyword_retention": round(self.keyword_retention, 4),
+            "fidelity_composite_score": round(self.composite_score, 4),
+            "fidelity_passed": self.passed,
+            "fidelity_lost_keywords": self.lost_keywords,
+        }
+
+
+class FidelityChecker:
+    """
+    压缩保真度检查器
+
+    两个信号：
+    1. Embedding 余弦相似度：合并 embedding 与各原始 embedding 的平均相似度
+    2. 关键词保留率：原始关键词在合并内容中的出现比例
+    """
+
+    def __init__(
+        self,
+        threshold: float = 0.5,
+        embedding_weight: float = 0.6,
+        keyword_weight: float = 0.4,
+        max_lost_keywords_recorded: int = 20,
+    ):
+        self.threshold = threshold
+        self.embedding_weight = embedding_weight
+        self.keyword_weight = keyword_weight
+        self.max_lost_keywords_recorded = max_lost_keywords_recorded
+
+    def check(self, merged: MemoryUnit, originals: list[MemoryUnit]) -> FidelityResult:
+        embedding_sim = self._compute_embedding_similarity(merged, originals)
+        keyword_ret, retained, lost = self._compute_keyword_retention(merged, originals)
+
+        composite = (
+            self.embedding_weight * embedding_sim
+            + self.keyword_weight * keyword_ret
+        )
+
+        return FidelityResult(
+            embedding_similarity=embedding_sim,
+            keyword_retention=keyword_ret,
+            composite_score=composite,
+            passed=composite >= self.threshold,
+            cluster_size=len(originals),
+            retained_keywords=retained,
+            lost_keywords=lost[: self.max_lost_keywords_recorded],
+        )
+
+    def _compute_embedding_similarity(
+        self, merged: MemoryUnit, originals: list[MemoryUnit],
+    ) -> float:
+        if merged.embedding is None:
+            return 0.0
+
+        original_embeddings = [f.embedding for f in originals if f.embedding is not None]
+        if not original_embeddings:
+            return 0.0
+
+        merged_vec = np.array(merged.embedding, dtype=np.float32)
+        merged_norm = np.linalg.norm(merged_vec)
+        if merged_norm == 0:
+            return 0.0
+        merged_normalized = merged_vec / merged_norm
+
+        originals_array = np.array(original_embeddings, dtype=np.float32)
+        norms = np.linalg.norm(originals_array, axis=1, keepdims=True)
+        norms = np.where(norms == 0, 1, norms)
+        originals_normalized = originals_array / norms
+
+        similarities = np.dot(originals_normalized, merged_normalized)
+        similarities = np.clip(similarities, -1.0, 1.0)
+
+        return float(np.mean(similarities))
+
+    def _compute_keyword_retention(
+        self, merged: MemoryUnit, originals: list[MemoryUnit],
+    ) -> tuple[float, list[str], list[str]]:
+        all_keywords: set[str] = set()
+        for fact in originals:
+            content = str(fact.content) if fact.content is not None else ""
+            all_keywords |= self._extract_keywords(content)
+
+        if not all_keywords:
+            return 1.0, [], []
+
+        merged_content = str(merged.content) if merged.content is not None else ""
+        merged_lower = merged_content.lower()
+
+        retained = [kw for kw in all_keywords if kw.lower() in merged_lower]
+        lost = [kw for kw in all_keywords if kw.lower() not in merged_lower]
+
+        rate = len(retained) / len(all_keywords)
+        return rate, sorted(retained), sorted(lost)
+
+    @staticmethod
+    def _extract_keywords(text: str) -> set[str]:
+        keywords: set[str] = set()
+
+        # Capitalized phrases: "Machine Learning"
+        # Use lookarounds instead of \b to handle CJK adjacency
+        for match in re.finditer(
+            r"(?<![a-zA-Z])([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?![a-zA-Z])", text,
+        ):
+            keywords.add(match.group(1))
+
+        # Standalone capitalized words (not stop words)
+        for match in re.finditer(r"(?<![a-zA-Z])([A-Z][a-z]{1,})(?![a-zA-Z])", text):
+            word = match.group(1)
+            if word.lower() not in _STOP_WORDS:
+                keywords.add(word)
+
+        # snake_case identifiers
+        for match in re.finditer(r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b", text):
+            keywords.add(match.group(0))
+
+        # dotted paths: loom.memory.core
+        for match in re.finditer(r"\b([a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+)\b", text):
+            keywords.add(match.group(0))
+
+        # ALL_CAPS identifiers
+        for match in re.finditer(
+            r"(?<![a-zA-Z])([A-Z]{2,}(?:_[A-Z0-9]+)*)(?![a-zA-Z])", text,
+        ):
+            keywords.add(match.group(1))
+
+        # Chinese: split runs on stop words, keep meaningful segments
+        for match in re.finditer(r"[\u4e00-\u9fff]+", text):
+            run = match.group(0)
+            # Replace stop words with separator (longest first to avoid partial matches)
+            for sw in _CN_STOPS_SORTED:
+                run = run.replace(sw, "\x00")
+            for seg in run.split("\x00"):
+                if len(seg) >= 2:
+                    keywords.add(seg)
+
+        return keywords
 
 
 class L4Compressor:
@@ -28,6 +216,7 @@ class L4Compressor:
         threshold: int = 150,
         similarity_threshold: float = 0.75,
         min_cluster_size: int = 3,
+        fidelity_threshold: float = 0.5,
     ):
         """
         初始化L4压缩器
@@ -36,10 +225,12 @@ class L4Compressor:
             threshold: 触发压缩的facts数量阈值
             similarity_threshold: 聚类相似度阈值（0-1）
             min_cluster_size: 最小聚类大小，小于此值的cluster不压缩
+            fidelity_threshold: 压缩保真度阈值，低于此值保留原始facts
         """
         self.threshold = threshold
         self.similarity_threshold = similarity_threshold
         self.min_cluster_size = min_cluster_size
+        self._fidelity_checker = FidelityChecker(threshold=fidelity_threshold)
 
     async def should_compress(self, l4_facts: list[MemoryUnit]) -> bool:
         """
@@ -89,13 +280,18 @@ class L4Compressor:
         # 1. 聚类相似的facts
         clusters = await self._cluster_facts(facts)
 
-        # 2. 压缩每个cluster
+        # 2. 压缩每个cluster（带保真度检查）
         compressed = []
         for cluster in clusters:
             if len(cluster) >= self.min_cluster_size:
-                # 压缩大cluster：保留最重要的fact
-                summary_fact = self._merge_cluster(cluster)
-                compressed.append(summary_fact)
+                merged_fact = self._merge_cluster(cluster)
+                fidelity = self._fidelity_checker.check(merged_fact, cluster)
+                if fidelity.passed:
+                    merged_fact.metadata.update(fidelity.to_metadata())
+                    compressed.append(merged_fact)
+                else:
+                    # 保真度不足，保留原始facts
+                    compressed.extend(cluster)
             else:
                 # 保留小cluster的原始facts
                 compressed.extend(cluster)

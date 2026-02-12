@@ -67,5 +67,5 @@ async def execute_done_tool(args: dict) -> NoReturn:
         TaskComplete: 总是抛出此异常来信号任务完成
     """
     message = args.get("message", "Task completed")
-    output = args.get("output", None)
+    output = args.get("output")
     raise TaskComplete(message, output=output)

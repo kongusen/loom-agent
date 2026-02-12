@@ -7,7 +7,7 @@ L4 Compressor Unit Tests
 import numpy as np
 import pytest
 
-from loom.memory.compression import L4Compressor
+from loom.memory.compression import FidelityChecker, FidelityResult, L4Compressor
 from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
 
 
@@ -21,14 +21,19 @@ class TestL4CompressorInit:
         assert compressor.threshold == 150
         assert compressor.similarity_threshold == 0.75
         assert compressor.min_cluster_size == 3
+        assert compressor._fidelity_checker.threshold == 0.5
 
     def test_init_custom_parameters(self):
         """测试自定义参数初始化"""
-        compressor = L4Compressor(threshold=200, similarity_threshold=0.8, min_cluster_size=5)
+        compressor = L4Compressor(
+            threshold=200, similarity_threshold=0.8, min_cluster_size=5,
+            fidelity_threshold=0.7,
+        )
 
         assert compressor.threshold == 200
         assert compressor.similarity_threshold == 0.8
         assert compressor.min_cluster_size == 5
+        assert compressor._fidelity_checker.threshold == 0.7
 
 
 class TestShouldCompress:
@@ -307,3 +312,275 @@ class TestClusterFacts:
 
         # 应该有2个cluster：[fact_0, fact_1] 和 [fact_2]
         assert len(result) == 2
+
+
+# ── Fidelity Tests ──
+
+
+class TestFidelityResult:
+    def test_to_metadata_contains_all_fields(self):
+        result = FidelityResult(
+            embedding_similarity=0.85,
+            keyword_retention=0.7,
+            composite_score=0.79,
+            passed=True,
+            cluster_size=4,
+            retained_keywords=["Python", "API"],
+            lost_keywords=["Redis"],
+        )
+        meta = result.to_metadata()
+        assert meta["fidelity_embedding_similarity"] == 0.85
+        assert meta["fidelity_keyword_retention"] == 0.7
+        assert meta["fidelity_composite_score"] == 0.79
+        assert meta["fidelity_passed"] is True
+        assert meta["fidelity_lost_keywords"] == ["Redis"]
+
+    def test_to_metadata_rounds_floats(self):
+        result = FidelityResult(
+            embedding_similarity=0.123456789,
+            keyword_retention=0.987654321,
+            composite_score=0.555555555,
+            passed=True,
+            cluster_size=3,
+            retained_keywords=[],
+            lost_keywords=[],
+        )
+        meta = result.to_metadata()
+        assert meta["fidelity_embedding_similarity"] == 0.1235
+        assert meta["fidelity_keyword_retention"] == 0.9877
+
+
+class TestFidelityCheckerKeywordExtraction:
+    def test_extracts_capitalized_words(self):
+        keywords = FidelityChecker._extract_keywords("Python is great for Machine Learning")
+        assert "Python" in keywords
+        assert "Machine Learning" in keywords
+
+    def test_ignores_stop_words(self):
+        keywords = FidelityChecker._extract_keywords("The quick Brown fox")
+        assert "Brown" in keywords
+        assert "The" not in keywords
+
+    def test_extracts_snake_case(self):
+        keywords = FidelityChecker._extract_keywords("use memory_manager to store data")
+        assert "memory_manager" in keywords
+
+    def test_extracts_dotted_paths(self):
+        keywords = FidelityChecker._extract_keywords("import loom.memory.core module")
+        assert "loom.memory.core" in keywords
+
+    def test_extracts_all_caps(self):
+        keywords = FidelityChecker._extract_keywords("Set the API_KEY and HTTP_TIMEOUT")
+        assert "API_KEY" in keywords
+        assert "HTTP_TIMEOUT" in keywords
+
+    def test_empty_string(self):
+        keywords = FidelityChecker._extract_keywords("")
+        assert keywords == set()
+
+    def test_no_keywords_in_plain_lowercase(self):
+        keywords = FidelityChecker._extract_keywords("this is all lowercase text")
+        assert len(keywords) == 0
+
+    def test_extracts_chinese_keywords(self):
+        keywords = FidelityChecker._extract_keywords("向量检索的召回率随着记忆量增长而下降")
+        assert "向量检索" in keywords
+        assert "召回率" in keywords
+        assert "记忆量增长" in keywords
+
+    def test_chinese_stop_words_filtered(self):
+        keywords = FidelityChecker._extract_keywords("可以使用已经通过的方案")
+        # "可以", "使用", "已经", "通过" are stop words
+        # Only non-stop sequences should remain
+        for kw in keywords:
+            assert kw not in {"可以", "使用", "已经", "通过"}
+
+    def test_mixed_chinese_english(self):
+        keywords = FidelityChecker._extract_keywords("使用Python进行向量检索和Redis缓存")
+        assert "Python" in keywords
+        assert "Redis" in keywords
+        assert "向量检索" in keywords
+
+
+class TestFidelityCheckerEmbeddingSimilarity:
+    def test_identical_embeddings_score_1(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="a", embedding=[1.0, 0.0, 0.0])
+        originals = [
+            MemoryUnit(content="a", embedding=[1.0, 0.0, 0.0]),
+            MemoryUnit(content="b", embedding=[1.0, 0.0, 0.0]),
+        ]
+        score = checker._compute_embedding_similarity(merged, originals)
+        assert abs(score - 1.0) < 1e-6
+
+    def test_orthogonal_embeddings_score_0(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="a", embedding=[1.0, 0.0, 0.0])
+        originals = [
+            MemoryUnit(content="b", embedding=[0.0, 1.0, 0.0]),
+            MemoryUnit(content="c", embedding=[0.0, 0.0, 1.0]),
+        ]
+        score = checker._compute_embedding_similarity(merged, originals)
+        assert abs(score) < 1e-6
+
+    def test_mixed_similarity(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="a", embedding=[1.0, 0.0, 0.0])
+        originals = [
+            MemoryUnit(content="a", embedding=[1.0, 0.0, 0.0]),  # sim = 1.0
+            MemoryUnit(content="b", embedding=[0.0, 1.0, 0.0]),  # sim = 0.0
+        ]
+        score = checker._compute_embedding_similarity(merged, originals)
+        assert abs(score - 0.5) < 1e-6
+
+    def test_no_merged_embedding_returns_0(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="a", embedding=None)
+        originals = [MemoryUnit(content="b", embedding=[1.0, 0.0])]
+        assert checker._compute_embedding_similarity(merged, originals) == 0.0
+
+    def test_no_original_embeddings_returns_0(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="a", embedding=[1.0, 0.0])
+        originals = [MemoryUnit(content="b", embedding=None)]
+        assert checker._compute_embedding_similarity(merged, originals) == 0.0
+
+
+class TestFidelityCheckerKeywordRetention:
+    def test_full_retention(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="Python API for Machine Learning")
+        originals = [
+            MemoryUnit(content="Python is useful"),
+            MemoryUnit(content="Machine Learning API"),
+        ]
+        rate, retained, lost = checker._compute_keyword_retention(merged, originals)
+        assert rate == 1.0
+        assert len(lost) == 0
+
+    def test_partial_retention(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="Python is useful")
+        originals = [
+            MemoryUnit(content="Python is useful"),
+            MemoryUnit(content="Redis cache configuration"),
+        ]
+        rate, retained, lost = checker._compute_keyword_retention(merged, originals)
+        assert "Python" in retained
+        assert "Redis" in lost
+        assert 0.0 < rate < 1.0
+
+    def test_no_keywords_returns_1(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="all lowercase")
+        originals = [MemoryUnit(content="also lowercase")]
+        rate, retained, lost = checker._compute_keyword_retention(merged, originals)
+        assert rate == 1.0
+
+    def test_none_content_handled(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content=None)
+        originals = [MemoryUnit(content=None)]
+        rate, _, _ = checker._compute_keyword_retention(merged, originals)
+        assert rate == 1.0
+
+
+class TestFidelityCheckerCheck:
+    def test_high_fidelity_passes(self):
+        checker = FidelityChecker(threshold=0.5)
+        merged = MemoryUnit(
+            content="Python API for Machine Learning",
+            embedding=[1.0, 0.0, 0.0],
+        )
+        originals = [
+            MemoryUnit(content="Python API reference", embedding=[0.95, 0.05, 0.0]),
+            MemoryUnit(content="Machine Learning with Python", embedding=[0.9, 0.1, 0.0]),
+            MemoryUnit(content="Python API docs", embedding=[0.98, 0.02, 0.0]),
+        ]
+        result = checker.check(merged, originals)
+        assert result.passed is True
+        assert result.composite_score >= 0.5
+
+    def test_low_fidelity_fails(self):
+        checker = FidelityChecker(threshold=0.8)
+        merged = MemoryUnit(
+            content="simple text",
+            embedding=[1.0, 0.0, 0.0],
+        )
+        originals = [
+            MemoryUnit(content="Redis Configuration Guide", embedding=[0.0, 1.0, 0.0]),
+            MemoryUnit(content="PostgreSQL Indexing Strategy", embedding=[0.0, 0.0, 1.0]),
+            MemoryUnit(content="MongoDB Sharding Setup", embedding=[0.0, 0.5, 0.5]),
+        ]
+        result = checker.check(merged, originals)
+        assert result.passed is False
+        assert result.composite_score < 0.8
+
+    def test_result_cluster_size(self):
+        checker = FidelityChecker()
+        merged = MemoryUnit(content="test", embedding=[1.0])
+        originals = [MemoryUnit(content="a", embedding=[1.0]) for _ in range(5)]
+        result = checker.check(merged, originals)
+        assert result.cluster_size == 5
+
+    def test_lost_keywords_capped(self):
+        checker = FidelityChecker(max_lost_keywords_recorded=3)
+        originals = [
+            MemoryUnit(content=f"Keyword{i} is important") for i in range(10)
+        ]
+        merged = MemoryUnit(content="nothing relevant here")
+        result = checker.check(merged, originals)
+        assert len(result.lost_keywords) <= 3
+
+
+class TestCompressWithFidelity:
+    @pytest.mark.asyncio
+    async def test_high_fidelity_merge_proceeds(self):
+        """高保真时正常合并，metadata 包含 fidelity 信息"""
+        compressor = L4Compressor(
+            threshold=3, min_cluster_size=3, fidelity_threshold=0.3,
+        )
+        facts = [
+            MemoryUnit(
+                content="Python API reference guide",
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT,
+                importance=float(i),
+                embedding=[1.0, 0.0, 0.0],
+            )
+            for i in range(4)
+        ]
+        result = await compressor.compress(facts)
+        assert len(result) < 4
+        merged = [f for f in result if "fidelity_composite_score" in f.metadata]
+        assert len(merged) == 1
+        assert merged[0].metadata["fidelity_passed"] is True
+
+    @pytest.mark.asyncio
+    async def test_low_fidelity_keeps_originals(self):
+        """保真度不足时保留原始 facts"""
+        compressor = L4Compressor(
+            threshold=3,
+            min_cluster_size=3,
+            similarity_threshold=0.3,
+            fidelity_threshold=0.99,
+        )
+        # Each fact has distinct keywords but similar embeddings (will cluster)
+        contents = [
+            "Redis Configuration Guide",
+            "PostgreSQL Indexing Strategy",
+            "MongoDB Sharding Setup",
+            "Elasticsearch Query Optimization",
+        ]
+        facts = [
+            MemoryUnit(
+                content=contents[i],
+                tier=MemoryTier.L4_GLOBAL,
+                type=MemoryType.FACT,
+                importance=0.5,
+                embedding=[0.8, 0.1 + i * 0.02, 0.1],
+            )
+            for i in range(4)
+        ]
+        result = await compressor.compress(facts)
+        assert len(result) == 4

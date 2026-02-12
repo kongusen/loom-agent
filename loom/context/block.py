@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
-@dataclass
+@dataclass(slots=True)
 class ContextBlock:
     """
     上下文块 - 所有上下文的基本单位

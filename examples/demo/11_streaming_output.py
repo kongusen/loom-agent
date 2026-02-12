@@ -11,13 +11,14 @@
 import asyncio
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
+
 from loom.agent import Agent
+from loom.api.stream_api import FractalStreamAPI, OutputStrategy
+from loom.config.llm import LLMConfig
 from loom.events import EventBus
 from loom.providers.llm import OpenAIProvider
-from loom.config.llm import LLMConfig
-from loom.api.stream_api import FractalStreamAPI, OutputStrategy
-from loom.runtime import Task
 
 # 加载 .env 文件
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
@@ -69,11 +70,11 @@ async def main():
                 events_received.append(sse_event)
                 # 解析并显示事件
                 if "node.thinking" in sse_event:
-                    print(f"  📡 收到思考事件")
+                    print("  📡 收到思考事件")
                 elif "node.tool_call" in sse_event:
-                    print(f"  📡 收到工具调用事件")
+                    print("  📡 收到工具调用事件")
                 elif "node.tool_result" in sse_event:
-                    print(f"  📡 收到工具结果事件")
+                    print("  📡 收到工具结果事件")
         except asyncio.CancelledError:
             pass
 
@@ -133,7 +134,7 @@ async def main():
     await asyncio.sleep(0.1)
 
     # 9. 显示统计
-    print(f"\n--- 流式统计 ---")
+    print("\n--- 流式统计 ---")
     print(f"共收到 {len(events_received)} 个SSE事件")
     print("\n=== 演示完成 ===")
 

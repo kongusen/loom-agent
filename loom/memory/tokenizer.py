@@ -10,6 +10,7 @@ Token Counter - Token 计数器
 """
 
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -102,15 +103,18 @@ class TiktokenCounter(TokenCounter):
     - text-embedding-ada-002
     """
 
-    def __init__(self, model: str = "gpt-4"):
+    def __init__(self, model: str = "gpt-4", cache_size: int = 1024):
         """
         初始化 Tiktoken 计数器
 
         Args:
             model: OpenAI 模型名称
+            cache_size: LRU 缓存最大条目数
         """
         self.model = model
         self._encoding: Encoding | None = None
+        self._cache: OrderedDict[str, int] = OrderedDict()
+        self._cache_size = cache_size
         self._load_encoding()
 
     def _load_encoding(self):
@@ -128,7 +132,7 @@ class TiktokenCounter(TokenCounter):
             self._encoding = None
 
     def count(self, text: str) -> int:
-        """计算文本的 token 数（精确）"""
+        """计算文本的 token 数（精确，带 LRU 缓存）"""
         if not text:
             return 0
 
@@ -136,7 +140,18 @@ class TiktokenCounter(TokenCounter):
             # 降级到估算模式
             return EstimateCounter().count(text)
 
-        return len(self._encoding.encode(text))
+        # Cache lookup
+        cached = self._cache.get(text)
+        if cached is not None:
+            self._cache.move_to_end(text)
+            return cached
+
+        # Compute and cache
+        result = len(self._encoding.encode(text))
+        self._cache[text] = result
+        if len(self._cache) > self._cache_size:
+            self._cache.popitem(last=False)
+        return result
 
     def count_messages(self, messages: list[dict]) -> int:
         """
@@ -162,6 +177,15 @@ class TiktokenCounter(TokenCounter):
                 total -= 1  # name 字段会减少 1 个 token
 
         return total
+
+    def clear_cache(self) -> None:
+        """清空 token 计数缓存"""
+        self._cache.clear()
+
+    @property
+    def cache_info(self) -> dict[str, int]:
+        """返回缓存统计信息"""
+        return {"size": len(self._cache), "max_size": self._cache_size}
 
 
 class AnthropicCounter(TokenCounter):

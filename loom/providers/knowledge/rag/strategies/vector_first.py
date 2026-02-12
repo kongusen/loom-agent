@@ -37,7 +37,7 @@ class VectorFirstStrategy(RetrievalStrategy):
         self,
         query: str,
         limit: int = 10,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> RetrievalResult:
         """向量检索"""
         results = await self.vector_retriever.retrieve(

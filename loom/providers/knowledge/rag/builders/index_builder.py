@@ -6,11 +6,7 @@ from typing import Any
 
 from loom.providers.knowledge.rag.builders.base import Document, IndexBuilder
 from loom.providers.knowledge.rag.builders.chunker import ChunkingStrategy, SimpleChunker
-from loom.providers.knowledge.rag.builders.entity_extractor import (
-    EntityExtractor,
-    SimpleEntityExtractor,
-)
-from loom.providers.knowledge.rag.models.chunk import TextChunk
+from loom.providers.knowledge.rag.builders.entity_extractor import EntityExtractor
 from loom.providers.knowledge.rag.stores.chunk_store import ChunkStore
 from loom.providers.knowledge.rag.stores.entity_store import EntityStore
 from loom.providers.knowledge.rag.stores.relation_store import RelationStore
@@ -23,7 +19,7 @@ class RAGIndexBuilder(IndexBuilder):
     完整的索引构建流程：
     1. 文档分块
     2. 生成 Embedding
-    3. 实体抽取
+    3. 实体抽取（可选，需要 entity_extractor）
     4. 存储到各个 Store
     """
 
@@ -41,7 +37,7 @@ class RAGIndexBuilder(IndexBuilder):
         self.relation_store = relation_store
         self.embedding_provider = embedding_provider
         self.chunker = chunker or SimpleChunker()
-        self.entity_extractor = entity_extractor or SimpleEntityExtractor()
+        self.entity_extractor = entity_extractor  # None = 跳过实体提取
 
     async def add_documents(
         self,
@@ -66,8 +62,8 @@ class RAGIndexBuilder(IndexBuilder):
             for chunk in chunks:
                 chunk.embedding = await self.embedding_provider.embed(chunk.content)
 
-        # 3. 实体抽取
-        if extract_entities:
+        # 3. 实体抽取（需要 entity_extractor 且 extract_entities=True）
+        if extract_entities and self.entity_extractor:
             for chunk in chunks:
                 entities, relations = await self.entity_extractor.extract(chunk)
 

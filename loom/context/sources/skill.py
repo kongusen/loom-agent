@@ -72,9 +72,9 @@ class SkillSource(ContextSource):
                 return None
 
             if hasattr(skill_def, "get_full_instructions"):
-                return skill_def.get_full_instructions()
+                return str(skill_def.get_full_instructions())
             elif hasattr(skill_def, "instructions"):
-                return skill_def.instructions
+                return str(skill_def.instructions)
 
             return None
         except Exception:

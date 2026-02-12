@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from loom.events import EventBus
-from loom.tools.mcp_types import MCPServer, MCPToolDefinition, MCPToolResult
 from loom.tools.core.mcp_adapter import MCPAdapter
+from loom.tools.mcp_types import MCPServer, MCPToolDefinition, MCPToolResult
 
 
 class MockMCPServer(MCPServer):

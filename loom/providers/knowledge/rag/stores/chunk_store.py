@@ -142,9 +142,7 @@ class InMemoryChunkStore(ChunkStore):
         keyword_lower = keyword.lower()
         matches = []
         for chunk in self._chunks.values():
-            if keyword_lower in chunk.content.lower():
-                matches.append(chunk)
-            elif any(keyword_lower in kw.lower() for kw in chunk.keywords):
+            if keyword_lower in chunk.content.lower() or any(keyword_lower in kw.lower() for kw in chunk.keywords):
                 matches.append(chunk)
         return matches[:limit]
 
@@ -158,7 +156,7 @@ class InMemoryChunkStore(ChunkStore):
         """计算余弦相似度"""
         if len(vec1) != len(vec2):
             return 0.0
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
         norm1 = math.sqrt(sum(a * a for a in vec1))
         norm2 = math.sqrt(sum(b * b for b in vec2))
         if norm1 == 0 or norm2 == 0:

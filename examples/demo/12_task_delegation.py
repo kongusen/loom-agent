@@ -10,11 +10,13 @@
 import asyncio
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
+
 from loom.agent import Agent
+from loom.config.llm import LLMConfig
 from loom.events import EventBus
 from loom.providers.llm import OpenAIProvider
-from loom.config.llm import LLMConfig
 from loom.runtime import Task, TaskStatus
 
 # 加载 .env 文件
@@ -51,7 +53,7 @@ async def main():
         result = await worker_agent.run(task.parameters.get("task", ""))
         task.status = TaskStatus.COMPLETED
         task.result = {"content": result}
-        print(f"[Worker] 完成任务")
+        print("[Worker] 完成任务")
         return task
 
     event_bus.register_handler("execute", handle_worker_task)

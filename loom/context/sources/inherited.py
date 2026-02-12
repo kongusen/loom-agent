@@ -76,7 +76,7 @@ class InheritedSource(ContextSource):
                 break
 
             try:
-                entries = await self.memory.list_by_scope(scope)
+                entries = await self.memory.list_context()
             except Exception:
                 continue
 

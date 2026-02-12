@@ -98,8 +98,8 @@ class Session:
         self._token_counter = token_counter
 
         # 懒加载的组件
-        self._memory: "LoomMemory | None" = None
-        self._context_orchestrator: "ContextOrchestrator | None" = None
+        self._memory: LoomMemory | None = None
+        self._context_orchestrator: ContextOrchestrator | None = None
 
         # EventBus 订阅 ID（用于取消订阅）
         self._subscription_handler: Any = None
@@ -251,6 +251,7 @@ class Session:
             LLM 消息列表
         """
         from loom.context.orchestrator import ContextOrchestrator
+        from loom.context.source import ContextSource
         from loom.context.sources import (
             L1RecentSource,
             L2ImportantSource,
@@ -265,7 +266,7 @@ class Session:
         token_counter = self._token_counter or EstimateCounter()
 
         # 构建 7 大上下文源
-        sources = []
+        sources: list[ContextSource] = []
 
         # 1. User Input Source
         user_source = UserInputSource(user_input)

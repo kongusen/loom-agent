@@ -26,11 +26,11 @@ class TestLayerContract:
     @pytest.mark.asyncio
     async def test_circular_buffer_layer_contract(self, sample_tasks: list[Task]) -> None:
         """Test CircularBufferLayer conforms to MemoryLayer interface"""
-        layer: MemoryLayer[Task] = CircularBufferLayer(max_size=5)
+        layer: MemoryLayer[Task] = CircularBufferLayer(token_budget=500)
 
         # Test add method
         for task in sample_tasks[:3]:
-            await layer.add(task)
+            await layer.add(task, token_count=100)
 
         # Test size method
         assert layer.size() == 3
@@ -39,9 +39,9 @@ class TestLayerContract:
         retrieved = await layer.retrieve(None, limit=2)
         assert len(retrieved) == 2
 
-        # Test evict method
-        evicted = await layer.evict(count=1)
-        assert len(evicted) == 1
+        # Test evict_tokens method
+        evicted = await layer.evict_tokens(tokens_to_free=100)
+        assert len(evicted) >= 1
         assert layer.size() == 2
 
         # Test clear method
@@ -51,11 +51,11 @@ class TestLayerContract:
     @pytest.mark.asyncio
     async def test_priority_queue_layer_contract(self, sample_tasks: list[Task]) -> None:
         """Test PriorityQueueLayer conforms to MemoryLayer interface"""
-        layer: MemoryLayer[Task] = PriorityQueueLayer(max_size=5)
+        layer: MemoryLayer[Task] = PriorityQueueLayer(token_budget=500)
 
         # Test add method
         for task in sample_tasks[:3]:
-            await layer.add(task)
+            await layer.add(task, token_count=100)
 
         # Test size method
         assert layer.size() == 3
@@ -64,9 +64,9 @@ class TestLayerContract:
         retrieved = await layer.retrieve(None, limit=2)
         assert len(retrieved) == 2
 
-        # Test evict method
-        evicted = await layer.evict(count=1)
-        assert len(evicted) == 1
+        # Test evict_tokens method
+        evicted = await layer.evict_tokens(tokens_to_free=100)
+        assert len(evicted) >= 1
         assert layer.size() == 2
 
         # Test clear method

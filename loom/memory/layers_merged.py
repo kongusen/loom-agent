@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from loom.runtime import Task
 
 if TYPE_CHECKING:
-    from loom.memory.tokenizer import TokenCounter
+    pass
 
 T = TypeVar("T")
 

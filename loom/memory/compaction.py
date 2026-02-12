@@ -15,7 +15,6 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
-from loom.fractal.memory import MemoryScope
 from loom.memory.manager import MemoryManager
 from loom.memory.segment_store import MemorySegment, SegmentStore
 from loom.memory.tokenizer import TokenCounter
@@ -183,10 +182,9 @@ class MemoryCompactor:
         for i, fact in enumerate(facts):
             entry_id = f"compacted:{task.taskId}:{i}"
             try:
-                await self.memory_manager.write(
-                    entry_id=entry_id,
+                await self.memory_manager.add_context(
+                    context_id=entry_id,
                     content=fact,
-                    scope=MemoryScope.LOCAL,
                 )
             except Exception as e:
                 logger.warning(f"Failed to write compacted fact {entry_id}: {e}")

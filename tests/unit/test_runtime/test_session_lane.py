@@ -8,6 +8,7 @@ import asyncio
 
 import pytest
 
+from loom.events.actions import KnowledgeAction
 from loom.runtime import Task
 from loom.runtime.session_lane import SessionIsolationMode, SessionLaneInterceptor
 
@@ -207,3 +208,74 @@ class TestSessionLaneInterceptorLockManagement:
         await interceptor.after(task1)
         assert not lock1.locked()
         assert task1.taskId not in interceptor._task_locks
+
+
+class TestSessionLaneKnowledgeActionBypass:
+    """KnowledgeAction 任务绕过 session 串行控制"""
+
+    @pytest.mark.asyncio
+    async def test_knowledge_search_bypasses_lock(self):
+        """knowledge.search 不获取锁"""
+        interceptor = SessionLaneInterceptor(mode=SessionIsolationMode.STRICT)
+
+        task = Task(
+            taskId="search-1",
+            sessionId="session-1",
+            action=KnowledgeAction.SEARCH,
+            parameters={"query": "test"},
+        )
+        result = await interceptor.before(task)
+        assert result == task
+        assert task.taskId not in interceptor._task_locks
+
+    @pytest.mark.asyncio
+    async def test_knowledge_result_bypasses_lock(self):
+        """knowledge.result 不获取锁"""
+        interceptor = SessionLaneInterceptor(mode=SessionIsolationMode.STRICT)
+
+        task = Task(
+            taskId="result-1",
+            sessionId="session-1",
+            action=KnowledgeAction.SEARCH_RESULT,
+            parameters={"query": "test"},
+        )
+        result = await interceptor.before(task)
+        assert result == task
+        assert task.taskId not in interceptor._task_locks
+
+    @pytest.mark.asyncio
+    async def test_knowledge_action_concurrent_with_session_lock(self):
+        """KnowledgeAction 任务不被同 session 的普通任务阻塞"""
+        interceptor = SessionLaneInterceptor(mode=SessionIsolationMode.STRICT)
+
+        # 先让普通任务获取锁
+        normal_task = Task(
+            taskId="normal-1", sessionId="session-1", action="execute",
+        )
+        await interceptor.before(normal_task)
+        assert normal_task.taskId in interceptor._task_locks
+
+        # KnowledgeAction 任务应该立即通过，不被阻塞
+        search_task = Task(
+            taskId="search-1",
+            sessionId="session-1",
+            action=KnowledgeAction.SEARCH,
+            parameters={"query": "test"},
+        )
+        result = await interceptor.before(search_task)
+        assert result == search_task
+
+        # 清理
+        await interceptor.after(normal_task)
+
+    @pytest.mark.asyncio
+    async def test_normal_action_still_blocked(self):
+        """非 KnowledgeAction 的普通任务仍然受 session 串行控制"""
+        interceptor = SessionLaneInterceptor(mode=SessionIsolationMode.STRICT)
+
+        task = Task(
+            taskId="task-1", sessionId="session-1", action="execute",
+        )
+        await interceptor.before(task)
+        assert task.taskId in interceptor._task_locks
+        await interceptor.after(task)

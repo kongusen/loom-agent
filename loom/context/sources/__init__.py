@@ -10,6 +10,7 @@ from loom.context.sources.memory import L1RecentSource, L2ImportantSource
 from loom.context.sources.prompt import PromptSource
 from loom.context.sources.rag import RAGKnowledgeSource
 from loom.context.sources.semantic import L4SemanticSource
+from loom.context.sources.shared_pool import SharedPoolSource
 from loom.context.sources.skill import SkillSource
 from loom.context.sources.tool import ToolSource
 from loom.context.sources.user import UserInputSource
@@ -27,6 +28,8 @@ __all__ = [
     "PromptSource",
     "ToolSource",
     "SkillSource",
+    # Shared Memory
+    "SharedPoolSource",
     # Other
     "InheritedSource",
 ]

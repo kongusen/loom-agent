@@ -16,11 +16,11 @@ End-to-End Real API Test
 
 import pytest
 
+from loom.agent.card import AgentCapability, AgentCard
 from loom.config import LLMConfig
 from loom.fractal.container import NodeContainer
-from loom.agent.card import AgentCapability, AgentCard
-from loom.runtime import Task, TaskStatus
 from loom.providers.llm.openai import OpenAIProvider
+from loom.runtime import Task, TaskStatus
 from tests.api_config import requires_real_api
 
 

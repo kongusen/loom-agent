@@ -9,10 +9,11 @@ from loom.providers.knowledge.rag.builders.chunker import (
     ChunkingStrategy,
     SimpleChunker,
     SlidingWindowChunker,
+    extract_chunk_keywords,
 )
 from loom.providers.knowledge.rag.builders.entity_extractor import (
     EntityExtractor,
-    SimpleEntityExtractor,
+    LLMEntityExtractor,
 )
 from loom.providers.knowledge.rag.builders.index_builder import RAGIndexBuilder
 
@@ -22,7 +23,8 @@ __all__ = [
     "ChunkingStrategy",
     "SimpleChunker",
     "SlidingWindowChunker",
+    "extract_chunk_keywords",
     "EntityExtractor",
-    "SimpleEntityExtractor",
+    "LLMEntityExtractor",
     "RAGIndexBuilder",
 ]

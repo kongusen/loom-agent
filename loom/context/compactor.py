@@ -5,8 +5,9 @@ Context Compactor - 上下文压缩器
 基于 Anthropic Context Compaction 思想。
 """
 
+from collections.abc import Awaitable, Callable
 from enum import Enum
-from typing import TYPE_CHECKING, Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from loom.context.block import ContextBlock
 

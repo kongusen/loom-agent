@@ -9,9 +9,9 @@ State Manager - 状态管理器
 3. 可扩展 - 支持多种状态类型
 """
 
-from loom.runtime.task import Task
 from loom.runtime.state import AgentState
 from loom.runtime.state_store import MemoryStateStore, StateStore
+from loom.runtime.task import Task
 
 
 class StateManager:

@@ -8,10 +8,10 @@ ContextController - 上下文控制器
 Memory 只是 Context 控制的存储机制。
 """
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from collections.abc import Awaitable
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from loom.context import ContextBlock
@@ -70,7 +70,7 @@ class ContextController:
         """
         self._event_bus = event_bus
         self._token_counter = token_counter
-        self._sessions: dict[str, "Session"] = {}
+        self._sessions: dict[str, Session] = {}
 
         # L3: Agent 级聚合存储
         self._l3_summaries: list[dict[str, Any]] = []
@@ -288,11 +288,9 @@ class ContextController:
         Returns:
             提升结果统计
         """
-        result = {
-            "l1_to_l2": 0,
-            "l2_to_l3": None,
-            "l3_to_l4": False,
-        }
+        l1_to_l2_count = 0
+        l2_to_l3_summary: dict[str, Any] | None = None
+        l3_to_l4_ok = False
 
         # L1 → L2: 触发各 Session 的任务提升
         target_sessions = [session_id] if session_id else list(self._sessions.keys())
@@ -300,21 +298,24 @@ class ContextController:
             session = self._sessions.get(sid)
             if session and session.is_active:
                 session.promote_tasks()
-                result["l1_to_l2"] += 1
+                l1_to_l2_count += 1
 
         # L2 → L3: 聚合到 L3
         if l2_to_l3:
-            l3_summary = await self.aggregate_to_l3(
+            l2_to_l3_summary = await self.aggregate_to_l3(
                 session_ids=target_sessions if session_id else None,
                 summarizer=summarizer,
             )
-            result["l2_to_l3"] = l3_summary
 
         # L3 → L4: 持久化
-        if l3_to_l4 and result["l2_to_l3"]:
-            result["l3_to_l4"] = await self.persist_to_l4(result["l2_to_l3"])
+        if l3_to_l4 and l2_to_l3_summary:
+            l3_to_l4_ok = await self.persist_to_l4(l2_to_l3_summary)
 
-        return result
+        return {
+            "l1_to_l2": l1_to_l2_count,
+            "l2_to_l3": l2_to_l3_summary,
+            "l3_to_l4": l3_to_l4_ok,
+        }
 
     async def aggregate_context(
         self,
@@ -353,7 +354,7 @@ class ContextController:
         budgets = self._allocate_budget(sessions, token_budget, allocation_strategy)
 
         # 从每个 Session 收集上下文
-        for session, budget in zip(sessions, budgets):
+        for session, budget in zip(sessions, budgets, strict=False):
             session_blocks = await self._collect_from_session(session, query, budget)
             blocks.extend(session_blocks)
 
@@ -384,7 +385,7 @@ class ContextController:
     async def _collect_from_session(
         self,
         session: "Session",
-        query: str,
+        _query: str,
         budget: int,
     ) -> list["ContextBlock"]:
         """从单个 Session 收集上下文"""
@@ -423,15 +424,15 @@ class ContextController:
         params = task.parameters
 
         if action == "node.thinking":
-            return params.get("content", "")
+            return str(params.get("content", ""))
         elif action == "node.tool_call":
             tool_name = params.get("tool_name", "")
             tool_args = params.get("tool_args", {})
             return f"[Tool: {tool_name}] {tool_args}"
         elif action == "node.message":
-            return params.get("content") or params.get("message", "")
+            return str(params.get("content") or params.get("message", ""))
         elif action == "execute":
-            return params.get("content", "")
+            return str(params.get("content", ""))
 
         return ""
 
@@ -462,7 +463,7 @@ class ContextController:
         Returns:
             {session_id: task} 映射
         """
-        results: dict[str, "Task"] = {}
+        results: dict[str, Task] = {}
 
         for sid in session_ids:
             session = self._sessions.get(sid)
@@ -470,10 +471,7 @@ class ContextController:
                 continue
 
             # 复制或直接使用
-            if copy_task:
-                distributed_task = task.copy()
-            else:
-                distributed_task = task
+            distributed_task = task.copy() if copy_task else task
 
             # 添加到 Session
             session.add_task(distributed_task)
@@ -504,10 +502,7 @@ class ContextController:
                 continue
 
             try:
-                if copy_task:
-                    t = task.model_copy(deep=True)
-                else:
-                    t = task
+                t = task.model_copy(deep=True) if copy_task else task
                 session.add_task(t)
                 result.success[sid] = t
             except Exception as e:
@@ -542,10 +537,7 @@ class ContextController:
                 continue
 
             try:
-                if copy_task:
-                    t = task.model_copy(deep=True)
-                else:
-                    t = task
+                t = task.model_copy(deep=True) if copy_task else task
                 session.add_task(t)
                 result.success[sid] = t
             except Exception as e:
@@ -579,7 +571,7 @@ class ContextController:
             return {}
 
         # 收集要共享的任务
-        tasks_to_share: list["Task"] = []
+        tasks_to_share: list[Task] = []
 
         # L1 最近任务
         l1_tasks = source.get_l1_tasks(limit=task_limit)

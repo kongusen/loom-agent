@@ -8,13 +8,13 @@ from datetime import datetime
 
 import pytest
 
-from loom.runtime.task import Task, TaskStatus
 from loom.runtime import (
     AgentState,
     AgentStatus,
     MemoryStateStore,
     StateManager,
 )
+from loom.runtime.task import Task, TaskStatus
 
 
 class TestAgentState:

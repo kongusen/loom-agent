@@ -20,9 +20,9 @@ from enum import Enum
 from typing import Any
 
 from loom.events import EventBus
-from loom.tools.mcp_types import MCPToolDefinition
 from loom.tools.core.mcp_adapter import MCPAdapter
 from loom.tools.core.sandbox import Sandbox
+from loom.tools.mcp_types import MCPToolDefinition
 
 
 class ToolScope(Enum):

@@ -43,10 +43,22 @@ RAG 框架原子能力
 """
 
 # 主类
-from loom.providers.knowledge.rag.graph_rag import GraphRAGKnowledgeBase
+# 构建器
+from loom.providers.knowledge.rag.builders import (
+    ChunkingStrategy,
+    Document,
+    EntityExtractor,
+    IndexBuilder,
+    LLMEntityExtractor,
+    RAGIndexBuilder,
+    SimpleChunker,
+    SlidingWindowChunker,
+    extract_chunk_keywords,
+)
 
 # 配置
-from loom.providers.knowledge.rag.config import RAGConfig, StorageType
+from loom.providers.knowledge.rag.config import ExtractionConfig, RAGConfig
+from loom.providers.knowledge.rag.graph_rag import GraphRAGKnowledgeBase
 
 # 数据模型
 from loom.providers.knowledge.rag.models import (
@@ -54,27 +66,6 @@ from loom.providers.knowledge.rag.models import (
     Relation,
     RetrievalResult,
     TextChunk,
-)
-
-# 构建器
-from loom.providers.knowledge.rag.builders import (
-    ChunkingStrategy,
-    Document,
-    EntityExtractor,
-    IndexBuilder,
-    RAGIndexBuilder,
-    SimpleChunker,
-    SimpleEntityExtractor,
-    SlidingWindowChunker,
-)
-
-# 策略
-from loom.providers.knowledge.rag.strategies import (
-    GraphFirstStrategy,
-    HybridStrategy,
-    RetrievalStrategy,
-    StrategyType,
-    VectorFirstStrategy,
 )
 
 # 检索器
@@ -96,12 +87,21 @@ from loom.providers.knowledge.rag.stores import (
     RelationStore,
 )
 
+# 策略
+from loom.providers.knowledge.rag.strategies import (
+    GraphFirstStrategy,
+    HybridStrategy,
+    RetrievalStrategy,
+    StrategyType,
+    VectorFirstStrategy,
+)
+
 __all__ = [
     # 主类
     "GraphRAGKnowledgeBase",
     # 配置
     "RAGConfig",
-    "StorageType",
+    "ExtractionConfig",
     # 数据模型
     "TextChunk",
     "Entity",
@@ -113,8 +113,9 @@ __all__ = [
     "ChunkingStrategy",
     "SimpleChunker",
     "SlidingWindowChunker",
+    "extract_chunk_keywords",
     "EntityExtractor",
-    "SimpleEntityExtractor",
+    "LLMEntityExtractor",
     "Document",
     # 策略
     "StrategyType",

@@ -23,6 +23,10 @@ demo/
 ├── 14_workflow_pipeline.py  # 工作流管道
 ├── 15_memory_hierarchy.py   # 记忆层级与跨Session共享
 ├── 16_interceptors.py       # 拦截器示例
+├── 17_memory_rag_autowiring.py # Memory+RAG+Knowledge 自动接线
+├── 18_adaptive_budget.py    # Context 动态预算与任务阶段
+├── 19_tracing_metrics.py    # Tracing 与 Metrics 可观测性
+├── 20_checkpoint.py         # Checkpoint 检查点与恢复
 └── skills/
     └── code-review/
         └── SKILL.md
@@ -61,3 +65,7 @@ python 02_custom_tools.py
 | 14 | 工作流管道与结果合成 |
 | 15 | 记忆层级 L1-L4 与跨Session共享 |
 | 16 | 拦截器：日志、性能监控、指标收集 |
+| 17 | Memory+RAG+Knowledge 自动接线 |
+| 18 | Context 动态预算与 TaskPhase 阶段策略 |
+| 19 | LoomTracer 追踪 + LoomMetrics 指标 |
+| 20 | Checkpoint 检查点与断点续跑 |

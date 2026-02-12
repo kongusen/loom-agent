@@ -9,6 +9,7 @@
 """
 
 import asyncio
+
 from loom.api import (
     ContextController,
     Session,
@@ -85,7 +86,7 @@ async def demo_session_private_scope_child(session: Session):
         parameters={"content": "子节点本地数据 - 仅本 Session 可见"},
     )
     session.add_task(task)
-    print(f"    写入: 子节点本地数据")
+    print("    写入: 子节点本地数据")
     print(f"    Child Session L1 任务数: {len(session.get_l1_tasks(limit=10))}")
 
 

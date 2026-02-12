@@ -5,10 +5,11 @@ Context Orchestrator - 上下文编排器
 基于 Anthropic Context Engineering 思想。
 """
 
-from typing import TYPE_CHECKING, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from loom.context.block import ContextBlock
-from loom.context.budget import BudgetManager, TokenBudget
+from loom.context.budget import BudgetManager
 from loom.context.collector import ContextCollector
 from loom.context.compactor import ContextCompactor
 from loom.context.source import ContextSource
@@ -36,6 +37,7 @@ class ContextOrchestrator:
         output_reserve_ratio: float = 0.25,
         allocation_ratios: dict[str, float] | None = None,
         summarizer: Callable[[str], Awaitable[str]] | None = None,
+        budget_manager: BudgetManager | None = None,
     ):
         """
         初始化编排器
@@ -47,17 +49,21 @@ class ContextOrchestrator:
             output_reserve_ratio: 预留给输出的比例
             allocation_ratios: 各源的预算分配比例
             summarizer: 摘要生成函数（用于压缩）
+            budget_manager: 预算管理器（可选，默认创建 BudgetManager）
         """
         self.token_counter = token_counter
         self.sources = sources
 
-        # 预算管理器
-        self.budget_manager = BudgetManager(
-            token_counter=token_counter,
-            model_context_window=model_context_window,
-            output_reserve_ratio=output_reserve_ratio,
-            allocation_ratios=allocation_ratios,
-        )
+        # 预算管理器（支持外部注入，如 AdaptiveBudgetManager）
+        if budget_manager is not None:
+            self.budget_manager = budget_manager
+        else:
+            self.budget_manager = BudgetManager(
+                token_counter=token_counter,
+                model_context_window=model_context_window,
+                output_reserve_ratio=output_reserve_ratio,
+                allocation_ratios=allocation_ratios,
+            )
 
         # 收集器
         self.collector = ContextCollector(

@@ -2,9 +2,9 @@
 
 import pytest
 
-from loom.memory.manager import MemoryManager
 from loom.context.orchestrator import ContextOrchestrator
 from loom.context.sources.memory import L1RecentSource
+from loom.memory.manager import MemoryManager
 from loom.memory.tokenizer import EstimateCounter
 from loom.runtime import Task
 

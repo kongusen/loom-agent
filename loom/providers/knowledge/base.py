@@ -35,6 +35,30 @@ class KnowledgeBaseProvider(ABC):
     用户可以实现此接口来集成各种知识源
     """
 
+    # ---- 元信息（用于自动生成统一检索工具描述）----
+
+    @property
+    def name(self) -> str:
+        """知识库标识名（如 "product_docs"）"""
+        return self.__class__.__name__
+
+    @property
+    def description(self) -> str:
+        """知识库描述（如 "产品文档和API参考手册"）"""
+        return ""
+
+    @property
+    def search_hints(self) -> list[str]:
+        """搜索提示（如 ["产品功能", "API用法", "错误排查"]）"""
+        return []
+
+    @property
+    def supported_filters(self) -> list[str]:
+        """支持的过滤维度（如 ["category", "version"]）"""
+        return []
+
+    # ---- 检索接口 ----
+
     @abstractmethod
     async def query(
         self,

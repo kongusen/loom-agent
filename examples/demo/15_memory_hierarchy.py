@@ -360,7 +360,7 @@ async def demo_memory_layers(team: dict[str, Any]):
 
     # 演示记忆统计
     stats = researcher_session.get_stats()
-    print(f"\n    [Stats] Session 统计:")
+    print("\n    [Stats] Session 统计:")
     print(f"        Session ID: {stats['session_id']}")
     print(f"        状态: {stats['status']}")
 
@@ -377,7 +377,7 @@ async def demo_cross_session_collaboration(team: dict[str, Any]):
 
     controller = team["controller"]
     sessions = team["sessions"]
-    agents = team["agents"]
+    team["agents"]
 
     # 1. Coordinator 分配任务给 Researcher
     print("\n    [Step 1] Coordinator 分配任务")
@@ -565,7 +565,7 @@ async def demo_rag_integration(team: dict[str, Any], kb):
         knowledge_base=kb,
         relevance_threshold=0.3,
     )
-    print(f"        RAGKnowledgeSource (阈值: 0.3)")
+    print("        RAGKnowledgeSource (阈值: 0.3)")
 
     # 2. 为 Researcher 创建上下文编排器
     print("\n    [Step 2] 为 Researcher 创建上下文编排器")
@@ -643,7 +643,7 @@ async def demo_full_collaboration(team: dict[str, Any]):
 
     # Phase 1: Coordinator 分配任务
     print("\n    [Phase 1] Coordinator 分配任务")
-    coordinator = agents["coordinator"]
+    agents["coordinator"]
     coordinator_session = sessions["coordinator"]
 
     delegation_task = Task(
@@ -674,7 +674,7 @@ async def demo_full_collaboration(team: dict[str, Any]):
             research_content = response.content if hasattr(response, "content") else str(response)
             print(f"        研究结果: {research_content[:100]}...")
         except Exception as e:
-            research_content = f"研究完成（模拟）: 记忆系统应采用分层架构"
+            research_content = "研究完成（模拟）: 记忆系统应采用分层架构"
             print(f"        LLM 调用失败，使用模拟结果: {e}")
     else:
         research_content = "研究完成（模拟）: 记忆系统应采用 L1-L4 分层架构，支持自动提升和压缩"

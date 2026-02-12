@@ -23,7 +23,7 @@ class KeywordRetriever(BaseRetriever):
         self,
         query: str,
         limit: int = 10,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> list[TextChunk]:
         """
         关键词检索

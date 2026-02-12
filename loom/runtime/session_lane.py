@@ -14,7 +14,8 @@ import logging
 from enum import StrEnum
 from typing import Any
 
-from loom.runtime import Task
+from loom.events.actions import KnowledgeAction
+from loom.runtime.task import Task
 from loom.runtime.interceptor import Interceptor
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,10 @@ class SessionLaneInterceptor(Interceptor):
         """
         # 无 session_id 则放行
         if not task.sessionId:
+            return task
+
+        # KnowledgeAction 是 Agent 内部子操作，不参与 session 串行控制
+        if task.action in (KnowledgeAction.SEARCH, KnowledgeAction.SEARCH_RESULT):
             return task
 
         # 使用 task.taskId 作为节点标识（因为没有 context）

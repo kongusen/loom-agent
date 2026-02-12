@@ -16,7 +16,24 @@ Loom Framework - 统一对外API
 
 # A1: 统一接口公理 - 协议层
 # 配置层
+# Stream API - 分形流式观测
+from loom.api.stream_api import (
+    FractalEvent,
+    FractalStreamAPI,
+    OutputStrategy,
+    StreamAPI,
+)
+
+# Version API - 版本管理
+from loom.api.version import (
+    ChangeType,
+    VersionAPI,
+    VersionInfo,
+    get_version,
+    get_version_info,
+)
 from loom.config import ContextConfig
+from loom.config.context import BudgetConfig
 from loom.config.tool import ToolConfig
 
 # A2: 事件主权公理 - 事件层
@@ -40,35 +57,16 @@ from loom.memory import (
     MemoryUnit,
 )
 from loom.memory.compaction import CompactionConfig
-from loom.config.context import BudgetConfig
-# A1: 统一接口公理 - 协议层（Task 已迁移到 runtime）
-from loom.runtime import Task, TaskStatus
 
+# A1: 统一接口公理 - 协议层（Task 已迁移到 runtime）
 # Runtime
-from loom.runtime import Dispatcher, Interceptor, InterceptorChain
+from loom.runtime import Dispatcher, Interceptor, InterceptorChain, Task, TaskStatus
 from loom.runtime.session_lane import SessionIsolationMode
 
 # Security
 from loom.security import BlacklistPolicy, ToolPolicy, WhitelistPolicy
 
-# Stream API - 分形流式观测
-from loom.api.stream_api import (
-    FractalEvent,
-    FractalStreamAPI,
-    OutputStrategy,
-    StreamAPI,
-)
-
-# Version API - 版本管理
-from loom.api.version import (
-    ChangeType,
-    VersionAPI,
-    VersionInfo,
-    get_version,
-    get_version_info,
-)
-
-__version__ = "0.5.5"
+__version__ = "0.5.6"
 
 __all__ = [
     # Protocol (Task moved to Runtime)

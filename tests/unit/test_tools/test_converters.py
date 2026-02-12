@@ -4,8 +4,8 @@ Tests for Tool Converters
 测试将函数转换为MCP工具定义的功能
 """
 
-from loom.tools.mcp_types import MCPToolDefinition
 from loom.tools.core.converters import FunctionToMCP
+from loom.tools.mcp_types import MCPToolDefinition
 
 
 class TestFunctionToMCPConvert:

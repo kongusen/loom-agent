@@ -16,6 +16,8 @@ Sandbox - 沙箱环境管理
 """
 
 import asyncio
+import multiprocessing
+from multiprocessing.queues import Empty as QueueEmpty
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,55 @@ try:
     RESTRICTED_PYTHON_AVAILABLE = True
 except ImportError:
     RESTRICTED_PYTHON_AVAILABLE = False
+
+
+def _run_sandboxed_code(
+    code_str: str,
+    params: dict[str, Any],
+    allowed_modules: list[str],
+    result_queue: "multiprocessing.Queue[dict[str, Any]]",
+) -> None:
+    """在子进程中执行受限 Python 代码"""
+    try:
+        from RestrictedPython import compile_restricted, safe_globals
+
+        byte_code = compile_restricted(code_str, "<sandbox>", "exec")
+
+        safe_env: dict[str, Any] = safe_globals.copy()
+        safe_env.update(params)
+
+        for module_name in allowed_modules:
+            try:
+                module = __import__(module_name)
+                safe_env[module_name] = module
+            except ImportError:
+                pass
+
+        safe_env["__builtins__"] = safe_env["__builtins__"].copy()
+
+        def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name in allowed_modules:
+                return __import__(name, globals, locals, fromlist, level)
+            raise ImportError(f"Import of '{name}' is not allowed")
+
+        safe_env["__builtins__"]["__import__"] = safe_import
+
+        class MockPrintCollector:
+            def _call_print(self, *args, **kwargs):
+                print(*args, **kwargs)
+
+            def __call__(self, *args, **kwargs):
+                print(*args, **kwargs)
+
+        safe_env["_print_"] = MockPrintCollector()
+        safe_env["_getattr_"] = getattr
+
+        exec(byte_code, safe_env)
+
+        result = safe_env.get("result", None)
+        result_queue.put({"success": True, "result": result})
+    except Exception as e:
+        result_queue.put({"success": False, "error": str(e)})
 
 
 class SandboxViolation(Exception):
@@ -235,6 +286,8 @@ class Sandbox:
         """
         在沙箱中执行 Python 代码
 
+        使用子进程执行，确保超时时可以强制终止（包括无限循环）。
+
         Args:
             code: Python 代码
             params: 输入参数
@@ -251,36 +304,66 @@ class Sandbox:
                 "error": "RestrictedPython not installed. Install with: pip install RestrictedPython",
             }
 
+        # 先在主进程编译，快速捕获语法错误
         try:
-            # 编译受限代码
-            byte_code = compile_restricted(code, "<sandbox>", "exec")
+            compile_restricted(code, "<sandbox>", "exec")
+        except SandboxViolation:
+            raise
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
-            # if byte_code.errors:
-            #     raise SandboxViolation(f"Code compilation errors: {byte_code.errors}")
+        # 在子进程中执行，支持强制终止
+        result_queue: multiprocessing.Queue[dict[str, Any]] = multiprocessing.Queue()
+        process = multiprocessing.Process(
+            target=_run_sandboxed_code,
+            args=(code, params or {}, self.allowed_modules, result_queue),
+        )
+        process.start()
 
-            # 创建安全环境
-            safe_env = self._create_safe_environment(params or {})
-
-            # 执行代码（带超时）
-            loop = asyncio.get_event_loop()
-            await asyncio.wait_for(
-                loop.run_in_executor(None, exec, byte_code, safe_env),
-                timeout=self.python_timeout,
-            )
-
-            # 提取结果
-            result = safe_env.get("result", None)
-
-            return {"success": True, "result": result}
-
-        except TimeoutError:
+        try:
+            # 使用轮询方式而不是阻塞的 run_in_executor，避免线程无法被终止
+            # 轮询间隔：100ms，这样可以及时响应超时和进程终止
+            poll_interval = 0.1
+            elapsed = 0.0
+            
+            while elapsed < self.python_timeout:
+                # 检查进程是否还在运行
+                if not process.is_alive():
+                    # 进程已结束，尝试获取结果
+                    try:
+                        result = result_queue.get_nowait()
+                        process.join(timeout=1)
+                        return result
+                    except QueueEmpty:
+                        # 队列为空，进程可能异常退出
+                        process.join(timeout=1)
+                        return {
+                            "success": False,
+                            "error": "Process terminated without result",
+                        }
+                
+                # 尝试非阻塞获取结果
+                try:
+                    result = result_queue.get_nowait()
+                    process.join(timeout=1)
+                    return result
+                except QueueEmpty:
+                    # 队列为空，继续等待
+                    await asyncio.sleep(poll_interval)
+                    elapsed += poll_interval
+            
+            # 超时：强制终止进程
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=1)
             return {
                 "success": False,
                 "error": f"Execution timeout after {self.python_timeout} seconds",
             }
-        except SandboxViolation:
-            raise
         except Exception as e:
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=1)
             return {"success": False, "error": str(e)}
 
     def _create_safe_environment(self, params: dict[str, Any]) -> dict[str, Any]:

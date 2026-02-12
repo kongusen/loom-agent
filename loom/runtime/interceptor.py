@@ -19,7 +19,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from loom.runtime import Task, TaskStatus
+from loom.runtime.task import Task, TaskStatus
 
 logger = logging.getLogger(__name__)
 

@@ -6,9 +6,9 @@ Tools Module Unit Tests
 
 import pytest
 
-from loom.tools.mcp_types import MCPToolDefinition
 from loom.tools.core.converters import FunctionToMCP
 from loom.tools.core.registry import ToolRegistry
+from loom.tools.mcp_types import MCPToolDefinition
 
 
 class TestToolRegistry:

@@ -18,7 +18,7 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_l1_insertion_performance(self) -> None:
         """Test L1 (CircularBuffer) insertion performance"""
-        layer = CircularBufferLayer(max_size=100)
+        layer = CircularBufferLayer(token_budget=10000)
 
         # Create 1000 tasks
         tasks = []
@@ -30,7 +30,7 @@ class TestPerformance:
         # Measure insertion time
         start = time.perf_counter()
         for task in tasks:
-            await layer.add(task)
+            await layer.add(task, token_count=10)
         elapsed = time.perf_counter() - start
 
         # Target: < 10ms for 1000 insertions
@@ -40,7 +40,7 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_l2_insertion_performance(self) -> None:
         """Test L2 (PriorityQueue) insertion performance - O(log n)"""
-        layer = PriorityQueueLayer(max_size=100)
+        layer = PriorityQueueLayer(token_budget=10000)
 
         # Create 1000 tasks
         tasks = []
@@ -52,7 +52,7 @@ class TestPerformance:
         # Measure insertion time
         start = time.perf_counter()
         for task in tasks:
-            await layer.add(task)
+            await layer.add(task, token_count=10)
         elapsed = time.perf_counter() - start
 
         # Target: < 50ms for 1000 insertions (100x improvement from O(n log n))

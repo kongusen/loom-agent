@@ -7,8 +7,8 @@ import pytest
 
 from loom.agent.core import Agent
 from loom.config.agent import AgentConfig
-from loom.runtime import Task
 from loom.providers.llm.mock import MockLLMProvider
+from loom.runtime import Task
 from loom.tools.core.registry import ToolRegistry
 from loom.tools.skills.registry import SkillRegistry
 

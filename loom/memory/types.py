@@ -140,7 +140,7 @@ class MemoryUnit:
             return {"role": "system", "content": str(self.content)}
 
 
-@dataclass
+@dataclass(slots=True)
 class TaskSummary:
     """
     Task摘要 - 用于L3层存储
@@ -174,7 +174,7 @@ class FactType(Enum):
     BEST_PRACTICE = "best_practice"  # 最佳实践
 
 
-@dataclass
+@dataclass(slots=True)
 class Fact:
     """
     可复用的事实 - 原子化知识存储

@@ -91,15 +91,15 @@ class L1RecentSource(ContextSource):
         params = task.parameters
 
         if action == "node.thinking":
-            return params.get("content", "")
+            return str(params.get("content", ""))
         elif action == "node.tool_call":
             tool_name = params.get("tool_name", "")
             tool_args = params.get("tool_args", {})
             return f"[Tool: {tool_name}] {tool_args}"
         elif action == "node.message":
-            return params.get("content") or params.get("message", "")
+            return str(params.get("content") or params.get("message", ""))
         elif action == "execute":
-            return params.get("content", "")
+            return str(params.get("content", ""))
 
         return ""
 
@@ -178,14 +178,14 @@ class L2ImportantSource(ContextSource):
         params = task.parameters
 
         if action == "node.thinking":
-            return params.get("content", "")
+            return str(params.get("content", ""))
         elif action == "node.tool_call":
             tool_name = params.get("tool_name", "")
             tool_args = params.get("tool_args", {})
             return f"[Tool: {tool_name}] {tool_args}"
         elif action == "node.message":
-            return params.get("content") or params.get("message", "")
+            return str(params.get("content") or params.get("message", ""))
         elif action == "execute":
-            return params.get("content", "")
+            return str(params.get("content", ""))
 
         return ""

@@ -2,7 +2,6 @@
 Memory - 记忆操作工具
 
 包含：
-- query: 查询记忆 (query_memory)
 - browse: 浏览记忆 (browse_memory)
 - manage: 管理记忆 (manage_memory)
 - events: 事件查询 (query_events)
@@ -14,12 +13,9 @@ if TYPE_CHECKING:
     from .browse import create_unified_browse_tool, execute_unified_browse_tool
     from .events import create_unified_events_tool, execute_unified_events_tool
     from .manage import create_unified_manage_tool, execute_unified_manage_tool
-    from .query import create_unified_memory_tool, execute_unified_memory_tool
 
 # 懒加载映射
 _MEMORY_REGISTRY: dict[str, tuple[str, str]] = {
-    "create_unified_memory_tool": (".query", "create_unified_memory_tool"),
-    "execute_unified_memory_tool": (".query", "execute_unified_memory_tool"),
     "create_unified_browse_tool": (".browse", "create_unified_browse_tool"),
     "execute_unified_browse_tool": (".browse", "execute_unified_browse_tool"),
     "create_unified_manage_tool": (".manage", "create_unified_manage_tool"),
@@ -43,8 +39,6 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    "create_unified_memory_tool",
-    "execute_unified_memory_tool",
     "create_unified_browse_tool",
     "execute_unified_browse_tool",
     "create_unified_manage_tool",

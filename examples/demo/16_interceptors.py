@@ -14,7 +14,7 @@ import logging
 import time
 from typing import Any
 
-from loom.runtime import Task, TaskStatus, Interceptor, InterceptorChain
+from loom.runtime import Interceptor, InterceptorChain, Task, TaskStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

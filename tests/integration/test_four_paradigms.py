@@ -13,8 +13,8 @@ Four Paradigms Integration Tests
 import pytest
 
 from loom.agent import Agent
-from loom.runtime import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
+from loom.runtime import Task, TaskStatus
 from loom.tools.core.registry import ToolRegistry
 
 

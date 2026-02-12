@@ -7,8 +7,8 @@ Capabilities Integration Tests
 import pytest
 
 from loom.agent import Agent
-from loom.runtime import Task, TaskStatus
 from loom.providers.llm.mock import MockLLMProvider
+from loom.runtime import Task, TaskStatus
 from loom.tools.core.registry import ToolRegistry
 from loom.tools.skills.activator import SkillActivator
 from loom.tools.skills.loader import SkillLoader
@@ -132,3 +132,73 @@ You are a Python expert. When reviewing code, always check:
         result_content = result.result.get("content", "")
         # 注意：Mock LLM 的响应是我们预设的，所以这里主要验证流程通畅
         assert "type hints" in result_content.lower() or "type hint" in result_content.lower()
+
+
+class TestSkillKnowledgeBinding:
+    """Skill-Knowledge 绑定集成测试"""
+
+    def test_activation_includes_search_guidance(self):
+        """激活带 search_guidance 的 Skill，验证注入内容包含搜索指引"""
+        guidance = (
+            "当用户询问产品功能时，使用 query(scope='knowledge') 查找文档。\n"
+            "当用户报告错误时，使用 query(intent='troubleshooting')。"
+        )
+        skill = SkillDefinition(
+            skill_id="customer-support",
+            name="Customer Support",
+            description="客户支持技能",
+            instructions="处理客户问题。",
+            knowledge_domains=["product_docs", "faq"],
+            search_guidance=guidance,
+        )
+
+        content = skill.get_full_instructions()
+
+        # 验证 knowledge_domains 出现
+        assert "product_docs" in content
+        assert "faq" in content
+        # 验证 search_guidance 出现
+        assert "query(scope='knowledge')" in content
+        assert "troubleshooting" in content
+
+    @pytest.mark.asyncio
+    async def test_activator_passes_through_search_guidance(self):
+        """SkillActivator.activate() 返回的 content 包含 search_guidance"""
+        guidance = "使用 query(source='docs') 搜索产品文档。"
+        skill = SkillDefinition(
+            skill_id="docs-skill",
+            name="Docs Skill",
+            description="文档技能",
+            instructions="帮助用户查找文档。",
+            knowledge_domains=["docs"],
+            search_guidance=guidance,
+        )
+
+        mock_llm = MockLLMProvider(responses=[])
+        activator = SkillActivator(llm_provider=mock_llm)
+        result = await activator.activate(skill)
+
+        assert result.success is True
+        assert result.content is not None
+        assert "Search Guidance" in result.content
+        assert guidance in result.content
+        assert "Knowledge Domains" in result.content
+        assert "`docs`" in result.content
+
+    @pytest.mark.asyncio
+    async def test_activator_without_knowledge_fields(self):
+        """无 knowledge 字段的 Skill 激活正常，不包含相关 section"""
+        skill = SkillDefinition(
+            skill_id="basic-skill",
+            name="Basic Skill",
+            description="基础技能",
+            instructions="执行基础操作。",
+        )
+
+        mock_llm = MockLLMProvider(responses=[])
+        activator = SkillActivator(llm_provider=mock_llm)
+        result = await activator.activate(skill)
+
+        assert result.success is True
+        assert "Knowledge Domains" not in result.content
+        assert "Search Guidance" not in result.content

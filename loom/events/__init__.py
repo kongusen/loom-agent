@@ -16,7 +16,7 @@ A2: 事件主权公理 (Event Sovereignty Axiom)
 - NATSTransport: NATS传输层（分布式、生产）- 需要安装nats-py
 """
 
-from loom.events.actions import AgentAction, MemoryAction, TaskAction
+from loom.events.actions import AgentAction, KnowledgeAction, MemoryAction, TaskAction
 from loom.events.context_controller import ContextController
 from loom.events.event_bus import EventBus
 from loom.events.handlers import AgentHandler, MemoryHandler, TaskHandler
@@ -43,6 +43,7 @@ __all__ = [
     "TaskAction",
     "MemoryAction",
     "AgentAction",
+    "KnowledgeAction",
     "TaskHandler",
     "MemoryHandler",
     "AgentHandler",

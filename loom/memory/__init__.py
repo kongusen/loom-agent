@@ -29,11 +29,12 @@ A4: 记忆层次公理 (Memory Hierarchy Axiom)
 - EstimateCounter: 估算计数器
 """
 
-from loom.memory.compression import L4Compressor
+from loom.memory.compression import FidelityChecker, FidelityResult, L4Compressor
 from loom.memory.core import LoomMemory
 from loom.memory.factory import MemoryFactory
 from loom.memory.manager import MemoryManager
 from loom.memory.sanitizers import ContentSanitizer
+from loom.memory.shared_pool import PoolEntry, SharedMemoryPool, VersionConflictError
 from loom.memory.tokenizer import (
     AnthropicCounter,
     EstimateCounter,
@@ -64,6 +65,8 @@ __all__ = [
     "ContentSanitizer",
     "MemoryFactory",
     "L4Compressor",
+    "FidelityChecker",
+    "FidelityResult",
     "VectorStoreProvider",
     "InMemoryVectorStore",
     "EmbeddingProvider",
@@ -71,4 +74,7 @@ __all__ = [
     "TiktokenCounter",
     "AnthropicCounter",
     "EstimateCounter",
+    "SharedMemoryPool",
+    "PoolEntry",
+    "VersionConflictError",
 ]

@@ -41,6 +41,8 @@ class SkillDefinition:
     references: dict[str, str] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
     source: str = "unknown"
+    knowledge_domains: list[str] = field(default_factory=list)
+    search_guidance: str = ""
 
     def get_full_instructions(self) -> str:
         """
@@ -63,6 +65,15 @@ class SkillDefinition:
             parts.append("\n## Required Tools\n")
             for tool in self.required_tools:
                 parts.append(f"- `{tool}`\n")
+
+        if self.knowledge_domains:
+            parts.append("\n## Knowledge Domains\n")
+            for domain in self.knowledge_domains:
+                parts.append(f"- `{domain}`\n")
+
+        if self.search_guidance:
+            parts.append("\n## Search Guidance\n")
+            parts.append(self.search_guidance)
 
         return "".join(parts)
 

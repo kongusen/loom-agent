@@ -10,9 +10,10 @@
 import asyncio
 import tempfile
 from pathlib import Path
-from loom.tools.core.sandbox import Sandbox
-from loom.tools.builtin.file import create_file_tools
+
 from loom.tools.builtin.bash import create_bash_tool
+from loom.tools.builtin.file import create_file_tools
+from loom.tools.core.sandbox import Sandbox
 
 
 async def main():

@@ -31,10 +31,12 @@ class TestTaskBasedMemory:
         assert l1_tasks[2].action == "test_action_3"
 
     def test_l1_circular_buffer(self):
-        """测试L1循环缓冲区"""
-        memory = LoomMemory(node_id="test_node", max_l1_size=3)
+        """测试L1循环缓冲区（Token-First Design）"""
+        # Each task ≈ 7 tokens ("action_X: {'index': X} -> None" ≈ 31 chars / 4)
+        # Budget of 25 tokens holds 3 tasks (21 tokens) but evicts on 4th (28 tokens)
+        memory = LoomMemory(node_id="test_node", l1_token_budget=25)
 
-        # 添加4个Task，应该只保留最后3个
+        # 添加4个Task，应该只保留最后3个（token 预算驱逐）
         for i in range(4):
             task = Task(action=f"action_{i}", parameters={"index": i})
             memory.add_task(task, tier=MemoryTier.L1_RAW_IO)
@@ -42,7 +44,7 @@ class TestTaskBasedMemory:
         l1_tasks = memory.get_l1_tasks(limit=10)
         assert len(l1_tasks) == 3
 
-        # 第一个应该被移除
+        # 第一个应该被移除（FIFO驱逐）
         actions = [t.action for t in l1_tasks]
         assert "action_0" not in actions
         assert "action_1" in actions
@@ -107,8 +109,8 @@ class TestTaskBasedMemory:
         assert retrieved.task_id == task.task_id
 
     def test_memory_stats(self):
-        """测试记忆统计信息"""
-        memory = LoomMemory(node_id="test_node", max_l1_size=50, max_l2_size=100)
+        """测试记忆统计信息（Token-First Design）"""
+        memory = LoomMemory(node_id="test_node", l1_token_budget=500, l2_token_budget=1000)
 
         # 添加一些Task
         for i in range(5):
@@ -116,12 +118,12 @@ class TestTaskBasedMemory:
             memory.add_task(task, tier=MemoryTier.L1_RAW_IO)
 
         stats = memory.get_stats()
-        assert stats["l1_size"] == 5
-        assert stats["l2_size"] == 0
-        assert stats["l3_size"] == 0
+        assert stats["l1_item_count"] == 5
+        assert stats["l2_item_count"] == 0
+        assert stats["l3_item_count"] == 0
         assert stats["total_tasks"] == 5
-        assert stats["max_l1_size"] == 50
-        assert stats["max_l2_size"] == 100
+        assert stats["l1_token_budget"] == 500
+        assert stats["l2_token_budget"] == 1000
 
     def test_clear_l2(self):
         """测试清空L2"""
@@ -150,12 +152,14 @@ class TestTaskBasedMemory:
 
         memory.clear_all()
         assert memory.get_stats()["total_tasks"] == 0
-        assert memory.get_stats()["l1_size"] == 0
-        assert memory.get_stats()["l2_size"] == 0
+        assert memory.get_stats()["l1_item_count"] == 0
+        assert memory.get_stats()["l2_item_count"] == 0
 
     def test_task_summary_generation(self):
-        """测试Task摘要生成"""
-        memory = LoomMemory(node_id="test_node", max_l2_size=2)
+        """测试Task摘要生成（Token-First Design）"""
+        # Each task ≈ 60 tokens (action + 100-char params + 100-char result)
+        # 3 tasks ≈ 180 tokens; budget=200 → usage ratio 0.9 > compress threshold 0.85
+        memory = LoomMemory(node_id="test_node", l2_token_budget=200)
 
         # 添加Task到L2直到触发压缩
         for i in range(3):

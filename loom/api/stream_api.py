@@ -386,7 +386,11 @@ class StreamAPI:
         async for event in self._fractal_api.stream_thinking_events(node_id):
             yield event
 
-    async def stream_all_events(self, action_pattern: str = "node.*"):
+    async def stream_all_events(self, pattern: str | None = None):
         """订阅所有节点事件"""
-        async for event in self._fractal_api.stream_all_events():
-            yield event
+        if pattern:
+            async for event in self._fractal_api.stream_all_events(pattern):
+                yield event
+        else:
+            async for event in self._fractal_api.stream_all_events():
+                yield event

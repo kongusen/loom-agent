@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 from loom.config.memory import MemoryStrategyType
 
 from .fact_extractor import FactExtractor
-from .layers import TokenBudgetLayer, PriorityTokenLayer
+from .layers import PriorityTokenLayer, TokenBudgetLayer
 from .tokenizer import EstimateCounter, TokenCounter
 from .types import Fact, MemoryTier, TaskSummary
 
@@ -83,6 +83,7 @@ class LoomMemory:
         l3_auto_compress: bool = True,
         # 提升阈值（用于 SIMPLE 策略）
         l1_promote_threshold: int = 3,
+        l2_promote_threshold: int = 3,
         l3_promote_threshold: int = 3,
     ):
         self.node_id = node_id
@@ -122,6 +123,7 @@ class LoomMemory:
         self.l2_auto_compress = l2_auto_compress
         self.l3_auto_compress = l3_auto_compress
         self.l1_promote_threshold = l1_promote_threshold
+        self.l2_promote_threshold = l2_promote_threshold
         self.l3_promote_threshold = l3_promote_threshold
 
         # L1: 完整Task（使用 TokenBudgetLayer）
@@ -853,6 +855,22 @@ class LoomMemory:
         self._fact_index = {f.fact_id: f for f in facts[:keep_count]}
 
     # ==================== 压缩策略 ====================
+
+    def promote_task_to_l2(self, task: "Task") -> bool:
+        """
+        将单个 Task 立即提升到 L2（基于 importance）。
+
+        用于 importance 标记剥离后的即时提升，避免等待批量 promote。
+        如果 task 已在 L2 或 importance 不足，返回 False。
+        """
+        importance = task.metadata.get("importance", 0.5)
+        if importance <= self.importance_threshold:
+            return False
+        l2_task_ids = {item.item.task_id for item in self._l2_layer._heap}
+        if task.task_id in l2_task_ids:
+            return False
+        self._add_to_l2(task)
+        return True
 
     def promote_tasks(self) -> None:
         """

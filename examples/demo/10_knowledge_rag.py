@@ -9,6 +9,7 @@
 """
 
 import asyncio
+
 from loom.api import (
     ContextController,
     Session,
@@ -150,7 +151,7 @@ async def demo_rag_context_source(kb: GraphRAGKnowledgeBase):
         knowledge_base=kb,
         relevance_threshold=0.3,
     )
-    print(f"    创建 RAGKnowledgeSource (阈值: 0.3)")
+    print("    创建 RAGKnowledgeSource (阈值: 0.3)")
     print(f"    源名称: {rag_source.source_name}")
 
     # 使用 token 计数器
@@ -200,7 +201,7 @@ async def demo_context_orchestrator(kb: GraphRAGKnowledgeBase):
 
     # 获取预算信息
     budget_info = orchestrator.get_budget_info("你是一个知识助手。")
-    print(f"\n    预算信息:")
+    print("\n    预算信息:")
     print(f"      总预算: {budget_info['total']} tokens")
     print(f"      可用预算: {budget_info['available']} tokens")
     print(f"      分配: {budget_info['allocation']}")
@@ -270,7 +271,7 @@ async def demo_session_integration(kb: GraphRAGKnowledgeBase):
     print(f"\n    整合后的上下文消息数: {len(messages)}")
     print("    消息来源:")
 
-    for i, msg in enumerate(messages):
+    for _i, msg in enumerate(messages):
         role = msg["role"]
         content = msg["content"]
         # 判断来源
