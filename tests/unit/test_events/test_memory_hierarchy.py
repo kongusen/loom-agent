@@ -111,6 +111,7 @@ class TestL4Persistence:
     @pytest.mark.asyncio
     async def test_set_and_use_l4_handlers(self, controller, mock_storage):
         """测试设置和使用 L4 处理器"""
+
         async def persist(data):
             mock_storage["data"].append(data)
 
@@ -134,6 +135,7 @@ class TestL4Persistence:
     @pytest.mark.asyncio
     async def test_persist_latest_l3(self, controller, mock_storage):
         """测试持久化最新的 L3 摘要"""
+
         async def persist(data):
             mock_storage["data"].append(data)
 
@@ -257,21 +259,27 @@ class TestCrossSessionSharing:
     def test_get_shared_l3_context_with_summaries(self, controller):
         """测试获取 L3 共享上下文"""
         # 添加一些 L3 摘要
-        controller.add_to_l3({
-            "content": "summary for s1",
-            "session_ids": ["s1"],
-            "tokens": 10,
-        })
-        controller.add_to_l3({
-            "content": "summary for s2",
-            "session_ids": ["s2"],
-            "tokens": 10,
-        })
-        controller.add_to_l3({
-            "content": "global summary",
-            "session_ids": [],
-            "tokens": 10,
-        })
+        controller.add_to_l3(
+            {
+                "content": "summary for s1",
+                "session_ids": ["s1"],
+                "tokens": 10,
+            }
+        )
+        controller.add_to_l3(
+            {
+                "content": "summary for s2",
+                "session_ids": ["s2"],
+                "tokens": 10,
+            }
+        )
+        controller.add_to_l3(
+            {
+                "content": "global summary",
+                "session_ids": [],
+                "tokens": 10,
+            }
+        )
 
         # s1 应该看到自己的和全局的
         s1_context = controller.get_shared_l3_context("s1")

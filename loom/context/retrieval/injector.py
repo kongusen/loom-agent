@@ -72,9 +72,7 @@ class RetrievalInjector:
             content = self._format_content(candidate)
 
             # 计算 token
-            tokens = token_counter.count_messages(
-                [{"role": "system", "content": content}]
-            )
+            tokens = token_counter.count_messages([{"role": "system", "content": content}])
 
             if used_tokens + tokens > token_budget:
                 continue  # 跳过超预算的，尝试下一个更短的

@@ -45,7 +45,7 @@ class WorkflowPipeline:
         self.results = []
 
         for i, step in enumerate(self.steps):
-            print(f"\n[Step {i+1}] {step['name']}...")
+            print(f"\n[Step {i + 1}] {step['name']}...")
 
             agent = Agent.create(
                 llm=self.llm,
@@ -56,11 +56,13 @@ class WorkflowPipeline:
             )
 
             result = await agent.run(current_input)
-            self.results.append({
-                "step": step["name"],
-                "result": result,
-                "success": True,
-            })
+            self.results.append(
+                {
+                    "step": step["name"],
+                    "result": result,
+                    "success": True,
+                }
+            )
 
             # 下一步的输入是当前步骤的输出
             current_input = result
@@ -118,15 +120,11 @@ async def main():
     # 3. 创建工作流管道
     pipeline = WorkflowPipeline(llm, event_bus)
     pipeline.add_step(
-        name="构思",
-        system_prompt="你是创意专家。根据主题生成3个创意点子，每个一句话。"
+        name="构思", system_prompt="你是创意专家。根据主题生成3个创意点子，每个一句话。"
     ).add_step(
         name="大纲",
-        system_prompt="你是内容规划师。根据创意点子，选择最好的一个，生成简短大纲（3个要点）。"
-    ).add_step(
-        name="摘要",
-        system_prompt="你是文案专家。根据大纲，写一段50字以内的精炼摘要。"
-    )
+        system_prompt="你是内容规划师。根据创意点子，选择最好的一个，生成简短大纲（3个要点）。",
+    ).add_step(name="摘要", system_prompt="你是文案专家。根据大纲，写一段50字以内的精炼摘要。")
 
     # 4. 执行管道
     initial_topic = "人工智能在教育领域的应用"

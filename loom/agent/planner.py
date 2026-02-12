@@ -67,13 +67,20 @@ class PlannerMixin:
 
     # 方法声明移到 TYPE_CHECKING 块中，避免覆盖 BaseNode 的实际实现
     if TYPE_CHECKING:
+
         async def _publish_event(
-            self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
+            self,
+            action: str,
+            parameters: dict[str, Any],
+            task_id: str,
+            session_id: str | None = None,
         ) -> None: ...
 
         def _ensure_shared_task_context(self, task: Task) -> Any: ...
 
-        def _create_child_node(self, context_hints: list[str] | None = None, **kwargs: Any) -> Any: ...
+        def _create_child_node(
+            self, context_hints: list[str] | None = None, **kwargs: Any
+        ) -> Any: ...
 
         def _sync_memory_from_child(self, child: Any) -> Any: ...
 
@@ -131,7 +138,7 @@ class PlannerMixin:
 
         for idx, step in enumerate(steps):
             subtask = Task(
-                taskId=f"{parent_task.taskId}-step-{idx+1}-{uuid4()}",
+                taskId=f"{parent_task.taskId}-step-{idx + 1}-{uuid4()}",
                 action="execute",
                 parameters={
                     "content": step,
@@ -160,10 +167,10 @@ class PlannerMixin:
                     if isinstance(result.result, dict)
                     else str(result.result)
                 )
-                results.append(f"Step {idx+1}: {step_result}")
+                results.append(f"Step {idx + 1}: {step_result}")
             else:
                 step_result = result.error or "Unknown error"
-                results.append(f"Step {idx+1}: Failed - {step_result}")
+                results.append(f"Step {idx + 1}: Failed - {step_result}")
 
             # 发布步骤完成事件
             await self._publish_event(

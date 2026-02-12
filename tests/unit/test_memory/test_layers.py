@@ -216,16 +216,13 @@ class TestPriorityTokenLayer:
 
         # 添加不同重要性的任务
         await layer.add(
-            Task(task_id="low", action="test", metadata={"importance": 0.2}),
-            token_count=100
+            Task(task_id="low", action="test", metadata={"importance": 0.2}), token_count=100
         )
         await layer.add(
-            Task(task_id="high", action="test", metadata={"importance": 0.9}),
-            token_count=100
+            Task(task_id="high", action="test", metadata={"importance": 0.9}), token_count=100
         )
         await layer.add(
-            Task(task_id="medium", action="test", metadata={"importance": 0.5}),
-            token_count=100
+            Task(task_id="medium", action="test", metadata={"importance": 0.5}), token_count=100
         )
 
         retrieved = await layer.retrieve(None, limit=10)
@@ -242,12 +239,10 @@ class TestPriorityTokenLayer:
 
         # 添加2个任务，填满预算
         await layer.add(
-            Task(task_id="low", action="test", metadata={"importance": 0.3}),
-            token_count=100
+            Task(task_id="low", action="test", metadata={"importance": 0.3}), token_count=100
         )
         await layer.add(
-            Task(task_id="high", action="test", metadata={"importance": 0.9}),
-            token_count=100
+            Task(task_id="high", action="test", metadata={"importance": 0.9}), token_count=100
         )
 
         assert layer.size() == 2
@@ -255,8 +250,7 @@ class TestPriorityTokenLayer:
 
         # 添加一个高优先级任务，应该驱逐低优先级的
         result = await layer.add(
-            Task(task_id="new_high", action="test", metadata={"importance": 0.8}),
-            token_count=100
+            Task(task_id="new_high", action="test", metadata={"importance": 0.8}), token_count=100
         )
 
         assert result is True
@@ -273,16 +267,13 @@ class TestPriorityTokenLayer:
         layer = PriorityTokenLayer(token_budget=10000)
 
         await layer.add(
-            Task(task_id="low", action="test", metadata={"importance": 0.2}),
-            token_count=100
+            Task(task_id="low", action="test", metadata={"importance": 0.2}), token_count=100
         )
         await layer.add(
-            Task(task_id="high", action="test", metadata={"importance": 0.9}),
-            token_count=100
+            Task(task_id="high", action="test", metadata={"importance": 0.9}), token_count=100
         )
         await layer.add(
-            Task(task_id="medium", action="test", metadata={"importance": 0.5}),
-            token_count=100
+            Task(task_id="medium", action="test", metadata={"importance": 0.5}), token_count=100
         )
 
         # 驱逐 100 tokens，应该驱逐最低优先级的
@@ -300,8 +291,7 @@ class TestPriorityTokenLayer:
 
         for i in range(5):
             await layer.add(
-                Task(task_id=f"t{i}", action="test", metadata={"importance": 0.5}),
-                token_count=100
+                Task(task_id=f"t{i}", action="test", metadata={"importance": 0.5}), token_count=100
             )
 
         assert layer.size() == 5
@@ -331,11 +321,13 @@ class TestBackwardCompatibility:
     def test_circular_buffer_layer_alias(self):
         """测试 CircularBufferLayer 别名"""
         from loom.memory.layers import CircularBufferLayer
+
         layer = CircularBufferLayer(token_budget=1000)
         assert isinstance(layer, TokenBudgetLayer)
 
     def test_priority_queue_layer_alias(self):
         """测试 PriorityQueueLayer 别名"""
         from loom.memory.layers import PriorityQueueLayer
+
         layer = PriorityQueueLayer(token_budget=1000)
         assert isinstance(layer, PriorityTokenLayer)

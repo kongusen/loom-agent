@@ -25,6 +25,7 @@ from loom.tools.search.executor import UnifiedSearchExecutor
 # 1. 自定义 KnowledgeBaseProvider（声明元信息）
 # ============================================================
 
+
 class ProductDocsKB(KnowledgeBaseProvider):
     """产品文档知识库 — 演示元信息声明"""
 
@@ -32,7 +33,7 @@ class ProductDocsKB(KnowledgeBaseProvider):
         KnowledgeItem(
             id="doc-auth",
             content="OAuth2.0 支持 Authorization Code 和 Client Credentials 两种模式。"
-                    "Web 应用推荐 Authorization Code，服务间调用推荐 Client Credentials。",
+            "Web 应用推荐 Authorization Code，服务间调用推荐 Client Credentials。",
             source="product_docs",
             relevance=0.0,
             metadata={"category": "auth", "version": "2.0"},
@@ -40,7 +41,7 @@ class ProductDocsKB(KnowledgeBaseProvider):
         KnowledgeItem(
             id="doc-rate-limit",
             content="API 限流策略：免费用户 100 次/分钟，付费用户 1000 次/分钟。"
-                    "超限返回 HTTP 429，建议使用指数退避重试。",
+            "超限返回 HTTP 429，建议使用指数退避重试。",
             source="product_docs",
             relevance=0.0,
             metadata={"category": "api", "version": "2.0"},
@@ -48,7 +49,7 @@ class ProductDocsKB(KnowledgeBaseProvider):
         KnowledgeItem(
             id="doc-webhook",
             content="Webhook 回调支持 HMAC-SHA256 签名验证。"
-                    "配置时需提供 callback URL 和 secret，系统会在事件触发时 POST 通知。",
+            "配置时需提供 callback URL 和 secret，系统会在事件触发时 POST 通知。",
             source="product_docs",
             relevance=0.0,
             metadata={"category": "webhook", "version": "2.0"},
@@ -72,7 +73,10 @@ class ProductDocsKB(KnowledgeBaseProvider):
         return ["category", "version"]
 
     async def query(
-        self, query: str, limit: int = 5, filters: dict[str, Any] | None = None,
+        self,
+        query: str,
+        limit: int = 5,
+        filters: dict[str, Any] | None = None,
     ) -> list[KnowledgeItem]:
         """简单关键词匹配（演示用）"""
         results = []
@@ -80,10 +84,15 @@ class ProductDocsKB(KnowledgeBaseProvider):
         for doc in self._docs:
             score = sum(1 for w in q.split() if w in doc.content.lower()) / max(len(q.split()), 1)
             if score > 0 or not q.strip():
-                results.append(KnowledgeItem(
-                    id=doc.id, content=doc.content, source=doc.source,
-                    relevance=min(score * 1.5, 1.0), metadata=doc.metadata,
-                ))
+                results.append(
+                    KnowledgeItem(
+                        id=doc.id,
+                        content=doc.content,
+                        source=doc.source,
+                        relevance=min(score * 1.5, 1.0),
+                        metadata=doc.metadata,
+                    )
+                )
         # 过滤
         if filters:
             for key, val in filters.items():
@@ -102,12 +111,16 @@ class FAQKB(KnowledgeBaseProvider):
         KnowledgeItem(
             id="faq-reset-pwd",
             content="重置密码：进入设置 > 安全 > 修改密码，输入旧密码和新密码即可。",
-            source="faq", relevance=0.0, metadata={"topic": "account"},
+            source="faq",
+            relevance=0.0,
+            metadata={"topic": "account"},
         ),
         KnowledgeItem(
             id="faq-billing",
             content="账单周期为自然月，每月 1 日扣费。可在账单页面查看历史账单和下载发票。",
-            source="faq", relevance=0.0, metadata={"topic": "billing"},
+            source="faq",
+            relevance=0.0,
+            metadata={"topic": "billing"},
         ),
     ]
 
@@ -128,17 +141,25 @@ class FAQKB(KnowledgeBaseProvider):
         return ["topic"]
 
     async def query(
-        self, query: str, limit: int = 5, filters: dict[str, Any] | None = None,
+        self,
+        query: str,
+        limit: int = 5,
+        filters: dict[str, Any] | None = None,
     ) -> list[KnowledgeItem]:
         results = []
         q = query.lower()
         for faq in self._faqs:
             score = sum(1 for w in q.split() if w in faq.content.lower()) / max(len(q.split()), 1)
             if score > 0:
-                results.append(KnowledgeItem(
-                    id=faq.id, content=faq.content, source=faq.source,
-                    relevance=min(score * 1.5, 1.0), metadata=faq.metadata,
-                ))
+                results.append(
+                    KnowledgeItem(
+                        id=faq.id,
+                        content=faq.content,
+                        source=faq.source,
+                        relevance=min(score * 1.5, 1.0),
+                        metadata=faq.metadata,
+                    )
+                )
         results.sort(key=lambda r: r.relevance, reverse=True)
         return results[:limit]
 
@@ -149,6 +170,7 @@ class FAQKB(KnowledgeBaseProvider):
 # ============================================================
 # Demo 函数
 # ============================================================
+
 
 async def demo_tool_builder():
     """演示 UnifiedSearchToolBuilder 动态工具生成"""
@@ -249,8 +271,8 @@ async def demo_importance_tag():
             action = " → 立即提升到 L2"
         elif importance:
             action = " → 留在 L1"
-        print(f"\n  原始: \"{raw}\"")
-        print(f"  清理: \"{clean}\"")
+        print(f'\n  原始: "{raw}"')
+        print(f'  清理: "{clean}"')
         print(f"  结果: {tag}{action}")
         assert importance == expected_imp, f"Expected {expected_imp}, got {importance}"
 
@@ -316,7 +338,9 @@ async def demo_agent_autowiring():
         system_prompt="你是一个助手。",
         max_iterations=1,
     )
-    query_tools_a = [t for t in agent_no_kb.all_tools if t.get("function", {}).get("name") == "query"]
+    query_tools_a = [
+        t for t in agent_no_kb.all_tools if t.get("function", {}).get("name") == "query"
+    ]
     print("\n  [A] 无知识库")
     print(f"      query 工具数: {len(query_tools_a)}")
     if query_tools_a:
@@ -330,7 +354,9 @@ async def demo_agent_autowiring():
         knowledge_base=product_kb,
         max_iterations=1,
     )
-    query_tools_b = [t for t in agent_single.all_tools if t.get("function", {}).get("name") == "query"]
+    query_tools_b = [
+        t for t in agent_single.all_tools if t.get("function", {}).get("name") == "query"
+    ]
     print("\n  [B] 单知识库 (product_docs)")
     print(f"      query 工具数: {len(query_tools_b)}")
     if query_tools_b:
@@ -346,7 +372,9 @@ async def demo_agent_autowiring():
         knowledge_base=[product_kb, faq_kb],
         max_iterations=1,
     )
-    query_tools_c = [t for t in agent_multi.all_tools if t.get("function", {}).get("name") == "query"]
+    query_tools_c = [
+        t for t in agent_multi.all_tools if t.get("function", {}).get("name") == "query"
+    ]
     print("\n  [C] 多知识库 (product_docs + faq)")
     print(f"      query 工具数: {len(query_tools_c)}")
     if query_tools_c:

@@ -43,11 +43,13 @@ class AgentOutputSource(ContextSource):
             output_type: 输出类型 (message, thinking, tool_call)
             metadata: 额外元数据
         """
-        self._outputs.append({
-            "content": content,
-            "type": output_type,
-            "metadata": metadata or {},
-        })
+        self._outputs.append(
+            {
+                "content": content,
+                "type": output_type,
+                "metadata": metadata or {},
+            }
+        )
 
     def clear(self) -> None:
         """清空输出"""

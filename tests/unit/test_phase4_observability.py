@@ -140,7 +140,8 @@ class TestBudgetRetrievalRatios:
 
         counter = MagicMock()
         mgr = AdaptiveBudgetManager(
-            token_counter=counter, model_context_window=128000,
+            token_counter=counter,
+            model_context_window=128000,
         )
         assert mgr.current_phase == TaskPhase.EARLY
 
@@ -166,12 +167,16 @@ class TestRerankerDedup:
     def test_dedup_same_content_different_origins(self):
         """相同内容不同来源被去重"""
         c1 = RetrievalCandidate(
-            id="l4-1", content="OAuth2.0 认证方案",
-            origin=CandidateOrigin.L4_SEMANTIC, vector_score=0.9,
+            id="l4-1",
+            content="OAuth2.0 认证方案",
+            origin=CandidateOrigin.L4_SEMANTIC,
+            vector_score=0.9,
         )
         c2 = RetrievalCandidate(
-            id="rag-1", content="OAuth2.0 认证方案",
-            origin=CandidateOrigin.RAG_KNOWLEDGE, vector_score=0.7,
+            id="rag-1",
+            content="OAuth2.0 认证方案",
+            origin=CandidateOrigin.RAG_KNOWLEDGE,
+            vector_score=0.7,
         )
         reranker = Reranker()
         result = reranker.rerank([c1, c2], query="OAuth2.0")
@@ -182,12 +187,16 @@ class TestRerankerDedup:
     def test_dedup_memory_origin(self):
         """MEMORY origin 参与去重"""
         c1 = RetrievalCandidate(
-            id="mem-1", content="数据库连接池配置",
-            origin=CandidateOrigin.MEMORY, vector_score=0.8,
+            id="mem-1",
+            content="数据库连接池配置",
+            origin=CandidateOrigin.MEMORY,
+            vector_score=0.8,
         )
         c2 = RetrievalCandidate(
-            id="l4-1", content="数据库连接池配置",
-            origin=CandidateOrigin.L4_SEMANTIC, vector_score=0.6,
+            id="l4-1",
+            content="数据库连接池配置",
+            origin=CandidateOrigin.L4_SEMANTIC,
+            vector_score=0.6,
         )
         reranker = Reranker()
         result = reranker.rerank([c1, c2], query="数据库")
@@ -197,12 +206,16 @@ class TestRerankerDedup:
     def test_no_dedup_different_content(self):
         """不同内容不被去重"""
         c1 = RetrievalCandidate(
-            id="l4-1", content="OAuth2.0 认证",
-            origin=CandidateOrigin.L4_SEMANTIC, vector_score=0.9,
+            id="l4-1",
+            content="OAuth2.0 认证",
+            origin=CandidateOrigin.L4_SEMANTIC,
+            vector_score=0.9,
         )
         c2 = RetrievalCandidate(
-            id="mem-1", content="JWT Token 验证",
-            origin=CandidateOrigin.MEMORY, vector_score=0.8,
+            id="mem-1",
+            content="JWT Token 验证",
+            origin=CandidateOrigin.MEMORY,
+            vector_score=0.8,
         )
         reranker = Reranker()
         result = reranker.rerank([c1, c2], query="认证")
@@ -213,16 +226,22 @@ class TestRerankerDedup:
         """三源相同内容去重"""
         content = "API 限流策略"
         c1 = RetrievalCandidate(
-            id="l4-1", content=content,
-            origin=CandidateOrigin.L4_SEMANTIC, vector_score=0.7,
+            id="l4-1",
+            content=content,
+            origin=CandidateOrigin.L4_SEMANTIC,
+            vector_score=0.7,
         )
         c2 = RetrievalCandidate(
-            id="rag-1", content=content,
-            origin=CandidateOrigin.RAG_KNOWLEDGE, vector_score=0.9,
+            id="rag-1",
+            content=content,
+            origin=CandidateOrigin.RAG_KNOWLEDGE,
+            vector_score=0.9,
         )
         c3 = RetrievalCandidate(
-            id="mem-1", content=content,
-            origin=CandidateOrigin.MEMORY, vector_score=0.5,
+            id="mem-1",
+            content=content,
+            origin=CandidateOrigin.MEMORY,
+            vector_score=0.5,
         )
         reranker = Reranker()
         result = reranker.rerank([c1, c2, c3], query="限流")
@@ -235,12 +254,16 @@ class TestRerankerDedup:
         """关闭去重时不去重"""
         content = "相同内容"
         c1 = RetrievalCandidate(
-            id="a", content=content,
-            origin=CandidateOrigin.L4_SEMANTIC, vector_score=0.9,
+            id="a",
+            content=content,
+            origin=CandidateOrigin.L4_SEMANTIC,
+            vector_score=0.9,
         )
         c2 = RetrievalCandidate(
-            id="b", content=content,
-            origin=CandidateOrigin.MEMORY, vector_score=0.8,
+            id="b",
+            content=content,
+            origin=CandidateOrigin.MEMORY,
+            vector_score=0.8,
         )
         reranker = Reranker(dedup=False)
         result = reranker.rerank([c1, c2], query="内容")

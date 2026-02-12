@@ -89,10 +89,12 @@ class TestHybridGraphExpansion:
 
         # mock vector retriever 返回 chunk_v1, chunk_v2
         vector_retriever = Mock(spec=VectorRetriever)
-        vector_retriever.retrieve = AsyncMock(return_value=[
-            (await cs.get("chunk_v1"), 0.9),
-            (await cs.get("chunk_v2"), 0.7),
-        ])
+        vector_retriever.retrieve = AsyncMock(
+            return_value=[
+                (await cs.get("chunk_v1"), 0.9),
+                (await cs.get("chunk_v2"), 0.7),
+            ]
+        )
         # 保留 stores 引用给 expansion 使用
         vector_retriever.entity_store = es
 
@@ -125,9 +127,11 @@ class TestHybridGraphExpansion:
         graph_retriever.retrieve = AsyncMock(return_value=([], [], []))
 
         vector_retriever = Mock(spec=VectorRetriever)
-        vector_retriever.retrieve = AsyncMock(return_value=[
-            (chunk_v, 0.8),
-        ])
+        vector_retriever.retrieve = AsyncMock(
+            return_value=[
+                (chunk_v, 0.8),
+            ]
+        )
 
         strategy = HybridStrategy(
             graph_retriever=graph_retriever,
@@ -146,14 +150,14 @@ class TestHybridGraphExpansion:
 
         graph_retriever = GraphRetriever(es, rs, cs)
         # graph 已经命中了 chunk_exp
-        graph_retriever.retrieve = AsyncMock(return_value=(
-            [], [], [await cs.get("chunk_exp")]
-        ))
+        graph_retriever.retrieve = AsyncMock(return_value=([], [], [await cs.get("chunk_exp")]))
 
         vector_retriever = Mock(spec=VectorRetriever)
-        vector_retriever.retrieve = AsyncMock(return_value=[
-            (await cs.get("chunk_v1"), 0.9),
-        ])
+        vector_retriever.retrieve = AsyncMock(
+            return_value=[
+                (await cs.get("chunk_v1"), 0.9),
+            ]
+        )
 
         strategy = HybridStrategy(
             graph_retriever=graph_retriever,
@@ -176,9 +180,11 @@ class TestHybridGraphExpansion:
         graph_retriever.retrieve = AsyncMock(return_value=([], [], []))
 
         vector_retriever = Mock(spec=VectorRetriever)
-        vector_retriever.retrieve = AsyncMock(return_value=[
-            (await cs.get("chunk_v1"), 0.9),
-        ])
+        vector_retriever.retrieve = AsyncMock(
+            return_value=[
+                (await cs.get("chunk_v1"), 0.9),
+            ]
+        )
 
         strategy = HybridStrategy(
             graph_retriever=graph_retriever,
@@ -202,9 +208,11 @@ class TestHybridGraphExpansion:
         graph_retriever.retrieve = AsyncMock(return_value=([e_a], [], []))
 
         vector_retriever = Mock(spec=VectorRetriever)
-        vector_retriever.retrieve = AsyncMock(return_value=[
-            (await cs.get("chunk_v1"), 0.9),
-        ])
+        vector_retriever.retrieve = AsyncMock(
+            return_value=[
+                (await cs.get("chunk_v1"), 0.9),
+            ]
+        )
 
         strategy = HybridStrategy(
             graph_retriever=graph_retriever,
@@ -402,10 +410,12 @@ class TestGraphRAGKnowledgeBaseObservability:
 
         # mock strategy
         mock_strategy = Mock()
-        mock_strategy.retrieve = AsyncMock(return_value=RetrievalResult(
-            chunks=[_chunk("c1", "result")],
-            scores={"c1": 0.9},
-        ))
+        mock_strategy.retrieve = AsyncMock(
+            return_value=RetrievalResult(
+                chunks=[_chunk("c1", "result")],
+                scores={"c1": 0.9},
+            )
+        )
 
         kb = GraphRAGKnowledgeBase(
             strategy=mock_strategy,
@@ -432,10 +442,12 @@ class TestGraphRAGKnowledgeBaseObservability:
         metrics = LoomMetrics(agent_id="test", enabled=True)
 
         mock_strategy = Mock()
-        mock_strategy.retrieve = AsyncMock(return_value=RetrievalResult(
-            chunks=[_chunk("c1", "result"), _chunk("c2", "result2")],
-            scores={"c1": 0.9, "c2": 0.7},
-        ))
+        mock_strategy.retrieve = AsyncMock(
+            return_value=RetrievalResult(
+                chunks=[_chunk("c1", "result"), _chunk("c2", "result2")],
+                scores={"c1": 0.9, "c2": 0.7},
+            )
+        )
 
         kb = GraphRAGKnowledgeBase(
             strategy=mock_strategy,

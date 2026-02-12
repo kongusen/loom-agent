@@ -90,13 +90,17 @@ class UnifiedSearchExecutor:
 
         if resolved_scope in ("memory", "all"):
             memory_candidates = await self._search_memory(
-                search_query, layer, session_id,
+                search_query,
+                layer,
+                session_id,
             )
             candidates.extend(memory_candidates)
 
         if resolved_scope in ("knowledge", "all"):
             knowledge_candidates = await self._search_knowledge(
-                search_query, source, filters,
+                search_query,
+                source,
+                filters,
             )
             candidates.extend(knowledge_candidates)
 
@@ -119,7 +123,9 @@ class UnifiedSearchExecutor:
 
         # 5. 格式化输出
         return self._format_results(
-            candidates[:self._default_limit], query, resolved_scope,
+            candidates[: self._default_limit],
+            query,
+            resolved_scope,
         )
 
     def _resolve_scope(self, scope: str) -> str:
@@ -146,16 +152,17 @@ class UnifiedSearchExecutor:
             return None
         try:
             recent_tasks = self._memory.get_l1_tasks(
-                limit=20, session_id=session_id,
+                limit=20,
+                session_id=session_id,
             )
         except Exception:
             logger.debug("L1 cache check failed", exc_info=True)
             return None
 
         for task in reversed(recent_tasks):
-            if (task.action == KnowledgeAction.SEARCH_RESULT
-                    and self._query_similar(
-                        task.parameters.get("query", ""), query)):
+            if task.action == KnowledgeAction.SEARCH_RESULT and self._query_similar(
+                task.parameters.get("query", ""), query
+            ):
                 output = None
                 if isinstance(task.result, dict):
                     output = task.result.get("formatted_output")
@@ -189,7 +196,10 @@ class UnifiedSearchExecutor:
         return len(intersection) / len(union) >= 0.6
 
     async def _search_memory(
-        self, query: str, layer: str, session_id: str | None,
+        self,
+        query: str,
+        layer: str,
+        session_id: str | None,
     ) -> list[RetrievalCandidate]:
         """搜索 L1-L4 记忆层"""
         if not self._memory:
@@ -201,18 +211,21 @@ class UnifiedSearchExecutor:
         if layer in ("auto", "l1"):
             try:
                 tasks = self._memory.get_l1_tasks(
-                    limit=self._default_limit, session_id=session_id,
+                    limit=self._default_limit,
+                    session_id=session_id,
                 )
                 for t in tasks:
                     content = self._task_to_content(t)
                     if content and self._text_match(query, content):
-                        candidates.append(RetrievalCandidate(
-                            id=t.taskId,
-                            content=content,
-                            origin=CandidateOrigin.MEMORY,
-                            vector_score=0.5,
-                            metadata={"layer": "L1", "action": t.action},
-                        ))
+                        candidates.append(
+                            RetrievalCandidate(
+                                id=t.taskId,
+                                content=content,
+                                origin=CandidateOrigin.MEMORY,
+                                vector_score=0.5,
+                                metadata={"layer": "L1", "action": t.action},
+                            )
+                        )
             except Exception:
                 logger.debug("L1 search failed", exc_info=True)
 
@@ -220,19 +233,22 @@ class UnifiedSearchExecutor:
         if layer in ("auto", "l2"):
             try:
                 tasks = self._memory.get_l2_tasks(
-                    limit=self._default_limit, session_id=session_id,
+                    limit=self._default_limit,
+                    session_id=session_id,
                 )
                 for t in tasks:
                     content = self._task_to_content(t)
                     if content and self._text_match(query, content):
                         importance = t.metadata.get("importance", 0.5) if t.metadata else 0.5
-                        candidates.append(RetrievalCandidate(
-                            id=t.taskId,
-                            content=content,
-                            origin=CandidateOrigin.MEMORY,
-                            vector_score=0.5 + importance * 0.3,
-                            metadata={"layer": "L2", "importance": importance},
-                        ))
+                        candidates.append(
+                            RetrievalCandidate(
+                                id=t.taskId,
+                                content=content,
+                                origin=CandidateOrigin.MEMORY,
+                                vector_score=0.5 + importance * 0.3,
+                                metadata={"layer": "L2", "importance": importance},
+                            )
+                        )
             except Exception:
                 logger.debug("L2 search failed", exc_info=True)
 
@@ -241,18 +257,21 @@ class UnifiedSearchExecutor:
             try:
                 loom = self._memory._loom_memory
                 summaries = loom.get_l3_summaries(
-                    limit=self._default_limit, session_id=session_id,
+                    limit=self._default_limit,
+                    session_id=session_id,
                 )
                 for s in summaries:
                     content = f"{s.action}: {s.param_summary} -> {s.result_summary}"
                     if self._text_match(query, content):
-                        candidates.append(RetrievalCandidate(
-                            id=s.task_id,
-                            content=content,
-                            origin=CandidateOrigin.MEMORY,
-                            vector_score=0.4,
-                            metadata={"layer": "L3"},
-                        ))
+                        candidates.append(
+                            RetrievalCandidate(
+                                id=s.task_id,
+                                content=content,
+                                origin=CandidateOrigin.MEMORY,
+                                vector_score=0.4,
+                                metadata={"layer": "L3"},
+                            )
+                        )
             except Exception:
                 logger.debug("L3 search failed", exc_info=True)
 
@@ -269,13 +288,15 @@ class UnifiedSearchExecutor:
                 for t in l4_tasks:
                     content = self._task_to_content(t)
                     if content:
-                        candidates.append(RetrievalCandidate(
-                            id=t.taskId,
-                            content=content,
-                            origin=CandidateOrigin.L4_SEMANTIC,
-                            vector_score=0.7,
-                            metadata={"layer": "L4"},
-                        ))
+                        candidates.append(
+                            RetrievalCandidate(
+                                id=t.taskId,
+                                content=content,
+                                origin=CandidateOrigin.L4_SEMANTIC,
+                                vector_score=0.7,
+                                metadata={"layer": "L4"},
+                            )
+                        )
             except Exception:
                 logger.debug("L4 search failed", exc_info=True)
 
@@ -288,10 +309,7 @@ class UnifiedSearchExecutor:
         filters: dict[str, Any] | None,
     ) -> list[RetrievalCandidate]:
         """搜索外部知识库"""
-        targets = (
-            [self._kb_map[source]] if source and source in self._kb_map
-            else self._kbs
-        )
+        targets = [self._kb_map[source]] if source and source in self._kb_map else self._kbs
 
         candidates: list[RetrievalCandidate] = []
         for kb in targets:

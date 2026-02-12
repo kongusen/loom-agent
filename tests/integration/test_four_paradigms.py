@@ -183,9 +183,9 @@ class TestPlanningParadigm:
 
         # 验证done工具被调用
         if isinstance(result_data, dict):
-            assert (
-                result_data.get("completed_explicitly") is True
-            ), "Expected explicit completion via done tool"
+            assert result_data.get("completed_explicitly") is True, (
+                "Expected explicit completion via done tool"
+            )
             print(
                 "[SUCCESS] Planning paradigm verified - create_plan created real child nodes and executed"
             )
@@ -275,9 +275,9 @@ class TestReflectionParadigm:
         print(f"[DEBUG] Iteration count: {len(iteration_count)}")
 
         if isinstance(result_data, dict):
-            assert (
-                result_data.get("completed_explicitly") is True
-            ), "Expected explicit completion via done tool"
+            assert result_data.get("completed_explicitly") is True, (
+                "Expected explicit completion via done tool"
+            )
 
         print(
             f"[SUCCESS] Reflection paradigm verified - agent completed with {len(iteration_count)} tool call(s)"
@@ -423,9 +423,9 @@ class TestMultiAgentParadigm:
         print(f"[DEBUG] Multi-agent result: {result_data}")
 
         if isinstance(result_data, dict):
-            assert (
-                result_data.get("completed_explicitly") is True
-            ), "Expected explicit completion via done tool"
+            assert result_data.get("completed_explicitly") is True, (
+                "Expected explicit completion via done tool"
+            )
 
         print(
             f"[SUCCESS] Multi-Agent paradigm verified - real specialist agent executed task, delegation occurred {len(delegation_log)} time(s)"

@@ -1006,8 +1006,9 @@ class LoomMemory:
 
         # 如果候选不够，从剩余的最不重要的补充
         if tokens_freed < tokens_to_free:
-            remaining = [item for item in reversed(sorted_items)
-                        if item.item not in tasks_to_summarize]
+            remaining = [
+                item for item in reversed(sorted_items) if item.item not in tasks_to_summarize
+            ]
             for item in remaining:
                 if tokens_freed >= tokens_to_free:
                     break
@@ -1017,8 +1018,7 @@ class LoomMemory:
         # 重建heap（移除被摘要的任务）并更新 token 计数
         summarize_ids = {t.task_id for t in tasks_to_summarize}
         removed_tokens = sum(
-            item.token_count for item in self._l2_layer._heap
-            if item.item.task_id in summarize_ids
+            item.token_count for item in self._l2_layer._heap if item.item.task_id in summarize_ids
         )
         self._l2_layer._heap = [
             item for item in self._l2_layer._heap if item.item.task_id not in summarize_ids

@@ -22,9 +22,9 @@ def assert_task_completed(task: Task, expected_result: Any = None):
     assert task.result is not None, "Task result should not be None"
 
     if expected_result is not None:
-        assert (
-            task.result == expected_result
-        ), f"Task result is {task.result}, expected {expected_result}"
+        assert task.result == expected_result, (
+            f"Task result is {task.result}, expected {expected_result}"
+        )
 
 
 def assert_task_failed(task: Task, expected_error: str = None):
@@ -39,9 +39,9 @@ def assert_task_failed(task: Task, expected_error: str = None):
     assert task.error is not None, "Task error should not be None"
 
     if expected_error is not None:
-        assert (
-            expected_error in task.error
-        ), f"Expected error '{expected_error}' not found in '{task.error}'"
+        assert expected_error in task.error, (
+            f"Expected error '{expected_error}' not found in '{task.error}'"
+        )
 
 
 def assert_memory_contains(memory: LoomMemory, content: str):
@@ -81,6 +81,6 @@ def assert_memory_unit_valid(unit: MemoryUnit):
     assert unit.content is not None, "Memory unit content should not be None"
     assert unit.tier is not None, "Memory unit tier should not be None"
     assert unit.type is not None, "Memory unit type should not be None"
-    assert (
-        0.0 <= unit.importance <= 1.0
-    ), f"Memory unit importance {unit.importance} should be between 0 and 1"
+    assert 0.0 <= unit.importance <= 1.0, (
+        f"Memory unit importance {unit.importance} should be between 0 and 1"
+    )

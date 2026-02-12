@@ -43,8 +43,7 @@ class UnifiedSearchToolBuilder:
             "function": {
                 "name": "query",
                 "description": (
-                    "搜索对话记忆。可查询最近任务(L1)、重要任务(L2)、"
-                    "历史摘要(L3)、语义检索(L4)。"
+                    "搜索对话记忆。可查询最近任务(L1)、重要任务(L2)、历史摘要(L3)、语义检索(L4)。"
                 ),
                 "parameters": {
                     "type": "object",
@@ -71,9 +70,7 @@ class UnifiedSearchToolBuilder:
     ) -> dict[str, Any]:
         """有知识库时：升级为统一检索工具"""
         # 动态构建知识源描述
-        sources_desc = "\n".join(
-            f"- {kb.name}: {kb.description}" for kb in kbs if kb.description
-        )
+        sources_desc = "\n".join(f"- {kb.name}: {kb.description}" for kb in kbs if kb.description)
         # 聚合所有 search_hints
         all_hints: list[str] = []
         for kb in kbs:

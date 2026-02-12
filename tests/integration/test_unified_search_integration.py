@@ -28,10 +28,15 @@ class TestQueryToolEventBusIntegration:
         """query 工具执行后，EventBus 应同时记录 SEARCH 和 SEARCH_RESULT"""
         event_bus = EventBus(debug_mode=True)
 
-        llm = MockLLMProvider(responses=[
-            {"type": "tool_call", "name": "query",
-             "arguments": {"query": "API认证", "scope": "memory"}},
-        ])
+        llm = MockLLMProvider(
+            responses=[
+                {
+                    "type": "tool_call",
+                    "name": "query",
+                    "arguments": {"query": "API认证", "scope": "memory"},
+                },
+            ]
+        )
 
         agent = Agent(
             node_id="test-search-agent",
@@ -54,12 +59,8 @@ class TestQueryToolEventBusIntegration:
         search_events = [e for e in events if e.action == KnowledgeAction.SEARCH]
         result_events = [e for e in events if e.action == KnowledgeAction.SEARCH_RESULT]
 
-        assert len(search_events) >= 1, (
-            f"Expected ≥1 SEARCH event, got {len(search_events)}"
-        )
-        assert len(result_events) >= 1, (
-            f"Expected ≥1 SEARCH_RESULT event, got {len(result_events)}"
-        )
+        assert len(search_events) >= 1, f"Expected ≥1 SEARCH event, got {len(search_events)}"
+        assert len(result_events) >= 1, f"Expected ≥1 SEARCH_RESULT event, got {len(result_events)}"
 
         # verify search event fields
         se = search_events[0]
@@ -78,10 +79,15 @@ class TestQueryToolEventBusIntegration:
         """SEARCH_RESULT 事件的 formatted_output 应为非空字符串"""
         event_bus = EventBus(debug_mode=True)
 
-        llm = MockLLMProvider(responses=[
-            {"type": "tool_call", "name": "query",
-             "arguments": {"query": "测试内容", "scope": "memory"}},
-        ])
+        llm = MockLLMProvider(
+            responses=[
+                {
+                    "type": "tool_call",
+                    "name": "query",
+                    "arguments": {"query": "测试内容", "scope": "memory"},
+                },
+            ]
+        )
 
         agent = Agent(
             node_id="test-agent-output",
@@ -119,10 +125,15 @@ class TestQueryToolEventBusIntegration:
     @pytest.mark.asyncio
     async def test_no_eventbus_still_works(self):
         """无 EventBus 时 query 工具仍正常执行（不发布事件）"""
-        llm = MockLLMProvider(responses=[
-            {"type": "tool_call", "name": "query",
-             "arguments": {"query": "test", "scope": "memory"}},
-        ])
+        llm = MockLLMProvider(
+            responses=[
+                {
+                    "type": "tool_call",
+                    "name": "query",
+                    "arguments": {"query": "test", "scope": "memory"},
+                },
+            ]
+        )
 
         agent = Agent(
             node_id="test-no-bus",
@@ -150,10 +161,11 @@ class TestImportanceTagPromoteIntegration:
     @pytest.mark.asyncio
     async def test_tag_stripped_and_promoted_to_l2(self):
         """<imp:0.8/> 标记被剥离，任务提升到 L2"""
-        llm = MockLLMProvider(responses=[
-            {"type": "text",
-             "content": "建议使用OAuth2.0。<imp:0.8/>"},
-        ])
+        llm = MockLLMProvider(
+            responses=[
+                {"type": "text", "content": "建议使用OAuth2.0。<imp:0.8/>"},
+            ]
+        )
 
         agent = Agent(
             node_id="test-imp-agent",
@@ -180,16 +192,16 @@ class TestImportanceTagPromoteIntegration:
 
         # 3. task in L2 (0.8 > threshold 0.6)
         l2_ids = {t.taskId for t in agent.memory.get_l2_tasks()}
-        assert task.taskId in l2_ids, (
-            f"Task {task.taskId} should be in L2, got: {l2_ids}"
-        )
+        assert task.taskId in l2_ids, f"Task {task.taskId} should be in L2, got: {l2_ids}"
 
     @pytest.mark.asyncio
     async def test_no_tag_no_promote(self):
         """无 importance 标记 → 默认 0.5，不提升到 L2"""
-        llm = MockLLMProvider(responses=[
-            {"type": "text", "content": "这是普通回复。"},
-        ])
+        llm = MockLLMProvider(
+            responses=[
+                {"type": "text", "content": "这是普通回复。"},
+            ]
+        )
 
         agent = Agent(
             node_id="test-imp-agent-2",
@@ -207,16 +219,16 @@ class TestImportanceTagPromoteIntegration:
         await agent.execute_task(task)
 
         importance = task.metadata.get("importance", 0.5)
-        assert importance <= 0.6, (
-            f"Expected importance ≤ 0.6 (no tag), got {importance}"
-        )
+        assert importance <= 0.6, f"Expected importance ≤ 0.6 (no tag), got {importance}"
 
     @pytest.mark.asyncio
     async def test_tag_1_0_promotes(self):
         """<imp:1.0/> 最高重要性也能正确提升"""
-        llm = MockLLMProvider(responses=[
-            {"type": "text", "content": "关键决策<imp:1.0/>"},
-        ])
+        llm = MockLLMProvider(
+            responses=[
+                {"type": "text", "content": "关键决策<imp:1.0/>"},
+            ]
+        )
 
         agent = Agent(
             node_id="test-imp-max",
@@ -242,9 +254,11 @@ class TestImportanceTagPromoteIntegration:
         """importance 提升 + EventBus 同时工作"""
         event_bus = EventBus(debug_mode=True)
 
-        llm = MockLLMProvider(responses=[
-            {"type": "text", "content": "重要结论<imp:0.9/>"},
-        ])
+        llm = MockLLMProvider(
+            responses=[
+                {"type": "text", "content": "重要结论<imp:0.9/>"},
+            ]
+        )
 
         agent = Agent(
             node_id="test-imp-bus",
@@ -312,8 +326,11 @@ class TestMemoryGuidanceIntegration:
         )
 
         query_tool = next(
-            (t for t in agent.all_tools
-             if isinstance(t, dict) and t.get("function", {}).get("name") == "query"),
+            (
+                t
+                for t in agent.all_tools
+                if isinstance(t, dict) and t.get("function", {}).get("name") == "query"
+            ),
             None,
         )
         assert query_tool is not None
@@ -332,7 +349,8 @@ class TestMemoryGuidanceIntegration:
         )
 
         query_tool = next(
-            t for t in agent.all_tools
+            t
+            for t in agent.all_tools
             if isinstance(t, dict) and t.get("function", {}).get("name") == "query"
         )
         layer_prop = query_tool["function"]["parameters"]["properties"]["layer"]

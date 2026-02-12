@@ -60,6 +60,7 @@ mkdocs = "^1.5.0"
 mkdocs-material = "^9.5.0"
 pymdown-extensions = "^10.7.0"
 openai = "^1.10.0"
+RestrictedPython = "^8.0.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

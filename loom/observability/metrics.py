@@ -21,6 +21,7 @@ class MetricType(Enum):
 @dataclass
 class MetricPoint:
     """单个指标数据点"""
+
     name: str
     value: float
     metric_type: MetricType
@@ -65,7 +66,9 @@ class LoomMetrics:
         self._gauges: dict[str, float] = {}
         self._histograms: dict[str, list[float]] = {}
 
-    def increment(self, name: str, value: float = 1.0, labels: dict[str, str] | None = None) -> None:
+    def increment(
+        self, name: str, value: float = 1.0, labels: dict[str, str] | None = None
+    ) -> None:
         if not self.enabled:
             return
         key = self._key(name, labels)

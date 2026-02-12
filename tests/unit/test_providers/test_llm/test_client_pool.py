@@ -19,6 +19,7 @@ def reset_pool():
 
 class FakeClient:
     """模拟 LLM 客户端"""
+
     def __init__(self, *, api_key=None, base_url=None, timeout=60, max_retries=3, **kwargs):
         self.api_key = api_key
         self.base_url = base_url
@@ -29,6 +30,7 @@ class FakeClient:
 
 class AnotherFakeClient:
     """模拟另一种 LLM 客户端"""
+
     def __init__(self, *, api_key=None, base_url=None, timeout=60, max_retries=3, **kwargs):
         self.api_key = api_key
 
@@ -38,10 +40,18 @@ class TestLLMClientPool:
         """相同配置返回同一实例"""
         pool = LLMClientPool.get_instance()
         c1 = pool.get_or_create(
-            FakeClient, api_key="sk-1", base_url=None, timeout=60, max_retries=3,
+            FakeClient,
+            api_key="sk-1",
+            base_url=None,
+            timeout=60,
+            max_retries=3,
         )
         c2 = pool.get_or_create(
-            FakeClient, api_key="sk-1", base_url=None, timeout=60, max_retries=3,
+            FakeClient,
+            api_key="sk-1",
+            base_url=None,
+            timeout=60,
+            max_retries=3,
         )
         assert c1 is c2
 
@@ -49,10 +59,18 @@ class TestLLMClientPool:
         """不同 api_key 返回不同实例"""
         pool = LLMClientPool.get_instance()
         c1 = pool.get_or_create(
-            FakeClient, api_key="sk-1", base_url=None, timeout=60, max_retries=3,
+            FakeClient,
+            api_key="sk-1",
+            base_url=None,
+            timeout=60,
+            max_retries=3,
         )
         c2 = pool.get_or_create(
-            FakeClient, api_key="sk-2", base_url=None, timeout=60, max_retries=3,
+            FakeClient,
+            api_key="sk-2",
+            base_url=None,
+            timeout=60,
+            max_retries=3,
         )
         assert c1 is not c2
 
@@ -60,10 +78,18 @@ class TestLLMClientPool:
         """不同 base_url 返回不同实例"""
         pool = LLMClientPool.get_instance()
         c1 = pool.get_or_create(
-            FakeClient, api_key="sk-1", base_url=None, timeout=60, max_retries=3,
+            FakeClient,
+            api_key="sk-1",
+            base_url=None,
+            timeout=60,
+            max_retries=3,
         )
         c2 = pool.get_or_create(
-            FakeClient, api_key="sk-1", base_url="https://custom.api", timeout=60, max_retries=3,
+            FakeClient,
+            api_key="sk-1",
+            base_url="https://custom.api",
+            timeout=60,
+            max_retries=3,
         )
         assert c1 is not c2
 
@@ -104,10 +130,18 @@ class TestLLMClientPool:
         """不同 client_class 不冲突"""
         pool = LLMClientPool.get_instance()
         c1 = pool.get_or_create(
-            FakeClient, api_key="sk-1", base_url=None, timeout=60, max_retries=3,
+            FakeClient,
+            api_key="sk-1",
+            base_url=None,
+            timeout=60,
+            max_retries=3,
         )
         c2 = pool.get_or_create(
-            AnotherFakeClient, api_key="sk-1", base_url=None, timeout=60, max_retries=3,
+            AnotherFakeClient,
+            api_key="sk-1",
+            base_url=None,
+            timeout=60,
+            max_retries=3,
         )
         assert c1 is not c2
         assert pool.pool_size == 2
@@ -121,7 +155,11 @@ class TestLLMClientPool:
         def create_client(key):
             try:
                 c = pool.get_or_create(
-                    FakeClient, api_key=key, base_url=None, timeout=60, max_retries=3,
+                    FakeClient,
+                    api_key=key,
+                    base_url=None,
+                    timeout=60,
+                    max_retries=3,
                 )
                 results.append(c)
             except Exception as e:

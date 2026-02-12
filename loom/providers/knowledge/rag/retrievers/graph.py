@@ -62,9 +62,7 @@ class GraphRetriever(BaseRetriever):
         visited_entity_ids: set[str] = set()
 
         for entity in seed_entities:
-            relations = await self.relation_store.get_n_hop(
-                entity.id, n=n_hop
-            )
+            relations = await self.relation_store.get_n_hop(entity.id, n=n_hop)
             all_relations.extend(relations)
             visited_entity_ids.add(entity.id)
 
@@ -74,9 +72,7 @@ class GraphRetriever(BaseRetriever):
                 visited_entity_ids.add(rel.target_id)
 
         # 3. 获取所有相关实体
-        all_entities = await self.entity_store.get_by_ids(
-            list(visited_entity_ids)
-        )
+        all_entities = await self.entity_store.get_by_ids(list(visited_entity_ids))
 
         # 4. 定位关联的Chunk
         chunk_ids: set[str] = set()

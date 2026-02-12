@@ -27,6 +27,7 @@ demo/
 ├── 18_adaptive_budget.py    # Context 动态预算与任务阶段
 ├── 19_tracing_metrics.py    # Tracing 与 Metrics 可观测性
 ├── 20_checkpoint.py         # Checkpoint 检查点与恢复
+├── 21_fractal_delegation.py # 分形委派（delegate_task 工具）
 └── skills/
     └── code-review/
         └── SKILL.md
@@ -69,3 +70,4 @@ python 02_custom_tools.py
 | 18 | Context 动态预算与 TaskPhase 阶段策略 |
 | 19 | LoomTracer 追踪 + LoomMetrics 指标 |
 | 20 | Checkpoint 检查点与断点续跑 |
+| 21 | 分形委派：delegate_task 工具自动创建子节点 |

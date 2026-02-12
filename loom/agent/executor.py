@@ -84,7 +84,7 @@ class ExecutorMixin:
         """
         evaluation_prompt = f"""Review your response to the user's request.
 
-Original request: {task.parameters.get('content', '')}
+Original request: {task.parameters.get("content", "")}
 
 Did you fully address the request? If not, what's missing?
 If complete, respond with "TASK_COMPLETE".

@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class SpanKind(Enum):
     """Span 类型"""
+
     AGENT_RUN = "agent.run"
     AGENT_ITERATION = "agent.iteration"
     LLM_CALL = "llm.call"
@@ -32,13 +33,14 @@ class SpanKind(Enum):
     DELEGATION = "agent.delegation"
     PLANNING = "agent.planning"
     SKILL_ACTIVATION = "skill.activation"
-    KNOWLEDGE_SEARCH = "knowledge.search"          # 主动搜索（query 工具）
-    KNOWLEDGE_RETRIEVAL = "knowledge.retrieval"    # 被动检索（context building）
+    KNOWLEDGE_SEARCH = "knowledge.search"  # 主动搜索（query 工具）
+    KNOWLEDGE_RETRIEVAL = "knowledge.retrieval"  # 被动检索（context building）
 
 
 @dataclass
 class Span:
     """追踪 Span — 记录单个操作的生命周期"""
+
     trace_id: str
     span_id: str
     parent_span_id: str | None
@@ -61,19 +63,24 @@ class Span:
         self.attributes[key] = value
 
     def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
-        self.events.append({
-            "name": name,
-            "timestamp": time.time(),
-            "attributes": attributes or {},
-        })
+        self.events.append(
+            {
+                "name": name,
+                "timestamp": time.time(),
+                "attributes": attributes or {},
+            }
+        )
 
     def set_error(self, error: Exception) -> None:
         self.status = "error"
         self.error_message = str(error)
-        self.add_event("exception", {
-            "type": type(error).__name__,
-            "message": str(error),
-        })
+        self.add_event(
+            "exception",
+            {
+                "type": type(error).__name__,
+                "message": str(error),
+            },
+        )
 
     def finish(self) -> None:
         self.end_time = time.time()
@@ -136,8 +143,12 @@ class LoomTracer:
         if not self.enabled:
             # 返回一个 no-op span
             yield Span(
-                trace_id="", span_id="", parent_span_id=None,
-                kind=kind, name=name, start_time=0,
+                trace_id="",
+                span_id="",
+                parent_span_id=None,
+                kind=kind,
+                name=name,
+                start_time=0,
             )
             return
 
@@ -246,6 +257,7 @@ def trace_operation(kind: SpanKind, name: str | None = None):
         async def execute_tool(self, tool_name, args):
             ...
     """
+
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(self, *args, **kwargs):
@@ -256,5 +268,7 @@ def trace_operation(kind: SpanKind, name: str | None = None):
             with tracer.start_span(kind, op_name):
                 result = await func(self, *args, **kwargs)
                 return result
+
         return wrapper
+
     return decorator

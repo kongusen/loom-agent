@@ -29,10 +29,7 @@ class TestLoomMemoryInit:
     def test_init_custom_sizes(self):
         """测试自定义 token 预算初始化"""
         memory = LoomMemory(
-            node_id="test_node",
-            l1_token_budget=4000,
-            l2_token_budget=8000,
-            l3_token_budget=16000
+            node_id="test_node", l1_token_budget=4000, l2_token_budget=8000, l3_token_budget=16000
         )
 
         assert memory.l1_token_budget == 4000

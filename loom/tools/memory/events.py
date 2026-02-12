@@ -101,21 +101,33 @@ async def execute_unified_events_tool(args: dict, event_bus: "EventBus") -> dict
         action = args.get("action", "")
         node_filter = args.get("node_id")
         events = [
-            e for e in all_events
+            e
+            for e in all_events
             if e.action == action
             and (node_filter is None or getattr(e, "source_node", None) == node_filter)
         ][:limit]
-        return {"filter_by": "action", "action": action, "count": len(events), "events": _format_events(events)}
+        return {
+            "filter_by": "action",
+            "action": action,
+            "count": len(events),
+            "events": _format_events(events),
+        }
 
     elif filter_by == "node":
         node_id = args.get("node_id", "")
         action_filter = args.get("action")
         events = [
-            e for e in all_events
+            e
+            for e in all_events
             if getattr(e, "source_node", None) == node_id
             and (action_filter is None or e.action == action_filter)
         ][:limit]
-        return {"filter_by": "node", "node_id": node_id, "count": len(events), "events": _format_events(events)}
+        return {
+            "filter_by": "node",
+            "node_id": node_id,
+            "count": len(events),
+            "events": _format_events(events),
+        }
 
     elif filter_by == "target":
         target_agent = args.get("target_agent")
@@ -123,17 +135,24 @@ async def execute_unified_events_tool(args: dict, event_bus: "EventBus") -> dict
         if not target_agent and not target_node_id:
             return {"error": "target_agent or node_id required for filter_by='target'"}
         events = [
-            e for e in all_events
+            e
+            for e in all_events
             if (target_agent and getattr(e, "target_agent", None) == target_agent)
             or (target_node_id and getattr(e, "target_node", None) == target_node_id)
         ][:limit]
-        return {"filter_by": "target", "target_agent": target_agent, "count": len(events), "events": _format_events(events)}
+        return {
+            "filter_by": "target",
+            "target_agent": target_agent,
+            "count": len(events),
+            "events": _format_events(events),
+        }
 
     elif filter_by == "recent":
         action_filter = args.get("action")
         node_filter = args.get("node_id")
         events = [
-            e for e in all_events
+            e
+            for e in all_events
             if (action_filter is None or e.action == action_filter)
             and (node_filter is None or getattr(e, "source_node", None) == node_filter)
         ][:limit]
@@ -145,7 +164,8 @@ async def execute_unified_events_tool(args: dict, event_bus: "EventBus") -> dict
         task_id = args.get("task_id")
         thinking_actions = {"node.thinking", "agent.thinking", "thinking"}
         events = [
-            e for e in all_events
+            e
+            for e in all_events
             if e.action in thinking_actions
             and (node_id is None or getattr(e, "source_node", None) == node_id)
             and (task_id is None or e.task_id == task_id)

@@ -320,6 +320,10 @@ class TestSandboxExecutePython:
         """Create a sandbox instance"""
         return Sandbox(tmp_path)
 
+    @pytest.mark.skipif(
+        not RESTRICTED_PYTHON_AVAILABLE,
+        reason="RestrictedPython is required for Python code execution tests",
+    )
     @pytest.mark.asyncio
     async def test_execute_python_simple_code(self, sandbox):
         """Test executing simple Python code (触发line 248-284)"""
@@ -330,6 +334,10 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 4
 
+    @pytest.mark.skipif(
+        not RESTRICTED_PYTHON_AVAILABLE,
+        reason="RestrictedPython is required for Python code execution tests",
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_params(self, sandbox):
         """Test executing code with parameters"""
@@ -341,6 +349,10 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 15
 
+    @pytest.mark.skipif(
+        not RESTRICTED_PYTHON_AVAILABLE,
+        reason="RestrictedPython is required for Python code execution tests",
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_allowed_module(self, sandbox):
         """Test using allowed module (math)"""
@@ -351,6 +363,10 @@ class TestSandboxExecutePython:
         assert result["success"] is True
         assert result["result"] == 4.0
 
+    @pytest.mark.skipif(
+        not RESTRICTED_PYTHON_AVAILABLE,
+        reason="RestrictedPython is required for Python code execution tests",
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_json_module(self, sandbox):
         """Test using allowed module (json)"""
@@ -371,6 +387,10 @@ class TestSandboxExecutePython:
         assert result["success"] is False
         assert "error" in result
 
+    @pytest.mark.skipif(
+        not RESTRICTED_PYTHON_AVAILABLE,
+        reason="RestrictedPython is required for Python code execution tests",
+    )
     @pytest.mark.asyncio
     async def test_execute_python_timeout(self, tmp_path):
         """Test code execution timeout"""
@@ -396,7 +416,9 @@ class TestSandboxExecutePython:
         else:
             assert result["success"] is False or result["result"] is None
 
-    @pytest.mark.xfail(reason="Print support requires complex RestrictedPython configuration", strict=False)
+    @pytest.mark.xfail(
+        reason="Print support requires complex RestrictedPython configuration", strict=False
+    )
     @pytest.mark.asyncio
     async def test_execute_python_with_print(self, sandbox):
         """Test using print in sandboxed code"""

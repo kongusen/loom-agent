@@ -59,7 +59,9 @@ class ExecutionEngine:
                     task.parameters.get("content", "")
                 )
                 compacted = await agent.memory_compactor.check_and_compact(
-                    task, current_context, agent.context_orchestrator.max_tokens,
+                    task,
+                    current_context,
+                    agent.context_orchestrator.max_tokens,
                 )
                 if compacted:
                     logger.info("Memory compaction triggered for task %s", task.taskId)
@@ -121,7 +123,8 @@ class ExecutionEngine:
                     tool_calls = []
 
                     async for chunk in agent.llm_provider.stream_chat(
-                        messages, tools=agent.all_tools if agent.all_tools else None,
+                        messages,
+                        tools=agent.all_tools if agent.all_tools else None,
                     ):
                         if chunk.type == "text":
                             content_str = (
@@ -157,6 +160,7 @@ class ExecutionEngine:
 
                     # 剥离 importance 标记
                     from loom.agent.core import _strip_importance_tag
+
                     clean_content, importance = _strip_importance_tag(full_content)
                     if importance is not None:
                         full_content = clean_content
@@ -168,15 +172,17 @@ class ExecutionEngine:
                     # 无工具调用
                     if not tool_calls:
                         if agent.require_done_tool:
-                            accumulated_messages.append({
-                                "role": "system",
-                                "content": (
-                                    "Please call the 'done' tool to complete the task. "
-                                    "IMPORTANT: First output your full response as text, "
-                                    "then call done() with just a brief summary (1-2 sentences). "
-                                    "Do NOT put your full response in the done() message parameter."
-                                ),
-                            })
+                            accumulated_messages.append(
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "Please call the 'done' tool to complete the task. "
+                                        "IMPORTANT: First output your full response as text, "
+                                        "then call done() with just a brief summary (1-2 sentences). "
+                                        "Do NOT put your full response in the done() message parameter."
+                                    ),
+                                }
+                            )
                             continue
                         else:
                             break
@@ -230,6 +236,7 @@ class ExecutionEngine:
                         # done tool
                         if tool_name == "done":
                             from loom.tools.builtin.done import execute_done_tool
+
                             await execute_done_tool(tool_args)
 
                         # 元工具路由
@@ -241,7 +248,9 @@ class ExecutionEngine:
                             target_agent = tool_args.get("target_agent", "")
                             subtask = tool_args.get("subtask", "")
                             result = await agent._execute_delegate_task(
-                                target_agent, subtask, task.taskId,
+                                target_agent,
+                                subtask,
+                                task.taskId,
                                 session_id=task.sessionId,
                             )
                         else:
@@ -254,16 +263,19 @@ class ExecutionEngine:
                             session_id=task.sessionId,
                         )
 
-                        accumulated_messages.append({
-                            "role": "tool",
-                            "content": result,
-                            "tool_call_id": tool_call.get("id", ""),
-                            "tool_name": tool_name,
-                        })
+                        accumulated_messages.append(
+                            {
+                                "role": "tool",
+                                "content": result,
+                                "tool_call_id": tool_call.get("id", ""),
+                                "tool_name": tool_name,
+                            }
+                        )
 
                     # 保存检查点
                     if agent._checkpoint_mgr:
                         from loom.runtime.checkpoint import CheckpointData
+
                         _cp_data = CheckpointData(
                             agent_id=agent.node_id,
                             task_id=task.taskId,
@@ -272,7 +284,8 @@ class ExecutionEngine:
                             agent_state={"final_content": final_content},
                             memory_snapshot=(
                                 agent.memory.export_snapshot()
-                                if hasattr(agent.memory, "export_snapshot") else {}
+                                if hasattr(agent.memory, "export_snapshot")
+                                else {}
                             ),
                             tool_history=[
                                 m for m in accumulated_messages if m.get("role") == "tool"

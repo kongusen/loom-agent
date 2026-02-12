@@ -159,8 +159,7 @@ class Sandbox:
             resolved_path.relative_to(self.root_dir)
         except ValueError:
             raise SandboxViolation(
-                f"Path outside sandbox: {path} -> {resolved_path} "
-                f"(sandbox root: {self.root_dir})"
+                f"Path outside sandbox: {path} -> {resolved_path} (sandbox root: {self.root_dir})"
             ) from None
 
         return resolved_path
@@ -395,6 +394,7 @@ class Sandbox:
         class MockPrintCollector:
             def _call_print(self, *args, **kwargs):
                 print(*args, **kwargs)
+
             def __call__(self, *args, **kwargs):
                 print(*args, **kwargs)
 

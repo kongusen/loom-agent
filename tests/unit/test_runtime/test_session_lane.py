@@ -250,7 +250,9 @@ class TestSessionLaneKnowledgeActionBypass:
 
         # 先让普通任务获取锁
         normal_task = Task(
-            taskId="normal-1", sessionId="session-1", action="execute",
+            taskId="normal-1",
+            sessionId="session-1",
+            action="execute",
         )
         await interceptor.before(normal_task)
         assert normal_task.taskId in interceptor._task_locks
@@ -274,7 +276,9 @@ class TestSessionLaneKnowledgeActionBypass:
         interceptor = SessionLaneInterceptor(mode=SessionIsolationMode.STRICT)
 
         task = Task(
-            taskId="task-1", sessionId="session-1", action="execute",
+            taskId="task-1",
+            sessionId="session-1",
+            action="execute",
         )
         await interceptor.before(task)
         assert task.taskId in interceptor._task_locks

@@ -43,20 +43,22 @@ class TestLLMEntityExtractorExtract:
     @pytest.mark.asyncio
     async def test_extract_entities_from_chunk(self):
         """mock LLM 返回 JSON，验证解析"""
-        response = json.dumps({
-            "entities": [
-                {"text": "GraphRAG", "type": "CONCEPT", "description": "图增强检索"},
-                {"text": "VectorStore", "type": "TOOL", "description": "向量存储"},
-            ],
-            "relations": [
-                {
-                    "source": "GraphRAG",
-                    "target": "VectorStore",
-                    "type": "USES",
-                    "description": "GraphRAG 使用 VectorStore",
-                },
-            ],
-        })
+        response = json.dumps(
+            {
+                "entities": [
+                    {"text": "GraphRAG", "type": "CONCEPT", "description": "图增强检索"},
+                    {"text": "VectorStore", "type": "TOOL", "description": "向量存储"},
+                ],
+                "relations": [
+                    {
+                        "source": "GraphRAG",
+                        "target": "VectorStore",
+                        "type": "USES",
+                        "description": "GraphRAG 使用 VectorStore",
+                    },
+                ],
+            }
+        )
         llm = _mock_llm(response)
         extractor = LLMEntityExtractor(llm)
         chunk = _make_chunk("GraphRAG uses VectorStore for retrieval")
@@ -72,15 +74,17 @@ class TestLLMEntityExtractorExtract:
     @pytest.mark.asyncio
     async def test_extract_relations_from_chunk(self):
         """验证关系提取"""
-        response = json.dumps({
-            "entities": [
-                {"text": "Agent", "type": "CONCEPT"},
-                {"text": "LLM", "type": "TOOL"},
-            ],
-            "relations": [
-                {"source": "Agent", "target": "LLM", "type": "DEPENDS_ON"},
-            ],
-        })
+        response = json.dumps(
+            {
+                "entities": [
+                    {"text": "Agent", "type": "CONCEPT"},
+                    {"text": "LLM", "type": "TOOL"},
+                ],
+                "relations": [
+                    {"source": "Agent", "target": "LLM", "type": "DEPENDS_ON"},
+                ],
+            }
+        )
         llm = _mock_llm(response)
         extractor = LLMEntityExtractor(llm)
 
@@ -106,7 +110,11 @@ class TestLLMEntityExtractorExtract:
         await extractor.extract(_make_chunk())
 
         call_args = llm.chat.call_args
-        prompt = call_args[1]["messages"][0]["content"] if "messages" in call_args[1] else call_args[0][0][0]["content"]
+        prompt = (
+            call_args[1]["messages"][0]["content"]
+            if "messages" in call_args[1]
+            else call_args[0][0][0]["content"]
+        )
         assert "PERSON" in prompt
         assert "ORG" in prompt
         assert "WORKS_FOR" in prompt
@@ -121,7 +129,11 @@ class TestLLMEntityExtractorExtract:
         await extractor.extract(_make_chunk())
 
         call_args = llm.chat.call_args
-        prompt = call_args[1]["messages"][0]["content"] if "messages" in call_args[1] else call_args[0][0][0]["content"]
+        prompt = (
+            call_args[1]["messages"][0]["content"]
+            if "messages" in call_args[1]
+            else call_args[0][0][0]["content"]
+        )
         assert "关注技术架构和API设计模式" in prompt
 
     @pytest.mark.asyncio
@@ -168,9 +180,7 @@ class TestLLMEntityExtractorExtract:
             {"text": "A", "type": "CONCEPT"},
             {"text": "B", "type": "CONCEPT"},
         ]
-        many_relations = [
-            {"source": "A", "target": "B", "type": "USES"} for _ in range(20)
-        ]
+        many_relations = [{"source": "A", "target": "B", "type": "USES"} for _ in range(20)]
         response = json.dumps({"entities": entities_data, "relations": many_relations})
         cfg = ExtractionConfig(max_relations_per_chunk=3)
         llm = _mock_llm(response)
@@ -183,12 +193,14 @@ class TestLLMEntityExtractorExtract:
     @pytest.mark.asyncio
     async def test_relation_with_missing_entity_skipped(self):
         """关系引用不存在的实体时跳过"""
-        response = json.dumps({
-            "entities": [{"text": "A", "type": "CONCEPT"}],
-            "relations": [
-                {"source": "A", "target": "NonExistent", "type": "USES"},
-            ],
-        })
+        response = json.dumps(
+            {
+                "entities": [{"text": "A", "type": "CONCEPT"}],
+                "relations": [
+                    {"source": "A", "target": "NonExistent", "type": "USES"},
+                ],
+            }
+        )
         llm = _mock_llm(response)
         extractor = LLMEntityExtractor(llm)
 
@@ -200,10 +212,12 @@ class TestLLMEntityExtractorExtract:
     @pytest.mark.asyncio
     async def test_markdown_code_block_json(self):
         """LLM 返回 markdown code block 包裹的 JSON"""
-        inner = json.dumps({
-            "entities": [{"text": "Test", "type": "CONCEPT"}],
-            "relations": [],
-        })
+        inner = json.dumps(
+            {
+                "entities": [{"text": "Test", "type": "CONCEPT"}],
+                "relations": [],
+            }
+        )
         response = f"```json\n{inner}\n```"
         llm = _mock_llm(response)
         extractor = LLMEntityExtractor(llm)
@@ -228,10 +242,12 @@ class TestLLMEntityExtractorExtract:
     @pytest.mark.asyncio
     async def test_entity_metadata_has_description(self):
         """实体 metadata 包含 description"""
-        response = json.dumps({
-            "entities": [{"text": "Agent", "type": "CONCEPT", "description": "智能代理"}],
-            "relations": [],
-        })
+        response = json.dumps(
+            {
+                "entities": [{"text": "Agent", "type": "CONCEPT", "description": "智能代理"}],
+                "relations": [],
+            }
+        )
         llm = _mock_llm(response)
         extractor = LLMEntityExtractor(llm)
 

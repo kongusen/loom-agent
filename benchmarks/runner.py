@@ -26,6 +26,7 @@ class ScenarioComplexity(Enum):
 @dataclass
 class BenchmarkScenario:
     """基准测试场景"""
+
     name: str
     description: str
     complexity: ScenarioComplexity
@@ -78,6 +79,7 @@ BUILTIN_SCENARIOS: list[BenchmarkScenario] = [
 @dataclass
 class ScenarioResult:
     """单场景执行结果"""
+
     scenario: BenchmarkScenario
     step_results: list[dict[str, Any]]
     total_time_ms: float
@@ -122,29 +124,35 @@ class BenchmarkRunner:
                     self._execute_step(agent, step),
                     timeout=scenario.timeout_seconds / max(len(scenario.steps), 1),
                 )
-                step_results.append({
-                    "step_id": step["id"],
-                    "completed": True,
-                    "time_ms": (time.monotonic() - step_start) * 1000,
-                    "tokens": result.get("tokens", 0),
-                    "output": result.get("output", ""),
-                })
+                step_results.append(
+                    {
+                        "step_id": step["id"],
+                        "completed": True,
+                        "time_ms": (time.monotonic() - step_start) * 1000,
+                        "tokens": result.get("tokens", 0),
+                        "output": result.get("output", ""),
+                    }
+                )
                 total_tokens += result.get("tokens", 0)
             except TimeoutError:
-                step_results.append({
-                    "step_id": step["id"],
-                    "completed": False,
-                    "time_ms": (time.monotonic() - step_start) * 1000,
-                    "error": "timeout",
-                })
+                step_results.append(
+                    {
+                        "step_id": step["id"],
+                        "completed": False,
+                        "time_ms": (time.monotonic() - step_start) * 1000,
+                        "error": "timeout",
+                    }
+                )
                 errors.append(f"Step {step['id']} timed out")
             except Exception as e:
-                step_results.append({
-                    "step_id": step["id"],
-                    "completed": False,
-                    "time_ms": (time.monotonic() - step_start) * 1000,
-                    "error": str(e),
-                })
+                step_results.append(
+                    {
+                        "step_id": step["id"],
+                        "completed": False,
+                        "time_ms": (time.monotonic() - step_start) * 1000,
+                        "error": str(e),
+                    }
+                )
                 errors.append(f"Step {step['id']}: {e}")
 
         elapsed = (time.monotonic() - start) * 1000

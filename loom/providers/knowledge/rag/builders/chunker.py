@@ -9,24 +9,131 @@ from loom.providers.knowledge.rag.builders.base import Document
 from loom.providers.knowledge.rag.models.chunk import TextChunk
 
 # 英文停用词
-_STOP_WORDS = frozenset({
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "dare", "ought",
-    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    "as", "into", "through", "during", "before", "after", "above", "below",
-    "between", "out", "off", "over", "under", "again", "further", "then",
-    "once", "here", "there", "when", "where", "why", "how", "all", "each",
-    "every", "both", "few", "more", "most", "other", "some", "such", "no",
-    "nor", "not", "only", "own", "same", "so", "than", "too", "very",
-    "just", "because", "but", "and", "or", "if", "while", "that", "this",
-    "these", "those", "it", "its", "i", "me", "my", "we", "our", "you",
-    "your", "he", "him", "his", "she", "her", "they", "them", "their",
-    "what", "which", "who", "whom", "none", "also", "about", "up",
-})
+_STOP_WORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "out",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "here",
+        "there",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "because",
+        "but",
+        "and",
+        "or",
+        "if",
+        "while",
+        "that",
+        "this",
+        "these",
+        "those",
+        "it",
+        "its",
+        "i",
+        "me",
+        "my",
+        "we",
+        "our",
+        "you",
+        "your",
+        "he",
+        "him",
+        "his",
+        "she",
+        "her",
+        "they",
+        "them",
+        "their",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "none",
+        "also",
+        "about",
+        "up",
+    }
+)
 
 # 关键词提取模式
-_CAMEL_CASE_RE = re.compile(r"[A-Z][a-z]+(?:[A-Z]+[a-z]*)+")  # handles acronyms like GraphRAGKnowledgeBase
+_CAMEL_CASE_RE = re.compile(
+    r"[A-Z][a-z]+(?:[A-Z]+[a-z]*)+"
+)  # handles acronyms like GraphRAGKnowledgeBase
 _SNAKE_CASE_RE = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
 _ALL_CAPS_RE = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
 _DOTTED_PATH_RE = re.compile(r"[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)+")
@@ -169,7 +276,11 @@ class SlidingWindowChunker(ChunkingStrategy):
                     tc.keywords = extract_chunk_keywords(stripped)
                     chunks.append(tc)
                 # 保留重叠部分
-                overlap_text = current_chunk[-self.chunk_overlap:] if len(current_chunk) > self.chunk_overlap else ""
+                overlap_text = (
+                    current_chunk[-self.chunk_overlap :]
+                    if len(current_chunk) > self.chunk_overlap
+                    else ""
+                )
                 current_chunk = overlap_text + sentence
 
         # 处理最后一个块

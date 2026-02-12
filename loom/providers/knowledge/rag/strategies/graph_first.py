@@ -70,8 +70,10 @@ class GraphFirstStrategy(RetrievalStrategy):
             vector_results = await self.vector_retriever.retrieve(query, limit)
             t_end = time.monotonic()
             self._record_metrics(
-                graph_count=0, result_count=len(vector_results),
-                fallback=True, total_ms=(t_end - t0) * 1000,
+                graph_count=0,
+                result_count=len(vector_results),
+                fallback=True,
+                total_ms=(t_end - t0) * 1000,
             )
             return RetrievalResult(
                 chunks=[c for c, _ in vector_results],
@@ -86,8 +88,10 @@ class GraphFirstStrategy(RetrievalStrategy):
         t_end = time.monotonic()
 
         self._record_metrics(
-            graph_count=len(graph_chunks), result_count=len(sorted_chunks),
-            fallback=False, graph_ms=(t_graph - t0) * 1000,
+            graph_count=len(graph_chunks),
+            result_count=len(sorted_chunks),
+            fallback=False,
+            graph_ms=(t_graph - t0) * 1000,
             total_ms=(t_end - t0) * 1000,
         )
 
@@ -149,6 +153,7 @@ class GraphFirstStrategy(RetrievalStrategy):
 
         if self.metrics:
             from loom.observability.metrics import LoomMetrics
+
             self.metrics.increment(LoomMetrics.KNOWLEDGE_SEARCH_TOTAL)
             self.metrics.observe(LoomMetrics.KNOWLEDGE_SEARCH_LATENCY, total_ms)
             self.metrics.set_gauge(LoomMetrics.KNOWLEDGE_RESULTS_COUNT, result_count)

@@ -40,9 +40,7 @@ class VectorFirstStrategy(RetrievalStrategy):
         **_kwargs: Any,
     ) -> RetrievalResult:
         """向量检索"""
-        results = await self.vector_retriever.retrieve(
-            query, limit, threshold=self.threshold
-        )
+        results = await self.vector_retriever.retrieve(query, limit, threshold=self.threshold)
 
         return RetrievalResult(
             chunks=[c for c, _ in results],

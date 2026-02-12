@@ -34,9 +34,7 @@ def _make_cache_key(
     **kwargs: Any,
 ) -> tuple:
     """构建 hashable 缓存键"""
-    frozen_kwargs = tuple(sorted(
-        (k, _freeze(v)) for k, v in kwargs.items()
-    ))
+    frozen_kwargs = tuple(sorted((k, _freeze(v)) for k, v in kwargs.items()))
     return (client_class_name, api_key, base_url, timeout, max_retries, frozen_kwargs)
 
 

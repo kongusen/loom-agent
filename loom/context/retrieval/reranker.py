@@ -242,9 +242,7 @@ class Reranker:
             candidate.final_score = weighted_sum / total_weight
 
         # 3. 过滤 + 排序
-        candidates = [
-            c for c in candidates if c.final_score >= self.min_score_threshold
-        ]
+        candidates = [c for c in candidates if c.final_score >= self.min_score_threshold]
         candidates.sort(key=lambda c: c.final_score, reverse=True)
 
         elapsed = (time.monotonic() - start) * 1000

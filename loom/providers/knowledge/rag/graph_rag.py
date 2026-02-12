@@ -104,6 +104,7 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
         # 如果有 tracer，包裹在 KNOWLEDGE_SEARCH span 中
         if self.tracer:
             from loom.observability.tracing import SpanKind
+
             with self.tracer.start_span(
                 SpanKind.KNOWLEDGE_SEARCH,
                 f"knowledge.query:{self.name}",
@@ -134,6 +135,7 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
         # 记录指标
         if self.metrics:
             from loom.observability.metrics import LoomMetrics
+
             elapsed_ms = (time.monotonic() - t0) * 1000
             self.metrics.increment(LoomMetrics.KNOWLEDGE_SEARCH_TOTAL)
             self.metrics.observe(LoomMetrics.KNOWLEDGE_SEARCH_LATENCY, elapsed_ms)
@@ -162,7 +164,9 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
     ) -> None:
         """添加文档并构建索引"""
         if not self.index_builder:
-            raise RuntimeError("IndexBuilder not configured. Use from_config() to create with builder.")
+            raise RuntimeError(
+                "IndexBuilder not configured. Use from_config() to create with builder."
+            )
         await self.index_builder.add_documents(documents, extract_entities)
 
     async def add_document(
@@ -172,7 +176,9 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
     ) -> None:
         """添加单个文档"""
         if not self.index_builder:
-            raise RuntimeError("IndexBuilder not configured. Use from_config() to create with builder.")
+            raise RuntimeError(
+                "IndexBuilder not configured. Use from_config() to create with builder."
+            )
         await self.index_builder.add_document(document, extract_entities)
 
     async def add_texts(
@@ -183,6 +189,7 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
     ) -> None:
         """便捷方法：直接添加文本列表"""
         import uuid
+
         documents = []
         for i, text in enumerate(texts):
             metadata = metadatas[i] if metadatas and i < len(metadatas) else {}
@@ -263,8 +270,12 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
 
         # 4. 创建策略（根据可用能力自动选择）
         strategy = cls._create_strategy(
-            config, graph_retriever, vector_retriever, entity_extractor,
-            tracer=tracer, metrics=metrics,
+            config,
+            graph_retriever,
+            vector_retriever,
+            entity_extractor,
+            tracer=tracer,
+            metrics=metrics,
         )
 
         # 5. 创建索引构建器
@@ -379,6 +390,7 @@ class _GraphOnlyStrategy(RetrievalStrategy):
     @property
     def strategy_type(self):
         from loom.providers.knowledge.rag.strategies.base import StrategyType
+
         return StrategyType.GRAPH_FIRST
 
     async def retrieve(self, query: str, limit: int = 10, **_kwargs):

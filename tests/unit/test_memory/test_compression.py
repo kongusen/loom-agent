@@ -26,7 +26,9 @@ class TestL4CompressorInit:
     def test_init_custom_parameters(self):
         """测试自定义参数初始化"""
         compressor = L4Compressor(
-            threshold=200, similarity_threshold=0.8, min_cluster_size=5,
+            threshold=200,
+            similarity_threshold=0.8,
+            min_cluster_size=5,
             fidelity_threshold=0.7,
         )
 
@@ -525,9 +527,7 @@ class TestFidelityCheckerCheck:
 
     def test_lost_keywords_capped(self):
         checker = FidelityChecker(max_lost_keywords_recorded=3)
-        originals = [
-            MemoryUnit(content=f"Keyword{i} is important") for i in range(10)
-        ]
+        originals = [MemoryUnit(content=f"Keyword{i} is important") for i in range(10)]
         merged = MemoryUnit(content="nothing relevant here")
         result = checker.check(merged, originals)
         assert len(result.lost_keywords) <= 3
@@ -538,7 +538,9 @@ class TestCompressWithFidelity:
     async def test_high_fidelity_merge_proceeds(self):
         """高保真时正常合并，metadata 包含 fidelity 信息"""
         compressor = L4Compressor(
-            threshold=3, min_cluster_size=3, fidelity_threshold=0.3,
+            threshold=3,
+            min_cluster_size=3,
+            fidelity_threshold=0.3,
         )
         facts = [
             MemoryUnit(

@@ -119,7 +119,8 @@ class ToolRouter:
     async def _handle_dynamic_tool(self, tool_name: str, parsed_args: dict[str, Any]) -> str:
         try:
             result = await self._agent._dynamic_tool_executor.execute_tool(
-                tool_name, **parsed_args,
+                tool_name,
+                **parsed_args,
             )
             return str(result)
         except ToolCreationError as e:
@@ -195,7 +196,9 @@ class ToolRouter:
         return result
 
     async def _handle_unified_tools(
-        self, tool_name: str, parsed_args: dict[str, Any],
+        self,
+        tool_name: str,
+        parsed_args: dict[str, Any],
     ) -> str | None:
         agent = self._agent
         unified_tool_executors = {

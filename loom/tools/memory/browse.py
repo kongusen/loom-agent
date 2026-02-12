@@ -47,11 +47,13 @@ async def _list_l2(session: "Session", limit: int) -> dict[str, Any]:
             first_key = next(iter(task.parameters), "")
             if first_key:
                 preview += f"({first_key}=...)"
-        items.append({
-            "index": idx,
-            "task_id": task.task_id,
-            "preview": preview,
-        })
+        items.append(
+            {
+                "index": idx,
+                "task_id": task.task_id,
+                "preview": preview,
+            }
+        )
     return {"layer": "L2", "action": "list", "count": len(items), "items": items}
 
 
@@ -61,11 +63,13 @@ async def _list_l3(cc: "ContextController", limit: int) -> dict[str, Any]:
     items = []
     for idx, s in enumerate(summaries, start=1):
         content = s.get("content", "")[:50]
-        items.append({
-            "index": idx,
-            "timestamp": s.get("timestamp", ""),
-            "preview": content + "..." if len(s.get("content", "")) > 50 else content,
-        })
+        items.append(
+            {
+                "index": idx,
+                "timestamp": s.get("timestamp", ""),
+                "preview": content + "..." if len(s.get("content", "")) > 50 else content,
+            }
+        )
     return {"layer": "L3", "action": "list", "count": len(items), "items": items}
 
 
@@ -76,13 +80,15 @@ async def _select_l2(session: "Session", indices: list[int]) -> dict[str, Any]:
     for idx in indices:
         if 1 <= idx <= len(tasks):
             t = tasks[idx - 1]
-            selected.append({
-                "index": idx,
-                "task_id": t.task_id,
-                "action": t.action,
-                "parameters": t.parameters,
-                "result": t.result,
-            })
+            selected.append(
+                {
+                    "index": idx,
+                    "task_id": t.task_id,
+                    "action": t.action,
+                    "parameters": t.parameters,
+                    "result": t.result,
+                }
+            )
     return {"layer": "L2", "action": "select", "count": len(selected), "selected": selected}
 
 
@@ -93,11 +99,13 @@ async def _select_l3(cc: "ContextController", indices: list[int]) -> dict[str, A
     for idx in indices:
         if 1 <= idx <= len(summaries):
             s = summaries[idx - 1]
-            selected.append({
-                "index": idx,
-                "content": s.get("content", ""),
-                "timestamp": s.get("timestamp", ""),
-            })
+            selected.append(
+                {
+                    "index": idx,
+                    "content": s.get("content", ""),
+                    "timestamp": s.get("timestamp", ""),
+                }
+            )
     return {"layer": "L3", "action": "select", "count": len(selected), "selected": selected}
 
 

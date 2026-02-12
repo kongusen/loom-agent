@@ -13,31 +13,199 @@ import numpy as np
 
 from .types import MemoryTier, MemoryType, MemoryUnit
 
-_STOP_WORDS = frozenset({
-    # English
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "dare", "ought",
-    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    "as", "into", "through", "during", "before", "after", "above", "below",
-    "between", "out", "off", "over", "under", "again", "further", "then",
-    "once", "here", "there", "when", "where", "why", "how", "all", "each",
-    "every", "both", "few", "more", "most", "other", "some", "such", "no",
-    "nor", "not", "only", "own", "same", "so", "than", "too", "very",
-    "just", "because", "but", "and", "or", "if", "while", "that", "this",
-    "these", "those", "it", "its", "i", "me", "my", "we", "our", "you",
-    "your", "he", "him", "his", "she", "her", "they", "them", "their",
-    "what", "which", "who", "whom",
-    # Chinese
-    "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一",
-    "一个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有",
-    "看", "好", "自己", "这", "他", "她", "它", "们", "那", "些", "什么",
-    "没", "把", "又", "被", "从", "这个", "那个", "但", "还", "而", "对",
-    "以", "可以", "这样", "已经", "因为", "如果", "所以", "但是", "就是",
-    "可能", "这些", "那些", "或者", "虽然", "然后", "之后", "之前", "通过",
-    "进行", "使用", "需要", "应该", "其中", "以及", "关于", "对于",
-    "随着", "由于", "为了",
-})
+_STOP_WORDS = frozenset(
+    {
+        # English
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "out",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "here",
+        "there",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "because",
+        "but",
+        "and",
+        "or",
+        "if",
+        "while",
+        "that",
+        "this",
+        "these",
+        "those",
+        "it",
+        "its",
+        "i",
+        "me",
+        "my",
+        "we",
+        "our",
+        "you",
+        "your",
+        "he",
+        "him",
+        "his",
+        "she",
+        "her",
+        "they",
+        "them",
+        "their",
+        "what",
+        "which",
+        "who",
+        "whom",
+        # Chinese
+        "的",
+        "了",
+        "在",
+        "是",
+        "我",
+        "有",
+        "和",
+        "就",
+        "不",
+        "人",
+        "都",
+        "一",
+        "一个",
+        "上",
+        "也",
+        "很",
+        "到",
+        "说",
+        "要",
+        "去",
+        "你",
+        "会",
+        "着",
+        "没有",
+        "看",
+        "好",
+        "自己",
+        "这",
+        "他",
+        "她",
+        "它",
+        "们",
+        "那",
+        "些",
+        "什么",
+        "没",
+        "把",
+        "又",
+        "被",
+        "从",
+        "这个",
+        "那个",
+        "但",
+        "还",
+        "而",
+        "对",
+        "以",
+        "可以",
+        "这样",
+        "已经",
+        "因为",
+        "如果",
+        "所以",
+        "但是",
+        "就是",
+        "可能",
+        "这些",
+        "那些",
+        "或者",
+        "虽然",
+        "然后",
+        "之后",
+        "之前",
+        "通过",
+        "进行",
+        "使用",
+        "需要",
+        "应该",
+        "其中",
+        "以及",
+        "关于",
+        "对于",
+        "随着",
+        "由于",
+        "为了",
+    }
+)
 
 # Pre-computed Chinese stop word list sorted by length (longest first)
 # Used to split Chinese character runs into keyword segments
@@ -95,10 +263,7 @@ class FidelityChecker:
         embedding_sim = self._compute_embedding_similarity(merged, originals)
         keyword_ret, retained, lost = self._compute_keyword_retention(merged, originals)
 
-        composite = (
-            self.embedding_weight * embedding_sim
-            + self.keyword_weight * keyword_ret
-        )
+        composite = self.embedding_weight * embedding_sim + self.keyword_weight * keyword_ret
 
         return FidelityResult(
             embedding_similarity=embedding_sim,
@@ -111,7 +276,9 @@ class FidelityChecker:
         )
 
     def _compute_embedding_similarity(
-        self, merged: MemoryUnit, originals: list[MemoryUnit],
+        self,
+        merged: MemoryUnit,
+        originals: list[MemoryUnit],
     ) -> float:
         if merged.embedding is None:
             return 0.0
@@ -137,7 +304,9 @@ class FidelityChecker:
         return float(np.mean(similarities))
 
     def _compute_keyword_retention(
-        self, merged: MemoryUnit, originals: list[MemoryUnit],
+        self,
+        merged: MemoryUnit,
+        originals: list[MemoryUnit],
     ) -> tuple[float, list[str], list[str]]:
         all_keywords: set[str] = set()
         for fact in originals:
@@ -163,7 +332,8 @@ class FidelityChecker:
         # Capitalized phrases: "Machine Learning"
         # Use lookarounds instead of \b to handle CJK adjacency
         for match in re.finditer(
-            r"(?<![a-zA-Z])([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?![a-zA-Z])", text,
+            r"(?<![a-zA-Z])([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?![a-zA-Z])",
+            text,
         ):
             keywords.add(match.group(1))
 
@@ -183,7 +353,8 @@ class FidelityChecker:
 
         # ALL_CAPS identifiers
         for match in re.finditer(
-            r"(?<![a-zA-Z])([A-Z]{2,}(?:_[A-Z0-9]+)*)(?![a-zA-Z])", text,
+            r"(?<![a-zA-Z])([A-Z]{2,}(?:_[A-Z0-9]+)*)(?![a-zA-Z])",
+            text,
         ):
             keywords.add(match.group(1))
 

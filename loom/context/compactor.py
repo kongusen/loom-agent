@@ -292,9 +292,7 @@ class ContextCompactor:
         while low < high:
             mid = (low + high + 1) // 2
             truncated = content[:mid] + "..."
-            tokens = self.token_counter.count_messages(
-                [{"role": block.role, "content": truncated}]
-            )
+            tokens = self.token_counter.count_messages([{"role": block.role, "content": truncated}])
 
             if tokens <= max_tokens:
                 best_content = truncated

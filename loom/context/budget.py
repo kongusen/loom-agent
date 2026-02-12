@@ -74,17 +74,17 @@ class BudgetAllocation:
 DEFAULT_ALLOCATION_RATIOS: dict[str, float] = {
     # 固定区（高优先级，不可压缩）
     "system_prompt": 0.12,  # 系统提示词
-    "user_input": 0.12,     # 用户输入
-    "tools": 0.11,          # 工具定义
-    "skills": 0.05,         # 技能定义
+    "user_input": 0.12,  # 用户输入
+    "tools": 0.11,  # 工具定义
+    "skills": 0.05,  # 技能定义
     # 对话区（可压缩）
-    "L1_recent": 0.18,      # 最近任务
-    "L2_important": 0.10,   # 重要任务
-    "agent_output": 0.05,   # Agent输出
+    "L1_recent": 0.18,  # 最近任务
+    "L2_important": 0.10,  # 重要任务
+    "agent_output": 0.05,  # Agent输出
     # 共享区（跨 Agent 共享记忆）
-    "shared_pool": 0.05,    # SharedMemoryPool 共享记忆
+    "shared_pool": 0.05,  # SharedMemoryPool 共享记忆
     # 检索区（L4 + RAG 共享池）
-    "retrieval": 0.22,      # 统一检索（L4 语义 + RAG 知识库竞争）
+    "retrieval": 0.22,  # 统一检索（L4 语义 + RAG 知识库竞争）
 }
 
 # 旧版兼容比例（仅 Memory 源）
@@ -174,8 +174,7 @@ class BudgetManager:
         """
         available = budget.available
         allocations = {
-            source: int(available * ratio)
-            for source, ratio in self.allocation_ratios.items()
+            source: int(available * ratio) for source, ratio in self.allocation_ratios.items()
         }
         return BudgetAllocation(allocations=allocations)
 
@@ -197,18 +196,12 @@ class BudgetManager:
         available = budget.available
 
         # 筛选出需要的源及其比例
-        filtered_ratios = {
-            name: self.allocation_ratios.get(name, 0.1)
-            for name in source_names
-        }
+        filtered_ratios = {name: self.allocation_ratios.get(name, 0.1) for name in source_names}
 
         # 重新归一化
         normalized = self._normalize_ratios(filtered_ratios)
 
-        allocations = {
-            source: int(available * ratio)
-            for source, ratio in normalized.items()
-        }
+        allocations = {source: int(available * ratio) for source, ratio in normalized.items()}
         return BudgetAllocation(allocations=allocations)
 
 
@@ -217,9 +210,10 @@ class BudgetManager:
 
 class TaskPhase:
     """任务阶段（基于迭代进度推断）"""
-    EARLY = "early"      # 前 30% 迭代
-    MIDDLE = "middle"    # 30-70%
-    LATE = "late"        # 后 30%
+
+    EARLY = "early"  # 前 30% 迭代
+    MIDDLE = "middle"  # 30-70%
+    LATE = "late"  # 后 30%
 
     @staticmethod
     def from_progress(current_iteration: int, max_iterations: int) -> str:

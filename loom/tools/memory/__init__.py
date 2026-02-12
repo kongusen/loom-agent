@@ -31,6 +31,7 @@ def __getattr__(name: str):
     if name in _MEMORY_REGISTRY:
         if name not in _loaded:
             import importlib
+
             module_path, attr_name = _MEMORY_REGISTRY[name]
             module = importlib.import_module(module_path, package="loom.tools.memory")
             _loaded[name] = getattr(module, attr_name)

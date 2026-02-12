@@ -142,7 +142,9 @@ class InMemoryChunkStore(ChunkStore):
         keyword_lower = keyword.lower()
         matches = []
         for chunk in self._chunks.values():
-            if keyword_lower in chunk.content.lower() or any(keyword_lower in kw.lower() for kw in chunk.keywords):
+            if keyword_lower in chunk.content.lower() or any(
+                keyword_lower in kw.lower() for kw in chunk.keywords
+            ):
                 matches.append(chunk)
         return matches[:limit]
 

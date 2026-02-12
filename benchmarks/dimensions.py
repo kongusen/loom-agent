@@ -17,16 +17,18 @@ from typing import Any
 
 class ScoreLevel(Enum):
     """评分等级"""
-    EXCELLENT = "excellent"   # 90-100
-    GOOD = "good"             # 70-89
-    ADEQUATE = "adequate"     # 50-69
-    POOR = "poor"             # 30-49
-    FAILING = "failing"       # 0-29
+
+    EXCELLENT = "excellent"  # 90-100
+    GOOD = "good"  # 70-89
+    ADEQUATE = "adequate"  # 50-69
+    POOR = "poor"  # 30-49
+    FAILING = "failing"  # 0-29
 
 
 @dataclass
 class Metric:
     """单项指标"""
+
     name: str
     value: float
     unit: str = ""
@@ -42,6 +44,7 @@ class Metric:
 @dataclass
 class DimensionScore:
     """维度评分结果"""
+
     dimension_name: str
     score: float  # 0-100
     level: ScoreLevel
@@ -125,13 +128,15 @@ class LongHorizonStabilityDimension(EvaluationDimension):
         # 1. 步骤完成率
         completed = sum(1 for s in steps if s.get("completed", False))
         completion_rate = (completed / total_steps) * 100
-        metrics.append(Metric(
-            name="step_completion_rate",
-            value=completion_rate,
-            unit="%",
-            weight=1.5,
-            description="各步骤完成率",
-        ))
+        metrics.append(
+            Metric(
+                name="step_completion_rate",
+                value=completion_rate,
+                unit="%",
+                weight=1.5,
+                description="各步骤完成率",
+            )
+        )
 
         # 2. 连贯性衰减 — 比较前半段和后半段的成功率
         mid = total_steps // 2
@@ -142,36 +147,42 @@ class LongHorizonStabilityDimension(EvaluationDimension):
             coherence_score = max(0, (1 - decay * 2)) * 100
         else:
             coherence_score = completion_rate
-        metrics.append(Metric(
-            name="coherence_decay",
-            value=coherence_score,
-            unit="score",
-            weight=1.2,
-            description="语义连贯性衰减（100=无衰减）",
-        ))
+        metrics.append(
+            Metric(
+                name="coherence_decay",
+                value=coherence_score,
+                unit="score",
+                weight=1.2,
+                description="语义连贯性衰减（100=无衰减）",
+            )
+        )
 
         # 3. 错误级联抵抗
         error_cascades = context.get("error_cascades", 0)
         total_errors = context.get("total_errors", 1)
         cascade_resistance = max(0, (1 - error_cascades / max(total_errors, 1))) * 100
-        metrics.append(Metric(
-            name="error_cascade_resistance",
-            value=cascade_resistance,
-            unit="score",
-            weight=1.0,
-            description="错误级联抵抗能力",
-        ))
+        metrics.append(
+            Metric(
+                name="error_cascade_resistance",
+                value=cascade_resistance,
+                unit="score",
+                weight=1.0,
+                description="错误级联抵抗能力",
+            )
+        )
 
         # 4. 恢复率
         recoveries = context.get("recoveries", 0)
         recovery_rate = (recoveries / max(total_errors, 1)) * 100 if total_errors > 0 else 100
-        metrics.append(Metric(
-            name="recovery_rate",
-            value=min(recovery_rate, 100),
-            unit="%",
-            weight=1.0,
-            description="从错误中恢复的成功率",
-        ))
+        metrics.append(
+            Metric(
+                name="recovery_rate",
+                value=min(recovery_rate, 100),
+                unit="%",
+                weight=1.0,
+                description="从错误中恢复的成功率",
+            )
+        )
 
         return DimensionScore.from_metrics(self.name, metrics)
 
@@ -208,25 +219,29 @@ class MemoryEfficiencyDimension(EvaluationDimension):
             util_score = utilization / 0.7
         else:
             util_score = max(0, 100 - (utilization - 90) * 5)
-        metrics.append(Metric(
-            name="token_utilization",
-            value=util_score,
-            unit="score",
-            weight=1.0,
-            description="Token 预算利用率（70-90% 最优）",
-        ))
+        metrics.append(
+            Metric(
+                name="token_utilization",
+                value=util_score,
+                unit="score",
+                weight=1.0,
+                description="Token 预算利用率（70-90% 最优）",
+            )
+        )
 
         # 2. 信息保留率
         key_facts_total = memory_stats.get("key_facts_total", 0)
         key_facts_retained = memory_stats.get("key_facts_retained", 0)
         retention = (key_facts_retained / max(key_facts_total, 1)) * 100
-        metrics.append(Metric(
-            name="information_retention",
-            value=retention,
-            unit="%",
-            weight=1.3,
-            description="关键信息保留率",
-        ))
+        metrics.append(
+            Metric(
+                name="information_retention",
+                value=retention,
+                unit="%",
+                weight=1.3,
+                description="关键信息保留率",
+            )
+        )
 
         # 3. 压缩比
         original_tokens = memory_stats.get("original_tokens", 1)
@@ -234,26 +249,30 @@ class MemoryEfficiencyDimension(EvaluationDimension):
         ratio = original_tokens / max(compressed_tokens, 1)
         # 压缩比 2-5x 为优秀
         compression_score = min(ratio / 5 * 100, 100)
-        metrics.append(Metric(
-            name="compression_ratio",
-            value=compression_score,
-            unit="score",
-            weight=0.8,
-            description=f"压缩比 {ratio:.1f}x",
-            raw_data={"ratio": ratio},
-        ))
+        metrics.append(
+            Metric(
+                name="compression_ratio",
+                value=compression_score,
+                unit="score",
+                weight=0.8,
+                description=f"压缩比 {ratio:.1f}x",
+                raw_data={"ratio": ratio},
+            )
+        )
 
         # 4. 检索精度
         retrieval_hits = memory_stats.get("retrieval_hits", 0)
         retrieval_total = memory_stats.get("retrieval_total", 0)
         precision = (retrieval_hits / max(retrieval_total, 1)) * 100
-        metrics.append(Metric(
-            name="retrieval_precision",
-            value=precision,
-            unit="%",
-            weight=1.0,
-            description="L4 语义检索精度",
-        ))
+        metrics.append(
+            Metric(
+                name="retrieval_precision",
+                value=precision,
+                unit="%",
+                weight=1.0,
+                description="L4 语义检索精度",
+            )
+        )
 
         return DimensionScore.from_metrics(self.name, metrics)
 
@@ -306,14 +325,22 @@ class MultiAgentCoordinationDimension(EvaluationDimension):
         cs = context.get("coordination_stats", {})
         delegated = cs.get("tasks_delegated", 0)
         succeeded = cs.get("tasks_succeeded", 0)
-        metrics.append(Metric("delegation_success_rate", (succeeded / max(delegated, 1)) * 100, "%", 1.2))
+        metrics.append(
+            Metric("delegation_success_rate", (succeeded / max(delegated, 1)) * 100, "%", 1.2)
+        )
         events_total = cs.get("events_total", 0)
         useful = cs.get("useful_events", 0)
-        metrics.append(Metric("communication_efficiency", (useful / max(events_total, 1)) * 100, "%", 0.8))
-        metrics.append(Metric("synthesis_quality", cs.get("synthesis_quality", 0.7) * 100, "score", 1.0))
+        metrics.append(
+            Metric("communication_efficiency", (useful / max(events_total, 1)) * 100, "%", 0.8)
+        )
+        metrics.append(
+            Metric("synthesis_quality", cs.get("synthesis_quality", 0.7) * 100, "score", 1.0)
+        )
         seq = cs.get("sequential_time_ms", 1)
         actual = cs.get("actual_time_ms", 1)
-        metrics.append(Metric("parallel_efficiency", min((seq / max(actual, 1)) * 100, 100), "score", 1.0))
+        metrics.append(
+            Metric("parallel_efficiency", min((seq / max(actual, 1)) * 100, 100), "score", 1.0)
+        )
         return DimensionScore.from_metrics(self.name, metrics)
 
 
@@ -328,8 +355,12 @@ class ObservabilityDimension(EvaluationDimension):
         metrics = []
         obs = context.get("observability_stats", {})
         metrics.append(Metric("trace_coverage", obs.get("trace_coverage", 0) * 100, "%", 1.2))
-        metrics.append(Metric("metric_completeness", obs.get("metric_completeness", 0) * 100, "%", 1.0))
-        metrics.append(Metric("error_attribution", obs.get("error_attribution_rate", 0) * 100, "%", 1.3))
+        metrics.append(
+            Metric("metric_completeness", obs.get("metric_completeness", 0) * 100, "%", 1.0)
+        )
+        metrics.append(
+            Metric("error_attribution", obs.get("error_attribution_rate", 0) * 100, "%", 1.3)
+        )
         replay_ok = 100.0 if obs.get("supports_replay", False) else 0.0
         metrics.append(Metric("replay_capability", replay_ok, "bool", 0.8))
         return DimensionScore.from_metrics(self.name, metrics)
@@ -345,8 +376,15 @@ class DeveloperExperienceDimension(EvaluationDimension):
     async def evaluate(self, context: dict[str, Any]) -> DimensionScore:
         metrics = []
         dx = context.get("dx_stats", {})
-        metrics.append(Metric("api_simplicity", dx.get("lines_to_hello_world", 100), "lines", 1.0,
-                              description="Hello World 所需代码行数"))
+        metrics.append(
+            Metric(
+                "api_simplicity",
+                dx.get("lines_to_hello_world", 100),
+                "lines",
+                1.0,
+                description="Hello World 所需代码行数",
+            )
+        )
         loc = dx.get("lines_to_hello_world", 10)
         api_score = max(0, 100 - (loc - 3) * 10)  # 3行=100分，每多1行扣10分
         metrics[0] = Metric("api_simplicity", min(max(api_score, 0), 100), "score", 1.0)

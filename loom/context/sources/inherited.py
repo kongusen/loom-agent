@@ -51,6 +51,7 @@ class InheritedSource(ContextSource):
             return self._scopes
 
         from loom.fractal.memory import MemoryScope
+
         return [MemoryScope.INHERITED, MemoryScope.SHARED, MemoryScope.GLOBAL]
 
     async def collect(

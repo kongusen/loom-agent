@@ -125,7 +125,7 @@ async def main():
             parameters={"index": i},
         )
         result = await chain.execute(task, execute_task)
-        print(f"    任务 {i+1} 结果: {result.status}")
+        print(f"    任务 {i + 1} 结果: {result.status}")
 
     # 4. 查看指标
     print("\n[4] 查看收集的指标")

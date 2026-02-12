@@ -124,7 +124,7 @@ def _strip_importance_tag(response_text: str) -> tuple[str, float | None]:
     if not match:
         return response_text, None
     importance = float(match.group(1))
-    clean_text = response_text[:match.start()].rstrip()
+    clean_text = response_text[: match.start()].rstrip()
     return clean_text, importance
 
 
@@ -405,6 +405,7 @@ class Agent(
         self._metrics_exporters: list[Any] = []
         if observability_exporters:
             from loom.observability.exporters import OTLPMetricsExporter
+
             self._metrics_exporters = [
                 e for e in observability_exporters if isinstance(e, OTLPMetricsExporter)
             ]
@@ -414,6 +415,7 @@ class Agent(
         if enable_checkpoint:
             from loom.runtime.checkpoint import CheckpointManager
             from loom.runtime.state_store import MemoryStateStore
+
             self._checkpoint_mgr = CheckpointManager(state_store or MemoryStateStore())
 
         # 创建统一检索组件
@@ -440,13 +442,15 @@ class Agent(
         # 共享记忆池源
         if self.shared_pool is not None:
             from loom.context.sources.shared_pool import SharedPoolSource
+
             sources.append(SharedPoolSource(self.shared_pool))
 
         # 统一检索源（替代独立的 RAGKnowledgeSource，整合 L4 语义 + RAG 知识库）
         self._retrieval_source = None
         if self.memory or self._knowledge_bases:
             from loom.context.retrieval import UnifiedRetrievalSource
-            _loom_memory = getattr(self.memory, 'memory', None) if self.memory else None
+
+            _loom_memory = getattr(self.memory, "memory", None) if self.memory else None
             self._retrieval_source = UnifiedRetrievalSource(
                 memory=_loom_memory,
                 knowledge_bases=self._knowledge_bases or None,
@@ -1079,35 +1083,35 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         # 添加规划元工具
         if "create_plan" not in disabled:
             tools.append(
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_plan",
-                    "description": (
-                        "Create execution plan for complex tasks. "
-                        "Use when: task requires 3+ independent steps, multi-stage workflows, cross-domain tasks. "
-                        "Avoid when: single-step tasks, already executing plan step (avoid nesting), simple operations, deep recursion. "
-                        "Final decision is yours based on actual complexity."
-                    ),
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "goal": {"type": "string", "description": "Goal to achieve"},
-                            "steps": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of execution steps",
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "create_plan",
+                        "description": (
+                            "Create execution plan for complex tasks. "
+                            "Use when: task requires 3+ independent steps, multi-stage workflows, cross-domain tasks. "
+                            "Avoid when: single-step tasks, already executing plan step (avoid nesting), simple operations, deep recursion. "
+                            "Final decision is yours based on actual complexity."
+                        ),
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "goal": {"type": "string", "description": "Goal to achieve"},
+                                "steps": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "List of execution steps",
+                                },
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Why this plan is needed",
+                                },
                             },
-                            "reasoning": {
-                                "type": "string",
-                                "description": "Why this plan is needed",
-                            },
+                            "required": ["goal", "steps"],
                         },
-                        "required": ["goal", "steps"],
                     },
-                },
-            }
-        )
+                }
+            )
 
         # 添加分形委派元工具（自动创建子节点）
         if "delegate_task" not in disabled:
@@ -1512,7 +1516,7 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
         for idx, step in enumerate(steps):
             # 创建子任务（标记为计划步骤，并传递父计划）
             subtask = Task(
-                taskId=f"{parent_task.taskId}-step-{idx+1}-{uuid4()}",
+                taskId=f"{parent_task.taskId}-step-{idx + 1}-{uuid4()}",
                 action="execute",
                 parameters={
                     "content": step,
@@ -1543,9 +1547,9 @@ You are an autonomous agent using ReAct (Reasoning + Acting) as your PRIMARY wor
                     if isinstance(result.result, dict)
                     else str(result.result)
                 )
-                results.append(f"Step {idx+1}: {step_result}")
+                results.append(f"Step {idx + 1}: {step_result}")
             else:
-                results.append(f"Step {idx+1}: Failed - {result.error or 'Unknown error'}")
+                results.append(f"Step {idx + 1}: Failed - {result.error or 'Unknown error'}")
 
         # 聚合结果 - 使用LLM综合生成最终答案
         # 构建步骤执行结果的上下文
@@ -1792,7 +1796,7 @@ IMPORTANT:
 <context>
 You are executing step {step_index}/{total_steps} of a parent plan.
 Parent plan: {parent_plan}
-Your task: {subtask.parameters.get('content', '')}
+Your task: {subtask.parameters.get("content", "")}
 
 You have full capabilities including planning if genuinely needed.
 Prefer ReAct (direct tool use) for most tasks.

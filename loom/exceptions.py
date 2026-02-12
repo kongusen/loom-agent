@@ -95,7 +95,10 @@ class ToolExecutionError(LoomError):
     """工具执行失败"""
 
     def __init__(
-        self, tool_name: str, reason: str, **kwargs: Any,
+        self,
+        tool_name: str,
+        reason: str,
+        **kwargs: Any,
     ):
         self.tool_name = tool_name
         self.reason = reason
@@ -107,7 +110,8 @@ class ToolExecutionError(LoomError):
             "Use Agent.create(..., tool_policy=ToolPolicy(mode='log')) to debug tool calls.",
         )
         super().__init__(
-            f"Tool '{tool_name}' execution failed: {reason}", **kwargs,
+            f"Tool '{tool_name}' execution failed: {reason}",
+            **kwargs,
         )
 
 
@@ -125,7 +129,8 @@ class ToolNotFoundError(LoomError):
             f"Register '{tool_name}' via Agent.create(tools=[...]) or AgentBuilder().with_tools([...])",
         )
         super().__init__(
-            f"Tool '{tool_name}' not found.{hint}", **kwargs,
+            f"Tool '{tool_name}' not found.{hint}",
+            **kwargs,
         )
 
 
@@ -134,6 +139,7 @@ class ToolNotFoundError(LoomError):
 
 class MemoryError(LoomError):
     """记忆系统错误基类"""
+
     pass
 
 
@@ -141,7 +147,11 @@ class MemoryBudgetExceeded(MemoryError):
     """记忆预算超限"""
 
     def __init__(
-        self, tier: str, used: int, limit: int, **kwargs: Any,
+        self,
+        tier: str,
+        used: int,
+        limit: int,
+        **kwargs: Any,
     ):
         self.tier = tier
         self.used = used
@@ -152,8 +162,7 @@ class MemoryBudgetExceeded(MemoryError):
             "or enable compaction to auto-compress older entries.",
         )
         super().__init__(
-            f"Memory budget exceeded for {tier}: "
-            f"{used} tokens used / {limit} limit",
+            f"Memory budget exceeded for {tier}: {used} tokens used / {limit} limit",
             **kwargs,
         )
 
@@ -203,7 +212,10 @@ class DelegationError(LoomError):
     """子 Agent 委派失败"""
 
     def __init__(
-        self, target_agent: str, reason: str, **kwargs: Any,
+        self,
+        target_agent: str,
+        reason: str,
+        **kwargs: Any,
     ):
         self.target_agent = target_agent
         self.reason = reason
@@ -224,7 +236,10 @@ class LLMProviderError(LoomError):
     """LLM 提供者调用失败"""
 
     def __init__(
-        self, provider: str, reason: str, **kwargs: Any,
+        self,
+        provider: str,
+        reason: str,
+        **kwargs: Any,
     ):
         self.provider = provider
         self.reason = reason

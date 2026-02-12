@@ -56,6 +56,7 @@ class TestCallbackSkillLoader:
     @pytest.mark.asyncio
     async def test_load_skill(self, mock_skill_data):
         """测试加载单个 Skill"""
+
         async def query_fn(skill_id: str):
             if skill_id == "test_skill":
                 return mock_skill_data
@@ -71,6 +72,7 @@ class TestCallbackSkillLoader:
     @pytest.mark.asyncio
     async def test_load_skill_not_found(self):
         """测试加载不存在的 Skill"""
+
         async def query_fn(skill_id: str):
             return None
 
@@ -82,6 +84,7 @@ class TestCallbackSkillLoader:
     @pytest.mark.asyncio
     async def test_list_all_skills(self, mock_skill_data):
         """测试列出所有 Skills"""
+
         async def query_fn(skill_id: str):
             return mock_skill_data
 

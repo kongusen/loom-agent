@@ -104,17 +104,22 @@ class TestContextOrchestratorBudgetInjection:
     def test_default_creates_budget_manager(self):
         counter = MagicMock()
         orch = ContextOrchestrator(
-            token_counter=counter, sources=[], model_context_window=4000,
+            token_counter=counter,
+            sources=[],
+            model_context_window=4000,
         )
         assert isinstance(orch.budget_manager, BudgetManager)
 
     def test_injected_budget_manager_used(self):
         counter = MagicMock()
         adaptive = AdaptiveBudgetManager(
-            token_counter=counter, model_context_window=4000,
+            token_counter=counter,
+            model_context_window=4000,
         )
         orch = ContextOrchestrator(
-            token_counter=counter, sources=[], model_context_window=4000,
+            token_counter=counter,
+            sources=[],
+            model_context_window=4000,
             budget_manager=adaptive,
         )
         assert orch.budget_manager is adaptive
@@ -222,7 +227,8 @@ class TestAdaptiveBudgetPhaseUpdates:
     def test_phase_updates_with_iteration(self):
         counter = MagicMock()
         mgr = AdaptiveBudgetManager(
-            token_counter=counter, model_context_window=128000,
+            token_counter=counter,
+            model_context_window=128000,
         )
         # 初始阶段
         assert mgr.current_phase == "early"
@@ -238,7 +244,8 @@ class TestAdaptiveBudgetPhaseUpdates:
     def test_phase_updates_allocation_ratios(self):
         counter = MagicMock()
         mgr = AdaptiveBudgetManager(
-            token_counter=counter, model_context_window=128000,
+            token_counter=counter,
+            model_context_window=128000,
         )
         early_ratios = dict(mgr.allocation_ratios)
 

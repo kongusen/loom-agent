@@ -47,6 +47,7 @@ def __getattr__(name: str):
     if name in _BUILTIN_REGISTRY:
         if name not in _loaded:
             import importlib
+
             module_path, attr_name = _BUILTIN_REGISTRY[name]
             module = importlib.import_module(module_path, package="loom.tools.builtin")
             _loaded[name] = getattr(module, attr_name)

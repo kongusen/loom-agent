@@ -217,7 +217,7 @@ async def demo_context_orchestrator(kb: GraphRAGKnowledgeBase):
     for i, msg in enumerate(messages):
         role = msg["role"]
         content_preview = msg["content"][:80].replace("\n", " ").strip()
-        print(f"      [{i+1}] {role}: {content_preview}...")
+        print(f"      [{i + 1}] {role}: {content_preview}...")
 
 
 async def demo_session_integration(kb: GraphRAGKnowledgeBase):

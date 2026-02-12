@@ -85,8 +85,13 @@ class DelegatorMixin:
 
     # 方法声明移到 TYPE_CHECKING 块中，避免覆盖 BaseNode 的实际实现
     if TYPE_CHECKING:
+
         async def _publish_event(
-            self, action: str, parameters: dict[str, Any], task_id: str, session_id: str | None = None
+            self,
+            action: str,
+            parameters: dict[str, Any],
+            task_id: str,
+            session_id: str | None = None,
         ) -> None: ...
 
     async def delegate(

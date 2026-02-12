@@ -66,9 +66,7 @@ class HybridStrategy(RetrievalStrategy):
         t0 = time.monotonic()
 
         # ---- 1. 并行执行图检索和向量检索 ----
-        graph_task = self.graph_retriever.retrieve(
-            query, n_hop=self.n_hop, limit=limit
-        )
+        graph_task = self.graph_retriever.retrieve(query, n_hop=self.n_hop, limit=limit)
         vector_task = self.vector_retriever.retrieve(query, limit)
 
         (entities, relations, graph_chunks), vector_results = await asyncio.gather(
@@ -80,7 +78,8 @@ class HybridStrategy(RetrievalStrategy):
         vector_chunk_ids = {c.id for c, _ in vector_results}
         graph_chunk_ids = {c.id for c in graph_chunks}
         expansion_chunks, expansion_entities = await self._expand_via_graph(
-            vector_results, existing_chunk_ids=vector_chunk_ids | graph_chunk_ids,
+            vector_results,
+            existing_chunk_ids=vector_chunk_ids | graph_chunk_ids,
         )
         t_expansion = time.monotonic()
 
@@ -104,7 +103,9 @@ class HybridStrategy(RetrievalStrategy):
 
         # 图谱扩展结果（衰减分数）
         for i, chunk in enumerate(expansion_chunks):
-            exp_score = (1.0 - (i / len(expansion_chunks)) if expansion_chunks else 0) * self.expansion_weight
+            exp_score = (
+                1.0 - (i / len(expansion_chunks)) if expansion_chunks else 0
+            ) * self.expansion_weight
             if chunk.id in scores:
                 scores[chunk.id] += exp_score
             else:
@@ -208,11 +209,14 @@ class HybridStrategy(RetrievalStrategy):
                 span.set_attribute("retrieval.parallel_ms", round(parallel_ms, 2))
                 span.set_attribute("retrieval.expansion_ms", round(expansion_ms, 2))
                 span.set_attribute("retrieval.total_ms", round(total_ms, 2))
-                span.set_attribute("retrieval.overlap_count",
-                                   graph_count + vector_count + expansion_count - result_count)
+                span.set_attribute(
+                    "retrieval.overlap_count",
+                    graph_count + vector_count + expansion_count - result_count,
+                )
 
         if self.metrics:
             from loom.observability.metrics import LoomMetrics
+
             self.metrics.increment(LoomMetrics.KNOWLEDGE_SEARCH_TOTAL)
             self.metrics.observe(LoomMetrics.KNOWLEDGE_SEARCH_LATENCY, total_ms)
             self.metrics.set_gauge(LoomMetrics.KNOWLEDGE_RESULTS_COUNT, result_count)

@@ -61,8 +61,6 @@ class VectorRetriever(BaseRetriever):
         query_embedding = await self.embedding_provider.embed(query)
 
         # 向量搜索
-        results = await self.chunk_store.search_by_vector(
-            query_embedding, limit, threshold
-        )
+        results = await self.chunk_store.search_by_vector(query_embedding, limit, threshold)
 
         return results

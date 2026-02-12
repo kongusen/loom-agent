@@ -122,16 +122,21 @@ class CheckpointManager:
         key = self._key(checkpoint.agent_id, checkpoint.task_id, checkpoint.iteration)
         await self._store.save(key, checkpoint.to_dict())
         logger.debug(
-            "Checkpoint saved: %s iteration=%d", key, checkpoint.iteration,
+            "Checkpoint saved: %s iteration=%d",
+            key,
+            checkpoint.iteration,
         )
         # 自动清理超出限制的旧检查点
         await self.cleanup(
-            checkpoint.agent_id, checkpoint.task_id,
+            checkpoint.agent_id,
+            checkpoint.task_id,
             keep_last=self._max_checkpoints,
         )
 
     async def load_latest(
-        self, agent_id: str, task_id: str,
+        self,
+        agent_id: str,
+        task_id: str,
     ) -> CheckpointData | None:
         """加载最近的有效检查点"""
         keys = await self._store.list_keys(self._prefix(agent_id, task_id))
@@ -158,7 +163,10 @@ class CheckpointManager:
         return None
 
     async def load(
-        self, agent_id: str, task_id: str, iteration: int,
+        self,
+        agent_id: str,
+        task_id: str,
+        iteration: int,
     ) -> CheckpointData | None:
         """加载指定迭代的检查点"""
         key = self._key(agent_id, task_id, iteration)
@@ -172,7 +180,10 @@ class CheckpointManager:
             return None
 
     async def cleanup(
-        self, agent_id: str, task_id: str, keep_last: int = 3,
+        self,
+        agent_id: str,
+        task_id: str,
+        keep_last: int = 3,
     ) -> int:
         """
         清理旧检查点，只保留最近 N 个
@@ -201,7 +212,9 @@ class CheckpointManager:
         return len(keys)
 
     async def list_checkpoints(
-        self, agent_id: str, task_id: str,
+        self,
+        agent_id: str,
+        task_id: str,
     ) -> list[int]:
         """列出所有检查点的迭代号"""
         keys = await self._store.list_keys(self._prefix(agent_id, task_id))

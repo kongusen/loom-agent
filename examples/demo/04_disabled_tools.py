@@ -43,10 +43,10 @@ async def main():
     # 2. 配置禁用的内置工具
     agent_config = AgentConfig(
         disabled_tools={
-            'create_plan',
-            'delegate_task',
-            'query_memory',
-            'create_tool',
+            "create_plan",
+            "delegate_task",
+            "query_memory",
+            "create_tool",
         }
     )
 
@@ -66,11 +66,7 @@ async def main():
     )
 
     # 5. 验证工具列表
-    tool_names = [
-        t.get("function", {}).get("name")
-        for t in agent.all_tools
-        if isinstance(t, dict)
-    ]
+    tool_names = [t.get("function", {}).get("name") for t in agent.all_tools if isinstance(t, dict)]
     print(f"可用工具: {tool_names}")
 
     # 6. 运行任务

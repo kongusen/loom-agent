@@ -12,17 +12,19 @@ from typing import Any
 
 class ChangeType(Enum):
     """变更类型"""
-    FEATURE = "feature"      # 新功能
-    FIX = "fix"              # 修复
-    BREAKING = "breaking"    # 破坏性变更
+
+    FEATURE = "feature"  # 新功能
+    FIX = "fix"  # 修复
+    BREAKING = "breaking"  # 破坏性变更
     DEPRECATION = "deprecation"  # 废弃
     PERFORMANCE = "performance"  # 性能优化
-    DOCS = "docs"            # 文档
+    DOCS = "docs"  # 文档
 
 
 @dataclass
 class ChangeLogEntry:
     """变更日志条目"""
+
     type: ChangeType
     description: str
     component: str = ""
@@ -32,6 +34,7 @@ class ChangeLogEntry:
 @dataclass
 class VersionInfo:
     """版本信息"""
+
     major: int
     minor: int
     patch: int
@@ -67,7 +70,9 @@ class VersionInfo:
 # 版本历史
 VERSION_HISTORY: list[VersionInfo] = [
     VersionInfo(
-        major=0, minor=5, patch=3,
+        major=0,
+        minor=5,
+        patch=3,
         release_date=date(2025, 2, 7),
         codename="Fractal Stream",
         changes=[
@@ -79,7 +84,9 @@ VERSION_HISTORY: list[VersionInfo] = [
         ],
     ),
     VersionInfo(
-        major=0, minor=5, patch=2,
+        major=0,
+        minor=5,
+        patch=2,
         release_date=date(2025, 2, 5),
         codename="Tools Refactor",
         changes=[
@@ -89,7 +96,9 @@ VERSION_HISTORY: list[VersionInfo] = [
         ],
     ),
     VersionInfo(
-        major=0, minor=5, patch=1,
+        major=0,
+        minor=5,
+        patch=1,
         release_date=date(2025, 2, 3),
         codename="Observability",
         changes=[

@@ -176,16 +176,24 @@ async def demo_metrics_histograms():
 
     print(f"\n  LLM 调用延迟 ({len(llm_latencies)} 次):")
     llm_hist = histograms.get(LoomMetrics.LLM_LATENCY, {})
-    print(f"    avg={llm_hist.get('avg', 0):.1f}ms  min={llm_hist.get('min', 0):.1f}ms  max={llm_hist.get('max', 0):.1f}ms")
-    print(f"    p50={llm_hist.get('p50', 0):.1f}ms  p95={llm_hist.get('p95', 0):.1f}ms  p99={llm_hist.get('p99', 0):.1f}ms")
+    print(
+        f"    avg={llm_hist.get('avg', 0):.1f}ms  min={llm_hist.get('min', 0):.1f}ms  max={llm_hist.get('max', 0):.1f}ms"
+    )
+    print(
+        f"    p50={llm_hist.get('p50', 0):.1f}ms  p95={llm_hist.get('p95', 0):.1f}ms  p99={llm_hist.get('p99', 0):.1f}ms"
+    )
 
     print(f"\n  知识搜索延迟 ({len(search_latencies)} 次):")
     search_hist = histograms.get(LoomMetrics.KNOWLEDGE_SEARCH_LATENCY, {})
-    print(f"    avg={search_hist.get('avg', 0):.1f}ms  min={search_hist.get('min', 0):.1f}ms  max={search_hist.get('max', 0):.1f}ms")
+    print(
+        f"    avg={search_hist.get('avg', 0):.1f}ms  min={search_hist.get('min', 0):.1f}ms  max={search_hist.get('max', 0):.1f}ms"
+    )
 
     print("\n  知识搜索结果数:")
     results_hist = histograms.get(LoomMetrics.KNOWLEDGE_RESULTS_COUNT, {})
-    print(f"    avg={results_hist.get('avg', 0):.1f}  min={results_hist.get('min', 0):.0f}  max={results_hist.get('max', 0):.0f}")
+    print(
+        f"    avg={results_hist.get('avg', 0):.1f}  min={results_hist.get('min', 0):.0f}  max={results_hist.get('max', 0):.0f}"
+    )
 
 
 async def demo_metrics_gauges():
@@ -206,7 +214,7 @@ async def demo_metrics_gauges():
     ]
 
     print(f"\n  {'迭代':>4}  {'预算使用':>8}  {'L1 使用':>8}  {'L2 使用':>8}")
-    print(f"  {'─'*4}  {'─'*8}  {'─'*8}  {'─'*8}")
+    print(f"  {'─' * 4}  {'─' * 8}  {'─' * 8}  {'─' * 8}")
 
     for iteration, budget, l1, l2 in iterations:
         metrics.set_gauge(LoomMetrics.CONTEXT_BUDGET_USED, budget)
@@ -215,10 +223,12 @@ async def demo_metrics_gauges():
 
         snapshot = metrics.snapshot()
         gauges = snapshot["gauges"]
-        print(f"  {iteration:>4}  "
-              f"{gauges[LoomMetrics.CONTEXT_BUDGET_USED]:>7.0%}  "
-              f"{gauges[LoomMetrics.MEMORY_L1_USAGE]:>7.0%}  "
-              f"{gauges[LoomMetrics.MEMORY_L2_USAGE]:>7.0%}")
+        print(
+            f"  {iteration:>4}  "
+            f"{gauges[LoomMetrics.CONTEXT_BUDGET_USED]:>7.0%}  "
+            f"{gauges[LoomMetrics.MEMORY_L1_USAGE]:>7.0%}  "
+            f"{gauges[LoomMetrics.MEMORY_L2_USAGE]:>7.0%}"
+        )
 
     print("\n  Gauge 反映最新状态（非累积），适合监控资源使用率")
 
@@ -241,7 +251,6 @@ async def demo_full_trace_simulation():
             metrics.increment(LoomMetrics.ITERATIONS_TOTAL)
 
             with tracer.start_span(SpanKind.AGENT_ITERATION, f"iter-{i}"):
-
                 # Context building
                 with tracer.start_span(SpanKind.CONTEXT_BUILD, "context"):
                     await asyncio.sleep(0.005)
@@ -271,8 +280,9 @@ async def demo_full_trace_simulation():
                         sq.set_attribute("results_count", 3)
                         metrics.observe(LoomMetrics.KNOWLEDGE_RESULTS_COUNT, 3)
                         await asyncio.sleep(0.008)
-                    metrics.observe(LoomMetrics.KNOWLEDGE_SEARCH_LATENCY,
-                                    (time.monotonic() - t0) * 1000)
+                    metrics.observe(
+                        LoomMetrics.KNOWLEDGE_SEARCH_LATENCY, (time.monotonic() - t0) * 1000
+                    )
 
                     metrics.increment(LoomMetrics.TOOL_CALLS_TOTAL)
 

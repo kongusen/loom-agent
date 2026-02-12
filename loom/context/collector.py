@@ -63,11 +63,7 @@ class ContextCollector:
         for source in self.sources:
             budget = allocation.get(source.source_name)
             if budget > 0:
-                tasks.append(
-                    self._collect_from_source(
-                        source, query, budget, min_relevance
-                    )
-                )
+                tasks.append(self._collect_from_source(source, query, budget, min_relevance))
 
         # 等待所有源完成
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -120,11 +116,7 @@ class ContextCollector:
         for source_name, budget in source_budgets.items():
             source = self._source_map.get(source_name)
             if source and budget > 0:
-                tasks.append(
-                    self._collect_from_source(
-                        source, query, budget, min_relevance
-                    )
-                )
+                tasks.append(self._collect_from_source(source, query, budget, min_relevance))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

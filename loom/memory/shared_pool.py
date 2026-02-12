@@ -29,9 +29,7 @@ class VersionConflictError(LoomError):
         self.key = key
         self.expected = expected
         self.actual = actual
-        super().__init__(
-            f"Version conflict on '{key}': expected {expected}, actual {actual}"
-        )
+        super().__init__(f"Version conflict on '{key}': expected {expected}, actual {actual}")
 
 
 @dataclass
@@ -103,7 +101,11 @@ class SharedMemoryPool:
         async with self._lock:
             existing = self._store.get(key)
 
-            if expected_version is not None and existing is not None and existing.version != expected_version:
+            if (
+                expected_version is not None
+                and existing is not None
+                and existing.version != expected_version
+            ):
                 raise VersionConflictError(
                     key=key,
                     expected=expected_version,

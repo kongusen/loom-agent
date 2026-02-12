@@ -70,6 +70,7 @@ async def main():
 
 # ==================== 基础设施 ====================
 
+
 async def setup_infrastructure() -> dict[str, Any]:
     """设置基础设施"""
     print("\n" + "-" * 50)
@@ -162,6 +163,7 @@ async def setup_knowledge_base():
 
 
 # ==================== Agent 团队 ====================
+
 
 async def create_agent_team(infra: dict[str, Any], kb) -> dict[str, Any]:
     """创建 Agent 团队"""
@@ -318,6 +320,7 @@ async def create_agent_team(infra: dict[str, Any], kb) -> dict[str, Any]:
 
 # ==================== 记忆层级演示 ====================
 
+
 async def demo_memory_layers(team: dict[str, Any]):
     """演示 L1-L4 四层记忆机制"""
     print("\n" + "-" * 50)
@@ -337,10 +340,10 @@ async def demo_memory_layers(team: dict[str, Any]):
     for i in range(3):
         task = Task(
             action="node.message",
-            parameters={"content": f"研究任务 {i+1}: 分析 AI Agent 架构"},
+            parameters={"content": f"研究任务 {i + 1}: 分析 AI Agent 架构"},
         )
         researcher_session.add_task(task)
-        print(f"        添加: 研究任务 {i+1}")
+        print(f"        添加: 研究任务 {i + 1}")
 
     # 查看 L1 任务
     l1_tasks = researcher_session.get_l1_tasks(limit=10)
@@ -366,6 +369,7 @@ async def demo_memory_layers(team: dict[str, Any]):
 
 
 # ==================== 跨 Session 协作 ====================
+
 
 async def demo_cross_session_collaboration(team: dict[str, Any]):
     """演示跨 Session 协作与记忆共享"""
@@ -462,6 +466,7 @@ async def demo_cross_session_collaboration(team: dict[str, Any]):
 
 # ==================== 记忆聚合与分散 ====================
 
+
 async def demo_memory_aggregation(team: dict[str, Any]):
     """演示记忆聚合（L1→L2→L3）与分散"""
     print("\n" + "-" * 50)
@@ -480,7 +485,7 @@ async def demo_memory_aggregation(team: dict[str, Any]):
             task = Task(
                 action="node.message",
                 parameters={
-                    "content": f"{name} 工作任务 {i+1}: 处理数据分析",
+                    "content": f"{name} 工作任务 {i + 1}: 处理数据分析",
                     "metadata": {"importance": i % 3},  # 0, 1, 2 循环
                 },
             )
@@ -546,6 +551,7 @@ async def demo_memory_aggregation(team: dict[str, Any]):
 
 # ==================== RAG 集成 ====================
 
+
 async def demo_rag_integration(team: dict[str, Any], kb):
     """演示 RAG 知识库与 Context 集成"""
     print("\n" + "-" * 50)
@@ -597,7 +603,7 @@ async def demo_rag_integration(team: dict[str, Any], kb):
     for i, msg in enumerate(messages):
         role = msg["role"]
         content = msg["content"][:60].replace("\n", " ").strip()
-        print(f"          [{i+1}] {role}: {content}...")
+        print(f"          [{i + 1}] {role}: {content}...")
 
     # 4. 演示 Agent 使用 RAG
     print("\n    [Step 4] Agent 使用 RAG 知识库")
@@ -619,6 +625,7 @@ async def demo_rag_integration(team: dict[str, Any], kb):
 
 
 # ==================== 完整协作流程 ====================
+
 
 async def demo_full_collaboration(team: dict[str, Any]):
     """演示完整的多 Agent 协作流程（基于真实 LLM）"""
@@ -668,9 +675,7 @@ async def demo_full_collaboration(team: dict[str, Any]):
     if is_real_llm:
         # 使用真实 LLM 进行研究
         try:
-            response = await researcher.run(
-                "请简要分析 AI Agent 记忆系统的设计要点（50字以内）"
-            )
+            response = await researcher.run("请简要分析 AI Agent 记忆系统的设计要点（50字以内）")
             research_content = response.content if hasattr(response, "content") else str(response)
             print(f"        研究结果: {research_content[:100]}...")
         except Exception as e:
@@ -711,7 +716,9 @@ async def demo_full_collaboration(team: dict[str, Any]):
             draft_content = "技术文档草稿（模拟）: AI Agent 记忆系统采用分层设计..."
             print(f"        LLM 调用失败，使用模拟结果: {e}")
     else:
-        draft_content = "技术文档草稿（模拟）: AI Agent 记忆系统采用 L1-L4 分层设计，实现高效的上下文管理"
+        draft_content = (
+            "技术文档草稿（模拟）: AI Agent 记忆系统采用 L1-L4 分层设计，实现高效的上下文管理"
+        )
         print(f"        草稿: {draft_content}")
 
     # 保存草稿

@@ -34,6 +34,7 @@ class BudgetConfig:
     rag_ratio: float = 0.15
     inherited_ratio: float = 0.10
 
+
 if TYPE_CHECKING:
     from loom.memory.compaction import CompactionConfig
 

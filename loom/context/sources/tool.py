@@ -47,22 +47,26 @@ class ToolSource(ContextSource):
         if self._tool_manager:
             try:
                 for tool in self._tool_manager.list_tools():
-                    tools.append({
-                        "name": tool.name,
-                        "description": tool.description,
-                        "input_schema": tool.input_schema,
-                    })
+                    tools.append(
+                        {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "input_schema": tool.input_schema,
+                        }
+                    )
             except Exception:
                 pass
 
         if self._tool_registry:
             try:
                 for defn in self._tool_registry.definitions:
-                    tools.append({
-                        "name": defn.name,
-                        "description": defn.description,
-                        "input_schema": defn.input_schema,
-                    })
+                    tools.append(
+                        {
+                            "name": defn.name,
+                            "description": defn.description,
+                            "input_schema": defn.input_schema,
+                        }
+                    )
             except Exception:
                 pass
 
@@ -126,9 +130,7 @@ class ToolSource(ContextSource):
         current_tokens = 0
 
         for tool in tools:
-            is_relevant, relevance = self._is_relevant(
-                tool, query, min_relevance
-            )
+            is_relevant, relevance = self._is_relevant(tool, query, min_relevance)
             if not is_relevant:
                 continue
 

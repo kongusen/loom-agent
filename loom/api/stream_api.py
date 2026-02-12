@@ -31,17 +31,19 @@ from loom.runtime import Task
 
 class OutputStrategy(Enum):
     """流式输出策略"""
-    REALTIME = "realtime"      # 实时输出所有事件
-    BY_NODE = "by_node"        # 按节点分组输出
-    TREE = "tree"              # 树形结构输出（带缩进）
+
+    REALTIME = "realtime"  # 实时输出所有事件
+    BY_NODE = "by_node"  # 按节点分组输出
+    TREE = "tree"  # 树形结构输出（带缩进）
 
 
 @dataclass
 class FractalEvent:
     """分形事件 - 携带层级信息的事件"""
+
     task: Task
-    node_path: str              # 节点路径（如 root/worker-1/subtask-2）
-    depth: int                  # 节点深度（0=根节点）
+    node_path: str  # 节点路径（如 root/worker-1/subtask-2）
+    depth: int  # 节点深度（0=根节点）
     parent_node_id: str | None  # 父节点ID
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -203,8 +205,7 @@ class FractalStreamAPI:
 
         try:
             yield self._format_connected_event(
-                OutputStrategy.REALTIME,
-                {"node_id": node_id, "include_children": include_children}
+                OutputStrategy.REALTIME, {"node_id": node_id, "include_children": include_children}
             )
 
             while True:

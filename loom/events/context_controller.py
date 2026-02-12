@@ -25,8 +25,8 @@ class DistributionStrategy(StrEnum):
     """分发策略"""
 
     BROADCAST = "broadcast"  # 广播到所有 Session
-    TARGETED = "targeted"    # 只发送到指定 Session
-    FILTERED = "filtered"    # 根据条件过滤 Session
+    TARGETED = "targeted"  # 只发送到指定 Session
+    FILTERED = "filtered"  # 根据条件过滤 Session
 
 
 @dataclass
@@ -149,13 +149,15 @@ class ContextController:
 
             l2_tasks = session.get_l2_tasks(limit=50)
             for task in l2_tasks:
-                l2_contents.append({
-                    "session_id": sid,
-                    "task_id": task.task_id,
-                    "action": task.action,
-                    "content": self._task_to_content(task),
-                    "importance": getattr(task, "importance", 0.5),
-                })
+                l2_contents.append(
+                    {
+                        "session_id": sid,
+                        "task_id": task.task_id,
+                        "action": task.action,
+                        "content": self._task_to_content(task),
+                        "importance": getattr(task, "importance", 0.5),
+                    }
+                )
 
         if not l2_contents:
             return None
@@ -166,8 +168,7 @@ class ContextController:
         else:
             # 默认简单拼接
             summary_text = "\n".join(
-                f"[{c['session_id']}] {c['content'][:200]}"
-                for c in l2_contents[:20]
+                f"[{c['session_id']}] {c['content'][:200]}" for c in l2_contents[:20]
             )
 
         # 计算 token
@@ -180,6 +181,7 @@ class ContextController:
 
         # 创建摘要记录
         from datetime import datetime
+
         summary = {
             "timestamp": datetime.now().isoformat(),
             "session_ids": target_sessions,

@@ -115,29 +115,36 @@ class TestTiktokenCache:
 class TestSlotsDataclasses:
     def test_context_block_no_dict(self):
         block = ContextBlock(
-            content="test", role="system", token_count=5,
-            priority=0.5, source="L1",
+            content="test",
+            role="system",
+            token_count=5,
+            priority=0.5,
+            source="L1",
         )
         assert not hasattr(block, "__dict__")
 
     def test_fact_no_dict(self):
         fact = Fact(
-            fact_id="f1", content="test fact",
+            fact_id="f1",
+            content="test fact",
             fact_type=FactType.DOMAIN_KNOWLEDGE,
         )
         assert not hasattr(fact, "__dict__")
 
     def test_task_summary_no_dict(self):
         ts = TaskSummary(
-            task_id="t1", action="search",
-            param_summary="query=hello", result_summary="found 3",
+            task_id="t1",
+            action="search",
+            param_summary="query=hello",
+            result_summary="found 3",
         )
         assert not hasattr(ts, "__dict__")
 
     def test_fact_update_access_with_slots(self):
         """验证 update_access() 在 slots 模式下正常工作"""
         fact = Fact(
-            fact_id="f1", content="test",
+            fact_id="f1",
+            content="test",
             fact_type=FactType.BEST_PRACTICE,
         )
         assert fact.access_count == 0
@@ -147,8 +154,11 @@ class TestSlotsDataclasses:
     def test_context_block_with_content_with_slots(self):
         """验证 with_content() 在 slots 模式下正常工作"""
         block = ContextBlock(
-            content="original", role="system", token_count=10,
-            priority=0.8, source="L2",
+            content="original",
+            role="system",
+            token_count=10,
+            priority=0.8,
+            source="L2",
         )
         new_block = block.with_content("compressed", 5)
         assert new_block.content == "compressed"
@@ -159,8 +169,11 @@ class TestSlotsDataclasses:
     def test_context_block_with_priority_with_slots(self):
         """验证 with_priority() 在 slots 模式下正常工作"""
         block = ContextBlock(
-            content="test", role="user", token_count=3,
-            priority=0.5, source="L1",
+            content="test",
+            role="user",
+            token_count=3,
+            priority=0.5,
+            source="L1",
         )
         new_block = block.with_priority(0.9)
         assert new_block.priority == 0.9

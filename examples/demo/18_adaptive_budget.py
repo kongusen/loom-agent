@@ -40,7 +40,7 @@ async def demo_task_phase():
 
     print(f"\n  max_iterations = {max_iter}")
     print(f"  {'迭代':>6}  {'进度':>6}  {'阶段':<8}  说明")
-    print(f"  {'─'*6}  {'─'*6}  {'─'*8}  {'─'*12}")
+    print(f"  {'─' * 6}  {'─' * 6}  {'─' * 8}  {'─' * 12}")
 
     for iteration, desc in samples:
         phase = TaskPhase.from_progress(iteration, max_iter)
@@ -73,7 +73,7 @@ async def demo_budget_basics():
     for source, tokens in sorted(allocation.allocations.items(), key=lambda x: -x[1]):
         ratio = DEFAULT_ALLOCATION_RATIOS.get(source, 0)
         print(f"    {source:<16} {tokens:>5} tokens  ({ratio:.0%})")
-    print(f"    {'─'*40}")
+    print(f"    {'─' * 40}")
     print(f"    {'总计':<16} {allocation.total_allocated:>5} tokens")
 
     # 按需分配（只给指定源）
@@ -104,7 +104,15 @@ async def demo_adaptive_budget():
         (25, "后期：侧重 INHERITED 历史摘要（保持一致性）"),
     ]
 
-    sources = ["system_prompt", "tools", "skills", "L1_recent", "L2_important", "retrieval", "INHERITED"]
+    sources = [
+        "system_prompt",
+        "tools",
+        "skills",
+        "L1_recent",
+        "L2_important",
+        "retrieval",
+        "INHERITED",
+    ]
 
     for iteration, desc in phases_to_show:
         phase = manager.update_phase(iteration, max_iter)
@@ -146,7 +154,7 @@ async def demo_phase_templates():
         header += f" {phase:>8}"
     header += "  变化趋势"
     print(f"\n{header}")
-    print(f"  {'─'*16} {'─'*8} {'─'*8} {'─'*8}  {'─'*10}")
+    print(f"  {'─' * 16} {'─' * 8} {'─' * 8} {'─' * 8}  {'─' * 10}")
 
     for source in sources:
         row = f"  {source:<16}"

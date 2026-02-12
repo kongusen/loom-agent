@@ -136,7 +136,9 @@ class UnifiedRetrievalSource(ContextSource):
         )
 
     async def _recall_l4(
-        self, query: str, min_relevance: float,
+        self,
+        query: str,
+        min_relevance: float,
     ) -> list[RetrievalCandidate]:
         """从 L4 向量存储召回"""
         if not self._memory:
@@ -171,7 +173,9 @@ class UnifiedRetrievalSource(ContextSource):
         return candidates
 
     async def _recall_rag(
-        self, query: str, min_relevance: float,
+        self,
+        query: str,
+        min_relevance: float,
     ) -> list[RetrievalCandidate]:
         """从 RAG 知识库召回"""
         candidates: list[RetrievalCandidate] = []

@@ -56,7 +56,9 @@ async def demo_checkpoint_basics():
     print(f"  迭代: {cp.iteration}/{cp.max_iterations}")
     print(f"  状态: {cp.status}")
     print(f"  Agent State: {cp.agent_state}")
-    print(f"  Memory: L1={cp.memory_snapshot['l1_count']} tasks, L2={cp.memory_snapshot['l2_count']} tasks")
+    print(
+        f"  Memory: L1={cp.memory_snapshot['l1_count']} tasks, L2={cp.memory_snapshot['l2_count']} tasks"
+    )
     print(f"  工具历史: {len(cp.tool_history)} 次调用")
     print(f"  预算使用: {cp.context_metadata['budget_used_ratio']:.0%}")
 
@@ -107,7 +109,9 @@ async def demo_save_and_load():
     print("\n  加载最近检查点:")
     print(f"    iteration={latest.iteration}")
     print(f"    phase={latest.agent_state['phase']}")
-    print(f"    memory: L1={latest.memory_snapshot['l1_count']}, L2={latest.memory_snapshot['l2_count']}")
+    print(
+        f"    memory: L1={latest.memory_snapshot['l1_count']}, L2={latest.memory_snapshot['l2_count']}"
+    )
 
     # 加载指定迭代的检查点
     cp6 = await mgr.load(agent_id, task_id, 6)
@@ -212,12 +216,14 @@ async def demo_cleanup():
     # 保存 6 个检查点（max_checkpoints=3，自动清理旧的）
     for i in range(1, 7):
         cp = CheckpointData(
-            agent_id=agent_id, task_id=task_id,
-            iteration=i * 5, max_iterations=50,
+            agent_id=agent_id,
+            task_id=task_id,
+            iteration=i * 5,
+            max_iterations=50,
         )
         await mgr.save(cp)
         remaining = await mgr.list_checkpoints(agent_id, task_id)
-        print(f"  保存迭代 {i*5:>2} → 存储中: {remaining}")
+        print(f"  保存迭代 {i * 5:>2} → 存储中: {remaining}")
 
     print("\n  max_checkpoints=3，旧检查点被自动清理")
 
@@ -240,25 +246,31 @@ async def demo_checkpoint_status():
 
     print("\n  CheckpointStatus 枚举:")
     for status in CheckpointStatus:
-        print(f"    {status.name} = \"{status.value}\"")
+        print(f'    {status.name} = "{status.value}"')
 
     store = MemoryStateStore()
     mgr = CheckpointManager(store, auto_validate=True)
 
     # 保存一个正常检查点
     valid_cp = CheckpointData(
-        agent_id="agent-004", task_id="task-valid",
-        iteration=10, max_iterations=30,
+        agent_id="agent-004",
+        task_id="task-valid",
+        iteration=10,
+        max_iterations=30,
     )
     await mgr.save(valid_cp)
 
     # 手动写入一个损坏的检查点
     corrupted_data = {
-        "agent_id": "agent-004", "task_id": "task-valid",
-        "iteration": 15, "max_iterations": 30,
+        "agent_id": "agent-004",
+        "task_id": "task-valid",
+        "iteration": 15,
+        "max_iterations": 30,
         "status": CheckpointStatus.CORRUPTED.value,
-        "agent_state": {}, "memory_snapshot": {},
-        "tool_history": [], "context_metadata": {},
+        "agent_state": {},
+        "memory_snapshot": {},
+        "tool_history": [],
+        "context_metadata": {},
         "timestamp": 0,
     }
     await store.save("checkpoint:agent-004:task-valid:000015", corrupted_data)

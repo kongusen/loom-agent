@@ -178,12 +178,12 @@ class TestMetricsInterceptor:
 
         # 4. 验证指标
         assert metrics["total_tasks"] == 2, f"Expected 2 total tasks, got {metrics['total_tasks']}"
-        assert (
-            metrics["completed_tasks"] == 2
-        ), f"Expected 2 completed tasks, got {metrics['completed_tasks']}"
-        assert (
-            metrics["failed_tasks"] == 0
-        ), f"Expected 0 failed tasks, got {metrics['failed_tasks']}"
+        assert metrics["completed_tasks"] == 2, (
+            f"Expected 2 completed tasks, got {metrics['completed_tasks']}"
+        )
+        assert metrics["failed_tasks"] == 0, (
+            f"Expected 0 failed tasks, got {metrics['failed_tasks']}"
+        )
         assert metrics["total_duration"] > 0, "Expected total_duration > 0"
 
         print(f"\n[SUCCESS] Metrics collected: {metrics}")
@@ -247,8 +247,8 @@ class TestMultipleInterceptors:
         ]
 
         assert result.status == TaskStatus.COMPLETED
-        assert (
-            execution_order == expected_order
-        ), f"Expected {expected_order}, got {execution_order}"
+        assert execution_order == expected_order, (
+            f"Expected {expected_order}, got {execution_order}"
+        )
 
         print(f"\n[SUCCESS] Interceptor execution order correct: {execution_order}")

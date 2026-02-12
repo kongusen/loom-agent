@@ -55,8 +55,7 @@ class OTLPSpanExporter(SpanExporter):
             "startTimeUnixNano": str(int(span.start_time * 1e9)),
             "endTimeUnixNano": str(int(span.end_time * 1e9)) if span.end_time > 0 else "0",
             "attributes": [
-                {"key": k, "value": _to_otlp_value(v)}
-                for k, v in span.attributes.items()
+                {"key": k, "value": _to_otlp_value(v)} for k, v in span.attributes.items()
             ],
             "status": {
                 "code": 2 if span.status == "error" else 1,  # ERROR=2, OK=1
@@ -80,17 +79,21 @@ class OTLPSpanExporter(SpanExporter):
             ]
 
         return {
-            "resourceSpans": [{
-                "resource": {
-                    "attributes": [
-                        {"key": "service.name", "value": {"stringValue": self._service_name}},
+            "resourceSpans": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {"key": "service.name", "value": {"stringValue": self._service_name}},
+                        ],
+                    },
+                    "scopeSpans": [
+                        {
+                            "scope": {"name": "loom.observability"},
+                            "spans": [otlp_span],
+                        }
                     ],
-                },
-                "scopeSpans": [{
-                    "scope": {"name": "loom.observability"},
-                    "spans": [otlp_span],
-                }],
-            }],
+                }
+            ],
         }
 
     def _send(self, payload: dict[str, Any]) -> None:
@@ -142,60 +145,76 @@ class OTLPMetricsExporter:
 
         # Counters → Sum
         for name, value in snapshot.get("counters", {}).items():
-            metrics.append({
-                "name": name,
-                "sum": {
-                    "dataPoints": [{
-                        "asDouble": value,
-                        "timeUnixNano": now_ns,
-                        "isMonotonic": True,
-                        "aggregationTemporality": 2,  # CUMULATIVE
-                    }],
-                },
-            })
+            metrics.append(
+                {
+                    "name": name,
+                    "sum": {
+                        "dataPoints": [
+                            {
+                                "asDouble": value,
+                                "timeUnixNano": now_ns,
+                                "isMonotonic": True,
+                                "aggregationTemporality": 2,  # CUMULATIVE
+                            }
+                        ],
+                    },
+                }
+            )
 
         # Gauges → Gauge
         for name, value in snapshot.get("gauges", {}).items():
-            metrics.append({
-                "name": name,
-                "gauge": {
-                    "dataPoints": [{
-                        "asDouble": value,
-                        "timeUnixNano": now_ns,
-                    }],
-                },
-            })
+            metrics.append(
+                {
+                    "name": name,
+                    "gauge": {
+                        "dataPoints": [
+                            {
+                                "asDouble": value,
+                                "timeUnixNano": now_ns,
+                            }
+                        ],
+                    },
+                }
+            )
 
         # Histograms → Summary (simplified)
         for name, stats in snapshot.get("histograms", {}).items():
-            metrics.append({
-                "name": name,
-                "summary": {
-                    "dataPoints": [{
-                        "timeUnixNano": now_ns,
-                        "count": str(int(stats.get("count", 0))),
-                        "sum": stats.get("sum", 0),
-                        "quantileValues": [
-                            {"quantile": 0.5, "value": stats.get("p50", 0)},
-                            {"quantile": 0.95, "value": stats.get("p95", 0)},
-                            {"quantile": 0.99, "value": stats.get("p99", 0)},
+            metrics.append(
+                {
+                    "name": name,
+                    "summary": {
+                        "dataPoints": [
+                            {
+                                "timeUnixNano": now_ns,
+                                "count": str(int(stats.get("count", 0))),
+                                "sum": stats.get("sum", 0),
+                                "quantileValues": [
+                                    {"quantile": 0.5, "value": stats.get("p50", 0)},
+                                    {"quantile": 0.95, "value": stats.get("p95", 0)},
+                                    {"quantile": 0.99, "value": stats.get("p99", 0)},
+                                ],
+                            }
                         ],
-                    }],
-                },
-            })
+                    },
+                }
+            )
 
         return {
-            "resourceMetrics": [{
-                "resource": {
-                    "attributes": [
-                        {"key": "service.name", "value": {"stringValue": self._service_name}},
+            "resourceMetrics": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {"key": "service.name", "value": {"stringValue": self._service_name}},
+                        ],
+                    },
+                    "scopeMetrics": [
+                        {
+                            "scope": {"name": "loom.observability"},
+                            "metrics": metrics,
+                        }
                     ],
-                },
-                "scopeMetrics": [{
-                    "scope": {"name": "loom.observability"},
-                    "metrics": metrics,
-                }],
-            }],
+                }
+            ],
         }
 
     def _send(self, payload: dict[str, Any]) -> None:

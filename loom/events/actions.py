@@ -37,5 +37,5 @@ class AgentAction(StrEnum):
 class KnowledgeAction(StrEnum):
     """知识检索动作类型（类型安全）"""
 
-    SEARCH = "knowledge.search"        # 主动搜索
+    SEARCH = "knowledge.search"  # 主动搜索
     SEARCH_RESULT = "knowledge.result"  # 搜索结果

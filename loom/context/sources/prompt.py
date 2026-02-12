@@ -48,9 +48,7 @@ class PromptSource(ContextSource):
         if not self._system_prompt:
             return []
 
-        tokens = self._count_tokens(
-            self._system_prompt, "system", token_counter
-        )
+        tokens = self._count_tokens(self._system_prompt, "system", token_counter)
 
         block = ContextBlock(
             content=self._system_prompt,

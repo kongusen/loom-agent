@@ -15,6 +15,7 @@ from typing import Any
 
 class CandidateOrigin(Enum):
     """候选项来源"""
+
     L4_SEMANTIC = "l4_semantic"
     RAG_KNOWLEDGE = "rag_knowledge"
     MEMORY = "memory"  # L1-L3 记忆结果（主动检索通道）

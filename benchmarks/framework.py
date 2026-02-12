@@ -27,6 +27,7 @@ from .dimensions import (
 @dataclass
 class FrameworkProfile:
     """框架基本信息"""
+
     name: str
     version: str
     description: str = ""
@@ -36,6 +37,7 @@ class FrameworkProfile:
 @dataclass
 class EvaluationReport:
     """综合评估报告"""
+
     framework: FrameworkProfile
     dimension_scores: list[DimensionScore]
     overall_score: float
@@ -61,8 +63,7 @@ class EvaluationReport:
                     "score": ds.score,
                     "level": ds.level.value,
                     "metrics": [
-                        {"name": m.name, "value": m.value, "unit": m.unit}
-                        for m in ds.metrics
+                        {"name": m.name, "value": m.value, "unit": m.unit} for m in ds.metrics
                     ],
                 }
                 for ds in self.dimension_scores
@@ -144,8 +145,7 @@ class EvaluationFramework:
         # 加权总分
         total_weight = sum(d.weight for d in self.dimensions)
         overall = sum(
-            s.score * d.weight
-            for s, d in zip(scores, self.dimensions, strict=False)
+            s.score * d.weight for s, d in zip(scores, self.dimensions, strict=False)
         ) / max(total_weight, 0.01)
 
         level = DimensionScore._score_to_level(overall)

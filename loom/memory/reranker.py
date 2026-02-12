@@ -63,13 +63,11 @@ class RerankSignal(ABC):
 
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @property
     @abstractmethod
-    def weight(self) -> float:
-        ...
+    def weight(self) -> float: ...
 
     @abstractmethod
     def score(self, candidate: RerankCandidate, context: dict[str, Any]) -> float:
@@ -248,9 +246,7 @@ class MemoryReranker:
         ctx = context or {}
 
         # 构建 id → vector_score 映射
-        score_map: dict[str, float] = {
-            r.id: r.score for r in recall_results
-        }
+        score_map: dict[str, float] = {r.id: r.score for r in recall_results}
 
         # 构建候选列表
         candidates = [
@@ -275,10 +271,7 @@ class MemoryReranker:
             candidate.rerank_score = weighted_sum / total_weight
 
         # 过滤低分候选
-        candidates = [
-            c for c in candidates
-            if c.rerank_score >= self.min_score_threshold
-        ]
+        candidates = [c for c in candidates if c.rerank_score >= self.min_score_threshold]
 
         # 按 rerank_score 降序排序
         candidates.sort(key=lambda c: c.rerank_score, reverse=True)

@@ -68,11 +68,7 @@ class MemoryManager:
             l3_token_budget=l3_token_budget,
             l4_token_budget=l4_token_budget,
             event_bus=event_bus,
-            strategy=(
-                strategy
-                if strategy is not None
-                else MemoryStrategyType.IMPORTANCE_BASED
-            ),
+            strategy=(strategy if strategy is not None else MemoryStrategyType.IMPORTANCE_BASED),
             enable_auto_migration=enable_auto_migration,
             enable_compression=enable_compression,
             l1_retention_hours=l1_retention_hours,
@@ -221,36 +217,44 @@ class MemoryManager:
         l1_items = []
         for token_item in self._loom_memory._l1_layer._items:
             task = token_item.item
-            l1_items.append({
-                "task_data": task.to_dict() if hasattr(task, "to_dict") else {
-                    "taskId": getattr(task, "taskId", ""),
-                    "sourceAgent": getattr(task, "sourceAgent", ""),
-                    "action": getattr(task, "action", ""),
-                    "parameters": getattr(task, "parameters", {}),
-                    "result": getattr(task, "result", None),
-                    "status": getattr(task, "status", "pending"),
-                    "metadata": getattr(task, "metadata", {}),
-                },
-                "token_count": token_item.token_count,
-            })
+            l1_items.append(
+                {
+                    "task_data": task.to_dict()
+                    if hasattr(task, "to_dict")
+                    else {
+                        "taskId": getattr(task, "taskId", ""),
+                        "sourceAgent": getattr(task, "sourceAgent", ""),
+                        "action": getattr(task, "action", ""),
+                        "parameters": getattr(task, "parameters", {}),
+                        "result": getattr(task, "result", None),
+                        "status": getattr(task, "status", "pending"),
+                        "metadata": getattr(task, "metadata", {}),
+                    },
+                    "token_count": token_item.token_count,
+                }
+            )
 
         # L2: 从 PriorityTokenLayer 导出
         l2_items = []
         for priority_item in self._loom_memory._l2_layer._heap:
             task = priority_item.item
-            l2_items.append({
-                "task_data": task.to_dict() if hasattr(task, "to_dict") else {
-                    "taskId": getattr(task, "taskId", ""),
-                    "sourceAgent": getattr(task, "sourceAgent", ""),
-                    "action": getattr(task, "action", ""),
-                    "parameters": getattr(task, "parameters", {}),
-                    "result": getattr(task, "result", None),
-                    "status": getattr(task, "status", "pending"),
-                    "metadata": getattr(task, "metadata", {}),
-                },
-                "token_count": priority_item.token_count,
-                "priority": priority_item.priority,
-            })
+            l2_items.append(
+                {
+                    "task_data": task.to_dict()
+                    if hasattr(task, "to_dict")
+                    else {
+                        "taskId": getattr(task, "taskId", ""),
+                        "sourceAgent": getattr(task, "sourceAgent", ""),
+                        "action": getattr(task, "action", ""),
+                        "parameters": getattr(task, "parameters", {}),
+                        "result": getattr(task, "result", None),
+                        "status": getattr(task, "status", "pending"),
+                        "metadata": getattr(task, "metadata", {}),
+                    },
+                    "token_count": priority_item.token_count,
+                    "priority": priority_item.priority,
+                }
+            )
 
         # 上下文存储
         context_data = {
@@ -282,12 +286,12 @@ class MemoryManager:
 
         # 恢复 L1
         import asyncio
+
         for item_data in snapshot.get("l1_items", []):
             task_dict = item_data.get("task_data", {})
             token_count = item_data.get("token_count", 0)
             try:
-                task = Task(**{k: v for k, v in task_dict.items()
-                              if k in Task.model_fields})
+                task = Task(**{k: v for k, v in task_dict.items() if k in Task.model_fields})
                 asyncio.get_event_loop().run_until_complete(
                     self._loom_memory._l1_layer.add(task, token_count)
                 )
@@ -299,8 +303,7 @@ class MemoryManager:
             task_dict = item_data.get("task_data", {})
             token_count = item_data.get("token_count", 0)
             try:
-                task = Task(**{k: v for k, v in task_dict.items()
-                              if k in Task.model_fields})
+                task = Task(**{k: v for k, v in task_dict.items() if k in Task.model_fields})
                 asyncio.get_event_loop().run_until_complete(
                     self._loom_memory._l2_layer.add(task, token_count)
                 )

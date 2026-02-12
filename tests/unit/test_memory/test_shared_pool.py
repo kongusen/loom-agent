@@ -98,6 +98,7 @@ async def test_optimistic_lock_conflict(pool: SharedMemoryPool):
 @pytest.mark.asyncio
 async def test_concurrent_writes(pool: SharedMemoryPool):
     """并发写入不丢数据"""
+
     async def writer(i: int):
         await pool.write(f"key-{i}", f"value-{i}", writer_id=f"agent-{i}")
 
@@ -116,6 +117,7 @@ async def test_metadata_merge(pool: SharedMemoryPool):
 @pytest.mark.asyncio
 async def test_event_emitted_on_write():
     """mock EventBus 验证事件发布"""
+
     class MockEventBus:
         def __init__(self):
             self.published = []

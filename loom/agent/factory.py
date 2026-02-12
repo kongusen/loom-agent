@@ -99,7 +99,11 @@ class AgentFactory:
 
         # 处理 tool_config（聚合配置）
         tools, skills, skills_dir, skill_loaders = AgentFactory._normalize_tool_config(
-            tool_config, tools, skills, skills_dir, skill_loaders,
+            tool_config,
+            tools,
+            skills,
+            skills_dir,
+            skill_loaders,
         )
 
         # 处理 capabilities 参数（高级配置）
@@ -114,8 +118,11 @@ class AgentFactory:
         # 处理上下文配置（聚合入口）
         memory_config, context_budget_config, compaction_config, session_isolation = (
             AgentFactory._normalize_context_config(
-                context_config, memory_config, context_budget_config,
-                compaction_config, session_isolation,
+                context_config,
+                memory_config,
+                context_budget_config,
+                compaction_config,
+                session_isolation,
             )
         )
 
@@ -141,7 +148,9 @@ class AgentFactory:
 
         # 生成 node_id
         effective_node_id = AgentFactory._resolve_node_id(
-            node_id, parent_node_id, agent_role,
+            node_id,
+            parent_node_id,
+            agent_role,
         )
 
         return Agent(
@@ -235,6 +244,7 @@ class AgentFactory:
 
         if "config" not in kwargs:
             from loom.config.agent import AgentConfig
+
             kwargs["config"] = AgentConfig(enabled_skills=set(skills))
         else:
             kwargs["config"].enabled_skills = set(skills)
