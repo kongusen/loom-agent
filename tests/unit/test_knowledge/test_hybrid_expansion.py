@@ -2,9 +2,12 @@
 HybridStrategy 图谱扩展 + 观测体系 测试
 """
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
+import pytest
+
+from loom.observability.metrics import LoomMetrics
+from loom.observability.tracing import InMemoryExporter, LoomTracer, SpanKind
 from loom.providers.knowledge.rag.models.chunk import TextChunk
 from loom.providers.knowledge.rag.models.entity import Entity
 from loom.providers.knowledge.rag.models.relation import Relation
@@ -14,11 +17,8 @@ from loom.providers.knowledge.rag.retrievers.vector import VectorRetriever
 from loom.providers.knowledge.rag.stores.chunk_store import InMemoryChunkStore
 from loom.providers.knowledge.rag.stores.entity_store import InMemoryEntityStore
 from loom.providers.knowledge.rag.stores.relation_store import InMemoryRelationStore
-from loom.providers.knowledge.rag.strategies.hybrid import HybridStrategy
 from loom.providers.knowledge.rag.strategies.graph_first import GraphFirstStrategy
-from loom.observability.tracing import LoomTracer, SpanKind, InMemoryExporter
-from loom.observability.metrics import LoomMetrics
-
+from loom.providers.knowledge.rag.strategies.hybrid import HybridStrategy
 
 # ==================== Fixtures ====================
 
@@ -452,8 +452,8 @@ class TestGraphRAGKnowledgeBaseObservability:
     @pytest.mark.asyncio
     async def test_from_config_passes_tracer_metrics(self):
         """from_config 将 tracer/metrics 传递到策略"""
-        from loom.providers.knowledge.rag.graph_rag import GraphRAGKnowledgeBase
         from loom.providers.knowledge.rag.config import RAGConfig
+        from loom.providers.knowledge.rag.graph_rag import GraphRAGKnowledgeBase
 
         tracer = LoomTracer(agent_id="test")
         metrics = LoomMetrics(agent_id="test")

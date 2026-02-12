@@ -18,8 +18,8 @@ from loom.providers.knowledge.rag.strategies.base import (
 )
 
 if TYPE_CHECKING:
-    from loom.observability.tracing import LoomTracer
     from loom.observability.metrics import LoomMetrics
+    from loom.observability.tracing import LoomTracer
 
 logger = logging.getLogger(__name__)
 
@@ -208,13 +208,14 @@ class HybridStrategy(RetrievalStrategy):
                 span.set_attribute("retrieval.parallel_ms", round(parallel_ms, 2))
                 span.set_attribute("retrieval.expansion_ms", round(expansion_ms, 2))
                 span.set_attribute("retrieval.total_ms", round(total_ms, 2))
+                span.set_attribute("retrieval.overlap_count",
+                                   graph_count + vector_count + expansion_count - result_count)
 
         if self.metrics:
             from loom.observability.metrics import LoomMetrics
             self.metrics.increment(LoomMetrics.KNOWLEDGE_SEARCH_TOTAL)
             self.metrics.observe(LoomMetrics.KNOWLEDGE_SEARCH_LATENCY, total_ms)
             self.metrics.set_gauge(LoomMetrics.KNOWLEDGE_RESULTS_COUNT, result_count)
-            overlap = graph_count + vector_count - result_count + expansion_count
             total_sources = graph_count + vector_count + expansion_count
             if total_sources > 0:
                 self.metrics.set_gauge(

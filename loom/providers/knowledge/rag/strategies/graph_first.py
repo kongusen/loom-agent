@@ -87,7 +87,8 @@ class GraphFirstStrategy(RetrievalStrategy):
 
         self._record_metrics(
             graph_count=len(graph_chunks), result_count=len(sorted_chunks),
-            fallback=False, total_ms=(t_end - t0) * 1000,
+            fallback=False, graph_ms=(t_graph - t0) * 1000,
+            total_ms=(t_end - t0) * 1000,
         )
 
         return RetrievalResult(
@@ -133,6 +134,7 @@ class GraphFirstStrategy(RetrievalStrategy):
         result_count: int,
         fallback: bool,
         total_ms: float,
+        graph_ms: float = 0.0,
     ) -> None:
         """记录检索指标到观测体系"""
         if self.tracer:
@@ -142,6 +144,7 @@ class GraphFirstStrategy(RetrievalStrategy):
                 span.set_attribute("retrieval.graph_count", graph_count)
                 span.set_attribute("retrieval.result_count", result_count)
                 span.set_attribute("retrieval.fallback_to_vector", fallback)
+                span.set_attribute("retrieval.graph_ms", round(graph_ms, 2))
                 span.set_attribute("retrieval.total_ms", round(total_ms, 2))
 
         if self.metrics:

@@ -23,7 +23,6 @@ from loom.config.tool import ToolConfig
 
 # Events
 from loom.events.event_bus import EventBus
-from loom.memory.shared_pool import SharedMemoryPool
 
 # Exceptions
 from loom.exceptions import (
@@ -39,6 +38,7 @@ from loom.exceptions import (
     ToolExecutionError,
     ToolNotFoundError,
 )
+from loom.memory.shared_pool import SharedMemoryPool
 
 # Observability
 from loom.observability import (

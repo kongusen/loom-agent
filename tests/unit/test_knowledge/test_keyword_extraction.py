@@ -2,14 +2,13 @@
 关键词提取单元测试
 """
 
-import pytest
 
+from loom.providers.knowledge.rag.builders.base import Document
 from loom.providers.knowledge.rag.builders.chunker import (
     SimpleChunker,
     SlidingWindowChunker,
     extract_chunk_keywords,
 )
-from loom.providers.knowledge.rag.builders.base import Document
 
 
 class TestExtractChunkKeywords:

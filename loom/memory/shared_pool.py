@@ -103,13 +103,12 @@ class SharedMemoryPool:
         async with self._lock:
             existing = self._store.get(key)
 
-            if expected_version is not None and existing is not None:
-                if existing.version != expected_version:
-                    raise VersionConflictError(
-                        key=key,
-                        expected=expected_version,
-                        actual=existing.version,
-                    )
+            if expected_version is not None and existing is not None and existing.version != expected_version:
+                raise VersionConflictError(
+                    key=key,
+                    expected=expected_version,
+                    actual=existing.version,
+                )
 
             now = time.time()
             if existing is None:

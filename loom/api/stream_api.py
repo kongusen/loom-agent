@@ -386,10 +386,10 @@ class StreamAPI:
         async for event in self._fractal_api.stream_thinking_events(node_id):
             yield event
 
-    async def stream_all_events(self, pattern: str | None = None):
+    async def stream_all_events(self, strategy: OutputStrategy | None = None):
         """订阅所有节点事件"""
-        if pattern:
-            async for event in self._fractal_api.stream_all_events(pattern):
+        if strategy:
+            async for event in self._fractal_api.stream_all_events(strategy):
                 yield event
         else:
             async for event in self._fractal_api.stream_all_events():

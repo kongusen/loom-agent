@@ -17,8 +17,8 @@ Sandbox - 沙箱环境管理
 
 import asyncio
 import multiprocessing
-from multiprocessing.queues import Empty as QueueEmpty
 from pathlib import Path
+from queue import Empty as QueueEmpty
 from typing import Any
 
 try:
@@ -72,7 +72,7 @@ def _run_sandboxed_code(
 
         exec(byte_code, safe_env)
 
-        result = safe_env.get("result", None)
+        result = safe_env.get("result")
         result_queue.put({"success": True, "result": result})
     except Exception as e:
         result_queue.put({"success": False, "error": str(e)})
@@ -325,7 +325,7 @@ class Sandbox:
             # 轮询间隔：100ms，这样可以及时响应超时和进程终止
             poll_interval = 0.1
             elapsed = 0.0
-            
+
             while elapsed < self.python_timeout:
                 # 检查进程是否还在运行
                 if not process.is_alive():
@@ -341,7 +341,7 @@ class Sandbox:
                             "success": False,
                             "error": "Process terminated without result",
                         }
-                
+
                 # 尝试非阻塞获取结果
                 try:
                     result = result_queue.get_nowait()
@@ -351,7 +351,7 @@ class Sandbox:
                     # 队列为空，继续等待
                     await asyncio.sleep(poll_interval)
                     elapsed += poll_interval
-            
+
             # 超时：强制终止进程
             if process.is_alive():
                 process.kill()

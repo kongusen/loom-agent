@@ -15,8 +15,8 @@ Query → QueryRewriter → Parallel Retrieval → Reranker → RetrievalInjecto
 from loom.context.retrieval.candidates import CandidateOrigin, RetrievalCandidate
 from loom.context.retrieval.injector import RetrievalInjector
 from loom.context.retrieval.query_rewriter import QueryRewriter
-from loom.context.retrieval.source import UnifiedRetrievalSource
 from loom.context.retrieval.reranker import Reranker
+from loom.context.retrieval.source import UnifiedRetrievalSource
 
 __all__ = [
     "QueryRewriter",

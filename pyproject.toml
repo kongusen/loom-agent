@@ -110,6 +110,7 @@ ignore = [
 ] # Deprecated sync functions with stub implementations
 "loom/capabilities/registry.py" = ["ARG"] # TODO: Implement filtering logic
 "loom/agent/core.py" = ["ARG002"] # TODO: Implement context_hints usage
+"loom/context/sources/*.py" = ["ARG002"] # Interface implementations: params from ContextSource.collect()
 
 [tool.ruff.lint.isort]
 known-first-party = ["loom"]

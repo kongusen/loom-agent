@@ -8,7 +8,7 @@ from loom.memory.shared_pool import SharedMemoryPool
 @pytest.mark.asyncio
 async def test_two_agents_share_pool():
     """两个 Agent 共享同一 pool，A 写 B 读"""
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import MagicMock
 
     from loom.agent.core import Agent
 

@@ -27,8 +27,8 @@ from loom.providers.knowledge.rag.config import RAGConfig
 from loom.providers.knowledge.rag.retrievers.graph import GraphRetriever
 from loom.providers.knowledge.rag.retrievers.vector import VectorRetriever
 from loom.providers.knowledge.rag.stores.chunk_store import ChunkStore, InMemoryChunkStore
-from loom.providers.knowledge.rag.stores.entity_store import EntityStore, InMemoryEntityStore
-from loom.providers.knowledge.rag.stores.relation_store import InMemoryRelationStore, RelationStore
+from loom.providers.knowledge.rag.stores.entity_store import InMemoryEntityStore
+from loom.providers.knowledge.rag.stores.relation_store import InMemoryRelationStore
 from loom.providers.knowledge.rag.strategies.base import RetrievalStrategy
 from loom.providers.knowledge.rag.strategies.graph_first import GraphFirstStrategy
 from loom.providers.knowledge.rag.strategies.hybrid import HybridStrategy
@@ -211,7 +211,7 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
         supported_filters: list[str] | None = None,
         tracer: LoomTracer | None = None,
         metrics: LoomMetrics | None = None,
-    ) -> "GraphRAGKnowledgeBase":
+    ) -> GraphRAGKnowledgeBase:
         """
         从配置创建 GraphRAG 知识库（推荐方式）
 
@@ -258,10 +258,8 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
         graph_retriever = GraphRetriever(entity_store, relation_store, chunk_store)
 
         # 3. 决定实体提取器
-        if entity_extractor is None:
-            if llm_provider is not None and config.extraction.enabled:
-                entity_extractor = LLMEntityExtractor(llm_provider, config.extraction)
-            # else: entity_extractor 保持 None，跳过实体提取
+        if entity_extractor is None and llm_provider is not None and config.extraction.enabled:
+            entity_extractor = LLMEntityExtractor(llm_provider, config.extraction)
 
         # 4. 创建策略（根据可用能力自动选择）
         strategy = cls._create_strategy(
@@ -331,12 +329,15 @@ class GraphRAGKnowledgeBase(KnowledgeBaseProvider):
                     "No entity extractor available, auto-degrading strategy from '%s' to 'vector_first'",
                     config.strategy,
                 )
+            assert vector_retriever is not None  # guarded by has_vector check above
             return VectorFirstStrategy(
                 vector_retriever=vector_retriever,
                 threshold=config.vector_threshold,
             )
 
         # 有 embedding + 有实体提取 → 按用户配置
+        assert vector_retriever is not None  # guarded by has_vector check above
+
         if config.strategy == "vector_first":
             return VectorFirstStrategy(
                 vector_retriever=vector_retriever,

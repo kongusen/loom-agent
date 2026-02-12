@@ -2,13 +2,13 @@
 TiktokenCounter LRU 缓存测试 + slots 数据类测试
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
-from loom.memory.tokenizer import TiktokenCounter, EstimateCounter
 from loom.context.block import ContextBlock
+from loom.memory.tokenizer import TiktokenCounter
 from loom.memory.types import Fact, FactType, TaskSummary
-
 
 # ── TiktokenCounter Cache Tests ──
 

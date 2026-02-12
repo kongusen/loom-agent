@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from loom.memory.shared_pool import PoolEntry, SharedMemoryPool, VersionConflictError
+from loom.memory.shared_pool import SharedMemoryPool, VersionConflictError
 
 
 @pytest.fixture

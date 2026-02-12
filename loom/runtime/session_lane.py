@@ -15,8 +15,8 @@ from enum import StrEnum
 from typing import Any
 
 from loom.events.actions import KnowledgeAction
-from loom.runtime.task import Task
 from loom.runtime.interceptor import Interceptor
+from loom.runtime.task import Task
 
 logger = logging.getLogger(__name__)
 
