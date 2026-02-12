@@ -72,6 +72,6 @@ agent = (Agent.builder(llm)
 
 ## 版本
 
-当前版本：**v0.5.6**
+当前版本：**v0.5.6** | 测试覆盖率：**81%**
 
 许可证：Apache-2.0 with Commons Clause
