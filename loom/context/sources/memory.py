@@ -6,7 +6,7 @@ L2WorkingSource: L2 工作记忆（facts/decisions/summaries）
 L3PersistentSource: L3 持久记忆（跨 session 检索）
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from loom.context.block import ContextBlock
 from loom.context.source import ContextSource
@@ -91,7 +91,8 @@ class L1WindowSource(ContextSource):
             priority = 1.0 - (idx / max(total, 1)) * 0.5
 
             # 映射 role（tool → assistant，保持 ContextBlock 兼容）
-            role = item.role if item.role in ("user", "assistant", "system") else "assistant"
+            role_str = item.role if item.role in ("user", "assistant", "system") else "assistant"
+            role: Literal["system", "user", "assistant"] = role_str  # type: ignore[assignment]
 
             block = ContextBlock(
                 content=display_content,

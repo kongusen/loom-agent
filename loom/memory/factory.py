@@ -44,7 +44,7 @@ class MemoryFactory:
         Returns:
             LoomMemory 实例
         """
-        return LoomMemory(node_id=node_id, max_l1_size=30)
+        return LoomMemory(node_id=node_id, l1_token_budget=6000)
 
     @staticmethod
     def create_for_task(node_id: str = "task_memory") -> LoomMemory:
@@ -59,27 +59,27 @@ class MemoryFactory:
         Returns:
             LoomMemory 实例
         """
-        return LoomMemory(node_id=node_id, max_l1_size=100)
+        return LoomMemory(node_id=node_id, l1_token_budget=16000)
 
     @staticmethod
     def create_custom(
         node_id: str,
-        max_l1_size: int = 50,
-        enable_l4_vectorization: bool = True,
+        l1_token_budget: int = 8000,
+        l2_token_budget: int = 16000,
     ) -> LoomMemory:
         """
         创建自定义配置的记忆系统
 
         Args:
             node_id: 节点ID
-            max_l1_size: L1 缓冲区最大大小
-            enable_l4_vectorization: 是否启用 L4 向量化
+            l1_token_budget: L1 token 预算
+            l2_token_budget: L2 token 预算
 
         Returns:
             LoomMemory 实例
         """
         return LoomMemory(
             node_id=node_id,
-            max_l1_size=max_l1_size,
-            enable_l4_vectorization=enable_l4_vectorization,
+            l1_token_budget=l1_token_budget,
+            l2_token_budget=l2_token_budget,
         )

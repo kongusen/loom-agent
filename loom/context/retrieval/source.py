@@ -144,11 +144,15 @@ class UnifiedRetrievalSource(ContextSource):
         if not self._memory:
             return []
 
-        if not hasattr(self._memory, "search_l4") or not self._memory._l4_vector_store:
+        # L4 向量存储功能已移除，使用 L3 持久记忆代替
+        if not hasattr(self._memory, "search_l3"):
             return []
 
         try:
-            results = await self._memory.search_l4(  # type: ignore[attr-defined]
+            # 使用 L3 持久记忆检索代替 L4
+            if not hasattr(self._memory, "search_l3"):
+                return []
+            results = await self._memory.search_l3(  # type: ignore[attr-defined]
                 query=query,
                 limit=self._recall_limit,
                 min_score=min_relevance,

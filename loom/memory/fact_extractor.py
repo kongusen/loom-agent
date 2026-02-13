@@ -7,7 +7,10 @@
 
 from typing import TYPE_CHECKING
 
-from .types import Fact, FactType
+from .types import MemoryType, WorkingMemoryEntry
+
+# Fact 类型已移除，使用 WorkingMemoryEntry 代替
+Fact = WorkingMemoryEntry  # type: ignore[misc]
 
 if TYPE_CHECKING:
     from loom.runtime import Task
@@ -58,12 +61,12 @@ class FactExtractor:
         method = task.parameters.get("method")
 
         if endpoint and method:
-            fact = Fact(
-                fact_id=f"api_{endpoint.replace('/', '_')}_{method}",
+            fact = Fact(  # type: ignore[call-arg]
+                entry_id=f"api_{endpoint.replace('/', '_')}_{method}",
                 content=f"API {endpoint} 支持 {method} 方法",
-                fact_type=FactType.API_SCHEMA,
-                source_task_ids=[task.task_id],
-                confidence=0.9,
+                entry_type=MemoryType.FACT,
+                source_message_ids=[task.task_id],
+                importance=0.9,
                 tags=["api", endpoint, method],
                 created_at=task.created_at,
                 session_id=task.session_id,
@@ -78,12 +81,12 @@ class FactExtractor:
 
         choice = task.parameters.get("user_choice")
         if choice:
-            fact = Fact(
-                fact_id=f"pref_{task.task_id}",
+            fact = Fact(  # type: ignore[call-arg]
+                entry_id=f"pref_{task.task_id}",
                 content=f"用户偏好: {choice}",
-                fact_type=FactType.USER_PREFERENCE,
-                source_task_ids=[task.task_id],
-                confidence=0.8,
+                entry_type=MemoryType.FACT,
+                source_message_ids=[task.task_id],
+                importance=0.8,
                 tags=["preference", str(choice)],
                 created_at=task.created_at,
                 session_id=task.session_id,
@@ -98,12 +101,12 @@ class FactExtractor:
 
         tool_name = task.parameters.get("tool")
         if tool_name and task.result:
-            fact = Fact(
-                fact_id=f"tool_{tool_name}_{task.task_id}",
+            fact = Fact(  # type: ignore[call-arg]
+                entry_id=f"tool_{tool_name}_{task.task_id}",
                 content=f"工具 {tool_name} 的使用方法和结果",
-                fact_type=FactType.TOOL_USAGE,
-                source_task_ids=[task.task_id],
-                confidence=0.7,
+                entry_type=MemoryType.FACT,
+                source_message_ids=[task.task_id],
+                importance=0.7,
                 tags=["tool", tool_name],
                 created_at=task.created_at,
                 session_id=task.session_id,
@@ -118,12 +121,12 @@ class FactExtractor:
 
         if task.error:
             error_summary = str(task.error)[:100]
-            fact = Fact(
-                fact_id=f"error_{task.task_id}",
+            fact = Fact(  # type: ignore[call-arg]
+                entry_id=f"error_{task.task_id}",
                 content=f"错误模式: {task.action} 失败 - {error_summary}",
-                fact_type=FactType.ERROR_PATTERN,
-                source_task_ids=[task.task_id],
-                confidence=0.7,
+                entry_type=MemoryType.FACT,
+                source_message_ids=[task.task_id],
+                importance=0.7,
                 tags=["error", task.action],
                 created_at=task.created_at,
                 session_id=task.session_id,

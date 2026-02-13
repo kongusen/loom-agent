@@ -11,7 +11,7 @@ Memory 只是 Context 控制的存储机制。
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from loom.context import ContextBlock
@@ -335,9 +335,12 @@ class ContextController:
             if current_tokens + tokens > budget:
                 break
 
+            # 确保 role 类型正确
+            role_str = msg.role if msg.role in ("user", "assistant", "system") else "assistant"
+            role: Literal["system", "user", "assistant"] = role_str  # type: ignore[assignment]
             block = ContextBlock(
                 content=content,
-                role=msg.role,
+                role=role,
                 token_count=tokens,
                 priority=0.8,
                 source=f"session:{session.session_id}:L1",

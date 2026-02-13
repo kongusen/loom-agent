@@ -240,8 +240,8 @@ class Session:
         from loom.context.orchestrator import ContextOrchestrator
         from loom.context.source import ContextSource
         from loom.context.sources import (
-            L1RecentSource,
-            L2ImportantSource,
+            L1WindowSource,
+            L2WorkingSource,
             PromptSource,
             SkillSource,
             ToolSource,
@@ -264,8 +264,8 @@ class Session:
         sources.append(prompt_source)
 
         # 3. Memory Sources (L1, L2)
-        l1_source = L1RecentSource(self.memory, self.session_id)
-        l2_source = L2ImportantSource(self.memory, self.session_id)
+        l1_source = L1WindowSource(self.memory, self.session_id)
+        l2_source = L2WorkingSource(self.memory, self.session_id)
         sources.extend([l1_source, l2_source])
 
         # 4. Tool Source

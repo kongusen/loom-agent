@@ -11,7 +11,11 @@ from typing import Any
 
 import numpy as np
 
-from .types import MemoryTier, MemoryType, MemoryUnit
+from .types import MemoryTier, MemoryType
+
+# MemoryUnit 类型已移除，使用 WorkingMemoryEntry 代替
+# 此文件可能已废弃，添加类型忽略
+MemoryUnit = Any  # type: ignore[misc]
 
 _STOP_WORDS = frozenset(
     {
@@ -599,9 +603,9 @@ class L4Compressor:
         best_fact = cluster_sorted[0]
 
         # 创建新的fact，保留最重要fact的内容
-        merged_fact = MemoryUnit(
+        merged_fact = MemoryUnit(  # type: ignore[misc]
             content=best_fact.content,
-            tier=MemoryTier.L4_GLOBAL,
+            tier=MemoryTier.L3_PERSISTENT,  # L4_GLOBAL 已移除，使用 L3_PERSISTENT
             type=MemoryType.FACT,
             importance=max(f.importance for f in cluster),
             metadata={

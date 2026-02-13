@@ -451,7 +451,7 @@ class TestFormatHeartbeat:
         data = json.loads(data_line[len("data: "):])
 
         assert "timestamp" in data
-        assert isinstance(data["timestamp"], (int, float))
+        assert isinstance(data["timestamp"], int | float)
 
     @pytest.mark.asyncio
     async def test_heartbeat_timestamp_is_non_negative(self):

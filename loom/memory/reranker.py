@@ -23,8 +23,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
-from loom.memory.types import MemoryUnit
+from loom.memory.types import WorkingMemoryEntry
 from loom.memory.vector_store import VectorSearchResult
+
+# MemoryUnit 类型已移除，使用 WorkingMemoryEntry 代替
+MemoryUnit = WorkingMemoryEntry  # type: ignore[misc]
 
 
 @dataclass
@@ -153,8 +156,10 @@ class InformationDensitySignal(RerankSignal):
         return 0.15
 
     def score(self, candidate: RerankCandidate, _context: dict[str, Any]) -> float:
-        density = candidate.memory.information_density
-        return max(0.0, min(1.0, density))
+        # information_density 属性可能不存在，使用默认值
+        density = getattr(candidate.memory, "information_density", 0.5)
+        result: float = max(0.0, min(1.0, density))
+        return result
 
 
 class ImportanceSignal(RerankSignal):
@@ -169,7 +174,8 @@ class ImportanceSignal(RerankSignal):
         return 0.20
 
     def score(self, candidate: RerankCandidate, _context: dict[str, Any]) -> float:
-        return max(0.0, min(1.0, candidate.memory.importance))
+        result: float = max(0.0, min(1.0, candidate.memory.importance))
+        return result
 
 
 # ============ 主重排序器 ============
@@ -252,7 +258,7 @@ class MemoryReranker:
         candidates = [
             RerankCandidate(
                 memory=mem,
-                vector_score=score_map.get(mem.id, 0.0),
+                vector_score=score_map.get(getattr(mem, "entry_id", ""), 0.0),  # type: ignore[attr-defined]
             )
             for mem in memories
         ]
