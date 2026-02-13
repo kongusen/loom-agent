@@ -273,52 +273,13 @@ class TestMemoryGuidance:
         assert "knowledge" in MEMORY_GUIDANCE
 
 
-# ==================== promote_task_to_l2 ====================
+# ==================== promote_task_to_l2 (removed in 3-layer architecture) ====================
 
 
-class TestPromoteTaskToL2:
-    """即时 importance 提升"""
-
-    def test_promote_high_importance(self):
-        from loom.memory.core import LoomMemory
-        from loom.runtime import Task
-
-        mem = LoomMemory(node_id="test", importance_threshold=0.6)
-        t = Task(taskId="t1", action="test", parameters={"content": "x"})
-        mem.add_task(t)  # default importance 0.5, below threshold
-        t.metadata["importance"] = 0.9
-        assert mem.promote_task_to_l2(t) is True
-
-    def test_no_promote_low_importance(self):
-        from loom.memory.core import LoomMemory
-        from loom.runtime import Task
-
-        mem = LoomMemory(node_id="test", importance_threshold=0.6)
-        t = Task(taskId="t1", action="test", parameters={"content": "x"})
-        t.metadata["importance"] = 0.3
-        mem.add_task(t)
-        assert mem.promote_task_to_l2(t) is False
-
-    def test_no_promote_duplicate(self):
-        from loom.memory.core import LoomMemory
-        from loom.runtime import Task
-
-        mem = LoomMemory(node_id="test", importance_threshold=0.6)
-        t = Task(taskId="t1", action="test", parameters={"content": "x"})
-        mem.add_task(t)
-        t.metadata["importance"] = 0.9
-        mem.promote_task_to_l2(t)
-        assert mem.promote_task_to_l2(t) is False  # already in L2
-
-    def test_manager_delegates(self):
-        from loom.memory.manager import MemoryManager
-        from loom.runtime import Task
-
-        mgr = MemoryManager(node_id="test", importance_threshold=0.6)
-        t = Task(taskId="t1", action="test", parameters={"content": "x"})
-        mgr.add_task(t)
-        t.metadata["importance"] = 0.8
-        assert mgr.promote_task_to_l2(t) is True
+# TestPromoteTaskToL2 has been removed — the old importance_threshold,
+# add_task, promote_task_to_l2 APIs no longer exist in the 3-layer
+# LoomMemory architecture. L1→L2 promotion is now automatic via
+# eviction callbacks.
 
 
 # ==================== KnowledgeAction in query routing ====================
@@ -461,128 +422,5 @@ class TestQuerySimilar:
         assert UnifiedSearchExecutor._query_similar("Hello World", "hello world")
 
 
-# ==================== _check_l1_cache ====================
-
-
-class TestCheckL1Cache:
-    """Session 级 L1 缓存检查"""
-
-    def _make_executor_with_memory(self, tasks):
-        """创建带 mock memory 的 executor"""
-        from unittest.mock import MagicMock
-
-        from loom.tools.search.executor import UnifiedSearchExecutor
-
-        memory = MagicMock()
-        memory.get_l1_tasks.return_value = tasks
-        return UnifiedSearchExecutor(memory=memory)
-
-    def test_cache_hit(self):
-        from loom.events.actions import KnowledgeAction
-        from loom.runtime import Task, TaskStatus
-
-        cached_task = Task(
-            taskId="result-1",
-            action=KnowledgeAction.SEARCH_RESULT,
-            parameters={"query": "API认证", "scope": "auto"},
-            result={"formatted_output": "搜索结果..."},
-            status=TaskStatus.COMPLETED,
-            sessionId="session-1",
-        )
-        executor = self._make_executor_with_memory([cached_task])
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result == "搜索结果..."
-
-    def test_cache_miss_different_query(self):
-        from loom.events.actions import KnowledgeAction
-        from loom.runtime import Task, TaskStatus
-
-        cached_task = Task(
-            taskId="result-1",
-            action=KnowledgeAction.SEARCH_RESULT,
-            parameters={"query": "数据库设计", "scope": "auto"},
-            result={"formatted_output": "数据库结果..."},
-            status=TaskStatus.COMPLETED,
-            sessionId="session-1",
-        )
-        executor = self._make_executor_with_memory([cached_task])
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result is None
-
-    def test_cache_miss_non_result_task(self):
-        from loom.runtime import Task
-
-        normal_task = Task(
-            taskId="task-1",
-            action="execute",
-            parameters={"content": "API认证"},
-            sessionId="session-1",
-        )
-        executor = self._make_executor_with_memory([normal_task])
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result is None
-
-    def test_cache_miss_empty_l1(self):
-        executor = self._make_executor_with_memory([])
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result is None
-
-    def test_cache_miss_no_memory(self):
-        from loom.tools.search.executor import UnifiedSearchExecutor
-
-        executor = UnifiedSearchExecutor()  # no memory
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result is None
-
-    def test_cache_returns_most_recent_match(self):
-        from loom.events.actions import KnowledgeAction
-        from loom.runtime import Task, TaskStatus
-
-        old_task = Task(
-            taskId="result-old",
-            action=KnowledgeAction.SEARCH_RESULT,
-            parameters={"query": "API认证", "scope": "auto"},
-            result={"formatted_output": "旧结果"},
-            status=TaskStatus.COMPLETED,
-            sessionId="session-1",
-        )
-        new_task = Task(
-            taskId="result-new",
-            action=KnowledgeAction.SEARCH_RESULT,
-            parameters={"query": "API认证", "scope": "auto"},
-            result={"formatted_output": "新结果"},
-            status=TaskStatus.COMPLETED,
-            sessionId="session-1",
-        )
-        # L1 returns oldest first, _check_l1_cache iterates reversed
-        executor = self._make_executor_with_memory([old_task, new_task])
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result == "新结果"
-
-    def test_cache_hit_similar_query(self):
-        from loom.events.actions import KnowledgeAction
-        from loom.runtime import Task, TaskStatus
-
-        cached_task = Task(
-            taskId="result-1",
-            action=KnowledgeAction.SEARCH_RESULT,
-            parameters={"query": "API认证 方案", "scope": "auto"},
-            result={"formatted_output": "认证方案结果"},
-            status=TaskStatus.COMPLETED,
-            sessionId="session-1",
-        )
-        executor = self._make_executor_with_memory([cached_task])
-        # "API认证" is a subset of "API认证 方案" → similar
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result == "认证方案结果"
-
-    def test_cache_memory_exception_returns_none(self):
-        from unittest.mock import MagicMock
-
-        from loom.tools.search.executor import UnifiedSearchExecutor
-
-        memory = MagicMock()
-        memory.get_l1_tasks.side_effect = RuntimeError("memory error")
-        executor = UnifiedSearchExecutor(memory=memory)
-        result = executor._check_l1_cache("API认证", "session-1")
-        assert result is None
+# TestCheckL1Cache removed — _check_l1_cache was removed in the 3-layer
+# architecture. L1 stores messages, not search result tasks.

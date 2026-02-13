@@ -1,333 +1,316 @@
 """
-Memory Layers Unit Tests (Token-First Design)
-
-测试记忆层功能 - 基于 Token 预算的设计
+Tests for loom/memory/layers_merged.py — MessageWindow (L1) & WorkingMemoryLayer (L2)
 """
 
-import pytest
+from loom.memory.layers_merged import MessageWindow, WorkingMemoryLayer
+from loom.memory.types import MemoryType, MessageItem, WorkingMemoryEntry
 
-from loom.memory.layers import PriorityTokenLayer, TokenBudgetLayer
-from loom.runtime import Task
+# ==================== MessageWindow (L1) ====================
 
 
-class TestTokenBudgetLayer:
-    """测试 TokenBudgetLayer (原 CircularBufferLayer)"""
+class TestMessageWindowBasic:
+    def test_init_defaults(self):
+        w = MessageWindow()
+        assert w.token_budget == 8000
+        assert w.token_usage() == 0
+        assert w.size() == 0
 
-    @pytest.mark.asyncio
-    async def test_init(self):
-        """测试初始化"""
-        layer = TokenBudgetLayer(token_budget=1000)
+    def test_init_custom_budget(self):
+        w = MessageWindow(token_budget=1000)
+        assert w.token_budget == 1000
 
-        assert layer.size() == 0
-        assert layer.token_usage() == 0
-        assert layer.token_budget == 1000
+    def test_append_single(self):
+        w = MessageWindow()
+        item = MessageItem(role="user", content="Hello", token_count=5)
+        evicted = w.append(item)
+        assert evicted == []
+        assert w.size() == 1
+        assert w.token_usage() == 5
 
-    @pytest.mark.asyncio
-    async def test_add_and_retrieve(self):
-        """测试添加和检索"""
-        layer = TokenBudgetLayer(token_budget=1000)
+    def test_append_message(self):
+        w = MessageWindow()
+        evicted = w.append_message("user", "Hello", token_count=5)
+        assert evicted == []
+        assert w.size() == 1
 
-        task1 = Task(task_id="t1", action="test")
-        task2 = Task(task_id="t2", action="test")
+    def test_get_messages(self):
+        w = MessageWindow()
+        w.append_message("user", "Hello", token_count=5)
+        w.append_message("assistant", "Hi there", token_count=4)
+        msgs = w.get_messages()
+        assert len(msgs) == 2
+        assert msgs[0] == {"role": "user", "content": "Hello"}
+        assert msgs[1] == {"role": "assistant", "content": "Hi there"}
 
-        await layer.add(task1, token_count=100)
-        await layer.add(task2, token_count=150)
+    def test_get_items(self):
+        w = MessageWindow()
+        w.append_message("user", "A", token_count=3)
+        items = w.get_items()
+        assert len(items) == 1
+        assert items[0].role == "user"
+        assert items[0].content == "A"
 
-        assert layer.size() == 2
-        assert layer.token_usage() == 250
-
-        retrieved = await layer.retrieve(None, limit=10)
-        assert len(retrieved) == 2
-        assert retrieved[0].task_id == "t1"
-        assert retrieved[1].task_id == "t2"
-
-    @pytest.mark.asyncio
-    async def test_retrieve_with_limit(self):
-        """测试带限制的检索"""
-        layer = TokenBudgetLayer(token_budget=10000)
-
+    def test_get_recent(self):
+        w = MessageWindow()
         for i in range(5):
-            await layer.add(Task(task_id=f"t{i}", action="test"), token_count=100)
+            w.append_message("user", f"msg-{i}", token_count=3)
+        recent = w.get_recent(2)
+        assert len(recent) == 2
+        assert recent[0].content == "msg-3"
+        assert recent[1].content == "msg-4"
 
-        retrieved = await layer.retrieve(None, limit=3)
+    def test_get_recent_more_than_size(self):
+        w = MessageWindow()
+        w.append_message("user", "only", token_count=3)
+        recent = w.get_recent(10)
+        assert len(recent) == 1
 
-        assert len(retrieved) == 3
-        # 应该返回最近的3个
-        assert retrieved[0].task_id == "t2"
-        assert retrieved[1].task_id == "t3"
-        assert retrieved[2].task_id == "t4"
+    def test_clear(self):
+        w = MessageWindow()
+        w.append_message("user", "Hello", token_count=5)
+        w.clear()
+        assert w.size() == 0
+        assert w.token_usage() == 0
 
-    @pytest.mark.asyncio
-    async def test_automatic_eviction_by_token_budget(self):
-        """测试基于 token 预算的自动驱逐"""
-        layer = TokenBudgetLayer(token_budget=300)
-
-        # 添加3个任务，每个100 tokens，填满预算
-        for i in range(3):
-            await layer.add(Task(task_id=f"t{i}", action="test"), token_count=100)
-
-        assert layer.size() == 3
-        assert layer.token_usage() == 300
-
-        # 添加第4个任务（100 tokens），应该驱逐最旧的
-        await layer.add(Task(task_id="t3", action="test"), token_count=100)
-
-        assert layer.size() == 3
-        assert layer.token_usage() == 300
-        retrieved = await layer.retrieve(None, limit=10)
-        # 最旧的t0应该被驱逐
-        assert retrieved[0].task_id == "t1"
-        assert retrieved[1].task_id == "t2"
-        assert retrieved[2].task_id == "t3"
-
-    @pytest.mark.asyncio
-    async def test_eviction_callback(self):
-        """测试驱逐回调"""
-        layer = TokenBudgetLayer(token_budget=200)
-
-        evicted_tasks = []
-
-        def callback(task: Task):
-            evicted_tasks.append(task)
-
-        layer.on_eviction(callback)
-
-        # 添加2个任务
-        task1 = Task(task_id="t1", action="test")
-        task2 = Task(task_id="t2", action="test")
-        await layer.add(task1, token_count=100)
-        await layer.add(task2, token_count=100)
-
-        # 添加第3个任务，应该触发回调
-        task3 = Task(task_id="t3", action="test")
-        await layer.add(task3, token_count=100)
-
-        assert len(evicted_tasks) == 1
-        assert evicted_tasks[0].task_id == "t1"
-
-    @pytest.mark.asyncio
-    async def test_evict_tokens(self):
-        """测试按 token 数驱逐"""
-        layer = TokenBudgetLayer(token_budget=10000)
-
-        for i in range(5):
-            await layer.add(Task(task_id=f"t{i}", action="test"), token_count=100)
-
-        assert layer.token_usage() == 500
-
-        # 驱逐 200 tokens
-        evicted = await layer.evict_tokens(tokens_to_free=200)
-
-        assert len(evicted) == 2
-        assert evicted[0].task_id == "t0"
-        assert evicted[1].task_id == "t1"
-        assert layer.size() == 3
-        assert layer.token_usage() == 300
-
-    @pytest.mark.asyncio
-    async def test_evict_more_tokens_than_available(self):
-        """测试驱逐 token 数超过可用数量"""
-        layer = TokenBudgetLayer(token_budget=10000)
-
-        await layer.add(Task(task_id="t1", action="test"), token_count=100)
-        await layer.add(Task(task_id="t2", action="test"), token_count=100)
-
-        # 尝试驱逐 500 tokens，但只有 200
-        evicted = await layer.evict_tokens(tokens_to_free=500)
-
-        assert len(evicted) == 2
-        assert layer.size() == 0
-        assert layer.token_usage() == 0
-
-    @pytest.mark.asyncio
-    async def test_clear(self):
-        """测试清空"""
-        layer = TokenBudgetLayer(token_budget=10000)
-
-        for i in range(5):
-            await layer.add(Task(task_id=f"t{i}", action="test"), token_count=100)
-
-        assert layer.size() == 5
-        assert layer.token_usage() == 500
-
-        layer.clear()
-
-        assert layer.size() == 0
-        assert layer.token_usage() == 0
-
-    @pytest.mark.asyncio
-    async def test_multiple_eviction_callbacks(self):
-        """测试多个驱逐回调"""
-        layer = TokenBudgetLayer(token_budget=200)
-
-        evicted1 = []
-        evicted2 = []
-
-        layer.on_eviction(lambda t: evicted1.append(t))
-        layer.on_eviction(lambda t: evicted2.append(t))
-
-        await layer.add(Task(task_id="t1", action="test"), token_count=100)
-        await layer.add(Task(task_id="t2", action="test"), token_count=100)
-        await layer.add(Task(task_id="t3", action="test"), token_count=100)
-
-        # 两个回调都应该被触发
-        assert len(evicted1) == 1
-        assert len(evicted2) == 1
-        assert evicted1[0].task_id == "t1"
-        assert evicted2[0].task_id == "t1"
+    def test_set_token_budget(self):
+        w = MessageWindow(token_budget=100)
+        w.token_budget = 200
+        assert w.token_budget == 200
 
 
-class TestPriorityTokenLayer:
-    """测试 PriorityTokenLayer (原 PriorityQueueLayer)"""
-
-    @pytest.mark.asyncio
-    async def test_init(self):
-        """测试初始化"""
-        layer = PriorityTokenLayer(token_budget=1000)
-
-        assert layer.size() == 0
-        assert layer.token_usage() == 0
-        assert layer.token_budget == 1000
-
-    @pytest.mark.asyncio
-    async def test_add_and_retrieve(self):
-        """测试添加和检索"""
-        layer = PriorityTokenLayer(token_budget=1000)
-
-        task1 = Task(task_id="t1", action="test", metadata={"importance": 0.8})
-        task2 = Task(task_id="t2", action="test", metadata={"importance": 0.5})
-
-        await layer.add(task1, token_count=100)
-        await layer.add(task2, token_count=100)
-
-        assert layer.size() == 2
-        assert layer.token_usage() == 200
-
-        # 检索应该按重要性排序（高重要性在前）
-        retrieved = await layer.retrieve(None, limit=10)
-        assert len(retrieved) == 2
-        assert retrieved[0].task_id == "t1"  # 重要性 0.8
-        assert retrieved[1].task_id == "t2"  # 重要性 0.5
-
-    @pytest.mark.asyncio
-    async def test_priority_ordering(self):
-        """测试优先级排序"""
-        layer = PriorityTokenLayer(token_budget=10000)
-
-        # 添加不同重要性的任务
-        await layer.add(
-            Task(task_id="low", action="test", metadata={"importance": 0.2}), token_count=100
-        )
-        await layer.add(
-            Task(task_id="high", action="test", metadata={"importance": 0.9}), token_count=100
-        )
-        await layer.add(
-            Task(task_id="medium", action="test", metadata={"importance": 0.5}), token_count=100
-        )
-
-        retrieved = await layer.retrieve(None, limit=10)
-
-        # 应该按重要性降序排列
-        assert retrieved[0].task_id == "high"
-        assert retrieved[1].task_id == "medium"
-        assert retrieved[2].task_id == "low"
-
-    @pytest.mark.asyncio
-    async def test_eviction_by_token_budget(self):
-        """测试基于 token 预算的驱逐（驱逐低优先级）"""
-        layer = PriorityTokenLayer(token_budget=200)
-
-        # 添加2个任务，填满预算
-        await layer.add(
-            Task(task_id="low", action="test", metadata={"importance": 0.3}), token_count=100
-        )
-        await layer.add(
-            Task(task_id="high", action="test", metadata={"importance": 0.9}), token_count=100
-        )
-
-        assert layer.size() == 2
-        assert layer.token_usage() == 200
-
-        # 添加一个高优先级任务，应该驱逐低优先级的
-        result = await layer.add(
-            Task(task_id="new_high", action="test", metadata={"importance": 0.8}), token_count=100
-        )
-
-        assert result is True
-        assert layer.size() == 2
-        retrieved = await layer.retrieve(None, limit=10)
-        task_ids = [t.task_id for t in retrieved]
-        assert "low" not in task_ids  # 低优先级被驱逐
-        assert "high" in task_ids
-        assert "new_high" in task_ids
-
-    @pytest.mark.asyncio
-    async def test_evict_tokens(self):
-        """测试按 token 数驱逐（驱逐低优先级）"""
-        layer = PriorityTokenLayer(token_budget=10000)
-
-        await layer.add(
-            Task(task_id="low", action="test", metadata={"importance": 0.2}), token_count=100
-        )
-        await layer.add(
-            Task(task_id="high", action="test", metadata={"importance": 0.9}), token_count=100
-        )
-        await layer.add(
-            Task(task_id="medium", action="test", metadata={"importance": 0.5}), token_count=100
-        )
-
-        # 驱逐 100 tokens，应该驱逐最低优先级的
-        evicted = await layer.evict_tokens(tokens_to_free=100)
-
+class TestMessageWindowEviction:
+    def test_basic_eviction(self):
+        w = MessageWindow(token_budget=10)
+        w.append_message("user", "A", token_count=6)
+        evicted = w.append_message("user", "B", token_count=6)
         assert len(evicted) == 1
-        assert evicted[0].task_id == "low"
-        assert layer.size() == 2
-        assert layer.token_usage() == 200
+        assert evicted[0].content == "A"
+        assert w.size() == 1
+        assert w.token_usage() == 6
 
-    @pytest.mark.asyncio
-    async def test_clear(self):
-        """测试清空"""
-        layer = PriorityTokenLayer(token_budget=10000)
+    def test_system_protected(self):
+        """system 消息不被驱逐"""
+        w = MessageWindow(token_budget=15)
+        w.append_message("system", "You are helpful", token_count=5)
+        w.append_message("user", "A", token_count=6)
+        evicted = w.append_message("user", "B", token_count=6)
+        # user "A" should be evicted, not system
+        assert len(evicted) == 1
+        assert evicted[0].role == "user"
+        assert evicted[0].content == "A"
+        # system + B remain
+        assert w.size() == 2
 
+    def test_eviction_callback(self):
+        w = MessageWindow(token_budget=10)
+        evicted_log = []
+        w.on_eviction(lambda msgs: evicted_log.extend(msgs))
+
+        w.append_message("user", "A", token_count=6)
+        w.append_message("user", "B", token_count=6)
+
+        assert len(evicted_log) == 1
+        assert evicted_log[0].content == "A"
+
+    def test_multiple_evictions(self):
+        w = MessageWindow(token_budget=10)
+        w.append_message("user", "A", token_count=4)
+        w.append_message("user", "B", token_count=4)
+        # 4+4=8, +5=13 > 10, evict A → 4+5=9 <= 10
+        evicted = w.append_message("user", "C", token_count=5)
+        assert len(evicted) == 1
+        assert evicted[0].content == "A"
+        assert w.size() == 2
+
+
+class TestMessageWindowPairedEviction:
+    def test_assistant_tool_calls_paired(self):
+        """驱逐 assistant(tool_calls) 时同时驱逐对应的 tool result"""
+        w = MessageWindow(token_budget=30)
+
+        # assistant with tool_calls
+        w.append(MessageItem(
+            role="assistant",
+            content=None,
+            token_count=5,
+            tool_calls=[{"id": "tc1", "function": {"name": "search", "arguments": "{}"}}],
+        ))
+        # tool result
+        w.append(MessageItem(
+            role="tool",
+            content="result",
+            token_count=5,
+            tool_call_id="tc1",
+            tool_name="search",
+        ))
+        # user message
+        w.append_message("user", "thanks", token_count=5)
+
+        assert w.size() == 3
+        assert w.token_usage() == 15
+
+        # Add large message to trigger eviction
+        evicted = w.append_message("user", "big message", token_count=20)
+
+        # Both assistant(tool_calls) and tool result should be evicted together
+        assert len(evicted) == 2
+        roles = {e.role for e in evicted}
+        assert "assistant" in roles
+        assert "tool" in roles
+
+    def test_tool_result_triggers_paired_eviction(self):
+        """驱逐 tool result 时同时驱逐对应的 assistant(tool_calls)"""
+        w = MessageWindow(token_budget=20)
+
+        # user message first (will be evicted first since it's oldest non-system)
+        w.append_message("user", "do search", token_count=3)
+
+        # assistant with tool_calls
+        w.append(MessageItem(
+            role="assistant",
+            content=None,
+            token_count=5,
+            tool_calls=[{"id": "tc1", "function": {"name": "search", "arguments": "{}"}}],
+        ))
+        # tool result
+        w.append(MessageItem(
+            role="tool",
+            content="result",
+            token_count=5,
+            tool_call_id="tc1",
+        ))
+
+        assert w.token_usage() == 13
+
+        # Trigger eviction — user msg evicted first (single)
+        evicted = w.append_message("user", "big", token_count=10)
+        # 13 + 10 = 23 > 20, evict "do search" (3) → 20, 20 <= 20
+        assert len(evicted) == 1
+        assert evicted[0].content == "do search"
+
+
+# ==================== WorkingMemoryLayer (L2) ====================
+
+
+class TestWorkingMemoryLayerBasic:
+    def test_init_defaults(self):
+        l2 = WorkingMemoryLayer()
+        assert l2.token_budget == 16000
+        assert l2.token_usage() == 0
+        assert l2.size() == 0
+
+    def test_init_custom_budget(self):
+        l2 = WorkingMemoryLayer(token_budget=500)
+        assert l2.token_budget == 500
+
+    def test_add_entry(self):
+        l2 = WorkingMemoryLayer()
+        entry = WorkingMemoryEntry(
+            content="important fact",
+            entry_type=MemoryType.FACT,
+            importance=0.8,
+            token_count=10,
+        )
+        evicted = l2.add(entry)
+        assert evicted == []
+        assert l2.size() == 1
+        assert l2.token_usage() == 10
+
+    def test_get_entries_sorted_by_importance(self):
+        l2 = WorkingMemoryLayer()
+        l2.add(WorkingMemoryEntry(content="low", importance=0.3, token_count=5))
+        l2.add(WorkingMemoryEntry(content="high", importance=0.9, token_count=5))
+        l2.add(WorkingMemoryEntry(content="mid", importance=0.6, token_count=5))
+
+        entries = l2.get_entries()
+        assert entries[0].content == "high"
+        assert entries[1].content == "mid"
+        assert entries[2].content == "low"
+
+    def test_get_entries_with_limit(self):
+        l2 = WorkingMemoryLayer()
         for i in range(5):
-            await layer.add(
-                Task(task_id=f"t{i}", action="test", metadata={"importance": 0.5}), token_count=100
-            )
+            l2.add(WorkingMemoryEntry(content=f"e{i}", importance=i * 0.2, token_count=3))
+        entries = l2.get_entries(limit=2)
+        assert len(entries) == 2
 
-        assert layer.size() == 5
-        assert layer.token_usage() == 500
+    def test_get_by_type(self):
+        l2 = WorkingMemoryLayer()
+        l2.add(WorkingMemoryEntry(content="fact1", entry_type=MemoryType.FACT, token_count=5))
+        l2.add(WorkingMemoryEntry(content="decision1", entry_type=MemoryType.DECISION, token_count=5))
+        l2.add(WorkingMemoryEntry(content="fact2", entry_type=MemoryType.FACT, token_count=5))
 
-        layer.clear()
+        facts = l2.get_by_type("fact")
+        assert len(facts) == 2
+        decisions = l2.get_by_type("decision")
+        assert len(decisions) == 1
 
-        assert layer.size() == 0
-        assert layer.token_usage() == 0
+    def test_find_by_id(self):
+        l2 = WorkingMemoryLayer()
+        entry = WorkingMemoryEntry(content="findme", token_count=5)
+        l2.add(entry)
+        found = l2.find(entry.entry_id)
+        assert found is not None
+        assert found.content == "findme"
 
-    @pytest.mark.asyncio
-    async def test_default_importance(self):
-        """测试默认重要性"""
-        layer = PriorityTokenLayer(token_budget=1000)
+    def test_find_missing(self):
+        l2 = WorkingMemoryLayer()
+        assert l2.find("nonexistent") is None
 
-        # 不设置 importance，应该使用默认值 0.5
-        task = Task(task_id="t1", action="test")
-        await layer.add(task, token_count=100)
+    def test_remove(self):
+        l2 = WorkingMemoryLayer()
+        entry = WorkingMemoryEntry(content="removeme", token_count=5)
+        l2.add(entry)
+        assert l2.size() == 1
+        removed = l2.remove(entry.entry_id)
+        assert removed is True
+        assert l2.size() == 0
+        assert l2.token_usage() == 0
 
-        assert layer.size() == 1
+    def test_remove_missing(self):
+        l2 = WorkingMemoryLayer()
+        assert l2.remove("nonexistent") is False
+
+    def test_clear(self):
+        l2 = WorkingMemoryLayer()
+        l2.add(WorkingMemoryEntry(content="x", token_count=5))
+        l2.clear()
+        assert l2.size() == 0
+        assert l2.token_usage() == 0
+
+    def test_set_token_budget(self):
+        l2 = WorkingMemoryLayer(token_budget=100)
+        l2.token_budget = 200
+        assert l2.token_budget == 200
 
 
-# 向后兼容性测试
-class TestBackwardCompatibility:
-    """测试向后兼容的别名"""
+class TestWorkingMemoryLayerEviction:
+    def test_evict_lowest_importance(self):
+        l2 = WorkingMemoryLayer(token_budget=15)
+        l2.add(WorkingMemoryEntry(content="low", importance=0.2, token_count=8))
+        l2.add(WorkingMemoryEntry(content="high", importance=0.9, token_count=5))
 
-    def test_circular_buffer_layer_alias(self):
-        """测试 CircularBufferLayer 别名"""
-        from loom.memory.layers import CircularBufferLayer
+        # Adding this should evict "low" (importance=0.2)
+        evicted = l2.add(WorkingMemoryEntry(content="mid", importance=0.5, token_count=8))
+        assert len(evicted) == 1
+        assert evicted[0].content == "low"
 
-        layer = CircularBufferLayer(token_budget=1000)
-        assert isinstance(layer, TokenBudgetLayer)
+    def test_reject_if_new_entry_lowest(self):
+        """新条目 importance 最低时不添加"""
+        l2 = WorkingMemoryLayer(token_budget=10)
+        l2.add(WorkingMemoryEntry(content="high", importance=0.9, token_count=8))
 
-    def test_priority_queue_layer_alias(self):
-        """测试 PriorityQueueLayer 别名"""
-        from loom.memory.layers import PriorityQueueLayer
+        evicted = l2.add(WorkingMemoryEntry(content="lowest", importance=0.1, token_count=8))
+        assert evicted == []
+        assert l2.size() == 1
 
-        layer = PriorityQueueLayer(token_budget=1000)
-        assert isinstance(layer, PriorityTokenLayer)
+    def test_eviction_callback(self):
+        l2 = WorkingMemoryLayer(token_budget=10)
+        evicted_log = []
+        l2.on_eviction(lambda entries: evicted_log.extend(entries))
+
+        l2.add(WorkingMemoryEntry(content="low", importance=0.2, token_count=8))
+        l2.add(WorkingMemoryEntry(content="high", importance=0.9, token_count=8))
+
+        assert len(evicted_log) == 1
+        assert evicted_log[0].content == "low"

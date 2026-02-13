@@ -5,6 +5,7 @@ Event Stream Converter Async Integration Tests
 """
 
 import asyncio
+import contextlib
 import json
 from datetime import datetime
 
@@ -48,7 +49,7 @@ class TestEventStreamConverterAsyncStreams:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "node.thinking" in event
             assert "test-task-1" in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -87,7 +88,7 @@ class TestEventStreamConverterAsyncStreams:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "target-task" in event
             assert "other-task" not in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -128,7 +129,7 @@ class TestEventStreamConverterAsyncStreams:
             try:
                 event = await asyncio.wait_for(stream.__anext__(), timeout=0.5)
                 received.append(event)
-            except (StopAsyncIteration, asyncio.TimeoutError):
+            except (TimeoutError, StopAsyncIteration):
                 break
 
         assert len(received) > 0
@@ -160,7 +161,7 @@ class TestEventStreamConverterAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "node-task" in event or "test-node" in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -187,7 +188,7 @@ class TestEventStreamConverterAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "thinking-task" in event or "node.thinking" in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -214,7 +215,7 @@ class TestEventStreamConverterAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "target-thinking" in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -239,7 +240,7 @@ class TestEventStreamConverterAsyncStreams:
         assert "data: " in sse
 
         # 解析data部分
-        data_line = [l for l in sse.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in sse.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["task_id"] == "test-task"
@@ -266,7 +267,7 @@ class TestEventStreamConverterAsyncStreams:
 
         sse = converter._convert_task_to_sse(task)
 
-        data_line = [l for l in sse.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in sse.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["timestamp"] is None
@@ -288,10 +289,8 @@ class TestEventStreamConverterAsyncStreams:
         task = asyncio.create_task(stream.__anext__())
         task.cancel()
 
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # 等待清理完成
         await asyncio.sleep(0.1)

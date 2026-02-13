@@ -307,7 +307,7 @@ See the [Wiki](wiki/Home.md) for detailed documentation:
 
 ## Project Status
 
-loom-agent is under active development. Current version: **v0.5.6**.
+loom-agent is under active development. Current version: **v0.5.7**.
 
 The framework focuses on:
 

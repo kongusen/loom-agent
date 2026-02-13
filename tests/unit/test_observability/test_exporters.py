@@ -14,7 +14,6 @@ from loom.observability.exporters import (
 )
 from loom.observability.tracing import Span
 
-
 # ==================== _to_otlp_value ====================
 
 

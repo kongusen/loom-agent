@@ -25,7 +25,6 @@ from loom.agent import Agent
 from loom.config.llm import LLMConfig
 from loom.events.event_bus import EventBus
 from loom.providers.llm.openai import OpenAIProvider
-from loom.runtime import Task, TaskStatus
 
 # 加载 .env 文件
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
@@ -74,7 +73,7 @@ async def demo_auto_delegation():
     # 4. 使用 Agent.delegate() 自动创建子节点
     print("\n[2] 使用 Agent.delegate() 自动委派子任务")
     print("    " + "-" * 50)
-    
+
     # 委派第一个子任务（target_node_id=None 会自动创建子节点）
     print("\n    [委派 1] 研究 asyncio 核心概念...")
     start_time = datetime.now()
@@ -180,7 +179,7 @@ async def demo_multi_level_delegation():
     # 4. 第一层委派：研究 Web 应用构建
     print("\n[2] 第一层委派：研究 Web 应用构建")
     print("    " + "-" * 50)
-    
+
     print("\n    [Level 0 → Level 1] 委派 Web 应用研究任务...")
     start_time = datetime.now()
     level1_result = await root_agent.delegate(
@@ -194,7 +193,7 @@ async def demo_multi_level_delegation():
     )
     duration = (datetime.now() - start_time).total_seconds()
     print(f"    ✓ 完成（耗时: {duration:.2f} 秒）")
-    
+
     if isinstance(level1_result.result, dict):
         result_content = level1_result.result.get("content", "")
         print(f"    结果长度: {len(result_content)} 字符")

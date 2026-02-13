@@ -17,7 +17,6 @@ from loom.api.stream_api import FractalEvent, FractalStreamAPI, OutputStrategy
 from loom.events.event_bus import EventBus
 from loom.runtime import Task, TaskStatus
 
-
 # ==================== FractalEvent.to_dict ====================
 
 
@@ -180,7 +179,7 @@ class TestFormatFractalEvent:
         task = self._make_task()
         result = api._format_fractal_event(task, OutputStrategy.REALTIME)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["task_id"] == "evt-001"
@@ -197,7 +196,7 @@ class TestFormatFractalEvent:
         task = self._make_task()
         result = api._format_fractal_event(task, OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert "display" in data
@@ -208,7 +207,7 @@ class TestFormatFractalEvent:
         task = self._make_task(node_id="w1", content="thinking hard")
         result = api._format_fractal_event(task, OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["display"].startswith("  [w1]")
@@ -219,7 +218,7 @@ class TestFormatFractalEvent:
         task = self._make_task(node_id="sub1", content="sub-thinking")
         result = api._format_fractal_event(task, OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["display"].startswith("    [sub1]")
@@ -230,7 +229,7 @@ class TestFormatFractalEvent:
         task = self._make_task(node_id="root", content="root thinking")
         result = api._format_fractal_event(task, OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["display"].startswith("[root]")
@@ -241,7 +240,7 @@ class TestFormatFractalEvent:
         task = self._make_task(node_id="w1", content=long_content)
         result = api._format_fractal_event(task, OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         # display should contain exactly 50 A's, not 100
@@ -254,7 +253,7 @@ class TestFormatFractalEvent:
         task = self._make_task(node_id="w1", content="")
         result = api._format_fractal_event(task, OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["display"] == "  [w1] ..."
@@ -269,7 +268,7 @@ class TestFormatFractalEvent:
         )
         result = api._format_fractal_event(task, OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         # content defaults to "" when key is missing
@@ -294,7 +293,7 @@ class TestFormatFractalEvent:
         )
         result = api._format_fractal_event(task, OutputStrategy.REALTIME)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         # node_id defaults to "unknown" in _format_fractal_event
@@ -314,7 +313,7 @@ class TestFormatFractalEvent:
         task = self._make_task(content="thinking about unicode")
         result = api._format_fractal_event(task, OutputStrategy.REALTIME)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["parameters"]["content"] == "thinking about unicode"
@@ -333,7 +332,7 @@ class TestFormatConnectedEvent:
         assert "event: connected\n" in result
         assert result.endswith("\n\n")
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["status"] == "connected"
@@ -343,7 +342,7 @@ class TestFormatConnectedEvent:
         api = FractalStreamAPI(EventBus())
         result = api._format_connected_event(OutputStrategy.TREE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["strategy"] == "tree"
@@ -352,7 +351,7 @@ class TestFormatConnectedEvent:
         api = FractalStreamAPI(EventBus())
         result = api._format_connected_event(OutputStrategy.BY_NODE)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["strategy"] == "by_node"
@@ -361,7 +360,7 @@ class TestFormatConnectedEvent:
         api = FractalStreamAPI(EventBus())
         result = api._format_connected_event(OutputStrategy.REALTIME)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         # Only status and strategy keys when no extra
@@ -372,7 +371,7 @@ class TestFormatConnectedEvent:
         extra = {"node_id": "w1", "include_children": True}
         result = api._format_connected_event(OutputStrategy.REALTIME, extra)
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["status"] == "connected"
@@ -384,7 +383,7 @@ class TestFormatConnectedEvent:
         api = FractalStreamAPI(EventBus())
         result = api._format_connected_event(OutputStrategy.REALTIME, {})
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert set(data.keys()) == {"status", "strategy"}
@@ -396,7 +395,7 @@ class TestFormatConnectedEvent:
         # SSEFormatter only adds id line when event_id is provided; _format_connected_event
         # does not pass event_id, so there should be no "id:" line.
         lines = result.split("\n")
-        assert not any(l.startswith("id:") for l in lines)
+        assert not any(line.startswith("id:") for line in lines)
 
 
 # ==================== _format_disconnected_event ====================
@@ -416,7 +415,7 @@ class TestFormatDisconnectedEvent:
         api = FractalStreamAPI(EventBus())
         result = api._format_disconnected_event()
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data == {"status": "disconnected"}
@@ -426,7 +425,7 @@ class TestFormatDisconnectedEvent:
         result = api._format_disconnected_event()
 
         lines = result.split("\n")
-        assert not any(l.startswith("id:") for l in lines)
+        assert not any(line.startswith("id:") for line in lines)
 
 
 # ==================== _format_heartbeat ====================
@@ -448,7 +447,7 @@ class TestFormatHeartbeat:
         api = FractalStreamAPI(EventBus())
         result = api._format_heartbeat()
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert "timestamp" in data
@@ -459,7 +458,7 @@ class TestFormatHeartbeat:
         api = FractalStreamAPI(EventBus())
         result = api._format_heartbeat()
 
-        data_line = [l for l in result.split("\n") if l.startswith("data: ")][0]
+        data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
         data = json.loads(data_line[len("data: "):])
 
         assert data["timestamp"] >= 0
@@ -470,4 +469,4 @@ class TestFormatHeartbeat:
         result = api._format_heartbeat()
 
         lines = result.split("\n")
-        assert not any(l.startswith("id:") for l in lines)
+        assert not any(line.startswith("id:") for line in lines)

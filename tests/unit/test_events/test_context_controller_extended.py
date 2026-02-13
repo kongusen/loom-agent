@@ -7,11 +7,11 @@ distribute_filtered, share_context, get_shared_l3_context,
 _allocate_budget, _collect_from_session, _task_to_content, _estimate_tokens
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from loom.events.context_controller import ContextController, DistributionResult
+from loom.events.context_controller import ContextController
 from loom.runtime import Task, TaskStatus
 
 
@@ -19,9 +19,11 @@ def _make_session(session_id="s1", active=True):
     s = MagicMock()
     s.session_id = session_id
     s.is_active = active
-    s.get_l1_tasks = MagicMock(return_value=[])
-    s.get_l2_tasks = MagicMock(return_value=[])
-    s.promote_tasks = MagicMock()
+    s.memory = MagicMock()
+    s.memory.get_message_items = MagicMock(return_value=[])
+    s.memory.get_working_memory = MagicMock(return_value=[])
+    s.memory.add_message = MagicMock()
+    s.memory.get_stats = MagicMock(return_value={})
     s.add_task = MagicMock()
     return s
 
@@ -33,6 +35,26 @@ def _make_task(action="node.thinking", content="hello", task_id="t1"):
         parameters={"content": content},
         status=TaskStatus.COMPLETED,
     )
+
+
+def _make_entry(entry_id="e1", content="hello", importance=0.8):
+    e = MagicMock()
+    e.entry_id = entry_id
+    e.content = content
+    e.importance = importance
+    e.token_count = max(1, len(content) // 4)
+    e.tags = []
+    e.session_id = None
+    return e
+
+
+def _make_msg_item(message_id="m1", role="assistant", content="hello", token_count=None):
+    m = MagicMock()
+    m.message_id = message_id
+    m.role = role
+    m.content = content
+    m.token_count = token_count or max(1, len(content) // 4)
+    return m
 
 
 # ==================== Session Management ====================
@@ -107,9 +129,9 @@ class TestAggregateToL3:
     @pytest.mark.asyncio
     async def test_with_l2_tasks(self):
         cc = ContextController()
-        task = _make_task(action="execute", content="important work")
+        entry = _make_entry(entry_id="e1", content="important work", importance=0.8)
         s = _make_session("s1")
-        s.get_l2_tasks.return_value = [task]
+        s.memory.get_working_memory.return_value = [entry]
         cc.register_session(s)
 
         result = await cc.aggregate_to_l3(session_ids=["s1"])
@@ -120,9 +142,9 @@ class TestAggregateToL3:
     @pytest.mark.asyncio
     async def test_with_summarizer(self):
         cc = ContextController()
-        task = _make_task(action="execute", content="data")
+        entry = _make_entry(entry_id="e1", content="data")
         s = _make_session("s1")
-        s.get_l2_tasks.return_value = [task]
+        s.memory.get_working_memory.return_value = [entry]
         cc.register_session(s)
 
         async def summarizer(contents):
@@ -145,9 +167,9 @@ class TestAggregateToL3:
         cc = ContextController()
         cc._l3_token_budget = 10  # very small budget
 
-        task = _make_task(action="execute", content="x" * 100)
+        entry = _make_entry(entry_id="e1", content="x" * 100)
         s = _make_session("s1")
-        s.get_l2_tasks.return_value = [task]
+        s.memory.get_working_memory.return_value = [entry]
         cc.register_session(s)
 
         # First aggregation fills budget
@@ -241,27 +263,21 @@ class TestTriggerPromotion:
     async def test_basic_promotion(self):
         cc = ContextController()
         s = _make_session("s1")
-        s.get_l2_tasks.return_value = []
         cc.register_session(s)
 
         result = await cc.trigger_promotion()
-        assert result["l1_to_l2"] == 1
-        s.promote_tasks.assert_called_once()
+        assert result["sessions_processed"] == 1
 
     @pytest.mark.asyncio
     async def test_promotion_specific_session(self):
         cc = ContextController()
         s1 = _make_session("s1")
         s2 = _make_session("s2")
-        s1.get_l2_tasks.return_value = []
-        s2.get_l2_tasks.return_value = []
         cc.register_session(s1)
         cc.register_session(s2)
 
         result = await cc.trigger_promotion(session_id="s1")
-        assert result["l1_to_l2"] == 1
-        s1.promote_tasks.assert_called_once()
-        s2.promote_tasks.assert_not_called()
+        assert result["sessions_processed"] == 1
 
     @pytest.mark.asyncio
     async def test_promotion_with_l3_to_l4(self):
@@ -269,9 +285,9 @@ class TestTriggerPromotion:
         persist = AsyncMock()
         cc.set_l4_handlers(persist)
 
-        task = _make_task(action="execute", content="data")
+        entry = _make_entry(entry_id="e1", content="data")
         s = _make_session("s1")
-        s.get_l2_tasks.return_value = [task]
+        s.memory.get_working_memory.return_value = [entry]
         cc.register_session(s)
 
         result = await cc.trigger_promotion(l3_to_l4=True)
@@ -353,11 +369,11 @@ class TestShareContext:
     @pytest.mark.asyncio
     async def test_share_between_sessions(self):
         cc = ContextController()
-        task = _make_task()
+        msg = _make_msg_item(message_id="m1", role="assistant", content="hello")
 
         s1 = _make_session("s1")
-        s1.get_l1_tasks.return_value = [task]
-        s1.get_l2_tasks.return_value = []
+        s1.memory.get_message_items.return_value = [msg]
+        s1.memory.get_working_memory.return_value = []
         s2 = _make_session("s2")
         cc.register_session(s1)
         cc.register_session(s2)
@@ -368,10 +384,10 @@ class TestShareContext:
     @pytest.mark.asyncio
     async def test_share_skips_self(self):
         cc = ContextController()
-        task = _make_task()
+        msg = _make_msg_item()
         s1 = _make_session("s1")
-        s1.get_l1_tasks.return_value = [task]
-        s1.get_l2_tasks.return_value = []
+        s1.memory.get_message_items.return_value = [msg]
+        s1.memory.get_working_memory.return_value = []
         cc.register_session(s1)
 
         result = await cc.share_context("s1", ["s1"])
@@ -387,8 +403,6 @@ class TestShareContext:
     async def test_share_no_tasks(self):
         cc = ContextController()
         s1 = _make_session("s1")
-        s1.get_l1_tasks.return_value = []
-        s1.get_l2_tasks.return_value = []
         s2 = _make_session("s2")
         cc.register_session(s1)
         cc.register_session(s2)
@@ -445,55 +459,6 @@ class TestAllocateBudget:
         assert budgets == [500]
 
 
-# ==================== _task_to_content ====================
-
-
-class TestTaskToContent:
-    def test_thinking(self):
-        cc = ContextController()
-        task = _make_task(action="node.thinking", content="deep thought")
-        assert cc._task_to_content(task) == "deep thought"
-
-    def test_tool_call(self):
-        cc = ContextController()
-        task = Task(
-            taskId="t1",
-            action="node.tool_call",
-            parameters={"tool_name": "search", "tool_args": {"q": "test"}},
-        )
-        result = cc._task_to_content(task)
-        assert "search" in result
-        assert "test" in result
-
-    def test_message(self):
-        cc = ContextController()
-        task = Task(
-            taskId="t1",
-            action="node.message",
-            parameters={"content": "hello user"},
-        )
-        assert cc._task_to_content(task) == "hello user"
-
-    def test_message_fallback(self):
-        cc = ContextController()
-        task = Task(
-            taskId="t1",
-            action="node.message",
-            parameters={"message": "fallback msg"},
-        )
-        assert cc._task_to_content(task) == "fallback msg"
-
-    def test_execute(self):
-        cc = ContextController()
-        task = _make_task(action="execute", content="do stuff")
-        assert cc._task_to_content(task) == "do stuff"
-
-    def test_unknown_action(self):
-        cc = ContextController()
-        task = _make_task(action="custom.action", content="x")
-        assert cc._task_to_content(task) == ""
-
-
 # ==================== _estimate_tokens ====================
 
 
@@ -533,11 +498,11 @@ class TestAggregateContext:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_with_l1_tasks(self):
+    async def test_with_l1_messages(self):
         cc = ContextController()
-        task = _make_task(action="node.thinking", content="relevant info")
+        msg = _make_msg_item(message_id="m1", role="assistant", content="relevant info")
         s = _make_session("s1")
-        s.get_l1_tasks.return_value = [task]
+        s.memory.get_message_items.return_value = [msg]
         cc.register_session(s)
 
         blocks = await cc.aggregate_context(["s1"], "query", 10000)
@@ -547,10 +512,9 @@ class TestAggregateContext:
     @pytest.mark.asyncio
     async def test_budget_respected(self):
         cc = ContextController()
-        # Create tasks with known content
-        tasks = [_make_task(content="x" * 100, task_id=f"t{i}") for i in range(10)]
+        msgs = [_make_msg_item(message_id=f"m{i}", content="x" * 100, token_count=25) for i in range(10)]
         s = _make_session("s1")
-        s.get_l1_tasks.return_value = tasks
+        s.memory.get_message_items.return_value = msgs
         cc.register_session(s)
 
         # Very small budget

@@ -307,7 +307,7 @@ OpenAI · Anthropic · DeepSeek · Qwen · Gemini · Ollama · Kimi · 豆包 ·
 
 ## 项目状态
 
-loom-agent 正在积极开发中。当前版本：**v0.5.6**。
+loom-agent 正在积极开发中。当前版本：**v0.5.7**。
 
 框架专注于：
 

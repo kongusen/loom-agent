@@ -2,8 +2,6 @@
 Tests for loom/api/stream_api.py - FractalStreamAPI, FractalEvent, OutputStrategy
 """
 
-import json
-from unittest.mock import MagicMock
 
 from loom.api.stream_api import (
     FractalEvent,
@@ -13,7 +11,6 @@ from loom.api.stream_api import (
 )
 from loom.events import EventBus
 from loom.runtime import Task, TaskStatus
-
 
 # ==================== OutputStrategy ====================
 
@@ -78,38 +75,27 @@ class TestFractalStreamAPI:
         api.register_node("root")
         assert api._node_registry["root"] == ""
 
-    def test_get_node_path_root(self):
+    def test_resolve_node_info_root(self):
         api = FractalStreamAPI(EventBus())
         api.register_node("root")
-        assert api.get_node_path("root") == "root"
+        path, depth = api.resolve_node_info("root")
+        assert path == "root"
+        assert depth == 0
 
-    def test_get_node_path_nested(self):
+    def test_resolve_node_info_nested(self):
         api = FractalStreamAPI(EventBus())
         api.register_node("root")
         api.register_node("worker-1", "root")
         api.register_node("subtask-1", "worker-1")
-        path = api.get_node_path("subtask-1")
+        path, depth = api.resolve_node_info("subtask-1")
         assert path == "root/worker-1/subtask-1"
+        assert depth == 2
 
-    def test_get_node_path_unregistered(self):
+    def test_resolve_node_info_unregistered(self):
         api = FractalStreamAPI(EventBus())
-        assert api.get_node_path("unknown") == "unknown"
-
-    def test_get_node_depth_root(self):
-        api = FractalStreamAPI(EventBus())
-        api.register_node("root")
-        assert api.get_node_depth("root") == 0
-
-    def test_get_node_depth_nested(self):
-        api = FractalStreamAPI(EventBus())
-        api.register_node("root")
-        api.register_node("w1", "root")
-        api.register_node("s1", "w1")
-        assert api.get_node_depth("s1") == 2
-
-    def test_get_node_depth_unregistered(self):
-        api = FractalStreamAPI(EventBus())
-        assert api.get_node_depth("unknown") == 0
+        path, depth = api.resolve_node_info("unknown")
+        assert path == "unknown"
+        assert depth == 0
 
     def test_format_connected_event(self):
         api = FractalStreamAPI(EventBus())
@@ -164,8 +150,10 @@ class TestFractalStreamAPI:
 
 
 class TestStreamAPI:
+    def test_is_alias(self):
+        assert StreamAPI is FractalStreamAPI
+
     def test_init(self):
         bus = EventBus()
         api = StreamAPI(bus)
         assert api.event_bus is bus
-        assert api._fractal_api is not None

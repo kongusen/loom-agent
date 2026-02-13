@@ -61,13 +61,6 @@ class ContextController:
         event_bus: "EventBus | None" = None,
         token_counter: "TokenCounter | None" = None,
     ):
-        """
-        初始化上下文控制器
-
-        Args:
-            event_bus: 事件总线
-            token_counter: Token 计数器
-        """
         self._event_bus = event_bus
         self._token_counter = token_counter
         self._sessions: dict[str, Session] = {}
@@ -126,36 +119,28 @@ class ContextController:
         summarizer: Callable[[list[dict[str, Any]]], Awaitable[str]] | None = None,
     ) -> dict[str, Any] | None:
         """
-        聚合多个 Session 的 L2 内容到 L3
+        聚合多个 Session 的 L2 工作记忆到 L3
 
-        从指定 Session 的 L2 层收集重要任务，
+        从指定 Session 的 L2 层收集工作记忆条目，
         可选地进行摘要压缩，然后存储到 L3。
-
-        Args:
-            session_ids: 要聚合的 Session ID 列表（None 表示所有）
-            summarizer: 可选的摘要函数
-
-        Returns:
-            聚合后的摘要字典，如果无内容则返回 None
         """
         target_sessions = session_ids or list(self._sessions.keys())
 
-        # 收集所有 L2 任务
+        # 收集所有 L2 工作记忆条目
         l2_contents: list[dict[str, Any]] = []
         for sid in target_sessions:
             session = self._sessions.get(sid)
             if session is None or not session.is_active:
                 continue
 
-            l2_tasks = session.get_l2_tasks(limit=50)
-            for task in l2_tasks:
+            entries = session.memory.get_working_memory(limit=50)
+            for entry in entries:
                 l2_contents.append(
                     {
                         "session_id": sid,
-                        "task_id": task.task_id,
-                        "action": task.action,
-                        "content": self._task_to_content(task),
-                        "importance": getattr(task, "importance", 0.5),
+                        "entry_id": entry.entry_id,
+                        "content": entry.content,
+                        "importance": entry.importance,
                     }
                 )
 
@@ -166,7 +151,6 @@ class ContextController:
         if summarizer:
             summary_text = await summarizer(l2_contents)
         else:
-            # 默认简单拼接
             summary_text = "\n".join(
                 f"[{c['session_id']}] {c['content'][:200]}" for c in l2_contents[:20]
             )
@@ -202,13 +186,7 @@ class ContextController:
         persist_handler: Callable[[dict[str, Any]], Awaitable[None]],
         load_handler: Callable[[str], Awaitable[list[dict[str, Any]]]] | None = None,
     ) -> None:
-        """
-        设置 L4 持久化处理器
-
-        Args:
-            persist_handler: 持久化函数，接收摘要字典
-            load_handler: 加载函数，接收 agent_id 返回摘要列表
-        """
+        """设置 L4 持久化处理器"""
         self._l4_persist_handler = persist_handler
         self._l4_load_handler = load_handler
 
@@ -217,16 +195,7 @@ class ContextController:
         summary: dict[str, Any] | None = None,
         agent_id: str = "default",
     ) -> bool:
-        """
-        持久化摘要到 L4（全局存储）
-
-        Args:
-            summary: 要持久化的摘要（None 表示持久化最新的 L3 摘要）
-            agent_id: Agent 标识
-
-        Returns:
-            是否成功持久化
-        """
+        """持久化摘要到 L4（全局存储）"""
         if self._l4_persist_handler is None:
             return False
 
@@ -237,7 +206,6 @@ class ContextController:
         if target is None:
             return False
 
-        # 添加 agent_id
         target["agent_id"] = agent_id
 
         try:
@@ -247,15 +215,7 @@ class ContextController:
             return False
 
     async def load_from_l4(self, agent_id: str = "default") -> list[dict[str, Any]]:
-        """
-        从 L4 加载持久化的摘要
-
-        Args:
-            agent_id: Agent 标识
-
-        Returns:
-            摘要列表
-        """
+        """从 L4 加载持久化的摘要"""
         if self._l4_load_handler is None:
             return []
 
@@ -276,31 +236,19 @@ class ContextController:
         """
         触发记忆提升流程
 
-        提升流程：L1 → L2 → L3 → L4
-        - L1→L2: 由 Session.promote_tasks() 处理（基于重要性）
+        三层架构中 L1→L2 由驱逐回调自动完成，无需手动触发。
+        此方法仅处理：
         - L2→L3: 聚合多 Session 的 L2 到 L3
         - L3→L4: 持久化 L3 到全局存储
-
-        Args:
-            session_id: 指定 Session（None 表示所有）
-            l2_to_l3: 是否执行 L2→L3 提升
-            l3_to_l4: 是否执行 L3→L4 提升
-            summarizer: 可选的摘要函数
-
-        Returns:
-            提升结果统计
         """
-        l1_to_l2_count = 0
         l2_to_l3_summary: dict[str, Any] | None = None
         l3_to_l4_ok = False
 
-        # L1 → L2: 触发各 Session 的任务提升
         target_sessions = [session_id] if session_id else list(self._sessions.keys())
-        for sid in target_sessions:
-            session = self._sessions.get(sid)
-            if session and session.is_active:
-                session.promote_tasks()
-                l1_to_l2_count += 1
+        session_count = sum(
+            1 for sid in target_sessions
+            if (s := self._sessions.get(sid)) and s.is_active
+        )
 
         # L2 → L3: 聚合到 L3
         if l2_to_l3:
@@ -314,7 +262,7 @@ class ContextController:
             l3_to_l4_ok = await self.persist_to_l4(l2_to_l3_summary)
 
         return {
-            "l1_to_l2": l1_to_l2_count,
+            "sessions_processed": session_count,
             "l2_to_l3": l2_to_l3_summary,
             "l3_to_l4": l3_to_l4_ok,
         }
@@ -331,18 +279,6 @@ class ContextController:
 
         从多个 Session 的 Memory 中选择最相关的内容，
         合并成一个 Agent 可用的上下文。
-
-        Args:
-            session_ids: 要聚合的 Session ID 列表
-            query: 当前查询（用于相关性计算）
-            token_budget: 总 token 预算
-            allocation_strategy: 预算分配策略
-                - "equal": 平均分配
-                - "priority": 按 Session 优先级分配
-                - "dynamic": 按内容相关性动态分配
-
-        Returns:
-            聚合后的 ContextBlock 列表
         """
         from loom.context.block import ContextBlock
 
@@ -352,15 +288,12 @@ class ContextController:
         if not sessions:
             return blocks
 
-        # 计算每个 Session 的预算
         budgets = self._allocate_budget(sessions, token_budget, allocation_strategy)
 
-        # 从每个 Session 收集上下文
         for session, budget in zip(sessions, budgets, strict=False):
             session_blocks = await self._collect_from_session(session, query, budget)
             blocks.extend(session_blocks)
 
-        # 按优先级排序
         blocks.sort(key=lambda b: b.priority, reverse=True)
 
         return blocks
@@ -369,18 +302,13 @@ class ContextController:
         self,
         sessions: list["Session"],
         total_budget: int,
-        strategy: str,
+        strategy: str,  # noqa: ARG002
     ) -> list[int]:
         """分配 token 预算给各 Session"""
         n = len(sessions)
         if n == 0:
             return []
 
-        if strategy == "equal":
-            base = total_budget // n
-            return [base] * n
-
-        # 默认平均分配
         base = total_budget // n
         return [base] * n
 
@@ -390,53 +318,35 @@ class ContextController:
         _query: str,
         budget: int,
     ) -> list["ContextBlock"]:
-        """从单个 Session 收集上下文"""
+        """从单个 Session 收集上下文（基于 L1 消息）"""
         from loom.context.block import ContextBlock
 
         blocks: list[ContextBlock] = []
         current_tokens = 0
 
-        # 从 L1 获取最近任务
-        l1_tasks = session.get_l1_tasks(limit=20)
-        for task in l1_tasks:
-            content = self._task_to_content(task)
+        # 从 L1 获取最近消息
+        messages = session.memory.get_message_items()
+        for msg in messages:
+            content = str(msg.content) if msg.content else ""
             if not content:
                 continue
 
-            tokens = self._estimate_tokens(content)
+            tokens = msg.token_count or self._estimate_tokens(content)
             if current_tokens + tokens > budget:
                 break
 
             block = ContextBlock(
                 content=content,
-                role="assistant",
+                role=msg.role,
                 token_count=tokens,
                 priority=0.8,
                 source=f"session:{session.session_id}:L1",
-                metadata={"task_id": task.task_id, "session_id": session.session_id},
+                metadata={"message_id": msg.message_id, "session_id": session.session_id},
             )
             blocks.append(block)
             current_tokens += tokens
 
         return blocks
-
-    def _task_to_content(self, task: "Task") -> str:
-        """将 Task 转换为内容字符串"""
-        action = task.action
-        params = task.parameters
-
-        if action == "node.thinking":
-            return str(params.get("content", ""))
-        elif action == "node.tool_call":
-            tool_name = params.get("tool_name", "")
-            tool_args = params.get("tool_args", {})
-            return f"[Tool: {tool_name}] {tool_args}"
-        elif action == "node.message":
-            return str(params.get("content") or params.get("message", ""))
-        elif action == "execute":
-            return str(params.get("content", ""))
-
-        return ""
 
     def _estimate_tokens(self, text: str) -> int:
         """估算 token 数"""
@@ -452,19 +362,7 @@ class ContextController:
         session_ids: list[str],
         copy_task: bool = True,
     ) -> dict[str, "Task"]:
-        """
-        分发 Task 到多个 Session
-
-        将一个 Agent 产生的 Task 分发到多个 Session 流中。
-
-        Args:
-            task: 要分发的任务
-            session_ids: 目标 Session ID 列表
-            copy_task: 是否复制 Task（避免共享状态）
-
-        Returns:
-            {session_id: task} 映射
-        """
+        """分发 Task 到多个 Session"""
         results: dict[str, Task] = {}
 
         for sid in session_ids:
@@ -472,10 +370,7 @@ class ContextController:
             if session is None or not session.is_active:
                 continue
 
-            # 复制或直接使用
             distributed_task = task.copy() if copy_task else task
-
-            # 添加到 Session
             session.add_task(distributed_task)
             results[sid] = distributed_task
 
@@ -486,16 +381,7 @@ class ContextController:
         task: "Task",
         copy_task: bool = True,
     ) -> DistributionResult:
-        """
-        广播 Task 到所有活跃 Session
-
-        Args:
-            task: 要分发的任务
-            copy_task: 是否复制 Task
-
-        Returns:
-            DistributionResult
-        """
+        """广播 Task 到所有活跃 Session"""
         result = DistributionResult()
 
         for sid, session in self._sessions.items():
@@ -518,17 +404,7 @@ class ContextController:
         filter_fn: Callable[["Session"], bool],
         copy_task: bool = True,
     ) -> DistributionResult:
-        """
-        条件过滤分发
-
-        Args:
-            task: 要分发的任务
-            filter_fn: 过滤函数，返回 True 表示接收
-            copy_task: 是否复制 Task
-
-        Returns:
-            DistributionResult
-        """
+        """条件过滤分发"""
         result = DistributionResult()
 
         for sid, session in self._sessions.items():
@@ -553,38 +429,37 @@ class ContextController:
         self,
         from_session_id: str,
         to_session_ids: list[str],
-        task_limit: int = 10,
+        message_limit: int = 10,
         include_l2: bool = True,
     ) -> dict[str, int]:
         """
         从一个 Session 共享上下文到其他 Session
 
-        Args:
-            from_session_id: 源 Session ID
-            to_session_ids: 目标 Session ID 列表
-            task_limit: 共享的任务数量限制
-            include_l2: 是否包含 L2 重要任务
-
-        Returns:
-            {session_id: shared_count} 映射
+        通过 Memory API 获取 L1 消息和 L2 工作记忆，
+        将内容作为消息添加到目标 Session 的 L1。
         """
         source = self._sessions.get(from_session_id)
         if source is None:
             return {}
 
-        # 收集要共享的任务
-        tasks_to_share: list[Task] = []
+        # 收集要共享的内容
+        shared_contents: list[tuple[str, str]] = []  # (role, content)
 
-        # L1 最近任务
-        l1_tasks = source.get_l1_tasks(limit=task_limit)
-        tasks_to_share.extend(l1_tasks)
+        # L1 最近消息
+        messages = source.memory.get_message_items()
+        for msg in messages[-message_limit:]:
+            content = str(msg.content) if msg.content else ""
+            if content:
+                shared_contents.append((msg.role, content))
 
-        # L2 重要任务
+        # L2 工作记忆
         if include_l2:
-            l2_tasks = source.get_l2_tasks(limit=task_limit)
-            tasks_to_share.extend(l2_tasks)
+            entries = source.memory.get_working_memory(limit=message_limit)
+            for entry in entries:
+                if entry.content:
+                    shared_contents.append(("system", f"[Shared Memory] {entry.content}"))
 
-        if not tasks_to_share:
+        if not shared_contents:
             return {}
 
         # 分发到目标 Session
@@ -598,12 +473,13 @@ class ContextController:
                 continue
 
             count = 0
-            for task in tasks_to_share:
+            for role, content in shared_contents:
                 try:
-                    shared_task = task.model_copy(deep=True)
-                    shared_task.metadata = shared_task.metadata or {}
-                    shared_task.metadata["shared_from"] = from_session_id
-                    session.add_task(shared_task)
+                    session.memory.add_message(
+                        role,
+                        content,
+                        metadata={"shared_from": from_session_id},
+                    )
                     count += 1
                 except Exception:
                     pass
@@ -617,23 +493,11 @@ class ContextController:
         session_id: str,
         limit: int = 5,
     ) -> list[dict[str, Any]]:
-        """
-        获取可供 Session 使用的 L3 共享上下文
-
-        返回与指定 Session 相关的 L3 摘要。
-
-        Args:
-            session_id: Session ID
-            limit: 返回数量限制
-
-        Returns:
-            L3 摘要列表
-        """
+        """获取可供 Session 使用的 L3 共享上下文"""
         relevant_summaries = []
 
         for summary in self._l3_summaries:
             session_ids = summary.get("session_ids", [])
-            # 包含该 Session 或是全局摘要
             if session_id in session_ids or not session_ids:
                 relevant_summaries.append(summary)
 

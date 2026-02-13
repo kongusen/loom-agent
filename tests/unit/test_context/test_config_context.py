@@ -90,11 +90,11 @@ class TestCoerceMemory:
         assert isinstance(cfg.memory, MemoryConfig)
 
     def test_invalid_type_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             ContextConfig(memory=42)
 
     def test_invalid_type_string_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             ContextConfig(memory="bad")
 
 
@@ -126,11 +126,11 @@ class TestCoerceBudget:
         assert cfg.budget.l1_ratio == 0.25
 
     def test_invalid_type_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             ContextConfig(budget=123)
 
     def test_invalid_type_list_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             ContextConfig(budget=[1, 2, 3])
 
 
@@ -163,11 +163,11 @@ class TestCoerceCompaction:
         assert cfg.compaction.strategy == "silent"
 
     def test_invalid_type_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             ContextConfig(compaction=99)
 
     def test_invalid_type_string_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             ContextConfig(compaction="none")
 
 
@@ -192,11 +192,11 @@ class TestCoerceSessionIsolation:
         assert cfg.session_isolation == SessionIsolationMode.NONE
 
     def test_invalid_type_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             ContextConfig(session_isolation=42)
 
     def test_invalid_string_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises((TypeError, ValueError)):
             ContextConfig(session_isolation="invalid_mode")
 
 

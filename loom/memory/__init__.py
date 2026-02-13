@@ -1,40 +1,33 @@
 """
 A4: 记忆层次公理 (Memory Hierarchy Axiom)
 
-公理陈述：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
-
-本模块实现统一的记忆存储系统，整合四层记忆（L1-L4）和作用域管理。
-
-注意：
-- 上下文构建逻辑已迁移到 loom.context 模块
-- Session 实体已迁移到 loom.events 模块（EventBus 层）
+三层记忆架构：
+- L1 (MessageWindow): 滑动窗口 — 当前对话上下文
+- L2 (WorkingMemoryLayer): 工作记忆 — session 内关键信息
+- L3 (MemoryStore): 持久记忆 — 跨 session 用户级存储
 
 导出内容：
-- MemoryManager: 统一的记忆管理系统（L1-L4 + 作用域）
-- LoomMemory: L1-L4 层记忆实现（底层组件）
-- MemoryUnit: 记忆单元
-- MemoryTier: 记忆层级枚举
+- MemoryManager: 统一的记忆管理代理
+- LoomMemory: 三层记忆系统核心
+- MessageItem: L1 消息项
+- WorkingMemoryEntry: L2 工作记忆条目
+- MemoryRecord: L3 持久记忆记录
+- MemoryStore: L3 存储后端 Protocol
+- InMemoryStore: 内存实现的 MemoryStore
+- MemoryTier: 记忆层级枚举 (L1/L2/L3)
 - MemoryType: 记忆类型枚举
 - MemoryStatus: 记忆状态枚举
 - MemoryQuery: 记忆查询请求
-- ContentSanitizer: 内容清理器
-- MemoryFactory: 记忆工厂
-- L4Compressor: L4记忆压缩器
-- VectorStoreProvider: 向量存储接口
-- InMemoryVectorStore: 内存向量存储实现
-- EmbeddingProvider: 嵌入提供者接口
-- TokenCounter: Token 计数器抽象接口
-- TiktokenCounter: OpenAI Tiktoken 计数器
-- AnthropicCounter: Anthropic 计数器
-- EstimateCounter: 估算计数器
+- MessageWindow: L1 滑动窗口
+- WorkingMemoryLayer: L2 工作记忆层
+- TokenCounter / TiktokenCounter / EstimateCounter: Token 计数器
 """
 
-from loom.memory.compression import FidelityChecker, FidelityResult, L4Compressor
 from loom.memory.core import LoomMemory
-from loom.memory.factory import MemoryFactory
+from loom.memory.layers_merged import MessageWindow, WorkingMemoryLayer
 from loom.memory.manager import MemoryManager
-from loom.memory.sanitizers import ContentSanitizer
 from loom.memory.shared_pool import PoolEntry, SharedMemoryPool, VersionConflictError
+from loom.memory.store import InMemoryStore, MemoryStore
 from loom.memory.tokenizer import (
     AnthropicCounter,
     EstimateCounter,
@@ -43,37 +36,39 @@ from loom.memory.tokenizer import (
 )
 from loom.memory.types import (
     MemoryQuery,
+    MemoryRecord,
     MemoryStatus,
     MemoryTier,
     MemoryType,
-    MemoryUnit,
-)
-from loom.memory.vector_store import (
-    EmbeddingProvider,
-    InMemoryVectorStore,
-    VectorStoreProvider,
+    MessageItem,
+    WorkingMemoryEntry,
 )
 
 __all__ = [
+    # Core
     "MemoryManager",
     "LoomMemory",
-    "MemoryUnit",
+    # L1
+    "MessageWindow",
+    "MessageItem",
+    # L2
+    "WorkingMemoryLayer",
+    "WorkingMemoryEntry",
+    # L3
+    "MemoryStore",
+    "InMemoryStore",
+    "MemoryRecord",
+    # Types
     "MemoryTier",
     "MemoryType",
     "MemoryStatus",
     "MemoryQuery",
-    "ContentSanitizer",
-    "MemoryFactory",
-    "L4Compressor",
-    "FidelityChecker",
-    "FidelityResult",
-    "VectorStoreProvider",
-    "InMemoryVectorStore",
-    "EmbeddingProvider",
+    # Tokenizer
     "TokenCounter",
     "TiktokenCounter",
     "AnthropicCounter",
     "EstimateCounter",
+    # Shared
     "SharedMemoryPool",
     "PoolEntry",
     "VersionConflictError",

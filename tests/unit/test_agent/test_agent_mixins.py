@@ -16,7 +16,6 @@ from loom.agent.planner import PlannerMixin, create_plan_tool
 from loom.agent.skill_handler import SkillHandlerMixin
 from loom.runtime import Task
 
-
 # ==================== ExecutorMixin ====================
 
 
@@ -514,7 +513,6 @@ class TestSkillHandlerMixinActivateSkills:
 
     @pytest.mark.asyncio
     async def test_exception_is_caught(self, capsys):
-        registry = AsyncMock()
         activator = AsyncMock()
 
         activator.find_relevant_skills.side_effect = RuntimeError("boom")

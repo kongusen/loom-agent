@@ -1,28 +1,16 @@
 """
-Memory Layer Abstractions (Token-First Design)
+Memory Layer Abstractions — 三层架构
 
-Provides unified interfaces for all memory layers (L1-L4).
-
-Note: Implementation moved to layers_merged.py for reduced module count.
-This file provides backward compatibility.
+L1: MessageWindow — 滑动窗口
+L2: WorkingMemoryLayer — 工作记忆
 """
 
 from loom.memory.layers_merged import (
-    CircularBufferLayer,
-    MemoryLayer,
-    PriorityItem,
-    PriorityQueueLayer,
-    PriorityTokenLayer,
-    TokenBudgetLayer,
-    TokenItem,
+    MessageWindow,
+    WorkingMemoryLayer,
 )
 
 __all__ = [
-    "MemoryLayer",
-    "TokenBudgetLayer",
-    "PriorityTokenLayer",
-    "CircularBufferLayer",
-    "PriorityQueueLayer",
-    "PriorityItem",
-    "TokenItem",
+    "MessageWindow",
+    "WorkingMemoryLayer",
 ]

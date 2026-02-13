@@ -34,23 +34,23 @@ def create_done_tool() -> dict:
         "function": {
             "name": "done",
             "description": (
-                "Signal task completion. IMPORTANT: First output your full response as text, "
-                "then call this tool with a brief summary. Do NOT put your full response in the message parameter - "
-                "the message should only be a short summary (1-2 sentences)."
+                "Signal task completion. Call this tool when the task is done. "
+                "Your text output before this call IS the response — "
+                "do NOT repeat it in the message parameter."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {
                         "type": "string",
-                        "description": "Brief summary (1-2 sentences) of what was accomplished. NOT the full response.",
+                        "description": "Optional brief summary for logging. Not used as the response.",
                     },
                     "output": {
                         "type": "object",
                         "description": "Optional structured data to pass to downstream nodes in a workflow.",
                     },
                 },
-                "required": ["message"],
+                "required": [],
             },
         },
     }

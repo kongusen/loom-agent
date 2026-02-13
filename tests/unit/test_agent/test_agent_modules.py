@@ -12,7 +12,6 @@ from loom.agent.tool_router import ToolRouter
 from loom.config.tool import ToolConfig
 from loom.exceptions import PermissionDenied
 
-
 # ============ AgentFactory._normalize_tool_config ============
 
 
@@ -152,7 +151,7 @@ class TestSetupSandbox:
 
         kwargs = {"sandbox_manager": "existing"}
         tools = [my_tool]
-        result = AgentFactory._setup_sandbox(tools, MagicMock(), kwargs)
+        AgentFactory._setup_sandbox(tools, MagicMock(), kwargs)
         assert kwargs["sandbox_manager"] == "existing"
 
 

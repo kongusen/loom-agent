@@ -50,6 +50,7 @@ class AgentFactory:
         parent_node_id: str | None = None,
         agent_role: str | None = None,
         event_bus: Any | None = None,
+        session: Any | None = None,
         knowledge_base: Any | None = None,
         max_context_tokens: int = 4000,
         max_iterations: int = 10,
@@ -63,6 +64,7 @@ class AgentFactory:
         session_isolation: SessionIsolationMode | str | None = None,
         compaction_config: CompactionConfig | dict[str, Any] | None = None,
         shared_pool: Any | None = None,
+        embedding_provider: Any | None = None,
         **kwargs: Any,
     ) -> Agent:
         """
@@ -142,6 +144,8 @@ class AgentFactory:
             kwargs["tool_policy"] = tool_policy
         if shared_pool is not None:
             kwargs["shared_pool"] = shared_pool
+        if embedding_provider is not None:
+            kwargs["embedding_provider"] = embedding_provider
 
         # 自动创建 SandboxToolManager（tools 含可调用对象时）
         tools = AgentFactory._setup_sandbox(tools, event_bus, kwargs)
@@ -159,6 +163,7 @@ class AgentFactory:
             system_prompt=system_prompt,
             tools=tools,
             event_bus=event_bus,
+            session=session,
             knowledge_base=knowledge_base,
             max_context_tokens=max_context_tokens,
             max_iterations=max_iterations,

@@ -27,7 +27,7 @@ class TestCreateDoneTool:
         assert params["type"] == "object"
         assert "message" in params["properties"]
         assert params["properties"]["message"]["type"] == "string"
-        assert params["required"] == ["message"]
+        assert params["required"] == []  # message is optional (signal-only semantics)
 
     def test_done_tool_description(self):
         """Test done tool description"""

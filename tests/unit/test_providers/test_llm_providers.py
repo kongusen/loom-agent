@@ -2,10 +2,9 @@
 Tests for LLM providers: anthropic.py, gemini.py, deepseek.py, client_pool.py
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from loom.providers.llm.client_pool import LLMClientPool, _freeze, _make_cache_key
-
 
 # ==================== _freeze ====================
 
@@ -69,7 +68,7 @@ class TestLLMClientPool:
         pool = LLMClientPool.get_instance()
         mock_class = MagicMock()
         mock_class.__name__ = "MockClient"
-        client = pool.get_or_create(
+        pool.get_or_create(
             mock_class, api_key="k", base_url=None, timeout=60, max_retries=3
         )
         assert pool.pool_size == 1
@@ -120,7 +119,7 @@ class TestAnthropicProvider:
         cfg.model = overrides.get("model", "claude-3-5-sonnet")
         cfg.temperature = overrides.get("temperature", 0.7)
         cfg.max_tokens = overrides.get("max_tokens", 4096)
-        cfg.base_url = overrides.get("base_url", None)
+        cfg.base_url = overrides.get("base_url")
         cfg.timeout = overrides.get("timeout", 60)
         cfg.max_retries = overrides.get("max_retries", 3)
         return cfg
@@ -153,7 +152,7 @@ class TestAnthropicProvider:
         with patch("loom.providers.llm.anthropic.AsyncAnthropic", self._mock_async_anthropic()):
             try:
                 AnthropicProvider(self._make_config(api_key=""))
-                assert False, "Should raise"
+                raise AssertionError("Should raise")
             except (ValueError, TypeError):
                 pass
 
@@ -231,7 +230,7 @@ class TestGeminiProvider:
         GeminiProvider.__abstractmethods__ = frozenset()
         try:
             GeminiProvider(self._make_config(api_key=""))
-            assert False, "Should raise"
+            raise AssertionError("Should raise")
         except (ValueError, TypeError):
             pass
 

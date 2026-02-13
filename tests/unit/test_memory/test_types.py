@@ -1,433 +1,265 @@
 """
-Tests for Memory Types
+Tests for loom/memory/types.py — 三层架构类型定义
+
+覆盖：MemoryTier, MemoryType, MemoryStatus, FactType,
+      MessageItem, WorkingMemoryEntry, MemoryRecord, MemoryQuery
 """
 
 from datetime import datetime
 
 from loom.memory.types import (
-    Fact,
     FactType,
     MemoryQuery,
+    MemoryRecord,
     MemoryStatus,
     MemoryTier,
     MemoryType,
-    MemoryUnit,
-    TaskSummary,
+    MessageItem,
+    WorkingMemoryEntry,
 )
+
+# ==================== Enums ====================
 
 
 class TestMemoryTier:
-    """Test suite for MemoryTier enum"""
-
-    def test_memory_tier_values(self):
-        """Test MemoryTier enum values"""
-        assert MemoryTier.L1_RAW_IO.value == 1
+    def test_values(self):
+        assert MemoryTier.L1_WINDOW.value == 1
         assert MemoryTier.L2_WORKING.value == 2
-        assert MemoryTier.L3_SESSION.value == 3
-        assert MemoryTier.L4_GLOBAL.value == 4
+        assert MemoryTier.L3_PERSISTENT.value == 3
+
+    def test_ordering(self):
+        assert MemoryTier.L1_WINDOW.value < MemoryTier.L2_WORKING.value
+        assert MemoryTier.L2_WORKING.value < MemoryTier.L3_PERSISTENT.value
+
+    def test_member_count(self):
+        assert len(MemoryTier) == 3
 
 
 class TestMemoryType:
-    """Test suite for MemoryType enum"""
+    def test_all_values(self):
+        expected = {
+            "message", "thought", "tool_call", "tool_result",
+            "plan", "fact", "decision", "summary", "context",
+        }
+        actual = {m.value for m in MemoryType}
+        assert actual == expected
 
-    def test_memory_type_values(self):
-        """Test MemoryType enum values"""
-        assert MemoryType.MESSAGE.value == "message"
-        assert MemoryType.THOUGHT.value == "thought"
-        assert MemoryType.TOOL_CALL.value == "tool_call"
-        assert MemoryType.TOOL_RESULT.value == "tool_result"
-        assert MemoryType.PLAN.value == "plan"
-        assert MemoryType.FACT.value == "fact"
-        assert MemoryType.CONTEXT.value == "context"
-        assert MemoryType.SUMMARY.value == "summary"
+    def test_lookup_by_value(self):
+        assert MemoryType("fact") is MemoryType.FACT
+        assert MemoryType("summary") is MemoryType.SUMMARY
 
 
 class TestMemoryStatus:
-    """Test suite for MemoryStatus enum"""
-
-    def test_memory_status_values(self):
-        """Test MemoryStatus enum values"""
-        assert MemoryStatus.ACTIVE.value == "active"
-        assert MemoryStatus.ARCHIVED.value == "archived"
-        assert MemoryStatus.EVICTED.value == "evicted"
-        assert MemoryStatus.SUMMARIZED.value == "summarized"
-
-
-class TestMemoryUnit:
-    """Test suite for MemoryUnit class"""
-
-    def test_memory_unit_creation(self):
-        """Test creating a MemoryUnit instance"""
-        memory = MemoryUnit(
-            content="test content",
-            type=MemoryType.MESSAGE,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        assert memory.content == "test content"
-        assert memory.type == MemoryType.MESSAGE
-        assert memory.tier == MemoryTier.L1_RAW_IO
-        assert memory.importance == 0.5
-
-    def test_memory_unit_with_all_fields(self):
-        """Test MemoryUnit with all fields"""
-        memory = MemoryUnit(
-            content="test",
-            type=MemoryType.THOUGHT,
-            tier=MemoryTier.L2_WORKING,
-            importance=0.8,
-            metadata={"key": "value"},
-        )
-
-        assert memory.importance == 0.8
-        assert memory.metadata == {"key": "value"}
-
-    def test_to_message_with_message_type_string(self):
-        """Test to_message with MESSAGE type and string content"""
-        memory = MemoryUnit(
-            content="Hello world",
-            type=MemoryType.MESSAGE,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        result = memory.to_message()
-
-        assert result == {"role": "user", "content": "Hello world"}
-
-    def test_to_message_with_message_type_dict(self):
-        """Test to_message with MESSAGE type and dict content"""
-        memory = MemoryUnit(
-            content={"key": "value"},
-            type=MemoryType.MESSAGE,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        result = memory.to_message()
-
-        # Dict content converts keys and values to strings
-        assert result == {"key": "value"}
-
-    def test_to_message_with_message_type_other(self):
-        """Test to_message with MESSAGE type and non-string/dict content"""
-        memory = MemoryUnit(
-            content=12345,
-            type=MemoryType.MESSAGE,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "system"
-        assert result["content"] == "12345"
-
-    def test_to_message_with_thought_type(self):
-        """Test to_message with THOUGHT type"""
-        memory = MemoryUnit(
-            content="Thinking about something",
-            type=MemoryType.THOUGHT,
-            tier=MemoryTier.L2_WORKING,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "assistant"
-        assert "💭" in result["content"]
-        assert "Thinking about something" in result["content"]
-
-    def test_to_message_with_tool_call_type(self):
-        """Test to_message with TOOL_CALL type"""
-        memory = MemoryUnit(
-            content="bash.run",
-            type=MemoryType.TOOL_CALL,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "assistant"
-        assert "🔧" in result["content"]
-        assert "Tool Call" in result["content"]
-
-    def test_to_message_with_tool_result_type(self):
-        """Test to_message with TOOL_RESULT type"""
-        memory = MemoryUnit(
-            content="Command completed",
-            type=MemoryType.TOOL_RESULT,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "system"
-        assert "🔧" in result["content"]
-        assert "Tool Result" in result["content"]
-
-    def test_to_message_with_plan_type(self):
-        """Test to_message with PLAN type"""
-        memory = MemoryUnit(
-            content="Step 1: Do this",
-            type=MemoryType.PLAN,
-            tier=MemoryTier.L2_WORKING,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "assistant"
-        assert "📋" in result["content"]
-        assert "Plan" in result["content"]
-
-    def test_to_message_with_fact_type(self):
-        """Test to_message with FACT type"""
-        memory = MemoryUnit(
-            content="Python is a programming language",
-            type=MemoryType.FACT,
-            tier=MemoryTier.L4_GLOBAL,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "system"
-        assert "📚" in result["content"]
-        assert "Fact" in result["content"]
-
-    def test_to_message_with_summary_type(self):
-        """Test to_message with SUMMARY type"""
-        memory = MemoryUnit(
-            content="Task completed successfully",
-            type=MemoryType.SUMMARY,
-            tier=MemoryTier.L3_SESSION,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "system"
-        assert "📝" in result["content"]
-        assert "Summary" in result["content"]
-
-    def test_to_message_with_context_type(self):
-        """Test to_message with CONTEXT type (default case)"""
-        memory = MemoryUnit(
-            content="Some context",
-            type=MemoryType.CONTEXT,
-            tier=MemoryTier.L2_WORKING,
-        )
-
-        result = memory.to_message()
-
-        assert result["role"] == "system"
-        assert result["content"] == "Some context"
-
-    def test_to_message_with_preformatted_message(self):
-        """Test to_message when content is already a message dict"""
-        memory = MemoryUnit(
-            content={"role": "user", "content": "Already formatted"},
-            type=MemoryType.MESSAGE,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        result = memory.to_message()
-
-        assert result == {"role": "user", "content": "Already formatted"}
-
-    def test_to_message_with_preformatted_message_different_role(self):
-        """Test to_message when content has role key"""
-        memory = MemoryUnit(
-            content={"role": "assistant", "content": "Response"},
-            type=MemoryType.MESSAGE,
-            tier=MemoryTier.L1_RAW_IO,
-        )
-
-        result = memory.to_message()
-
-        assert result == {"role": "assistant", "content": "Response"}
-
-
-class TestTaskSummary:
-    """Test suite for TaskSummary"""
-
-    def test_task_summary_creation(self):
-        """Test creating TaskSummary"""
-        summary = TaskSummary(
-            task_id="task_1",
-            action="test_action",
-            param_summary="params: {}",
-            result_summary="success",
-        )
-
-        assert summary.task_id == "task_1"
-        assert summary.action == "test_action"
-        assert summary.param_summary == "params: {}"
-        assert summary.result_summary == "success"
-        assert summary.tags == []
-        assert summary.importance == 0.5
-
-    def test_task_summary_with_tags(self):
-        """Test TaskSummary with custom tags"""
-        summary = TaskSummary(
-            task_id="task_1",
-            action="test_action",
-            param_summary="params",
-            result_summary="result",
-            tags=["important", "user-request"],
-        )
-
-        assert summary.tags == ["important", "user-request"]
-
-    def test_task_summary_with_importance(self):
-        """Test TaskSummary with custom importance"""
-        summary = TaskSummary(
-            task_id="task_1",
-            action="test_action",
-            param_summary="params",
-            result_summary="result",
-            importance=0.9,
-        )
-
-        assert summary.importance == 0.9
-
-    def test_task_summary_created_at(self):
-        """Test TaskSummary has created_at timestamp"""
-        before = datetime.now()
-        summary = TaskSummary(
-            task_id="task_1",
-            action="test",
-            param_summary="p",
-            result_summary="r",
-        )
-        after = datetime.now()
-
-        assert before <= summary.created_at <= after
+    def test_all_values(self):
+        expected = {"active", "archived", "summarized", "evicted"}
+        actual = {s.value for s in MemoryStatus}
+        assert actual == expected
 
 
 class TestFactType:
-    """Test suite for FactType enum"""
-
-    def test_fact_type_values(self):
-        """Test FactType enum values"""
-        assert FactType.API_SCHEMA.value == "api_schema"
-        assert FactType.USER_PREFERENCE.value == "user_preference"
-        assert FactType.DOMAIN_KNOWLEDGE.value == "domain_knowledge"
-        assert FactType.TOOL_USAGE.value == "tool_usage"
-        assert FactType.ERROR_PATTERN.value == "error_pattern"
-        assert FactType.BEST_PRACTICE.value == "best_practice"
+    def test_all_values(self):
+        expected = {
+            "api_schema", "user_preference", "domain_knowledge",
+            "tool_usage", "error_pattern", "best_practice",
+            "conversation_summary",
+        }
+        actual = {f.value for f in FactType}
+        assert actual == expected
 
 
-class TestFact:
-    """Test suite for Fact class"""
+# ==================== MessageItem ====================
 
-    def test_fact_creation(self):
-        """Test creating a Fact"""
-        fact = Fact(
-            fact_id="fact_1",
-            content="Python lists are mutable",
-            fact_type=FactType.DOMAIN_KNOWLEDGE,
+
+class TestMessageItem:
+    def test_defaults(self):
+        item = MessageItem(role="user", content="Hello")
+        assert item.role == "user"
+        assert item.content == "Hello"
+        assert item.token_count == 0
+        assert item.message_id  # auto-generated UUID
+        assert item.tool_call_id is None
+        assert item.tool_name is None
+        assert item.tool_calls is None
+        assert isinstance(item.created_at, datetime)
+        assert item.metadata == {}
+
+    def test_unique_ids(self):
+        a = MessageItem(role="user", content="a")
+        b = MessageItem(role="user", content="b")
+        assert a.message_id != b.message_id
+
+    def test_to_message_user(self):
+        item = MessageItem(role="user", content="Hi")
+        msg = item.to_message()
+        assert msg == {"role": "user", "content": "Hi"}
+
+    def test_to_message_assistant_with_tool_calls(self):
+        calls = [{"id": "tc1", "function": {"name": "search", "arguments": "{}"}}]
+        item = MessageItem(role="assistant", content=None, tool_calls=calls)
+        msg = item.to_message()
+        assert msg["role"] == "assistant"
+        assert msg["tool_calls"] == calls
+        assert "content" not in msg
+
+    def test_to_message_tool(self):
+        item = MessageItem(
+            role="tool",
+            content="result data",
+            tool_call_id="tc1",
+            tool_name="search",
         )
+        msg = item.to_message()
+        assert msg["role"] == "tool"
+        assert msg["content"] == "result data"
+        assert msg["tool_call_id"] == "tc1"
+        assert msg["name"] == "search"
 
-        assert fact.fact_id == "fact_1"
-        assert fact.content == "Python lists are mutable"
-        assert fact.fact_type == FactType.DOMAIN_KNOWLEDGE
-        assert fact.confidence == 0.8
-        assert fact.source_task_ids == []
-        assert fact.tags == []
-        assert fact.access_count == 0
+    def test_from_message_user(self):
+        raw = {"role": "user", "content": "Hello"}
+        item = MessageItem.from_message(raw, token_count=5)
+        assert item.role == "user"
+        assert item.content == "Hello"
+        assert item.token_count == 5
 
-    def test_fact_with_source_tasks(self):
-        """Test Fact with source task IDs"""
-        fact = Fact(
-            fact_id="fact_1",
-            content="Test",
-            fact_type=FactType.TOOL_USAGE,
-            source_task_ids=["task_1", "task_2"],
+    def test_from_message_tool(self):
+        raw = {
+            "role": "tool",
+            "content": "ok",
+            "tool_call_id": "tc1",
+            "name": "run",
+        }
+        item = MessageItem.from_message(raw)
+        assert item.tool_call_id == "tc1"
+        assert item.tool_name == "run"
+
+    def test_from_message_defaults(self):
+        item = MessageItem.from_message({})
+        assert item.role == "user"
+        assert item.content is None
+        assert item.token_count == 0
+
+    def test_dict_content(self):
+        item = MessageItem(role="user", content={"type": "image", "url": "x"})
+        msg = item.to_message()
+        assert msg["content"] == {"type": "image", "url": "x"}
+
+    def test_metadata(self):
+        item = MessageItem(role="user", content="hi", metadata={"session": "s1"})
+        assert item.metadata["session"] == "s1"
+
+
+# ==================== WorkingMemoryEntry ====================
+
+
+class TestWorkingMemoryEntry:
+    def test_defaults(self):
+        entry = WorkingMemoryEntry(content="important fact", token_count=10)
+        assert entry.content == "important fact"
+        assert entry.entry_type == MemoryType.FACT
+        assert entry.importance == 0.5
+        assert entry.token_count == 10
+        assert entry.tags == []
+        assert entry.source_message_ids == []
+        assert entry.session_id is None
+        assert entry.access_count == 0
+        assert entry.entry_id  # auto-generated
+
+    def test_custom_fields(self):
+        entry = WorkingMemoryEntry(
+            content="user prefers dark mode",
+            entry_type=MemoryType.DECISION,
+            importance=0.9,
+            token_count=8,
+            tags=["preference", "ui"],
+            session_id="sess-1",
         )
+        assert entry.entry_type == MemoryType.DECISION
+        assert entry.importance == 0.9
+        assert entry.tags == ["preference", "ui"]
+        assert entry.session_id == "sess-1"
 
-        assert fact.source_task_ids == ["task_1", "task_2"]
+    def test_update_access(self):
+        entry = WorkingMemoryEntry(content="x", token_count=1)
+        assert entry.access_count == 0
+        entry.update_access()
+        assert entry.access_count == 1
+        entry.update_access()
+        assert entry.access_count == 2
 
-    def test_fact_with_custom_confidence(self):
-        """Test Fact with custom confidence"""
-        fact = Fact(
-            fact_id="fact_1",
-            content="Test",
-            fact_type=FactType.BEST_PRACTICE,
-            confidence=0.95,
+    def test_unique_ids(self):
+        a = WorkingMemoryEntry(content="a", token_count=1)
+        b = WorkingMemoryEntry(content="b", token_count=1)
+        assert a.entry_id != b.entry_id
+
+
+# ==================== MemoryRecord ====================
+
+
+class TestMemoryRecord:
+    def test_defaults(self):
+        record = MemoryRecord(content="summary text")
+        assert record.content == "summary text"
+        assert record.user_id is None
+        assert record.session_id is None
+        assert record.importance == 0.5
+        assert record.tags == []
+        assert record.embedding is None
+        assert record.source_entry_ids == []
+        assert record.record_id  # auto-generated
+
+    def test_custom_fields(self):
+        record = MemoryRecord(
+            content="user likes Python",
+            user_id="u1",
+            session_id="s1",
+            importance=0.8,
+            tags=["preference"],
+            embedding=[0.1, 0.2, 0.3],
+            source_entry_ids=["e1", "e2"],
         )
+        assert record.user_id == "u1"
+        assert record.session_id == "s1"
+        assert record.importance == 0.8
+        assert record.embedding == [0.1, 0.2, 0.3]
+        assert record.source_entry_ids == ["e1", "e2"]
 
-        assert fact.confidence == 0.95
+    def test_unique_ids(self):
+        a = MemoryRecord(content="a")
+        b = MemoryRecord(content="b")
+        assert a.record_id != b.record_id
 
-    def test_fact_update_access(self):
-        """Test update_access method"""
-        fact = Fact(
-            fact_id="fact_1",
-            content="Test",
-            fact_type=FactType.API_SCHEMA,
-        )
+    def test_mutable_user_id(self):
+        record = MemoryRecord(content="x")
+        assert record.user_id is None
+        record.user_id = "u1"
+        assert record.user_id == "u1"
 
-        initial_count = fact.access_count
-        initial_time = fact.last_accessed
 
-        import time
-
-        time.sleep(0.01)  # Small delay to ensure timestamp changes
-        fact.update_access()
-
-        assert fact.access_count == initial_count + 1
-        assert fact.last_accessed > initial_time
+# ==================== MemoryQuery ====================
 
 
 class TestMemoryQuery:
-    """Test suite for MemoryQuery"""
+    def test_defaults(self):
+        q = MemoryQuery(query="search term")
+        assert q.query == "search term"
+        assert q.tier is None
+        assert q.type is None
+        assert q.limit == 10
+        assert q.min_importance == 0.0
+        assert q.user_id is None
+        assert q.session_id is None
 
-    def test_memory_query_defaults(self):
-        """Test MemoryQuery with default values"""
-        query = MemoryQuery(query="test query")
-
-        assert query.query == "test query"
-        assert query.tier is None
-        assert query.type is None
-        assert query.limit == 10
-        assert query.min_importance == 0.0
-
-    def test_memory_query_with_tier(self):
-        """Test MemoryQuery with tier filter"""
-        query = MemoryQuery(
-            query="test",
+    def test_custom_fields(self):
+        q = MemoryQuery(
+            query="Python",
             tier=MemoryTier.L2_WORKING,
+            type=MemoryType.FACT,
+            limit=5,
+            min_importance=0.3,
+            user_id="u1",
+            session_id="s1",
         )
-
-        assert query.tier == MemoryTier.L2_WORKING
-
-    def test_memory_query_with_type(self):
-        """Test MemoryQuery with type filter"""
-        query = MemoryQuery(
-            query="test",
-            type=MemoryType.TOOL_CALL,
-        )
-
-        assert query.type == MemoryType.TOOL_CALL
-
-    def test_memory_query_with_limit(self):
-        """Test MemoryQuery with custom limit"""
-        query = MemoryQuery(query="test", limit=50)
-
-        assert query.limit == 50
-
-    def test_memory_query_with_min_importance(self):
-        """Test MemoryQuery with min importance"""
-        query = MemoryQuery(query="test", min_importance=0.7)
-
-        assert query.min_importance == 0.7
-
-    def test_memory_query_with_all_parameters(self):
-        """Test MemoryQuery with all parameters"""
-        query = MemoryQuery(
-            query="search query",
-            tier=MemoryTier.L3_SESSION,
-            type=MemoryType.MESSAGE,
-            limit=100,
-            min_importance=0.8,
-        )
-
-        assert query.query == "search query"
-        assert query.tier == MemoryTier.L3_SESSION
-        assert query.type == MemoryType.MESSAGE
-        assert query.limit == 100
-        assert query.min_importance == 0.8
+        assert q.tier == MemoryTier.L2_WORKING
+        assert q.type == MemoryType.FACT
+        assert q.limit == 5
+        assert q.min_importance == 0.3

@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.5.7] - 2026-02-13
+
+### 💾 L3 记忆存储可插拔化
+
+- **MemoryStore Protocol**：新增 L3 持久记忆存储接口，支持可插拔存储后端
+  - 文本查询（`query_by_text`）：支持用户/session 过滤，CJK-aware 分词匹配
+  - 向量查询（`query_by_vector`）：余弦相似度语义检索
+  - 记录管理：`save`、`delete`、`list_by_session`、`list_by_user` 等完整 CRUD
+- **InMemoryStore**：内存实现的参考实现，用于测试和快速开始
+  - FIFO 容量限制（默认 10000 条记录）
+  - 文本匹配 + 标签匹配 + 词级别匹配（CJK-aware）
+  - 余弦相似度向量查询
+- **存储后端扩展**：应用层可实现 SQLiteStore、RedisStore、PgVectorStore 等持久化存储
+
+### 🧠 L2 重要性门控 + TTL 过期
+
+- **重要性流修复**：LLM `<imp:X.X/>` 标记 → `MessageItem.metadata` → L2 提取器，端到端贯通
+  - `_default_extractor` 从消息 metadata 读取 importance（取 max），不再硬编码 0.5
+  - `execution.py` 三处 `add_message("assistant", ...)` 均传入 `metadata={"importance": X}`
+- **L2 准入门控**：`l2_importance_threshold`（默认 0.6），importance 低于阈值的驱逐内容不进入 L2
+- **L2 TTL 过期**：`l2_ttl_seconds`（默认 86400 = 24h），惰性清理，无后台线程
+  - `WorkingMemoryEntry` 新增 `expires_at` 字段
+  - `WorkingMemoryLayer` 在 `add()` / `get_entries()` / `get_by_type()` 时自动清理过期条目
+- **`end_session()` 过滤**：只持久化 importance ≥ threshold 的内容到 L3，低重要性内容丢弃
+- **配置穿透**：`memory_config` dict 支持 `l2_importance_threshold` 和 `l2_ttl_seconds`
+
+### 📝 示例与文档
+
+- **22_mechanism_validation.py**：新增框架机制综合验证示例
+  - 测试 8 大核心机制：多轮对话、记忆升维、动态工具创建、Skill 动态加载、Done 工具信号、Session 注入、知识图谱、多 Skill 自主选择
+  - `inspect_memory` 显示门控阈值、TTL、消息 importance、条目过期时间
+- **Skills 示例**：新增 4 个 Skill 示例
+  - `math-solver`：数学计算和解题技能
+  - `translator`：翻译技能
+  - `summarizer`：摘要技能
+  - `code-review`：代码审查技能
+
 ## [0.5.6] - 2026-02-12
 
 ### 🔭 可观测性系统（全新模块）

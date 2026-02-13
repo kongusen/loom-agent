@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 from loom.context.retrieval.candidates import CandidateOrigin, RetrievalCandidate
 from loom.context.retrieval.query_rewriter import QueryRewriter
 from loom.context.retrieval.reranker import Reranker
-from loom.events.actions import KnowledgeAction
 
 if TYPE_CHECKING:
     from loom.memory.manager import MemoryManager
@@ -33,7 +32,7 @@ class UnifiedSearchExecutor:
     职责：
     1. 路由判断：根据 scope 决定搜索范围
     2. 查询增强：复用 QueryRewriter
-    3. 并行检索：Memory(L1-L4) + Knowledge(外部知识库)
+    3. 并行检索：Memory(L1-L3) + Knowledge(外部知识库)
     4. 统一排序：复用 UnifiedReranker 跨源排序
     5. 结果格式化：返回结构化文本给 Agent
     """
@@ -67,13 +66,6 @@ class UnifiedSearchExecutor:
         session_id: str | None = None,
     ) -> str:
         """执行统一检索，返回格式化结果"""
-
-        # 0. Session 级 L1 缓存检查（同 session 近期相似查询复用）
-        if session_id and self._memory:
-            cached = self._check_l1_cache(query, session_id)
-            if cached:
-                logger.debug("L1 cache hit for query=%r session=%s", query, session_id)
-                return cached
 
         # 1. 路由判断
         resolved_scope = self._resolve_scope(scope)
@@ -141,35 +133,6 @@ class UnifiedSearchExecutor:
             return scope
         return "all" if self._kbs else "memory"
 
-    def _check_l1_cache(self, query: str, session_id: str) -> str | None:
-        """
-        从 L1 中查找同 session 的近期搜索结果。
-
-        遍历 L1 中 action == KnowledgeAction.SEARCH_RESULT 的 Task，
-        如果 query 相似则直接返回缓存的 formatted_output。
-        """
-        if not self._memory:
-            return None
-        try:
-            recent_tasks = self._memory.get_l1_tasks(
-                limit=20,
-                session_id=session_id,
-            )
-        except Exception:
-            logger.debug("L1 cache check failed", exc_info=True)
-            return None
-
-        for task in reversed(recent_tasks):
-            if task.action == KnowledgeAction.SEARCH_RESULT and self._query_similar(
-                task.parameters.get("query", ""), query
-            ):
-                output = None
-                if isinstance(task.result, dict):
-                    output = task.result.get("formatted_output")
-                if output:
-                    return str(output)
-        return None
-
     @staticmethod
     def _query_similar(q1: str, q2: str) -> bool:
         """
@@ -199,106 +162,72 @@ class UnifiedSearchExecutor:
         self,
         query: str,
         layer: str,
-        session_id: str | None,
+        session_id: str | None,  # noqa: ARG002
     ) -> list[RetrievalCandidate]:
-        """搜索 L1-L4 记忆层"""
+        """搜索三层记忆"""
         if not self._memory:
             return []
 
         candidates: list[RetrievalCandidate] = []
 
-        # L1: 最近任务
+        # L1: 最近消息（文本匹配）
         if layer in ("auto", "l1"):
             try:
-                tasks = self._memory.get_l1_tasks(
-                    limit=self._default_limit,
-                    session_id=session_id,
-                )
-                for t in tasks:
-                    content = self._task_to_content(t)
+                messages = self._memory.get_message_items()
+                for msg in messages:
+                    content = str(msg.content) if msg.content else ""
                     if content and self._text_match(query, content):
                         candidates.append(
                             RetrievalCandidate(
-                                id=t.taskId,
-                                content=content,
+                                id=msg.message_id,
+                                content=f"[{msg.role}] {content[:500]}",
                                 origin=CandidateOrigin.MEMORY,
                                 vector_score=0.5,
-                                metadata={"layer": "L1", "action": t.action},
+                                metadata={"layer": "L1", "role": msg.role},
                             )
                         )
             except Exception:
                 logger.debug("L1 search failed", exc_info=True)
 
-        # L2: 重要任务
+        # L2: 工作记忆（文本匹配）
         if layer in ("auto", "l2"):
             try:
-                tasks = self._memory.get_l2_tasks(
+                entries = self._memory.get_working_memory(
                     limit=self._default_limit,
-                    session_id=session_id,
                 )
-                for t in tasks:
-                    content = self._task_to_content(t)
-                    if content and self._text_match(query, content):
-                        importance = t.metadata.get("importance", 0.5) if t.metadata else 0.5
+                for entry in entries:
+                    if entry.content and self._text_match(query, entry.content):
                         candidates.append(
                             RetrievalCandidate(
-                                id=t.taskId,
-                                content=content,
+                                id=entry.entry_id,
+                                content=entry.content[:500],
                                 origin=CandidateOrigin.MEMORY,
-                                vector_score=0.5 + importance * 0.3,
-                                metadata={"layer": "L2", "importance": importance},
+                                vector_score=0.5 + entry.importance * 0.3,
+                                metadata={"layer": "L2", "importance": entry.importance},
                             )
                         )
             except Exception:
                 logger.debug("L2 search failed", exc_info=True)
 
-        # L3: 历史摘要
+        # L3: 持久记忆（语义搜索）
         if layer in ("auto", "l3"):
             try:
-                loom = self._memory._loom_memory
-                summaries = loom.get_l3_summaries(
-                    limit=self._default_limit,
-                    session_id=session_id,
-                )
-                for s in summaries:
-                    content = f"{s.action}: {s.param_summary} -> {s.result_summary}"
-                    if self._text_match(query, content):
-                        candidates.append(
-                            RetrievalCandidate(
-                                id=s.task_id,
-                                content=content,
-                                origin=CandidateOrigin.MEMORY,
-                                vector_score=0.4,
-                                metadata={"layer": "L3"},
-                            )
-                        )
-            except Exception:
-                logger.debug("L3 search failed", exc_info=True)
-
-        # L4: 向量语义检索
-        if layer in ("auto", "l4"):
-            try:
-                loom = self._memory._loom_memory
-                l4_tasks = await loom.search_tasks(
+                records = await self._memory.search_persistent(
                     query=query,
                     limit=self._default_limit,
-                    session_id=session_id,
                 )
-
-                for t in l4_tasks:
-                    content = self._task_to_content(t)
-                    if content:
-                        candidates.append(
-                            RetrievalCandidate(
-                                id=t.taskId,
-                                content=content,
-                                origin=CandidateOrigin.L4_SEMANTIC,
-                                vector_score=0.7,
-                                metadata={"layer": "L4"},
-                            )
+                for record in records:
+                    candidates.append(
+                        RetrievalCandidate(
+                            id=record.record_id,
+                            content=record.content[:500],
+                            origin=CandidateOrigin.L4_SEMANTIC,
+                            vector_score=0.7,
+                            metadata={"layer": "L3", "importance": record.importance},
                         )
+                    )
             except Exception:
-                logger.debug("L4 search failed", exc_info=True)
+                logger.debug("L3 search failed", exc_info=True)
 
         return candidates
 
@@ -357,7 +286,7 @@ class UnifiedSearchExecutor:
                 layer = c.metadata.get("layer", "")
                 origin_tag = f"[记忆/{layer}]" if layer else "[记忆]"
             elif c.origin == CandidateOrigin.L4_SEMANTIC:
-                origin_tag = "[记忆/L4]"
+                origin_tag = "[记忆/L3]"
             elif c.origin == CandidateOrigin.RAG_KNOWLEDGE:
                 source_name = c.metadata.get("knowledge_source", "知识库")
                 origin_tag = f"[{source_name}]"
@@ -372,38 +301,19 @@ class UnifiedSearchExecutor:
         return "\n".join(lines)
 
     @staticmethod
-    def _task_to_content(task: Any) -> str:
-        """将 Task 转换为可读文本"""
-        parts: list[str] = []
-        if task.action:
-            parts.append(str(task.action))
-        params = task.parameters
-        if isinstance(params, dict):
-            content = params.get("content", "")
-            if content:
-                parts.append(str(content)[:200])
-            elif params:
-                parts.append(str(params)[:200])
-        elif params:
-            parts.append(str(params)[:200])
-        result = task.result
-        if isinstance(result, dict):
-            r_content = result.get("content", "") or result.get("message", "")
-            if r_content:
-                parts.append(f"-> {str(r_content)[:200]}")
-        elif result:
-            parts.append(f"-> {str(result)[:200]}")
-        return ": ".join(parts) if parts else ""
-
-    @staticmethod
     def _text_match(query: str, content: str) -> bool:
-        """简单文本匹配（L1-L3 降级搜索）"""
+        """简单文本匹配（L1-L2 降级搜索，CJK-aware）"""
         if not query:
             return True
         query_lower = query.lower()
         content_lower = content.lower()
-        # 任意一个查询词出现即匹配
-        words = [w for w in query_lower.split() if len(w) >= 2]
-        if not words:
+        # 提取查询 token：空格分词 + CJK bigrams
+        tokens: list[str] = [w for w in query_lower.split() if len(w) >= 2]
+        cjk_chars = [ch for ch in query_lower if "\u4e00" <= ch <= "\u9fff"]
+        for i in range(len(cjk_chars) - 1):
+            tokens.append(cjk_chars[i] + cjk_chars[i + 1])
+        if len(cjk_chars) == 1:
+            tokens.append(cjk_chars[0])
+        if not tokens:
             return True
-        return any(w in content_lower for w in words)
+        return any(t in content_lower for t in tokens)

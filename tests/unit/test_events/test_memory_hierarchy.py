@@ -72,13 +72,11 @@ class TestL3AggregationStorage:
     @pytest.mark.asyncio
     async def test_aggregate_to_l3_with_sessions(self, controller, sessions_with_tasks):
         """测试有 Session 时的聚合"""
-        # 先触发 L1→L2 提升
-        for session in sessions_with_tasks:
-            session.promote_tasks()
-
+        # In 3-layer arch, L1→L2 promotion is automatic via eviction.
+        # Just test that aggregate_to_l3 doesn't error.
         result = await controller.aggregate_to_l3()
 
-        # 可能没有 L2 任务（取决于重要性阈值）
+        # 可能没有 L2 工作记忆条目
         # 这里主要测试方法不报错
         assert result is None or isinstance(result, dict)
 
@@ -167,11 +165,11 @@ class TestPromotionTrigger:
         return [s1, s2]
 
     @pytest.mark.asyncio
-    async def test_trigger_promotion_l1_to_l2(self, controller, sessions):
-        """测试 L1→L2 提升触发"""
+    async def test_trigger_promotion_sessions_processed(self, controller, sessions):
+        """测试提升触发 - sessions_processed 计数"""
         result = await controller.trigger_promotion(l2_to_l3=False)
 
-        assert result["l1_to_l2"] == 2  # 两个 Session
+        assert result["sessions_processed"] == 2  # 两个 Session
         assert result["l2_to_l3"] is None
         assert result["l3_to_l4"] is False
 
@@ -180,7 +178,7 @@ class TestPromotionTrigger:
         """测试单个 Session 提升"""
         result = await controller.trigger_promotion(session_id="s1", l2_to_l3=False)
 
-        assert result["l1_to_l2"] == 1
+        assert result["sessions_processed"] == 1
 
     @pytest.mark.asyncio
     async def test_trigger_promotion_full_chain(self, controller, sessions):
@@ -198,8 +196,8 @@ class TestPromotionTrigger:
 
         result = await controller.trigger_promotion(l2_to_l3=True, l3_to_l4=True)
 
-        assert result["l1_to_l2"] == 2
-        # l2_to_l3 可能为 None（如果没有 L2 任务）
+        assert result["sessions_processed"] == 2
+        # l2_to_l3 可能为 None（如果没有 L2 工作记忆条目）
         # l3_to_l4 取决于是否有 l2_to_l3 结果
 
 
@@ -234,22 +232,12 @@ class TestCrossSessionSharing:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_share_context_to_sessions(self, controller, sessions_with_tasks):
-        """测试共享上下文到其他 Session"""
-        result = await controller.share_context("s1", ["s2", "s3"], task_limit=3)
-
-        assert "s2" in result
-        assert "s3" in result
-        assert result["s2"] > 0
-        assert result["s3"] > 0
-
-    @pytest.mark.asyncio
-    async def test_share_context_skip_self(self, controller, sessions_with_tasks):
-        """测试不共享给自己"""
-        result = await controller.share_context("s1", ["s1", "s2"])
-
-        assert "s1" not in result
-        assert "s2" in result
+    async def test_share_context_shares_messages(self, controller, sessions_with_tasks):
+        """add_task 存入 L1 的消息可以被 share_context 共享"""
+        result = await controller.share_context("s1", ["s2", "s3"], message_limit=3)
+        # s1 有 5 条消息，message_limit=3 → 共享最近 3 条到 s2, s3
+        assert result.get("s2", 0) == 3
+        assert result.get("s3", 0) == 3
 
     def test_get_shared_l3_context_empty(self, controller):
         """测试空 L3 上下文"""

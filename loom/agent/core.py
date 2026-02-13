@@ -26,6 +26,7 @@ Agent - 自主智能体基类
 """
 
 import json
+import logging
 import re
 from collections import defaultdict, deque
 from pathlib import Path
@@ -42,7 +43,7 @@ from loom.config.context import ContextConfig
 from loom.config.memory import MemoryConfig
 from loom.config.tool import ToolConfig
 from loom.context import ContextOrchestrator
-from loom.context.sources import L1RecentSource, L2ImportantSource
+from loom.context.sources import L2WorkingSource, L3PersistentSource
 from loom.exceptions import TaskComplete
 from loom.memory.compaction import CompactionConfig, MemoryCompactor
 from loom.memory.manager import MemoryManager
@@ -70,6 +71,7 @@ except ImportError:
 if TYPE_CHECKING:
     from loom.agent.agent_node import NodeType
     from loom.config.context import BudgetConfig
+    from loom.events.session import Session
     from loom.memory.shared_pool import SharedMemoryPool
     from loom.tools.skills.activator import SkillActivator
 
@@ -157,6 +159,7 @@ class Agent(
         tools: list[dict[str, Any]] | None = None,
         available_agents: dict[str, Any] | None = None,
         event_bus: Any | None = None,  # EventBus
+        session: "Session | None" = None,  # Session（注入记忆，Agent 变为无状态执行器）
         enable_observation: bool = True,
         max_context_tokens: int = 4000,
         max_iterations: int = 10,
@@ -182,6 +185,7 @@ class Agent(
         enable_checkpoint: bool = False,  # 启用检查点
         state_store: Any | None = None,  # StateStore（检查点存储后端）
         shared_pool: "SharedMemoryPool | None" = None,  # 跨 Agent 共享记忆池
+        embedding_provider: Any | None = None,  # EmbeddingProvider（L3 向量检索）
         **kwargs,
     ):
         """
@@ -245,6 +249,7 @@ class Agent(
         self._user_wants_no_tools = tools is not None and len(tools) == 0
         self.tools = tools or []
         self.available_agents = available_agents or {}
+        self.session = session  # Session 注入（Agent 无状态模式）
         self.max_iterations = max_iterations
 
         # Auto-disable done_tool requirement when no tools are wanted
@@ -307,92 +312,64 @@ class Agent(
         if self.require_done_tool:
             self.tools.append(create_done_tool())
 
-        # 规范化 memory_config（支持 MemoryConfig / dict / 分层配置）
-        memory_kwargs: dict[str, Any] = {}
-        if memory_config is not None:
-            if isinstance(memory_config, MemoryConfig):
-                memory_kwargs = {
-                    "max_l1_size": memory_config.l1.capacity,
-                    "max_l2_size": memory_config.l2.capacity,
-                    "max_l3_size": memory_config.l3.capacity,
-                    "max_l4_size": memory_config.l4.capacity,
-                    "l1_retention_hours": memory_config.l1.retention_hours,
-                    "l2_retention_hours": memory_config.l2.retention_hours,
-                    "l3_retention_hours": memory_config.l3.retention_hours,
-                    "l4_retention_hours": memory_config.l4.retention_hours,
-                    "l1_promote_threshold": memory_config.l1.promote_threshold,
-                    "l2_promote_threshold": memory_config.l2.promote_threshold,
-                    "l3_promote_threshold": memory_config.l3.promote_threshold,
-                    "l2_auto_compress": memory_config.l2.auto_compress,
-                    "l3_auto_compress": memory_config.l3.auto_compress,
-                    "enable_auto_migration": memory_config.enable_auto_migration,
-                    "enable_compression": memory_config.enable_compression,
-                    "strategy": memory_config.strategy,
-                    "importance_threshold": memory_config.importance_threshold,
-                }
-            elif isinstance(memory_config, dict):
-                # 兼容两种风格：直接 max_l* 或分层 l1/l2/l3
-                if any(k in memory_config for k in ("max_l1_size", "max_l2_size", "max_l3_size")):
-                    allowed = {
-                        "max_l1_size",
-                        "max_l2_size",
-                        "max_l3_size",
-                        "max_l4_size",
-                        "l1_retention_hours",
-                        "l2_retention_hours",
-                        "l3_retention_hours",
-                        "l4_retention_hours",
-                        "l1_promote_threshold",
-                        "l2_promote_threshold",
-                        "l3_promote_threshold",
-                        "l2_auto_compress",
-                        "l3_auto_compress",
-                        "enable_auto_migration",
-                        "enable_compression",
-                        "strategy",
-                        "importance_threshold",
-                    }
-                    memory_kwargs = {k: v for k, v in memory_config.items() if k in allowed}
-                else:
-
-                    def _layer_value(layer: Any, key: str) -> Any | None:
-                        if layer is None:
-                            return None
-                        if isinstance(layer, dict):
-                            return layer.get(key)
-                        return getattr(layer, key, None)
-
-                    l1 = memory_config.get("l1")
-                    l2 = memory_config.get("l2")
-                    l3 = memory_config.get("l3")
-                    l4 = memory_config.get("l4")
+        # 创建 MemoryManager（3 层记忆系统）
+        if session is not None:
+            # Session 注入模式：Agent 使用 Session 的 LoomMemory
+            # memory IS context — 共享 Session 的 L1/L2/L3
+            if memory_config is not None:
+                logging.warning(
+                    "Agent %s: session provided, memory_config ignored", node_id
+                )
+            self.memory = MemoryManager(
+                node_id=node_id,
+                parent=parent_memory,
+                memory=session.memory,  # 注入 Session 的 LoomMemory
+                event_bus=event_bus,
+            )
+            # 注入 embedding provider 到已有的 LoomMemory
+            if embedding_provider:
+                self.memory.memory.set_embedding_provider(embedding_provider)
+        else:
+            # 独立模式：Agent 创建自己的 MemoryManager
+            memory_kwargs: dict[str, Any] = {}
+            if memory_config is not None:
+                if isinstance(memory_config, MemoryConfig):
                     memory_kwargs = {
-                        "max_l1_size": _layer_value(l1, "capacity"),
-                        "max_l2_size": _layer_value(l2, "capacity"),
-                        "max_l3_size": _layer_value(l3, "capacity"),
-                        "max_l4_size": _layer_value(l4, "capacity"),
-                        "l1_retention_hours": _layer_value(l1, "retention_hours"),
-                        "l2_retention_hours": _layer_value(l2, "retention_hours"),
-                        "l3_retention_hours": _layer_value(l3, "retention_hours"),
-                        "l4_retention_hours": _layer_value(l4, "retention_hours"),
-                        "l1_promote_threshold": _layer_value(l1, "promote_threshold"),
-                        "l2_promote_threshold": _layer_value(l2, "promote_threshold"),
-                        "l3_promote_threshold": _layer_value(l3, "promote_threshold"),
-                        "l2_auto_compress": _layer_value(l2, "auto_compress"),
-                        "l3_auto_compress": _layer_value(l3, "auto_compress"),
-                        "enable_auto_migration": memory_config.get("enable_auto_migration"),
-                        "enable_compression": memory_config.get("enable_compression"),
-                        "strategy": memory_config.get("strategy"),
-                        "importance_threshold": memory_config.get("importance_threshold"),
+                        "l1_token_budget": memory_config.l1.capacity,
+                        "l2_token_budget": memory_config.l2.capacity,
                     }
-                    memory_kwargs = {k: v for k, v in memory_kwargs.items() if v is not None}
-            else:
-                raise TypeError("memory_config must be MemoryConfig or dict")
+                elif isinstance(memory_config, dict):
+                    allowed = {
+                        "l1_token_budget", "l2_token_budget",
+                        "l2_importance_threshold", "l2_ttl_seconds",
+                    }
+                    if "l1_token_budget" in memory_config or "l2_token_budget" in memory_config:
+                        memory_kwargs = {k: v for k, v in memory_config.items() if k in allowed}
+                    else:
+                        # 提取 allowed 中的 flat keys
+                        memory_kwargs = {k: v for k, v in memory_config.items() if k in allowed}
+                        if "max_l1_size" in memory_config:
+                            memory_kwargs["l1_token_budget"] = memory_config["max_l1_size"]
+                        if "max_l2_size" in memory_config:
+                            memory_kwargs["l2_token_budget"] = memory_config["max_l2_size"]
+                        if "l1" in memory_config:
+                            l1 = memory_config["l1"]
+                            cap = l1.get("capacity") if isinstance(l1, dict) else getattr(l1, "capacity", None)
+                            if cap is not None:
+                                memory_kwargs["l1_token_budget"] = cap
+                        if "l2" in memory_config:
+                            l2 = memory_config["l2"]
+                            cap = l2.get("capacity") if isinstance(l2, dict) else getattr(l2, "capacity", None)
+                            if cap is not None:
+                                memory_kwargs["l2_token_budget"] = cap
+                else:
+                    raise TypeError("memory_config must be MemoryConfig or dict")
 
-        # 创建 MemoryManager（统一的内存管理系统）
-        self.memory = MemoryManager(
-            node_id=node_id, parent=parent_memory, event_bus=event_bus, **memory_kwargs
-        )
+            self.memory = MemoryManager(
+                node_id=node_id, parent=parent_memory, event_bus=event_bus,
+                embedding_provider=embedding_provider,
+                **memory_kwargs,
+            )
 
         # 创建 Observability 组件（Tracing + Metrics）
         self._tracer = LoomTracer(agent_id=node_id, enabled=enable_observation)
@@ -435,8 +412,10 @@ class Agent(
         from loom.context.sources import InheritedSource
 
         sources: list[ContextSource] = []
-        sources.append(L1RecentSource(self.memory))
-        sources.append(L2ImportantSource(self.memory))
+        # L2/L3 源通过 ContextOrchestrator 注入；L1 由 ExecutionEngine 直接追加
+        _loom_mem = self.memory.memory  # LoomMemory 实例
+        sources.append(L2WorkingSource(_loom_mem))
+        sources.append(L3PersistentSource(_loom_mem))
         sources.append(InheritedSource(self.memory))
 
         # 共享记忆池源
@@ -461,8 +440,8 @@ class Agent(
         allocation_ratios = None
         if context_budget_config is not None and isinstance(context_budget_config, dict):
             allocation_ratios = {
-                "L1_recent": context_budget_config.get("l1_ratio", 0.25),
-                "L2_important": context_budget_config.get("l2_ratio", 0.20),
+                "L2_working": context_budget_config.get("l2_ratio", 0.20),
+                "L3_persistent": context_budget_config.get("l3_ratio", 0.15),
                 "INHERITED": context_budget_config.get("inherited_ratio", 0.10),
                 "retrieval": context_budget_config.get("retrieval_ratio", 0.15),
             }
@@ -591,6 +570,7 @@ class Agent(
         parent_node_id: str | None = None,  # 父节点ID（用于结构化命名）
         agent_role: str | None = None,  # Agent角色（用于SSE识别）
         event_bus: Any | None = None,
+        session: "Session | None" = None,
         knowledge_base: Any | None = None,
         max_context_tokens: int = 4000,
         max_iterations: int = 10,
@@ -622,6 +602,7 @@ class Agent(
             parent_node_id=parent_node_id,
             agent_role=agent_role,
             event_bus=event_bus,
+            session=session,
             knowledge_base=knowledge_base,
             max_context_tokens=max_context_tokens,
             max_iterations=max_iterations,

@@ -97,13 +97,8 @@ class TestQueryToolEventBusIntegration:
             max_iterations=1,
         )
 
-        # seed memory with a task so the search has something to find
-        seed = Task(
-            taskId="seed-001",
-            action="测试内容",
-            parameters={"content": "这是测试内容"},
-        )
-        agent.memory.add_task(seed)
+        # seed memory with a message so the search has something to find
+        agent.memory.add_message("user", "这是测试内容")
 
         task = Task(
             taskId="search-int-002",
@@ -190,10 +185,6 @@ class TestImportanceTagPromoteIntegration:
         # 2. importance recorded
         assert task.metadata.get("importance") == 0.8
 
-        # 3. task in L2 (0.8 > threshold 0.6)
-        l2_ids = {t.taskId for t in agent.memory.get_l2_tasks()}
-        assert task.taskId in l2_ids, f"Task {task.taskId} should be in L2, got: {l2_ids}"
-
     @pytest.mark.asyncio
     async def test_no_tag_no_promote(self):
         """无 importance 标记 → 默认 0.5，不提升到 L2"""
@@ -246,8 +237,6 @@ class TestImportanceTagPromoteIntegration:
         await agent.execute_task(task)
 
         assert task.metadata.get("importance") == 1.0
-        l2_ids = {t.taskId for t in agent.memory.get_l2_tasks()}
-        assert task.taskId in l2_ids
 
     @pytest.mark.asyncio
     async def test_importance_with_eventbus(self):
@@ -279,8 +268,6 @@ class TestImportanceTagPromoteIntegration:
 
         assert task.metadata["importance"] == 0.9
         assert result.status == TaskStatus.COMPLETED
-        l2_ids = {t.taskId for t in agent.memory.get_l2_tasks()}
-        assert task.taskId in l2_ids
 
 
 # ==================== MEMORY_GUIDANCE + Tool Definition ====================

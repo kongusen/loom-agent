@@ -5,7 +5,7 @@ Stream API Async Integration Tests
 """
 
 import asyncio
-import json
+import contextlib
 
 import pytest
 
@@ -75,7 +75,7 @@ class TestFractalStreamAPIAsyncStreams:
             try:
                 event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
                 assert event is not None
-            except (StopAsyncIteration, asyncio.TimeoutError):
+            except (TimeoutError, StopAsyncIteration):
                 pass
 
     @pytest.mark.asyncio
@@ -104,7 +104,7 @@ class TestFractalStreamAPIAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "target-node" in event or "target-task" in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -131,7 +131,7 @@ class TestFractalStreamAPIAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert event is not None
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -156,7 +156,7 @@ class TestFractalStreamAPIAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "node.thinking" in event or "thinking-task" in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -181,7 +181,7 @@ class TestFractalStreamAPIAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert event is not None
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -206,7 +206,7 @@ class TestFractalStreamAPIAsyncStreams:
         try:
             event = await asyncio.wait_for(stream.__anext__(), timeout=1.0)
             assert "tool-task" in event or "node.tool_call" in event
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
     @pytest.mark.asyncio
@@ -236,10 +236,8 @@ class TestFractalStreamAPIAsyncStreams:
         task = asyncio.create_task(stream.__anext__())
         task.cancel()
 
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
     @pytest.mark.asyncio
     async def test_multiple_event_types_in_stream_all(self):
@@ -282,7 +280,7 @@ class TestFractalStreamAPIAsyncStreams:
             try:
                 event = await asyncio.wait_for(stream.__anext__(), timeout=0.5)
                 received.append(event)
-            except (StopAsyncIteration, asyncio.TimeoutError):
+            except (TimeoutError, StopAsyncIteration):
                 break
 
         assert len(received) > 0

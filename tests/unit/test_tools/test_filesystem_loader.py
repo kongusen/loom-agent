@@ -2,8 +2,6 @@
 Tests for loom/tools/skills/filesystem_loader.py
 """
 
-import tempfile
-from pathlib import Path
 
 import pytest
 

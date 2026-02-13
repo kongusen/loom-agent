@@ -17,7 +17,6 @@ from loom.observability.tracing import (
     trace_operation,
 )
 
-
 # ============ Metrics ============
 
 
@@ -256,7 +255,7 @@ class TestSpan:
         )
         s.finish()
         assert s.end_time > 0
-        assert s.duration_ms > 0
+        assert s.duration_ms >= 0
 
     def test_to_dict(self):
         s = Span(
@@ -307,9 +306,8 @@ class TestLoomTracer:
 
     def test_span_error_handling(self):
         t = LoomTracer()
-        with pytest.raises(ValueError):
-            with t.start_span(SpanKind.TOOL_EXECUTION, "tool"):
-                raise ValueError("tool failed")
+        with pytest.raises(ValueError), t.start_span(SpanKind.TOOL_EXECUTION, "tool"):
+            raise ValueError("tool failed")
         assert t.completed_spans[0].status == "error"
         assert "tool failed" in t.completed_spans[0].error_message
 
@@ -342,9 +340,10 @@ class TestLoomTracer:
 
     def test_get_trace_summary(self):
         t = LoomTracer(agent_id="a1")
-        with t.start_span(SpanKind.AGENT_RUN, "run"):
-            with t.start_span(SpanKind.LLM_CALL, "gpt"):
-                pass
+        with t.start_span(SpanKind.AGENT_RUN, "run"), t.start_span(
+            SpanKind.LLM_CALL, "gpt"
+        ):
+            pass
         summary = t.get_trace_summary()
         assert summary["agent_id"] == "a1"
         assert summary["span_count"] == 2

@@ -8,13 +8,13 @@ API Module Init Tests
 def test_api_module_imports():
     """测试API模块可以正确导入"""
     from loom.api import (
+        ChangeType,
         FractalEvent,
         FractalStreamAPI,
         OutputStrategy,
         StreamAPI,
         VersionAPI,
         VersionInfo,
-        ChangeType,
         get_version,
         get_version_info,
     )

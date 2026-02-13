@@ -11,7 +11,6 @@ from loom.agent.planner import PlannerMixin, create_plan_tool
 from loom.agent.tool_handler import ToolHandlerMixin
 from loom.exceptions import PermissionDenied
 
-
 # ==================== AgentBuilder ====================
 
 
@@ -131,7 +130,7 @@ class TestAgentBuilder:
             llm = MagicMock()
             b = AgentBuilder(llm)
             b.config["system_prompt"] = "test"
-            agent = b.build()
+            b.build()
             mock_create.assert_called_once_with(llm, system_prompt="test")
 
 
@@ -143,12 +142,12 @@ class TestToolHandlerGetAvailableTools:
         handler = ToolHandlerMixin()
         handler.tools = overrides.get("tools", [])
         handler.all_tools = overrides.get("all_tools", [])
-        handler.tool_registry = overrides.get("tool_registry", None)
-        handler.sandbox_manager = overrides.get("sandbox_manager", None)
-        handler.tool_policy = overrides.get("tool_policy", None)
-        handler.memory = overrides.get("memory", None)
-        handler.event_bus = overrides.get("event_bus", None)
-        handler._dynamic_tool_executor = overrides.get("_dynamic_tool_executor", None)
+        handler.tool_registry = overrides.get("tool_registry")
+        handler.sandbox_manager = overrides.get("sandbox_manager")
+        handler.tool_policy = overrides.get("tool_policy")
+        handler.memory = overrides.get("memory")
+        handler.event_bus = overrides.get("event_bus")
+        handler._dynamic_tool_executor = overrides.get("_dynamic_tool_executor")
         handler._pending_tool_callables = []
         config = MagicMock()
         config.extra_tools = overrides.get("extra_tools", [])
@@ -219,12 +218,12 @@ class TestToolHandlerExecuteSingleTool:
         handler = ToolHandlerMixin()
         handler.tools = []
         handler.all_tools = []
-        handler.tool_registry = overrides.get("tool_registry", None)
-        handler.sandbox_manager = overrides.get("sandbox_manager", None)
-        handler.tool_policy = overrides.get("tool_policy", None)
-        handler.memory = overrides.get("memory", None)
-        handler.event_bus = overrides.get("event_bus", None)
-        handler._dynamic_tool_executor = overrides.get("_dynamic_tool_executor", None)
+        handler.tool_registry = overrides.get("tool_registry")
+        handler.sandbox_manager = overrides.get("sandbox_manager")
+        handler.tool_policy = overrides.get("tool_policy")
+        handler.memory = overrides.get("memory")
+        handler.event_bus = overrides.get("event_bus")
+        handler._dynamic_tool_executor = overrides.get("_dynamic_tool_executor")
         handler._pending_tool_callables = []
         handler.config = MagicMock()
         handler.config.extra_tools = []
@@ -238,7 +237,7 @@ class TestToolHandlerExecuteSingleTool:
         h = self._make_handler(tool_policy=policy)
         try:
             await h._execute_single_tool("bash", {"cmd": "ls"})
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except PermissionDenied as e:
             assert e.tool_name == "bash"
 
@@ -249,7 +248,7 @@ class TestToolHandlerExecuteSingleTool:
         h = self._make_handler(tool_policy=policy)
         try:
             await h._execute_single_tool("bash", '{"cmd": "ls"}')
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except PermissionDenied:
             pass
 

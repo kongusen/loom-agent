@@ -3,28 +3,25 @@
 import pytest
 
 from loom.context.orchestrator import ContextOrchestrator
-from loom.context.sources.memory import L1RecentSource
+from loom.context.sources.memory import L2WorkingSource
 from loom.memory.manager import MemoryManager
 from loom.memory.tokenizer import EstimateCounter
-from loom.runtime import Task
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_with_memory_manager():
-    """Test ContextOrchestrator using MemoryManager"""
+    """Test ContextOrchestrator using MemoryManager and L2WorkingSource"""
     # Create memory manager
     memory = MemoryManager(node_id="test")
 
-    # Add some tasks
-    task1 = Task(task_id="t1", action="execute", parameters={"content": "task 1"}, session_id="s1")
-    task2 = Task(task_id="t2", action="execute", parameters={"content": "task 2"}, session_id="s1")
-    memory.add_task(task1)
-    memory.add_task(task2)
+    # Add messages to L1 (new 3-layer API)
+    memory.add_message("user", "What is the weather?")
+    memory.add_message("assistant", "Let me check the weather for you.")
 
-    # Create context source using L1RecentSource
-    source = L1RecentSource(memory._loom_memory, session_id="s1")
+    # Create context source using L2WorkingSource
+    source = L2WorkingSource(memory.memory)
 
-    # Create orchestrator with correct parameters
+    # Create orchestrator
     counter = EstimateCounter()
     orchestrator = ContextOrchestrator(
         token_counter=counter,
@@ -33,10 +30,7 @@ async def test_orchestrator_with_memory_manager():
     )
 
     # Build context
-    current = Task(
-        task_id="t3", action="execute", parameters={"content": "current"}, session_id="s1"
-    )
-    messages = await orchestrator.build_context(current)
+    messages = await orchestrator.build_context("current query")
 
-    # Verify messages were built
+    # Verify messages were built (system prompt at minimum)
     assert isinstance(messages, list)

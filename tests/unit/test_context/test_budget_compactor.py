@@ -19,7 +19,6 @@ from loom.context.budget import (
 )
 from loom.context.compactor import CompactionLevel, ContextCompactor
 
-
 # ============ TokenBudget ============
 
 
@@ -382,9 +381,7 @@ class TestMediumCompact:
     async def test_with_summarizer(self):
         counter = MagicMock()
         counter.count_messages.return_value = 20
-        summarizer = MagicMock(return_value="summary")
         # Make it awaitable
-        import asyncio
 
         async def async_summarizer(text):
             return "summary"

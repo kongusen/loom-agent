@@ -1,9 +1,10 @@
 """
 Unified Browse Memory Tool - 统一记忆浏览工具
 
-基于 Session-EventBus 架构：
-- L2: Session 级别，通过 Session 访问
-- L3: Agent 级聚合，通过 ContextController 访问
+基于三层记忆架构：
+- L1: 消息窗口（通过 Session.memory 访问）
+- L2: 工作记忆（通过 Session.memory 访问）
+- L3: Agent 级聚合（通过 ContextController 访问）
 """
 
 from typing import TYPE_CHECKING, Any
@@ -21,7 +22,7 @@ def create_unified_browse_tool() -> dict:
             "name": "browse_memory",
             "description": """Browse memory: list indices, then select content.
 
-- L2: Important tasks (Session)
+- L2: Working memory entries (Session)
 - L3: Agent summaries (ContextController)""",
             "parameters": {
                 "type": "object",
@@ -38,20 +39,17 @@ def create_unified_browse_tool() -> dict:
 
 
 async def _list_l2(session: "Session", limit: int) -> dict[str, Any]:
-    """列出 L2 记忆"""
-    tasks = session.get_l2_tasks(limit=limit)
+    """列出 L2 工作记忆"""
+    entries = session.memory.get_working_memory(limit=limit)
     items = []
-    for idx, task in enumerate(tasks, start=1):
-        preview = task.action
-        if task.parameters:
-            first_key = next(iter(task.parameters), "")
-            if first_key:
-                preview += f"({first_key}=...)"
+    for idx, entry in enumerate(entries, start=1):
+        preview = entry.content[:80] if entry.content else ""
         items.append(
             {
                 "index": idx,
-                "task_id": task.task_id,
-                "preview": preview,
+                "entry_id": entry.entry_id,
+                "preview": preview + "..." if len(entry.content) > 80 else preview,
+                "importance": entry.importance,
             }
         )
     return {"layer": "L2", "action": "list", "count": len(items), "items": items}
@@ -74,19 +72,19 @@ async def _list_l3(cc: "ContextController", limit: int) -> dict[str, Any]:
 
 
 async def _select_l2(session: "Session", indices: list[int]) -> dict[str, Any]:
-    """选择 L2 记忆"""
-    tasks = session.get_l2_tasks(limit=100)
+    """选择 L2 工作记忆"""
+    entries = session.memory.get_working_memory(limit=100)
     selected = []
     for idx in indices:
-        if 1 <= idx <= len(tasks):
-            t = tasks[idx - 1]
+        if 1 <= idx <= len(entries):
+            entry = entries[idx - 1]
             selected.append(
                 {
                     "index": idx,
-                    "task_id": t.task_id,
-                    "action": t.action,
-                    "parameters": t.parameters,
-                    "result": t.result,
+                    "entry_id": entry.entry_id,
+                    "content": entry.content,
+                    "importance": entry.importance,
+                    "tags": entry.tags,
                 }
             )
     return {"layer": "L2", "action": "select", "count": len(selected), "selected": selected}

@@ -20,7 +20,6 @@ from loom.tools.memory.manage import (
     execute_unified_manage_tool,
 )
 
-
 # ============ Browse Tool ============
 
 
@@ -42,16 +41,18 @@ class TestExecuteBrowseTool:
     @pytest.fixture
     def mock_session(self):
         session = MagicMock()
-        task1 = MagicMock()
-        task1.action = "node.tool_call"
-        task1.task_id = "t1"
-        task1.parameters = {"tool": "search"}
-        task2 = MagicMock()
-        task2.action = "node.thinking"
-        task2.task_id = "t2"
-        task2.parameters = {}
-        session.get_l2_tasks.return_value = [task1, task2]
-        session.get_l1_tasks.return_value = [task1]
+        entry1 = MagicMock()
+        entry1.content = "tool_call: search for files on disk"
+        entry1.entry_id = "e1"
+        entry1.importance = 0.8
+        entry1.tags = ["tool"]
+        entry2 = MagicMock()
+        entry2.content = "thinking about the problem"
+        entry2.entry_id = "e2"
+        entry2.importance = 0.6
+        entry2.tags = []
+        session.memory = MagicMock()
+        session.memory.get_working_memory = MagicMock(return_value=[entry1, entry2])
         return session
 
     @pytest.fixture
@@ -86,7 +87,7 @@ class TestExecuteBrowseTool:
         assert result["layer"] == "L2"
         assert result["action"] == "select"
         assert result["count"] == 1
-        assert result["selected"][0]["task_id"] == "t1"
+        assert result["selected"][0]["entry_id"] == "e1"
 
     async def test_select_l3(self, mock_session, mock_cc):
         result = await execute_unified_browse_tool(
@@ -297,7 +298,7 @@ class TestCreateUnifiedManageTool:
     def test_action_enum(self):
         tool = create_unified_manage_tool()
         enum = tool["function"]["parameters"]["properties"]["action"]["enum"]
-        assert set(enum) == {"stats", "promote", "aggregate", "persist"}
+        assert set(enum) == {"stats", "aggregate", "persist"}
 
 
 class TestExecuteManageTool:
@@ -306,9 +307,13 @@ class TestExecuteManageTool:
         session = MagicMock()
         session.session_id = "sess-1"
         session.get_stats.return_value = {"status": "active"}
-        session.get_l1_tasks.return_value = [MagicMock()]
-        session.get_l2_tasks.return_value = [MagicMock(), MagicMock()]
-        session.promote_tasks.return_value = None
+        session.memory = MagicMock()
+        session.memory.get_stats.return_value = {
+            "l1_message_count": 3,
+            "l1_token_usage": 500,
+            "l2_entry_count": 2,
+            "l2_token_usage": 200,
+        }
         return session
 
     @pytest.fixture
@@ -327,16 +332,8 @@ class TestExecuteManageTool:
         )
         assert result["action"] == "stats"
         assert result["session"]["id"] == "sess-1"
-        assert result["session"]["l2_count"] == 2
+        assert result["session"]["l2_entries"] == 2
         assert result["controller"]["l3_count"] == 5
-
-    async def test_promote(self, mock_session, mock_cc):
-        result = await execute_unified_manage_tool(
-            {"action": "promote"}, mock_session, mock_cc
-        )
-        assert result["action"] == "promote"
-        assert result["success"] is True
-        mock_session.promote_tasks.assert_called_once()
 
     async def test_aggregate(self, mock_session, mock_cc):
         result = await execute_unified_manage_tool(

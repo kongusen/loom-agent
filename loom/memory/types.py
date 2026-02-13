@@ -1,11 +1,15 @@
 """
-记忆系统类型定义
+记忆系统类型定义 — 三层架构
 
-基于A4公理（记忆层次公理）的实现
+三层模型：
+- L1 (Window): 滑动窗口，存储原始 messages[]，session 级，内存
+- L2 (Working): 工作记忆，存储 facts/decisions，session 级，内存
+- L3 (Persistent): 持久记忆，跨 session，LLM 摘要 + 可选向量检索
 
 设计原则：
-1. Token-First Design - 所有记忆单元携带 token 计数
-2. Quality over Quantity - 通过 importance 和 information_density 评估质量
+1. Token-First Design — 所有层以 token 预算控制容量
+2. Message-Native — L1 直接存储 LLM messages，不再转换为 Task
+3. 框架提供机制，应用选择策略
 """
 
 import uuid
@@ -14,200 +18,242 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+# =============================================================================
+# 层级枚举
+# =============================================================================
+
 
 class MemoryTier(Enum):
     """
-    记忆层级 (L1-L4)
+    记忆层级 (三层)
 
-    基于A4公理：Memory = L1 ⊂ L2 ⊂ L3 ⊂ L4
+    L1 ⊂ L2 ⊂ L3
+    - L1: 滑动窗口（当前对话上下文）
+    - L2: 工作记忆（session 内关键信息）
+    - L3: 持久记忆（跨 session，用户级）
     """
 
-    L1_RAW_IO = 1  # 原始IO（工作记忆）
-    L2_WORKING = 2  # 工作记忆（会话重要内容）
-    L3_SESSION = 3  # 会话记忆（摘要）
-    L4_GLOBAL = 4  # 跨会话记忆（向量化）
+    L1_WINDOW = 1
+    L2_WORKING = 2
+    L3_PERSISTENT = 3
 
 
 class MemoryType(Enum):
-    """
-    记忆内容类型
+    """记忆内容类型"""
 
-    用于分类和过滤
-    """
-
-    MESSAGE = "message"  # 对话消息
-    THOUGHT = "thought"  # 内部思考
-    TOOL_CALL = "tool_call"  # 工具调用
-    TOOL_RESULT = "tool_result"  # 工具结果
-    PLAN = "plan"  # 计划
-    FACT = "fact"  # 事实知识
-    CONTEXT = "context"  # 上下文片段
-    SUMMARY = "summary"  # 摘要
+    MESSAGE = "message"
+    THOUGHT = "thought"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    PLAN = "plan"
+    FACT = "fact"
+    DECISION = "decision"
+    SUMMARY = "summary"
+    CONTEXT = "context"
 
 
 class MemoryStatus(Enum):
-    """
-    记忆单元状态
+    """记忆单元生命周期状态"""
 
-    用于生命周期管理
-    """
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    SUMMARIZED = "summarized"
+    EVICTED = "evicted"
 
-    ACTIVE = "active"  # 当前活跃，可访问
-    ARCHIVED = "archived"  # 已归档，可检索
-    SUMMARIZED = "summarized"  # 已压缩为摘要
-    EVICTED = "evicted"  # 已从活跃记忆中移除
+
+# =============================================================================
+# L1: MessageItem — 滑动窗口中的单条消息
+# =============================================================================
 
 
 @dataclass
-class MemoryUnit:
+class MessageItem:
     """
-    记忆单元（Token-First Design）
+    L1 滑动窗口中的单条消息
 
-    核心改动：
-    - token_count: 必须字段，存储时计算
-    - information_density: 信息密度评估（token 效率）
+    直接对应 LLM API 的 message 格式，保留完整的对话结构。
+    支持 tool_call 配对驱逐（驱逐 tool_call 时同时驱逐对应的 tool_result）。
+
+    Attributes:
+        role: 消息角色 ("user", "assistant", "system", "tool")
+        content: 消息内容（文本或结构化内容）
+        token_count: 该消息的 token 数
+        message_id: 唯一标识
+        tool_call_id: 工具调用 ID（用于 tool_call/tool_result 配对）
+        tool_name: 工具名称（仅 tool_call 类型）
+        tool_calls: 原始 tool_calls 列表（assistant 消息中的工具调用）
+        created_at: 创建时间
+        metadata: 扩展元数据
     """
 
-    # 核心字段
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    content: Any = None
-    tier: MemoryTier = MemoryTier.L2_WORKING
-    type: MemoryType = MemoryType.MESSAGE
-
-    # Token-First: 必须字段
+    role: str
+    content: str | dict[str, Any] | None = None
     token_count: int = 0
-
-    # 质量评估
-    importance: float = 0.5  # 0.0-1.0
-    information_density: float = 1.0  # token 效率（越高越好）
-
-    # 溯源追踪
-    source_node: str | None = None
-    parent_id: str | None = None
-    session_id: str | None = None
-
-    # 时间戳
+    message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
     created_at: datetime = field(default_factory=datetime.now)
-    accessed_at: datetime = field(default_factory=datetime.now)
-
-    # 扩展字段
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    # L4语义搜索
-    embedding: list[float] | None = None
-
-    # 生命周期状态
-    status: MemoryStatus = MemoryStatus.ACTIVE
-
-    def to_message(self) -> dict[str, str]:
+    def to_message(self) -> dict[str, Any]:
         """
-        转换为 LLM API 消息格式
+        转换为 LLM API message 格式
 
         Returns:
-            符合 LLM API 格式的消息字典
+            符合 OpenAI/Anthropic API 格式的消息字典
         """
-        # 如果内容已经是消息格式，直接返回
-        if isinstance(self.content, dict) and "role" in self.content:
-            return self.content
+        msg: dict[str, Any] = {"role": self.role}
 
-        # 根据类型转换
-        if self.type == MemoryType.MESSAGE:
-            if isinstance(self.content, str):
-                return {"role": "user", "content": self.content}
-            if isinstance(self.content, dict):
-                return {str(k): str(v) for k, v in self.content.items()}
-            return {"role": "system", "content": str(self.content)}
+        if self.content is not None:
+            msg["content"] = self.content
 
-        elif self.type == MemoryType.THOUGHT:
-            return {"role": "assistant", "content": f"💭 {self.content}"}
+        # assistant 消息可能包含 tool_calls
+        if self.tool_calls:
+            msg["tool_calls"] = self.tool_calls
 
-        elif self.type == MemoryType.TOOL_CALL:
-            return {"role": "assistant", "content": f"🔧 Tool Call: {self.content}"}
+        # tool 消息需要 tool_call_id
+        if self.role == "tool" and self.tool_call_id:
+            msg["tool_call_id"] = self.tool_call_id
 
-        elif self.type == MemoryType.TOOL_RESULT:
-            return {"role": "system", "content": f"🔧 Tool Result: {self.content}"}
+        # tool 消息可能有 name
+        if self.tool_name:
+            msg["name"] = self.tool_name
 
-        elif self.type == MemoryType.PLAN:
-            return {"role": "assistant", "content": f"📋 Plan: {self.content}"}
+        return msg
 
-        elif self.type == MemoryType.FACT:
-            return {"role": "system", "content": f"📚 Fact: {self.content}"}
+    @classmethod
+    def from_message(cls, msg: dict[str, Any], token_count: int = 0) -> "MessageItem":
+        """
+        从 LLM API message 格式创建 MessageItem
 
-        elif self.type == MemoryType.SUMMARY:
-            return {"role": "system", "content": f"📝 Summary: {self.content}"}
+        Args:
+            msg: LLM API 消息字典
+            token_count: 预计算的 token 数
 
-        else:
-            return {"role": "system", "content": str(self.content)}
+        Returns:
+            MessageItem 实例
+        """
+        return cls(
+            role=msg.get("role", "user"),
+            content=msg.get("content"),
+            token_count=token_count,
+            tool_call_id=msg.get("tool_call_id"),
+            tool_name=msg.get("name"),
+            tool_calls=msg.get("tool_calls"),
+        )
 
 
-@dataclass(slots=True)
-class TaskSummary:
-    """
-    Task摘要 - 用于L3层存储
-
-    将完整的Task对象压缩为摘要，减少存储开销
-    """
-
-    task_id: str
-    action: str
-    param_summary: str  # 参数摘要（而非完整参数）
-    result_summary: str  # 结果摘要（而非完整结果）
-    tags: list[str] = field(default_factory=list)
-    importance: float = 0.5
-    access_count: int = 0
-    created_at: datetime = field(default_factory=datetime.now)
-    session_id: str | None = None
+# =============================================================================
+# L2: WorkingMemoryEntry — 工作记忆条目
+# =============================================================================
 
 
 class FactType(Enum):
+    """事实类型 — 分类可复用的原子知识"""
+
+    API_SCHEMA = "api_schema"
+    USER_PREFERENCE = "user_preference"
+    DOMAIN_KNOWLEDGE = "domain_knowledge"
+    TOOL_USAGE = "tool_usage"
+    ERROR_PATTERN = "error_pattern"
+    BEST_PRACTICE = "best_practice"
+    CONVERSATION_SUMMARY = "conversation_summary"
+
+
+@dataclass
+class WorkingMemoryEntry:
     """
-    事实类型 - 用于分类可复用的原子知识
+    L2 工作记忆条目
 
-    基于优化分析文档的改进4
+    存储从 L1 驱逐消息中提取的关键信息：
+    - 事实 (facts)
+    - 决策 (decisions)
+    - 对话摘要 (conversation summaries)
+
+    Attributes:
+        entry_id: 唯一标识
+        content: 条目内容（简洁文本）
+        entry_type: 条目类型
+        importance: 重要性 (0.0-1.0)
+        token_count: token 数
+        tags: 标签列表
+        source_message_ids: 来源消息 ID 列表
+        created_at: 创建时间
+        session_id: 所属 session
+        access_count: 访问次数
+        metadata: 扩展元数据
     """
 
-    API_SCHEMA = "api_schema"  # API接口定义
-    USER_PREFERENCE = "user_preference"  # 用户偏好
-    DOMAIN_KNOWLEDGE = "domain_knowledge"  # 领域知识
-    TOOL_USAGE = "tool_usage"  # 工具使用方法
-    ERROR_PATTERN = "error_pattern"  # 错误模式
-    BEST_PRACTICE = "best_practice"  # 最佳实践
-
-
-@dataclass(slots=True)
-class Fact:
-    """
-    可复用的事实 - 原子化知识存储
-
-    从Task中提取的关键知识点，支持语义检索和复用。
-    基于优化分析文档的改进4。
-    """
-
-    fact_id: str
-    content: str  # 事实内容（简洁的文本描述）
-    fact_type: FactType
-    source_task_ids: list[str] = field(default_factory=list)  # 来源Task
-    confidence: float = 0.8  # 置信度（0.0-1.0）
+    entry_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    content: str = ""
+    entry_type: MemoryType = MemoryType.FACT
+    importance: float = 0.5
+    token_count: int = 0
     tags: list[str] = field(default_factory=list)
+    source_message_ids: list[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
-    last_accessed: datetime = field(default_factory=datetime.now)
-    access_count: int = 0  # 访问次数（用于重要性评估）
     session_id: str | None = None
+    access_count: int = 0
+    expires_at: datetime | None = None  # L2 TTL 过期时间
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def update_access(self) -> None:
         """更新访问信息"""
-        self.last_accessed = datetime.now()
         self.access_count += 1
+
+
+# =============================================================================
+# L3: MemoryRecord — 持久记忆记录
+# =============================================================================
+
+
+@dataclass
+class MemoryRecord:
+    """
+    L3 持久记忆记录
+
+    跨 session 的持久化记忆，由 LLM 生成摘要，可选向量检索。
+    按 user_id 隔离，支持多用户多 session。
+
+    Attributes:
+        record_id: 唯一标识
+        content: LLM 生成的摘要文本
+        user_id: 所属用户（多用户隔离）
+        session_id: 来源 session
+        importance: 重要性 (0.0-1.0)
+        tags: 标签列表
+        embedding: 向量嵌入（可选，用于语义检索）
+        created_at: 创建时间
+        source_entry_ids: 来源 L2 条目 ID 列表
+        metadata: 扩展元数据
+    """
+
+    record_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    content: str = ""
+    user_id: str | None = None
+    session_id: str | None = None
+    importance: float = 0.5
+    tags: list[str] = field(default_factory=list)
+    embedding: list[float] | None = None
+    created_at: datetime = field(default_factory=datetime.now)
+    source_entry_ids: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+# =============================================================================
+# 查询类型
+# =============================================================================
 
 
 @dataclass
 class MemoryQuery:
-    """
-    记忆查询请求
-    """
+    """记忆查询请求"""
 
     query: str
     tier: MemoryTier | None = None
     type: MemoryType | None = None
     limit: int = 10
     min_importance: float = 0.0
+    user_id: str | None = None
+    session_id: str | None = None

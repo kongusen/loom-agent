@@ -1,12 +1,12 @@
 """
-Tests for loom/context/sources/ - ToolSource, SkillSource, RAGKnowledgeSource, L4SemanticSource
+Tests for loom/context/sources/ - ToolSource, SkillSource, RAGKnowledgeSource, L3PersistentSource
 """
 
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 from loom.context.block import ContextBlock
+from loom.context.sources.memory import L3PersistentSource
 from loom.context.sources.rag import RAGKnowledgeSource
-from loom.context.sources.semantic import L4SemanticSource
 from loom.context.sources.skill import SkillSource
 from loom.context.sources.tool import ToolSource
 
@@ -374,109 +374,116 @@ class TestRAGKnowledgeSourceCollect:
         assert blocks == []
 
 
-# ==================== L4SemanticSource ====================
+# ==================== L3PersistentSource (now L3PersistentSource) ====================
 
 
-class TestL4SemanticSourceInit:
+class TestL3PersistentSourceInit:
     def test_basic(self):
         mem = MagicMock()
-        src = L4SemanticSource(memory=mem)
-        assert src.source_name == "L4_semantic"
+        src = L3PersistentSource(memory=mem)
+        assert src.source_name == "L3_persistent"
         assert src.session_id is None
 
     def test_with_session(self):
         mem = MagicMock()
-        src = L4SemanticSource(memory=mem, session_id="sess1")
+        src = L3PersistentSource(memory=mem, session_id="sess1")
         assert src.session_id == "sess1"
 
 
-class TestL4SemanticSourceCollect:
+class TestL3PersistentSourceCollect:
     async def test_empty_query(self):
         mem = MagicMock()
-        src = L4SemanticSource(memory=mem)
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("", 1000, _mock_token_counter())
         assert blocks == []
 
-    async def test_no_vector_store(self):
+    async def test_no_l3_store(self):
         mem = MagicMock()
-        mem._l4_vector_store = None
-        src = L4SemanticSource(memory=mem)
-        blocks = await src.collect("query", 1000, _mock_token_counter())
-        assert blocks == []
-
-    async def test_no_search_l4_attr(self):
-        mem = MagicMock(spec=[])  # no attributes
-        src = L4SemanticSource(memory=mem)
+        mem.l3 = None
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("query", 1000, _mock_token_counter())
         assert blocks == []
 
     async def test_search_returns_results(self):
+        record = MagicMock()
+        record.content = "Relevant fact"
+        record.importance = 0.85
+        record.record_id = "r1"
+        record.tags = []
+        record.session_id = None
         mem = MagicMock()
-        mem._l4_vector_store = MagicMock()
-        mem.search_l4 = AsyncMock(
-            return_value=[
-                {"content": "Relevant fact", "score": 0.85, "task_id": "t1"},
-            ]
-        )
-        src = L4SemanticSource(memory=mem)
+        mem.l3 = MagicMock()
+        mem.search_persistent = AsyncMock(return_value=[record])
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("query", 1000, _mock_token_counter())
         assert len(blocks) == 1
-        assert "[Semantic Memory]" in blocks[0].content
+        assert "[Persistent Memory]" in blocks[0].content
         assert blocks[0].priority == 0.85
 
-    async def test_filters_low_score(self):
+    async def test_filters_low_importance(self):
+        record = MagicMock()
+        record.content = "Low importance"
+        record.importance = 0.2
+        record.record_id = "r1"
+        record.tags = []
+        record.session_id = None
         mem = MagicMock()
-        mem._l4_vector_store = MagicMock()
-        mem.search_l4 = AsyncMock(
-            return_value=[
-                {"content": "Low score", "score": 0.2, "task_id": "t1"},
-            ]
-        )
-        src = L4SemanticSource(memory=mem)
+        mem.l3 = MagicMock()
+        mem.search_persistent = AsyncMock(return_value=[record])
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("query", 1000, _mock_token_counter(), min_relevance=0.5)
         assert blocks == []
 
     async def test_search_exception_returns_empty(self):
         mem = MagicMock()
-        mem._l4_vector_store = MagicMock()
-        mem.search_l4 = AsyncMock(side_effect=RuntimeError("fail"))
-        src = L4SemanticSource(memory=mem)
+        mem.l3 = MagicMock()
+        mem.search_persistent = AsyncMock(side_effect=RuntimeError("fail"))
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("query", 1000, _mock_token_counter())
         assert blocks == []
 
     async def test_skips_empty_content(self):
+        record = MagicMock()
+        record.content = ""
+        record.importance = 0.9
+        record.record_id = "r1"
+        record.tags = []
+        record.session_id = None
         mem = MagicMock()
-        mem._l4_vector_store = MagicMock()
-        mem.search_l4 = AsyncMock(
-            return_value=[
-                {"content": "", "score": 0.9},
-            ]
-        )
-        src = L4SemanticSource(memory=mem)
+        mem.l3 = MagicMock()
+        mem.search_persistent = AsyncMock(return_value=[record])
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("query", 1000, _mock_token_counter())
         assert blocks == []
 
     async def test_respects_budget(self):
+        records = []
+        for i in range(5):
+            r = MagicMock()
+            r.content = f"Fact {i}"
+            r.importance = 0.9
+            r.record_id = f"r{i}"
+            r.tags = []
+            r.session_id = None
+            records.append(r)
         mem = MagicMock()
-        mem._l4_vector_store = MagicMock()
-        mem.search_l4 = AsyncMock(
-            return_value=[
-                {"content": f"Fact {i}", "score": 0.9} for i in range(5)
-            ]
-        )
-        src = L4SemanticSource(memory=mem)
+        mem.l3 = MagicMock()
+        mem.search_persistent = AsyncMock(return_value=records)
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("query", 25, _mock_token_counter(10))
         assert len(blocks) <= 2
 
     async def test_priority_clamped(self):
+        record = MagicMock()
+        record.content = "High"
+        record.importance = 1.5  # above 1.0
+        record.record_id = "r1"
+        record.tags = []
+        record.session_id = None
         mem = MagicMock()
-        mem._l4_vector_store = MagicMock()
-        mem.search_l4 = AsyncMock(
-            return_value=[
-                {"content": "High", "score": 1.5},  # above 1.0
-            ]
-        )
-        src = L4SemanticSource(memory=mem)
+        mem.l3 = MagicMock()
+        mem.search_persistent = AsyncMock(return_value=[record])
+        src = L3PersistentSource(memory=mem)
         blocks = await src.collect("query", 1000, _mock_token_counter())
         assert len(blocks) == 1
         assert blocks[0].priority == 1.0

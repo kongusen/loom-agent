@@ -7,7 +7,6 @@ import pytest
 from loom.runtime.checkpoint import CheckpointData, CheckpointManager, CheckpointStatus
 from loom.runtime.state_store import MemoryStateStore
 
-
 # ============ CheckpointStatus ============
 
 

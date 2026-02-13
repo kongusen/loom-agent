@@ -8,7 +8,7 @@ Session 是 EventBus 和 Agent Context 之间的智能桥梁：
 
 核心职责：
 1. Task 流管理 - 订阅、过滤、路由
-2. Memory 存储 - L1-L4 分层存储
+2. Memory 存储 - L1(消息窗口) / L2(工作记忆) / L3(持久记忆)
 3. Context 构建 - 按需从 Memory 选择内容
 4. 生命周期管理 - ACTIVE/PAUSED/ENDED
 
@@ -44,11 +44,10 @@ class Session:
     - 拥有 ContextOrchestrator（构建组件）
     - 与 EventBus 集成（Task 流管理）
 
-    Token 预算层级：
-    - L1: 最近 Task (默认 8K tokens)
-    - L2: 重要 Task (默认 16K tokens)
-    - L3: 摘要 (默认 32K tokens)
-    - L4: 向量检索 (默认 100K tokens)
+    Token 预算层级（三层记忆架构）：
+    - L1: 消息窗口 (默认 8K tokens)
+    - L2: 工作记忆 (默认 16K tokens)
+    - L3: 持久记忆 (可选，通过 MemoryStore)
     - Context: Agent 上下文 (默认 128K tokens)
     """
 
@@ -59,8 +58,6 @@ class Session:
         # Token-First 预算配置
         l1_token_budget: int = 8000,
         l2_token_budget: int = 16000,
-        l3_token_budget: int = 32000,
-        l4_token_budget: int = 100000,
         context_token_budget: int = 128000,
         # 可选的 token 计数器
         token_counter: "TokenCounter | None" = None,
@@ -71,10 +68,8 @@ class Session:
         Args:
             session_id: 会话唯一标识
             event_bus: 事件总线（Task 路由）
-            l1_token_budget: L1 层 token 预算
-            l2_token_budget: L2 层 token 预算
-            l3_token_budget: L3 层 token 预算
-            l4_token_budget: L4 层 token 预算
+            l1_token_budget: L1 消息窗口 token 预算
+            l2_token_budget: L2 工作记忆 token 预算
             context_token_budget: 上下文构建 token 预算
             token_counter: Token 计数器（用于 Context 构建）
         """
@@ -93,8 +88,6 @@ class Session:
         # Token 预算配置（保存用于懒加载）
         self._l1_token_budget = l1_token_budget
         self._l2_token_budget = l2_token_budget
-        self._l3_token_budget = l3_token_budget
-        self._l4_token_budget = l4_token_budget
         self._token_counter = token_counter
 
         # 懒加载的组件
@@ -116,9 +109,7 @@ class Session:
                 node_id=self.session_id,
                 l1_token_budget=self._l1_token_budget,
                 l2_token_budget=self._l2_token_budget,
-                l3_token_budget=self._l3_token_budget,
-                l4_token_budget=self._l4_token_budget,
-                event_bus=self._event_bus,
+                session_id=self.session_id,
             )
         return self._memory
 
@@ -162,7 +153,7 @@ class Session:
         self._ended_at = datetime.now()
         # 清理 Memory 资源
         if self._memory is not None:
-            self._memory.clear_l2()
+            self._memory.l2.clear()
 
     # ==================== Task 流管理 ====================
 
@@ -170,7 +161,7 @@ class Session:
         """
         添加任务到会话记忆
 
-        自动注入 session_id。
+        将 Task 转换为消息存入 L1 滑动窗口。
 
         Args:
             task: 要添加的任务
@@ -182,7 +173,15 @@ class Session:
             raise RuntimeError(f"Cannot add task to {self.status} session")
         # 确保任务关联到此会话
         task.session_id = self.session_id
-        self.memory.add_task(task)
+        # 将 Task 转换为消息存入 L1
+        content = str(task.parameters.get("content", "") or "")
+        if not content:
+            content = f"[{task.action}] {task.parameters}"
+        self.memory.add_message(
+            "assistant",
+            content,
+            metadata={"task_id": getattr(task, "task_id", getattr(task, "taskId", ""))},
+        )
 
     async def publish_task(self, task: "Task", wait_result: bool = True) -> "Task":
         """
@@ -210,18 +209,6 @@ class Session:
 
         # 通过 EventBus 发布
         return await self._event_bus.publish(task, wait_result=wait_result)
-
-    def get_l1_tasks(self, limit: int = 10) -> list["Task"]:
-        """获取 L1 最近任务"""
-        return self.memory.get_l1_tasks(limit=limit, session_id=self.session_id)
-
-    def get_l2_tasks(self, limit: int | None = None) -> list["Task"]:
-        """获取 L2 重要任务"""
-        return self.memory.get_l2_tasks(limit=limit, session_id=self.session_id)
-
-    def promote_tasks(self) -> None:
-        """触发任务提升"""
-        self.memory.promote_tasks()
 
     # ==================== Context 构建 ====================
 

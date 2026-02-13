@@ -7,7 +7,7 @@ Pytest 配置和共享 Fixtures
 import pytest
 
 from loom.memory.tokenizer import EstimateCounter
-from loom.memory.types import MemoryTier, MemoryType, MemoryUnit
+from loom.memory.types import MessageItem
 from tests.api_config import api_config, get_embedding_config, get_openai_config
 
 
@@ -30,36 +30,28 @@ def sample_messages():
 
 
 @pytest.fixture
-def sample_memory_units():
-    """提供示例记忆单元列表"""
+def sample_message_items():
+    """提供示例 MessageItem 列表（替代旧的 sample_memory_units）"""
     return [
-        MemoryUnit(
-            id="unit-1",
-            content="System prompt: You are a helpful assistant.",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=1.0,
+        MessageItem(
+            role="system",
+            content="You are a helpful assistant.",
+            token_count=10,
         ),
-        MemoryUnit(
-            id="unit-2",
-            content="User: Hello, how are you?",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=0.7,
+        MessageItem(
+            role="user",
+            content="Hello, how are you?",
+            token_count=8,
         ),
-        MemoryUnit(
-            id="unit-3",
-            content="Assistant: I'm doing well, thank you!",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=0.6,
+        MessageItem(
+            role="assistant",
+            content="I'm doing well, thank you!",
+            token_count=9,
         ),
-        MemoryUnit(
-            id="unit-4",
-            content="User: Can you help me with a task?",
-            tier=MemoryTier.L1_RAW_IO,
-            type=MemoryType.MESSAGE,
-            importance=0.8,
+        MessageItem(
+            role="user",
+            content="Can you help me with a task?",
+            token_count=10,
         ),
     ]
 

@@ -7,12 +7,56 @@ Skill Activator - Skill 激活控制器
 3. 执行激活 (获取注入指令)
 """
 
+import re
+import unicodedata
 from typing import Any
 
 from loom.providers.llm.interface import LLMProvider
 from loom.tools.core.sandbox_manager import SandboxToolManager
 
 from .models import ActivationResult, SkillDefinition
+
+# =============================================================================
+# Token extraction utilities (CJK + Latin)
+# =============================================================================
+
+
+def _is_cjk(char: str) -> bool:
+    """Check if a character is CJK (Chinese/Japanese/Korean)."""
+    try:
+        return "CJK" in unicodedata.name(char, "")
+    except ValueError:
+        return False
+
+
+def _extract_tokens(text: str) -> set[str]:
+    """Extract searchable tokens from text.
+
+    - Latin/alphanumeric: word-level tokens (len > 2)
+    - CJK: character bigrams + individual characters
+    """
+    text = text.lower()
+    tokens: set[str] = set()
+
+    # Latin words (len > 2)
+    words = re.findall(r"[a-z0-9_]+", text)
+    tokens.update(w for w in words if len(w) > 2)
+
+    # CJK bigrams + unigrams
+    cjk_chars = [c for c in text if _is_cjk(c)]
+    for i in range(len(cjk_chars) - 1):
+        tokens.add(cjk_chars[i] + cjk_chars[i + 1])
+    tokens.update(cjk_chars)
+
+    return tokens
+
+
+def _token_overlap_score(query_tokens: set[str], target_tokens: set[str]) -> float:
+    """Compute overlap score between query and target token sets."""
+    if not query_tokens or not target_tokens:
+        return 0.0
+    overlap = query_tokens & target_tokens
+    return len(overlap) / len(query_tokens)
 
 
 class SkillActivator:
@@ -37,30 +81,26 @@ class SkillActivator:
         max_skills: int = 5,
     ) -> list[str]:
         """
-        查找相关的 Skills (简单实现：关键词匹配)
+        查找相关的 Skills（n-gram 匹配，支持 CJK + Latin）
 
-        目前 Agent.core 中调用此方法。
-        使用简单的关键词匹配作为临时方案，直到集成向量搜索。
+        使用 token 提取 + 重叠度评分。CJK 文本使用字符 bigram，
+        Latin 文本使用单词级 token。
         """
         if not task_description:
             return []
 
-        # 简单关键词匹配
-        keywords = set(task_description.lower().split())
-        scored_skills = []
+        query_tokens = _extract_tokens(task_description)
+        if not query_tokens:
+            return []
 
+        scored_skills: list[tuple[float, str]] = []
         for m in skill_metadata:
-            score = 0
-            # 检查 ID 和 description 中的匹配
             text = (m.get("skill_id", "") + " " + m.get("description", "")).lower()
-            for kw in keywords:
-                if len(kw) > 3 and kw in text:  # 忽略短词
-                    score += 1
-
+            target_tokens = _extract_tokens(text)
+            score = _token_overlap_score(query_tokens, target_tokens)
             if score > 0:
                 scored_skills.append((score, m["skill_id"]))
 
-        # 按分数排序
         scored_skills.sort(key=lambda x: x[0], reverse=True)
         return [s[1] for s in scored_skills[:max_skills]]
 

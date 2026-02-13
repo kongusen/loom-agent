@@ -1,21 +1,30 @@
 """
-Memory Manager - 内存管理器
+Memory Manager — 统一的记忆管理代理
 
-基于 Session-EventBus 架构：
-- L1/L2: Session 私有，通过 Session 访问
-- L3/L4: Agent 级别，通过 ContextController 访问
-- 上下文存储：简单的 key-value 存储，用于任务间共享
+基于三层记忆架构：
+- 代理 LoomMemory 的 L1/L2/L3 API
+- 支持父子节点关系（分形架构）
+- 上下文存储（任务间共享的 key-value）
 """
 
-from typing import Any, Optional
+from __future__ import annotations
 
-from loom.config.memory import MemoryStrategyType
+from typing import TYPE_CHECKING, Any
+
 from loom.memory.core import LoomMemory
-from loom.runtime import Task
+from loom.memory.types import (
+    MemoryRecord,
+    MessageItem,
+    WorkingMemoryEntry,
+)
+
+if TYPE_CHECKING:
+    from loom.memory.store import MemoryStore
+    from loom.memory.tokenizer import TokenCounter
 
 
 class ContextEntry:
-    """上下文条目 - 简单的 key-value 存储"""
+    """上下文条目 — 简单的 key-value 存储"""
 
     def __init__(self, id: str, content: Any, created_by: str):
         self.id = id
@@ -25,84 +34,171 @@ class ContextEntry:
 
 class MemoryManager:
     """
-    内存管理器 - 基于 Session-EventBus 架构
+    统一的记忆管理代理
 
     职责：
-    - 管理上下文存储（用于任务间共享）
-    - 代理 LoomMemory 的 L1-L4 任务管理
-    - 支持父子节点关系（用于分形架构）
+    - 代理 LoomMemory 的三层 API（L1 消息 / L2 工作记忆 / L3 持久）
+    - 管理上下文存储（任务间共享的 key-value）
+    - 支持父子节点关系（分形架构中子节点继承父节点上下文）
+    - 支持 LoomMemory 注入（解耦 Agent 和 Memory）
+
+    Usage:
+        # 方式 1: 自动创建 LoomMemory
+        manager = MemoryManager(node_id="agent-1")
+
+        # 方式 2: 注入已有的 LoomMemory
+        memory = LoomMemory(node_id="agent-1", l1_token_budget=16000)
+        manager = MemoryManager(node_id="agent-1", memory=memory)
+
+        # 消息级 API
+        manager.add_message("user", "Hello", token_count=5)
+        messages = manager.get_context_messages()
     """
 
     def __init__(
         self,
         node_id: str,
-        parent: Optional["MemoryManager"] = None,
-        # Token-First: 使用 token 预算而非条目数
+        *,
+        parent: MemoryManager | None = None,
+        memory: LoomMemory | None = None,
+        # 以下参数仅在 memory=None 时生效（自动创建 LoomMemory）
         l1_token_budget: int = 8000,
         l2_token_budget: int = 16000,
-        l3_token_budget: int = 32000,
-        l4_token_budget: int = 100000,
+        l2_importance_threshold: float = 0.6,
+        l2_ttl_seconds: int | None = 86400,
+        memory_store: MemoryStore | None = None,
+        token_counter: TokenCounter | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        embedding_provider: Any | None = None,
         event_bus: Any = None,
-        # MemoryConfig support
-        strategy: Any = None,
-        enable_auto_migration: bool = True,
-        enable_compression: bool = True,
-        l1_retention_hours: int | None = None,
-        l2_retention_hours: int | None = None,
-        l3_retention_hours: int | None = None,
-        l4_retention_hours: int | None = None,
-        l1_promote_threshold: int = 3,
-        l3_promote_threshold: int = 3,
-        l2_auto_compress: bool = True,
-        l3_auto_compress: bool = True,
-        importance_threshold: float = 0.6,
+        **kwargs: Any,  # noqa: ARG002
     ):
         self.node_id = node_id
         self.parent = parent
+        self._event_bus = event_bus
 
-        # 底层存储：LoomMemory 管理 L1-L4（Token-First Design）
-        self._loom_memory = LoomMemory(
-            node_id=node_id,
-            l1_token_budget=l1_token_budget,
-            l2_token_budget=l2_token_budget,
-            l3_token_budget=l3_token_budget,
-            l4_token_budget=l4_token_budget,
-            event_bus=event_bus,
-            strategy=(strategy if strategy is not None else MemoryStrategyType.IMPORTANCE_BASED),
-            enable_auto_migration=enable_auto_migration,
-            enable_compression=enable_compression,
-            l1_retention_hours=l1_retention_hours,
-            l2_retention_hours=l2_retention_hours,
-            l3_retention_hours=l3_retention_hours,
-            l4_retention_hours=l4_retention_hours,
-            l1_promote_threshold=l1_promote_threshold,
-            l3_promote_threshold=l3_promote_threshold,
-            l2_auto_compress=l2_auto_compress,
-            l3_auto_compress=l3_auto_compress,
-            importance_threshold=importance_threshold,
-        )
+        # LoomMemory: 注入或自动创建
+        if memory is not None:
+            self.memory = memory
+        else:
+            self.memory = LoomMemory(
+                node_id=node_id,
+                l1_token_budget=l1_token_budget,
+                l2_token_budget=l2_token_budget,
+                l2_importance_threshold=l2_importance_threshold,
+                l2_ttl_seconds=l2_ttl_seconds,
+                memory_store=memory_store,
+                token_counter=token_counter,
+                user_id=user_id,
+                session_id=session_id,
+                embedding_provider=embedding_provider,
+            )
 
-        # 上下文存储（简单 key-value）
+        # 上下文存储（简单 key-value，用于任务间共享）
         self._context: dict[str, ContextEntry] = {}
 
-        # 子节点列表（用于分形架构）
+        # 子节点列表（分形架构）
         self._children: list[MemoryManager] = []
 
-        # 如果有父节点，注册为子节点
+        # 注册为父节点的子节点
         if self.parent:
             self.parent.register_child(self)
 
-    def register_child(self, child: "MemoryManager") -> None:
+    def register_child(self, child: MemoryManager) -> None:
         """注册子节点"""
         if child not in self._children:
             self._children.append(child)
 
-    def unregister_child(self, child: "MemoryManager") -> None:
+    def unregister_child(self, child: MemoryManager) -> None:
         """注销子节点"""
         if child in self._children:
             self._children.remove(child)
 
-    # ==================== 上下文管理 ====================
+    # ================================================================
+    # L1: Message-level API（代理 LoomMemory）
+    # ================================================================
+
+    def add_message(
+        self,
+        role: str,
+        content: str | dict[str, Any] | None = None,
+        token_count: int | None = None,
+        **kwargs: Any,
+    ) -> list[MessageItem]:
+        """
+        添加消息到 L1 滑动窗口
+
+        Args:
+            role: 消息角色
+            content: 消息内容
+            token_count: token 数（None 则自动计算）
+            **kwargs: 传递给 MessageItem 的其他参数
+
+        Returns:
+            被驱逐的消息列表
+        """
+        return self.memory.add_message(role, content, token_count, **kwargs)
+
+    def add_message_item(self, item: MessageItem) -> list[MessageItem]:
+        """添加 MessageItem 到 L1"""
+        return self.memory.add_message_item(item)
+
+    def get_context_messages(self) -> list[dict[str, Any]]:
+        """获取 L1 所有消息（LLM API 格式）"""
+        return self.memory.get_context_messages()
+
+    def get_message_items(self) -> list[MessageItem]:
+        """获取 L1 所有 MessageItem"""
+        return self.memory.get_message_items()
+
+    # ================================================================
+    # L2: Working Memory API
+    # ================================================================
+
+    def add_working_memory(self, entry: WorkingMemoryEntry) -> list[WorkingMemoryEntry]:
+        """添加条目到 L2 工作记忆"""
+        return self.memory.add_working_memory(entry)
+
+    def get_working_memory(
+        self,
+        limit: int | None = None,
+        entry_type: str | None = None,
+    ) -> list[WorkingMemoryEntry]:
+        """获取 L2 工作记忆条目"""
+        return self.memory.get_working_memory(limit=limit, entry_type=entry_type)
+
+    # ================================================================
+    # L3: Persistent Memory API
+    # ================================================================
+
+    async def save_persistent(self, record: MemoryRecord) -> str | None:
+        """保存到 L3 持久存储"""
+        return await self.memory.save_persistent(record)
+
+    async def search_persistent(self, query: str, limit: int = 5) -> list[MemoryRecord]:
+        """搜索 L3 持久记忆"""
+        return await self.memory.search_persistent(query, limit)
+
+    async def search(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        """跨层搜索"""
+        return await self.memory.search(query, limit)
+
+    # ================================================================
+    # Session 生命周期
+    # ================================================================
+
+    async def end_session(self) -> int:
+        """结束 session，持久化 L2 到 L3"""
+        return await self.memory.end_session()
+
+    async def flush_pending(self) -> int:
+        """写入待持久化记录到 L3"""
+        return await self.memory.flush_pending()
+
+    # ================================================================
+    # 上下文管理（任务间共享的 key-value）
+    # ================================================================
 
     async def add_context(self, context_id: str, content: Any) -> ContextEntry:
         """
@@ -121,19 +217,17 @@ class MemoryManager:
 
     async def read(self, context_id: str) -> ContextEntry | None:
         """
-        读取上下文
+        读取上下文（支持父节点继承）
 
         Args:
             context_id: 上下文唯一标识
 
         Returns:
-            上下文条目，如果不存在则从父节点查找
+            上下文条目，不存在则从父节点查找
         """
-        # 先查本地
         if context_id in self._context:
             return self._context[context_id]
 
-        # 再查父节点（继承机制）
         if self.parent:
             return await self.parent.read(context_id)
 
@@ -143,118 +237,72 @@ class MemoryManager:
         """列出所有上下文"""
         return list(self._context.values())
 
-    # ==================== LoomMemory 代理接口 ====================
+    # ================================================================
+    # 配置
+    # ================================================================
 
-    def add_task(self, task: Task) -> None:
-        """添加任务到 L1"""
-        self._loom_memory.add_task(task)
+    def set_memory_store(self, store: MemoryStore) -> None:
+        """设置 L3 持久存储后端"""
+        self.memory.set_memory_store(store)
 
-    def get_l1_tasks(self, limit: int = 10, session_id: str | None = None) -> list[Task]:
-        """获取 L1 任务"""
-        return self._loom_memory.get_l1_tasks(limit=limit, session_id=session_id)
-
-    def get_l2_tasks(self, limit: int = 10, session_id: str | None = None) -> list[Task]:
-        """获取 L2 重要任务"""
-        return self._loom_memory.get_l2_tasks(limit=limit, session_id=session_id)
-
-    def get_task(self, task_id: str) -> Task | None:
-        """根据 ID 获取任务"""
-        return self._loom_memory.get_task(task_id)
-
-    def promote_tasks(self) -> None:
-        """触发任务提升（L1→L2→L3→L4）"""
-        self._loom_memory.promote_tasks()
-
-    def promote_task_to_l2(self, task) -> bool:
-        """将单个 Task 立即提升到 L2（基于 importance）"""
-        return self._loom_memory.promote_task_to_l2(task)
-
-    async def promote_tasks_async(self) -> None:
-        """异步触发任务提升"""
-        await self._loom_memory.promote_tasks_async()
-
-    # ==================== L4 配置 ====================
-
-    def set_vector_store(self, store: Any) -> None:
-        """设置 L4 向量存储"""
-        self._loom_memory.set_vector_store(store)
-
-    def set_embedding_provider(self, provider: Any) -> None:
-        """设置嵌入提供者"""
-        self._loom_memory.set_embedding_provider(provider)
-
-    # ==================== 状态检查 ====================
+    # ================================================================
+    # 状态与统计
+    # ================================================================
 
     @property
     def children_count(self) -> int:
-        """子 MemoryManager 数量"""
         return len(self._children)
 
-    def get_context_stats(self) -> dict[str, int]:
-        """获取上下文统计"""
-        return {"context_count": len(self._context)}
-
-    def get_manager_state(self) -> dict[str, Any]:
-        """获取 MemoryManager 完整状态"""
+    def get_stats(self) -> dict[str, Any]:
+        """获取完整状态"""
         return {
             "node_id": self.node_id,
             "children_count": self.children_count,
-            "context_stats": self.get_context_stats(),
+            "context_count": len(self._context),
             "has_parent": self.parent is not None,
-            "loom_memory_stats": self._loom_memory.get_stats(),
+            **self.memory.get_stats(),
         }
 
-    # ==================== Checkpoint 快照 ====================
+    # ================================================================
+    # Checkpoint 快照
+    # ================================================================
 
     def export_snapshot(self) -> dict[str, Any]:
         """
-        导出 L1/L2 记忆快照（用于 Checkpoint 持久化）
+        导出记忆快照（用于 Checkpoint 持久化）
 
         Returns:
             可序列化的快照字典
         """
-        # L1: 从 TokenBudgetLayer 导出
+        # L1: 导出消息
         l1_items = []
-        for token_item in self._loom_memory._l1_layer._items:
-            task = token_item.item
-            l1_items.append(
-                {
-                    "task_data": task.to_dict()
-                    if hasattr(task, "to_dict")
-                    else {
-                        "taskId": getattr(task, "taskId", ""),
-                        "sourceAgent": getattr(task, "sourceAgent", ""),
-                        "action": getattr(task, "action", ""),
-                        "parameters": getattr(task, "parameters", {}),
-                        "result": getattr(task, "result", None),
-                        "status": getattr(task, "status", "pending"),
-                        "metadata": getattr(task, "metadata", {}),
-                    },
-                    "token_count": token_item.token_count,
-                }
-            )
+        for item in self.memory.get_message_items():
+            l1_items.append({
+                "role": item.role,
+                "content": item.content,
+                "token_count": item.token_count,
+                "message_id": item.message_id,
+                "tool_call_id": item.tool_call_id,
+                "tool_name": item.tool_name,
+                "tool_calls": item.tool_calls,
+                "metadata": item.metadata,
+            })
 
-        # L2: 从 PriorityTokenLayer 导出
+        # L2: 导出工作记忆
         l2_items = []
-        for priority_item in self._loom_memory._l2_layer._heap:
-            task = priority_item.item
-            l2_items.append(
-                {
-                    "task_data": task.to_dict()
-                    if hasattr(task, "to_dict")
-                    else {
-                        "taskId": getattr(task, "taskId", ""),
-                        "sourceAgent": getattr(task, "sourceAgent", ""),
-                        "action": getattr(task, "action", ""),
-                        "parameters": getattr(task, "parameters", {}),
-                        "result": getattr(task, "result", None),
-                        "status": getattr(task, "status", "pending"),
-                        "metadata": getattr(task, "metadata", {}),
-                    },
-                    "token_count": priority_item.token_count,
-                    "priority": priority_item.priority,
-                }
-            )
+        for entry in self.memory.get_working_memory():
+            l2_items.append({
+                "entry_id": entry.entry_id,
+                "content": entry.content,
+                "entry_type": entry.entry_type.value,
+                "importance": entry.importance,
+                "token_count": entry.token_count,
+                "tags": entry.tags,
+                "source_message_ids": entry.source_message_ids,
+                "session_id": entry.session_id,
+                "access_count": entry.access_count,
+                "metadata": entry.metadata,
+            })
 
         # 上下文存储
         context_data = {
@@ -271,7 +319,7 @@ class MemoryManager:
 
     def restore_snapshot(self, snapshot: dict[str, Any]) -> None:
         """
-        从 Checkpoint 快照恢复 L1/L2 记忆
+        从快照恢复记忆
 
         Args:
             snapshot: export_snapshot() 返回的快照字典
@@ -279,36 +327,47 @@ class MemoryManager:
         if not snapshot:
             return
 
+        from loom.memory.types import MemoryType
+
         # 清空当前状态
-        self._loom_memory._l1_layer.clear()
-        self._loom_memory._l2_layer.clear()
+        self.memory.clear_all()
         self._context.clear()
 
         # 恢复 L1
-        import asyncio
-
         for item_data in snapshot.get("l1_items", []):
-            task_dict = item_data.get("task_data", {})
-            token_count = item_data.get("token_count", 0)
-            try:
-                task = Task(**{k: v for k, v in task_dict.items() if k in Task.model_fields})
-                asyncio.get_event_loop().run_until_complete(
-                    self._loom_memory._l1_layer.add(task, token_count)
-                )
-            except Exception:
-                pass  # 跳过无法恢复的条目
+            item = MessageItem(
+                role=item_data.get("role", "user"),
+                content=item_data.get("content"),
+                token_count=item_data.get("token_count", 0),
+                message_id=item_data.get("message_id", ""),
+                tool_call_id=item_data.get("tool_call_id"),
+                tool_name=item_data.get("tool_name"),
+                tool_calls=item_data.get("tool_calls"),
+                metadata=item_data.get("metadata", {}),
+            )
+            self.memory.add_message_item(item)
 
         # 恢复 L2
-        for item_data in snapshot.get("l2_items", []):
-            task_dict = item_data.get("task_data", {})
-            token_count = item_data.get("token_count", 0)
+        for entry_data in snapshot.get("l2_items", []):
+            entry_type_str = entry_data.get("entry_type", "fact")
             try:
-                task = Task(**{k: v for k, v in task_dict.items() if k in Task.model_fields})
-                asyncio.get_event_loop().run_until_complete(
-                    self._loom_memory._l2_layer.add(task, token_count)
-                )
-            except Exception:
-                pass
+                entry_type = MemoryType(entry_type_str)
+            except ValueError:
+                entry_type = MemoryType.FACT
+
+            entry = WorkingMemoryEntry(
+                entry_id=entry_data.get("entry_id", ""),
+                content=entry_data.get("content", ""),
+                entry_type=entry_type,
+                importance=entry_data.get("importance", 0.5),
+                token_count=entry_data.get("token_count", 0),
+                tags=entry_data.get("tags", []),
+                source_message_ids=entry_data.get("source_message_ids", []),
+                session_id=entry_data.get("session_id"),
+                access_count=entry_data.get("access_count", 0),
+                metadata=entry_data.get("metadata", {}),
+            )
+            self.memory.add_working_memory(entry)
 
         # 恢复上下文
         for k, v in snapshot.get("context", {}).items():

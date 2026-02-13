@@ -4,7 +4,6 @@ Extended tests for builtin tool modules: file.py, http.py, bash.py
 Covers tool definition creation, execution, error handling, and edge cases.
 """
 
-import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,7 +13,6 @@ from loom.tools.builtin.bash import BashTool, create_bash_tool
 from loom.tools.builtin.file import FileTools, create_file_tools
 from loom.tools.builtin.http import HTTPTool, create_http_tool
 from loom.tools.core.sandbox import Sandbox, SandboxViolation
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -220,7 +218,7 @@ class TestFileToolsEditFile:
         assert "sandbox violation" in result["error"].lower()
 
     async def test_edit_generic_error(self, mock_sandbox):
-        mock_sandbox.safe_read.side_effect = IOError("read failure")
+        mock_sandbox.safe_read.side_effect = OSError("read failure")
         ft = FileTools(mock_sandbox)
         result = await ft.edit_file("file.txt", "a", "b")
         assert result["success"] == "false"
@@ -676,9 +674,8 @@ class TestRegisterFileToolsToManager:
 
         with patch("loom.tools.builtin.file.SandboxToolManager", None), patch(
             "loom.tools.builtin.file.ToolScope", None
-        ):
-            with pytest.raises(ImportError):
-                await register_file_tools_to_manager(MagicMock())
+        ), pytest.raises(ImportError):
+            await register_file_tools_to_manager(MagicMock())
 
 
 class TestRegisterHTTPToolToManager:
@@ -697,9 +694,8 @@ class TestRegisterHTTPToolToManager:
 
         with patch("loom.tools.builtin.http.SandboxToolManager", None), patch(
             "loom.tools.builtin.http.ToolScope", None
-        ):
-            with pytest.raises(ImportError):
-                await register_http_tool_to_manager(MagicMock())
+        ), pytest.raises(ImportError):
+            await register_http_tool_to_manager(MagicMock())
 
 
 class TestRegisterBashToolToManager:
@@ -719,6 +715,5 @@ class TestRegisterBashToolToManager:
 
         with patch("loom.tools.builtin.bash.SandboxToolManager", None), patch(
             "loom.tools.builtin.bash.ToolScope", None
-        ):
-            with pytest.raises(ImportError):
-                await register_bash_tool_to_manager(MagicMock())
+        ), pytest.raises(ImportError):
+            await register_bash_tool_to_manager(MagicMock())

@@ -54,7 +54,7 @@ from loom.memory import (
     MemoryQuery,
     MemoryTier,
     MemoryType,
-    MemoryUnit,
+    MessageItem,
 )
 from loom.memory.compaction import CompactionConfig
 
@@ -66,7 +66,7 @@ from loom.runtime.session_lane import SessionIsolationMode
 # Security
 from loom.security import BlacklistPolicy, ToolPolicy, WhitelistPolicy
 
-__version__ = "0.5.6"
+__version__ = "0.5.7"
 
 __all__ = [
     # Protocol (Task moved to Runtime)
@@ -82,7 +82,7 @@ __all__ = [
     "NodeContainer",
     # Memory
     "MemoryManager",
-    "MemoryUnit",
+    "MessageItem",
     "MemoryTier",
     "MemoryType",
     "MemoryQuery",
