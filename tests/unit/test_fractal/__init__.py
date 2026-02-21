@@ -1,3 +1,0 @@
-"""
-Fractal Tests
-"""

@@ -1,154 +1,83 @@
-"""
-Context Orchestrator - 上下文编排器
+"""Context orchestrator — gather fragments from providers within token budget."""
 
-统一入口，整合预算管理、收集、压缩。
-基于 Anthropic Context Engineering 思想。
-"""
+from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
-
-from loom.context.block import ContextBlock
-from loom.context.budget import BudgetManager
-from loom.context.collector import ContextCollector
-from loom.context.compactor import ContextCompactor
-from loom.context.source import ContextSource
-
-if TYPE_CHECKING:
-    from loom.memory.tokenizer import TokenCounter
+import asyncio
+from ..types import ContextFragment, ContextProvider, ContextSource, TokenBudget, BudgetRatios
 
 
 class ContextOrchestrator:
-    """
-    上下文编排器 - 统一入口
-
-    职责：
-    1. 管理 token 预算
-    2. 协调上下文收集
-    3. 必要时压缩上下文
-    4. 输出 LLM 消息格式
-    """
+    """Adaptive budget allocation via EMA-scored source relevance."""
 
     def __init__(
         self,
-        token_counter: "TokenCounter",
-        sources: list[ContextSource],
-        model_context_window: int = 128000,
+        context_window: int = 128_000,
         output_reserve_ratio: float = 0.25,
-        allocation_ratios: dict[str, float] | None = None,
-        summarizer: Callable[[str], Awaitable[str]] | None = None,
-        budget_manager: BudgetManager | None = None,
-    ):
-        """
-        初始化编排器
+        ratios: BudgetRatios | None = None,
+        adaptive_alpha: float = 0.3,
+    ) -> None:
+        self._providers: list[ContextProvider] = []
+        self._scores: dict[ContextSource, float] = {}
+        self._alpha = adaptive_alpha
+        self._context_window = context_window
+        self._output_reserve_ratio = output_reserve_ratio
+        if ratios:
+            self._scores.update(ratios)
 
-        Args:
-            token_counter: Token 计数器
-            sources: 上下文源列表
-            model_context_window: 模型上下文窗口大小
-            output_reserve_ratio: 预留给输出的比例
-            allocation_ratios: 各源的预算分配比例
-            summarizer: 摘要生成函数（用于压缩）
-            budget_manager: 预算管理器（可选，默认创建 BudgetManager）
-        """
-        self.token_counter = token_counter
-        self.sources = sources
+    def register(self, provider: ContextProvider) -> None:
+        self._providers.append(provider)
+        if provider.source not in self._scores:
+            self._scores[provider.source] = 1.0
 
-        # 预算管理器（支持外部注入，如 AdaptiveBudgetManager）
-        if budget_manager is not None:
-            self.budget_manager = budget_manager
-        else:
-            self.budget_manager = BudgetManager(
-                token_counter=token_counter,
-                model_context_window=model_context_window,
-                output_reserve_ratio=output_reserve_ratio,
-                allocation_ratios=allocation_ratios,
-            )
+    async def gather(self, query: str, budget: int) -> list[ContextFragment]:
+        if not self._providers:
+            return []
 
-        # 收集器
-        self.collector = ContextCollector(
-            sources=sources,
-            token_counter=token_counter,
-        )
+        # Proportional budget allocation from adaptive scores
+        total_score = sum(self._scores.get(p.source, 1.0) for p in self._providers) or 1
+        coros = [
+            p.provide(query, int(budget * self._scores.get(p.source, 1.0) / total_score))
+            for p in self._providers
+        ]
+        results = await asyncio.gather(*coros, return_exceptions=True)
 
-        # 压缩器
-        self.compactor = ContextCompactor(
-            token_counter=token_counter,
-            summarizer=summarizer,
+        all_frags: list[ContextFragment] = []
+        for r in results:
+            if isinstance(r, list):
+                all_frags.extend(r)
+
+        all_frags.sort(key=lambda f: f.relevance, reverse=True)
+        selected, used = [], 0
+        for f in all_frags:
+            if used + f.tokens > budget:
+                continue
+            selected.append(f)
+            used += f.tokens
+
+        self._update_scores(selected)
+        return selected
+
+    def compute_budget(self, system_prompt: str | None = None) -> TokenBudget:
+        sys_tokens = len((system_prompt or "").split()) * 2  # rough estimate
+        reserved = int(self._context_window * self._output_reserve_ratio)
+        available = self._context_window - reserved - sys_tokens
+        return TokenBudget(
+            total=self._context_window,
+            reserved_output=reserved,
+            system_prompt_tokens=sys_tokens,
+            available=max(available, 0),
         )
 
     @property
-    def max_tokens(self) -> int:
-        """获取模型上下文窗口大小（兼容属性）"""
-        return self.budget_manager.model_context_window
+    def ratios(self) -> dict[str, float]:
+        total = sum(self._scores.values()) or 1
+        return {s.value if hasattr(s, 'value') else str(s): v / total for s, v in self._scores.items()}
 
-    async def build_context(
-        self,
-        query: str,
-        system_prompt: str = "",
-        min_relevance: float = 0.5,
-    ) -> list[dict[str, str]]:
-        """
-        构建 LLM 上下文
-
-        Args:
-            query: 当前任务/查询内容
-            system_prompt: 系统提示词
-            min_relevance: 最低相关性阈值
-
-        Returns:
-            LLM 消息列表
-        """
-        # 1. 创建预算
-        budget = self.budget_manager.create_budget(system_prompt)
-
-        # 2. 分配预算给各源
-        source_names = [s.source_name for s in self.sources]
-        allocation = self.budget_manager.allocate_for_sources(budget, source_names)
-
-        # 3. 收集上下文
-        blocks = await self.collector.collect(
-            query=query,
-            allocation=allocation,
-            min_relevance=min_relevance,
-        )
-
-        # 4. 检查是否需要压缩
-        total_tokens = sum(b.token_count for b in blocks)
-        if total_tokens > budget.available:
-            blocks = await self.compactor.compact(blocks, budget.available)
-
-        # 5. 转换为消息格式
-        return self._blocks_to_messages(blocks, system_prompt)
-
-    def _blocks_to_messages(
-        self,
-        blocks: list[ContextBlock],
-        system_prompt: str,
-    ) -> list[dict[str, str]]:
-        """将块转换为 LLM 消息格式"""
-        messages: list[dict[str, str]] = []
-
-        # 系统提示词
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        # 按 role 分组，合并相邻同 role 的消息
-        for block in blocks:
-            messages.append(block.to_message())
-
-        return messages
-
-    def get_budget_info(self, system_prompt: str = "") -> dict:
-        """获取预算信息（用于调试）"""
-        budget = self.budget_manager.create_budget(system_prompt)
-        source_names = [s.source_name for s in self.sources]
-        allocation = self.budget_manager.allocate_for_sources(budget, source_names)
-
-        return {
-            "total": budget.total,
-            "reserved_output": budget.reserved_output,
-            "system_prompt": budget.system_prompt,
-            "available": budget.available,
-            "allocation": allocation.allocations,
-        }
+    def _update_scores(self, selected: list[ContextFragment]) -> None:
+        by_source: dict[ContextSource, list[float]] = {}
+        for f in selected:
+            by_source.setdefault(f.source, []).append(f.relevance)
+        for source, old in self._scores.items():
+            rels = by_source.get(source)
+            avg = sum(rels) / len(rels) if rels else 0.0
+            self._scores[source] = (1 - self._alpha) * old + self._alpha * avg

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.5.7"
-description = "Enterprise-grade recursive state machine agent framework with event sourcing, multi-agent collaboration, hierarchical memory, and RAG integration"
+version = "0.6.0"
+description = "Minimal self-organizing multi-agent framework"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
 license = "Apache-2.0 with Commons Clause"
@@ -30,23 +30,13 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.11"
 pydantic = "^2.5.0"
-pyyaml = "^6.0"
-numpy = "^1.26.0"
-tiktoken = "^0.12.0"
 openai = { version = "^1.10.0", optional = true }
 anthropic = { version = "^0.40.0", optional = true }
-redis = { version = "^5.0.1", optional = true }
-nats-py = { version = "^2.6.0", optional = true }
-asyncpg = { version = "^0.29.0", optional = true }
-pgvector = { version = "^0.2.0", optional = true }
 
 [tool.poetry.extras]
-llm = ["openai"]                                              # OpenAI-compatible LLM (DeepSeek, Qwen, Kimi 等)
-anthropic = ["anthropic"]                                     # Anthropic Claude
-redis = ["redis"]                                             # Redis 传输层
-nats = ["nats-py"]                                            # NATS 传输层
-postgres = ["asyncpg", "pgvector"]                            # PostgreSQL + pgvector
-all = ["openai", "anthropic", "redis", "nats-py", "asyncpg", "pgvector"]
+openai = ["openai"]
+anthropic = ["anthropic"]
+all = ["openai", "anthropic"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
@@ -54,13 +44,8 @@ pytest-asyncio = "^0.23.0"
 pytest-mock = "^3.12.0"
 ruff = "^0.3.0"
 mypy = "^1.8.0"
-types-PyYAML = "^6.0.0"
 pytest-cov = "^7.0.0"
-mkdocs = "^1.5.0"
-mkdocs-material = "^9.5.0"
-pymdown-extensions = "^10.7.0"
 openai = "^1.10.0"
-RestrictedPython = {version = "^8.0.0", python = ">=3.11,<3.15"}
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -104,14 +89,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG"] # Allow unused arguments in test files
-"examples/**/*.py" = ["ARG"] # Examples may have unused params for demonstration
-"loom/tools/toolset.py" = [
-  "ARG",
-] # Deprecated sync functions with stub implementations
-"loom/capabilities/registry.py" = ["ARG"] # TODO: Implement filtering logic
-"loom/agent/core.py" = ["ARG002"] # TODO: Implement context_hints usage
-"loom/context/sources/*.py" = ["ARG002"] # Interface implementations: params from ContextSource.collect()
+"tests/**/*.py" = ["ARG"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["loom"]

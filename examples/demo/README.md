@@ -1,73 +1,53 @@
-# Loom Agent Demo
+# Loom v0.6.0 Demo
 
-本示例展示 Loom Agent 的核心能力。
+15 个自包含示例，逐层展示框架核心能力。所有 demo 使用 MockProvider，无需 API Key。
 
-## 目录结构
+## 目录
 
 ```
 demo/
-├── README.md
-├── 01_basic_agent.py        # 基础 Agent 使用
-├── 02_custom_tools.py       # 自定义工具
-├── 03_skills_system.py      # Skills 系统
-├── 04_disabled_tools.py     # 禁用内置工具
-├── 05_event_bus.py          # 事件总线
-├── 06_agent_builder.py      # 链式构建
-├── 07_memory_scope.py       # 记忆作用域
-├── 08_sandbox_tools.py      # 沙盒工具
-├── 09_multi_agent.py        # 多 Agent 协作
-├── 10_knowledge_rag.py      # 知识库 RAG
-├── 11_streaming_output.py   # 流式输出
-├── 12_task_delegation.py    # 任务委派
-├── 13_parallel_execution.py # 并行执行
-├── 14_workflow_pipeline.py  # 工作流管道
-├── 15_memory_hierarchy.py   # 记忆层级与跨Session共享
-├── 16_interceptors.py       # 拦截器示例
-├── 17_memory_rag_autowiring.py # Memory+RAG+Knowledge 自动接线
-├── 18_adaptive_budget.py    # Context 动态预算与任务阶段
-├── 19_tracing_metrics.py    # Tracing 与 Metrics 可观测性
-├── 20_checkpoint.py         # Checkpoint 检查点与恢复
-├── 21_fractal_delegation.py # 分形委派（delegate_task 工具）
-└── skills/
-    └── code-review/
-        └── SKILL.md
+├── _mock.py                # 共享 MockProvider + MockEmbedder
+├── 01_hello_agent.py       # Agent 基础 run/stream
+├── 02_tools.py             # define_tool + ToolRegistry
+├── 03_event_bus.py         # EventBus 模式匹配 + 父子传播
+├── 04_interceptors.py      # InterceptorChain 中间件
+├── 05_memory.py            # MemoryManager L1→L2→L3
+├── 06_knowledge.py         # KnowledgeBase 混合检索
+├── 07_context.py           # ContextOrchestrator 自适应预算
+├── 08_skills.py            # SkillRegistry 触发激活
+├── 09_cluster.py           # ClusterManager 拍卖分配
+├── 10_reward.py            # RewardBus EMA + LifecycleManager
+├── 11_provider.py          # BaseLLMProvider 重试 + 熔断
+├── 12_runtime.py           # Runtime 编排
+├── 13_amoeba.py            # AmoebaLoop 6 阶段自组织
+├── 14_delegation.py        # 多 Agent 委派
+└── 15_full_stack.py        # 全栈流水线
 ```
 
-## 运行示例
+## 运行
 
 ```bash
-# 设置环境变量
-export OPENAI_API_KEY="your-key"
-
-# 运行基础示例
-python 01_basic_agent.py
-
-# 运行自定义工具示例
-python 02_custom_tools.py
+cd examples/demo
+python 01_hello_agent.py   # 运行单个
+for f in 0*.py 1*.py; do echo "=== $f ===" && python "$f"; done  # 运行全部
 ```
 
-## 功能演示
+## 功能矩阵
 
-| 示例 | 功能 |
-|------|------|
-| 01 | Agent 基础创建和运行 |
-| 02 | FunctionToMCP 工具转换 |
-| 03 | Skills 加载和激活 |
-| 04 | disabled_tools 配置 |
-| 05 | EventBus 事件通信 |
-| 06 | Agent.builder() 链式 API |
-| 07 | MemoryScope 记忆作用域 |
-| 08 | Sandbox 沙盒工具 |
-| 09 | 多 Agent 共享 EventBus |
-| 10 | 知识库 RAG 查询 |
-| 11 | FractalStreamAPI 分形流式观测 |
-| 12 | 父子 Agent 任务委派 |
-| 13 | ParallelExecutor 并行执行 |
-| 14 | 工作流管道与结果合成 |
-| 15 | 记忆层级 L1-L4 与跨Session共享 |
-| 16 | 拦截器：日志、性能监控、指标收集 |
-| 17 | Memory+RAG+Knowledge 自动接线 |
-| 18 | Context 动态预算与 TaskPhase 阶段策略 |
-| 19 | LoomTracer 追踪 + LoomMetrics 指标 |
-| 20 | Checkpoint 检查点与断点续跑 |
-| 21 | 分形委派：delegate_task 工具自动创建子节点 |
+| # | 示例 | 核心能力 |
+|---|------|----------|
+| 01 | Hello Agent | Agent 创建、run()、stream() |
+| 02 | Tools | define_tool、Pydantic 参数、ToolRegistry |
+| 03 | EventBus | 类型事件、模式匹配、父子层级传播 |
+| 04 | Interceptors | 中间件链、元数据注入、计时 |
+| 05 | Memory | L1 滑动窗口、L2 工作记忆、溢出级联 |
+| 06 | Knowledge | 文档摄入、向量检索、RRF 混合排序 |
+| 07 | Context | 多源编排、EMA 自适应评分、预算分配 |
+| 08 | Skills | 关键词/正则触发、激活/停用、技能发现 |
+| 09 | Cluster | 能力画像、竞价拍卖、忙碌降权 |
+| 10 | Reward | EMA 信号收敛/衰减、连败追踪、有丝分裂 |
+| 11 | Provider | 指数退避重试、熔断器、自定义 Provider |
+| 12 | Runtime | 集群编排、任务提交、健康检查 |
+| 13 | Amoeba | 6 阶段循环：感知→匹配→扩展+执行→评估+适应 |
+| 14 | Delegation | 父子 Agent、事件传播、任务路由 |
+| 15 | Full Stack | Agent+Memory+Knowledge+Context+Events+Tools |

@@ -13,7 +13,7 @@
 
 **English** | [中文](README_CN.md)
 
-[Wiki](wiki/Home.md) | [Examples](examples/demo/)
+[Wiki](wiki/Home.md) | [Examples](examples/demo/) | [v0.6.0](https://pypi.org/project/loom-agent/)
 
 </div>
 
@@ -29,115 +29,88 @@ They could use tools.
 
 And they all failed the same way.
 
-Not at step one.
-Not at step five.
+Not because they were stupid.
+Not because they lacked tools.
 
-They failed quietly —
-around step twenty.
+They failed because they were **rigid**.
 
-The plan was still there.
-The tools were still available.
+When a task got harder, they couldn't split it.
+When a subtask failed, they couldn't adapt.
+When the environment changed, they couldn't sense it.
 
-But no one remembered:
+We looked at biology for answers.
 
-* why this task was started
-* what had already been tried
-* which decisions mattered
-* or who was supposed to act next
+An amoeba is one of the simplest organisms on Earth.
+Yet it can sense, move, split, and adapt — without a brain.
 
-The agent didn't crash.
-
-It simply **forgot who it was**.
+It doesn't plan. It **responds**.
+It doesn't command. It **self-organizes**.
 
 That was the moment we realized:
 
 > The problem wasn't intelligence.
-> It was time.
+> It was the lack of a living mechanism.
 
 ---
 
-## The Long Horizon Collapse
+## The Amoba Mechanism
 
 Real-world tasks are not prompts.
 
-They span dozens of steps, days of time, constantly changing goals.
-Plans expire, context explodes, memory fragments.
+They shift, branch, fail, and evolve. A coding task spawns debugging. A research task splits into sub-questions. A failed attempt demands a different approach.
 
-This is the **Long Horizon Problem**.
+Most agent frameworks are **static pipelines**. Fixed plans, fixed agents, fixed flows. When reality deviates, they break.
 
-Most agent frameworks assume tasks are short, goals are stable, failures are one-time events.
-They rely on single planners, global memory, linear execution flows.
+Biology solved this billions of years ago.
 
-This looks great in demos.
+An amoeba **senses** its environment, **matches** the best response, **scales** by splitting when needed, **executes**, **evaluates** the outcome, and **adapts** for next time.
 
-But after step 20, agents start endlessly re-planning, contradicting themselves, repeating failed actions.
-Adding more tools only accelerates the collapse.
+**loom-agent's AmoebaLoop works the same way:**
 
-**The problem is not reasoning capability.**
+```
+SENSE → MATCH → SCALE → EXECUTE → EVALUATE → ADAPT
+```
 
-Most agents fail because they lack structure that can remain stable over time.
+* **SENSE** — Analyze task complexity and detect domains
+* **MATCH** — Auction across capable agents, evolve new skills if needed
+* **SCALE** — Split complex tasks via mitosis, create child agents
+* **EXECUTE** — Run with enriched context and token budgets
+* **EVALUATE** — Score results, update capability via EMA rewards
+* **ADAPT** — Recycle unhealthy agents (apoptosis), calibrate complexity estimates, evolve skills
 
-> More tokens won't fix this.
-> Better prompts won't fix this.
-> **Only structure can.**
+Agents that perform well get stronger. Agents that fail get recycled. New specialists emerge on demand. The system **lives**.
 
 ---
 
-## loom-agent: The Answer Through Structural Recursion
+## loom-agent: Structure + Life
 
-Humans never solved complexity by being smarter.
+A loom creates fabric through **structure** — threads interweave, patterns repeat, tension stays balanced.
 
-We use **repeating structure**: teams resemble departments, departments resemble companies, companies resemble ecosystems.
-Even as scale grows, structure remains stable. This is fractal organization.
+An amoeba creates life through **adaptation** — sensing, splitting, evolving, recycling.
 
-**loom-agent makes agents work the same way.**
+**loom-agent combines both.**
 
-Instead of building "super agents", we build **self-similar agents**.
-Each agent contains the same core structure:
+The framework is the loom — composable modules that weave agents together.
+The AmoebaLoop is the life — a self-organizing cycle that makes agents breathe.
 
 ```
-Observe → Decide → Act → Reflect → Evolve
+Structure (Loom)  →  Agent · Memory · Tools · Events · Interceptors · Context · Skills
+Life (Amoba)      →  Sense · Match · Scale · Execute · Evaluate · Adapt
 ```
 
-An agent can create sub-agents, and sub-agents behave exactly the same way.
-Tasks become worlds, worlds contain smaller worlds.
-
-**Complexity grows, structure doesn't.**
-
-This means systems can scale infinitely — without redesigning architecture, without prompt inflation, without centralized planners.
-
----
-
-## The Loom Metaphor
-
-A loom doesn't create fabric through intelligence.
-
-It creates fabric through **structure**.
-
-* threads interweave
-* patterns repeat
-* tension stays balanced
-
-Agents in loom-agent are threads.
-
-The framework is the loom.
-
-What emerges is not a workflow —
-but a living structure that persists over time.
+Complexity grows, structure doesn't. Agents adapt, the framework holds.
 
 ---
 
 ## Core Principles
 
-loom-agent's design revolves around four core beliefs:
+**Self-organizing over orchestrating** — No central controller. Agents sense, bid, and adapt autonomously through the AmoebaLoop.
 
-**Structure over intelligence** — Smarter reasoning doesn't prevent collapse, stable structure does.
+**Composition over inheritance** — Agent = provider + memory + tools + context + events + interceptors. Add only what you need.
 
-**Built for long horizons** — Designed for tasks that last hours or days, require retries and recovery, involve evolving goals.
+**Mitosis over monoliths** — Complex tasks split into subtasks, spawning child agents. Simple tasks run directly.
 
-**Fractal by default** — Every agent can become a system, every system behaves like an agent. Scale without rewriting architecture.
-
-**Identity before memory** — Agents must always know who they are, what role they serve, which phase they belong to, what they're responsible for. Without identity, memory is noise.
+**Reward over rules** — Capability scores update via EMA after every execution. Good agents get stronger; bad agents get recycled.
 
 ---
 
@@ -154,133 +127,124 @@ Long-running autonomous workflows · Research agents · Multi-day task execution
 ## Installation
 
 ```bash
-# Core install (pydantic + numpy + tiktoken)
 pip install loom-agent
-
-# With OpenAI-compatible LLMs (DeepSeek, Qwen, Kimi, etc.)
-pip install loom-agent[llm]
-
-# With Anthropic Claude
-pip install loom-agent[anthropic]
-
-# All optional dependencies
-pip install loom-agent[all]
 ```
 
 ## Quick Start
 
-### Create Your First Agent
-
 ```python
-import os
 import asyncio
-from loom.agent import Agent
-from loom.providers.llm import OpenAIProvider
-from loom.config.llm import LLMConfig
+from loom import Agent, AgentConfig
+from loom.providers.openai import OpenAIProvider
 
-async def main():
-    # 1. Configure model service
-    config = LLMConfig(
-        provider="openai",
-        model="gpt-4o-mini",
-        api_key=os.environ["OPENAI_API_KEY"],
-        base_url=os.environ.get("OPENAI_BASE_URL"),  # Optional
-    )
-    llm = OpenAIProvider(config)
-
-    # 2. Create Agent
-    agent = Agent.create(
-        llm=llm,
-        system_prompt="You are a helpful assistant.",
-        max_iterations=5,
-    )
-
-    # 3. Run task
-    result = await agent.run("Introduce Python in one sentence.")
-    print(f"Result: {result}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Using Other LLMs
-
-```python
-from loom.providers.llm import DeepSeekProvider, AnthropicProvider
-from loom.config.llm import LLMConfig
-
-# DeepSeek
-llm = DeepSeekProvider(LLMConfig(api_key="sk-..."))
-
-# Anthropic Claude
-llm = AnthropicProvider(LLMConfig(
-    provider="anthropic",
-    model="claude-3-5-sonnet-20241022",
-    api_key="sk-ant-...",
-))
-
-# Any OpenAI-compatible API
-from loom.providers.llm import OpenAICompatibleProvider
-llm = OpenAICompatibleProvider(LLMConfig(
+provider = OpenAIProvider(AgentConfig(
     api_key="sk-...",
-    base_url="http://localhost:8000/v1",
-    model="my-model",
+    model="gpt-4o-mini",
 ))
-```
 
-### Fractal Composition: Multi-Agent Collaboration
-
-Agents can automatically create sub-agents via the `delegate_task` meta-tool, or you can compose manually with `NodeContainer`:
-
-```python
-from loom.fractal.container import NodeContainer
-from loom.agent.card import AgentCard
-
-# Wrap an agent in a container node
-container = NodeContainer(
-    node_id="research_team",
-    agent_card=AgentCard(
-        agent_id="research_team",
-        name="Research Team",
-        description="A research team",
-        capabilities=["research", "writing"],
-    ),
-    child=researcher_agent,
+agent = Agent(
+    provider=provider,
+    config=AgentConfig(system_prompt="You are a helpful assistant.", max_steps=3),
 )
 
-# To the caller, the container behaves just like a regular Agent
-await container.execute_task(task)
+async def main():
+    result = await agent.run("Introduce Python in one sentence.")
+    print(result.content)
+
+asyncio.run(main())
 ```
 
-> For more examples, see [Examples](examples/demo/).
+### Streaming
+
+```python
+from loom import TextDeltaEvent, DoneEvent
+
+async for event in agent.stream("Introduce Rust in one sentence."):
+    if isinstance(event, TextDeltaEvent):
+        print(event.text, end="", flush=True)
+    elif isinstance(event, DoneEvent):
+        print(f"\nDone, steps={event.steps}")
+```
+
+### Tools
+
+```python
+from pydantic import BaseModel
+from loom import ToolRegistry, define_tool, ToolContext
+
+class CalcParams(BaseModel):
+    expression: str
+
+async def calc_fn(params: CalcParams, ctx: ToolContext) -> str:
+    return str(eval(params.expression))
+
+tools = ToolRegistry()
+tools.register(define_tool("calc", "Evaluate math expression", CalcParams, calc_fn))
+
+agent = Agent(provider=provider, config=AgentConfig(max_steps=5), tools=tools)
+result = await agent.run("What is 2**20?")
+```
+
+### Multi-Agent Delegation
+
+```python
+from loom import EventBus
+
+bus = EventBus(node_id="root")
+
+researcher = Agent(
+    provider=provider, name="researcher",
+    config=AgentConfig(system_prompt="You are a researcher.", max_steps=2),
+    event_bus=bus.create_child("researcher"),
+)
+writer = Agent(
+    provider=provider, name="writer",
+    config=AgentConfig(system_prompt="You are a writer.", max_steps=2),
+    event_bus=bus.create_child("writer"),
+)
+
+r1 = await researcher.run("Research AI memory systems")
+r2 = await writer.run("Write a technical article")
+```
+
+> See all 15 demos in [examples/demo/](examples/demo/).
 
 ---
 
 ## Core Features
 
-### Axiom-Driven Design
-Built on 4 formal axioms: A2 Event Sovereignty, A3 Fractal Self-Similarity, A4 Memory Hierarchy, A6 Four-Paradigm Autonomy. Every module traces back to these axioms.
+### Composition-Based Architecture
+Agent is assembled from orthogonal modules — provider, memory, tools, context, event bus, interceptors, skills. Add only what you need; every module is optional.
 
-### Fractal Architecture
-Recursive composition via `NodeContainer` and `ParallelExecutor`. Whether a single agent or a complex collaboration team, they are consistent nodes within Loom. Agents natively support `create_plan` (planning) and `delegate_task` (delegation) fractal modes.
+### Three-Layer Memory
+L1 `SlidingWindow` (recent turns) → L2 `WorkingMemory` (key facts) → L3 `PersistentStore` (long-term). Token-budget driven, automatic compaction.
 
-### Token-First Memory System
-L1 (8K) → L2 (16K) → L3 (32K) → L4 (100K) four-layer memory with token budgets at the core. Automatic migration, intelligent compression, key fact extraction, semantic vector retrieval.
+### Tool System
+`define_tool` + `ToolRegistry` with Pydantic schema validation. LLM autonomously decides when to call tools via ReAct loop.
 
-### Unified Event Bus
-All communication flows through Task objects routed by EventBus. Supports memory transport (single-machine) and NATS transport (distributed), hierarchical event propagation, multi-agent parallel SSE output.
+### EventBus
+Parent-child event propagation, pattern matching, typed events. All agent lifecycle events flow through the bus.
 
-### Four-Paradigm Autonomy
-Agents autonomously choose execution strategies: Reflection (LLM streaming), Tool Use (ReAct loop), Planning (create_plan), Collaboration (delegate_task).
+### Interceptor Chain
+Middleware pipeline that transforms messages before/after LLM calls. Audit logging, content filtering, prompt injection — all as interceptors.
+
+### Knowledge Base (RAG)
+Document ingestion, chunking, embedding, hybrid retrieval (keyword + vector RRF fusion). Bridges to Agent via `KnowledgeProvider` → `ContextOrchestrator`.
 
 ### Context Orchestration
-ContextOrchestrator based on Anthropic Context Engineering principles. Multi-source collection, adaptive budget allocation, unified retrieval (memory + RAG knowledge bases).
+Multi-source context collection with adaptive budget allocation. Memory, knowledge, and custom providers unified under `ContextOrchestrator`.
 
-### Multi-LLM Support
-OpenAI · Anthropic · DeepSeek · Qwen · Gemini · Ollama · Kimi · Doubao · Zhipu · vLLM · GPUStack, plus any OpenAI-compatible API.
+### Skill System
+Keyword / pattern / semantic triggers auto-activate domain-specific skills, dynamically injecting expert instructions into the agent.
 
-### Progressive Disclosure Configuration
-Three-tier configuration from zero-config to fully customized. Skill system follows Anthropic standard format with discovery, activation, and instantiation stages.
+### Cluster Auction
+Capability-scored agent nodes bid on tasks. `RewardBus` updates scores via EMA after each execution. `LifecycleManager` monitors health.
+
+### Resilient Providers
+`BaseLLMProvider` with exponential-backoff retry + circuit breaker. Any OpenAI-compatible API works via `OpenAIProvider`.
+
+### Runtime & AmoebaLoop
+`Runtime` orchestrates cluster-level task submission. `AmoebaLoop` implements a 6-phase self-organizing cycle: SENSE → MATCH → SCALE → EXECUTE → EVALUATE → ADAPT.
 
 ---
 
@@ -288,34 +252,26 @@ Three-tier configuration from zero-config to fully customized. Skill system foll
 
 See the [Wiki](wiki/Home.md) for detailed documentation:
 
-| Document | Description |
-| ---- | ---- |
-| [Architecture](wiki/Architecture.md) | Axiom system, four-paradigm model, data flow |
-| [Agent](wiki/Agent.md) | Mixin architecture, creation patterns, execution API |
-| [Events](wiki/Events.md) | EventBus, action enums, transport layer |
-| [Memory](wiki/Memory.md) | L1-L4 four-layer memory, compression & migration |
-| [Context](wiki/Context.md) | ContextOrchestrator, budget management |
-| [Runtime](wiki/Runtime.md) | Task model, interceptors, session isolation |
-| [Tools](wiki/Tools.md) | SandboxToolManager, built-in tools |
-| [Skills](wiki/Skills.md) | Skill definitions, progressive disclosure, activation |
-| [Providers](wiki/Providers.md) | LLM, Knowledge, MCP, Embedding |
-| [Config](wiki/Config.md) | Progressive disclosure configuration |
-| [Fractal](wiki/Fractal.md) | Recursive composition, inheritance rules |
-| [Observability](wiki/Observability.md) | Tracing, Metrics, OTLP export |
+| Document | Description | Demo |
+| ---- | ---- | ---- |
+| [Agent](wiki/Agent.md) | Agent core, AgentConfig, run/stream | 01 |
+| [Tools](wiki/Tools.md) | define_tool, ToolRegistry, ToolContext | 02 |
+| [Events](wiki/Events.md) | EventBus, parent-child propagation | 03 |
+| [Interceptors](wiki/Interceptors.md) | InterceptorChain, middleware pipeline | 04 |
+| [Memory](wiki/Memory.md) | L1/L2/L3 three-layer memory | 05 |
+| [Knowledge](wiki/Knowledge.md) | KnowledgeBase, RAG hybrid retrieval | 06 |
+| [Context](wiki/Context.md) | ContextOrchestrator, multi-source | 07 |
+| [Skills](wiki/Skills.md) | SkillRegistry, trigger-based activation | 08 |
+| [Cluster](wiki/Cluster.md) | ClusterManager, auction, RewardBus | 09-10 |
+| [Providers](wiki/Providers.md) | BaseLLMProvider, retry, circuit breaker | 11 |
+| [Runtime](wiki/Runtime.md) | Runtime, AmoebaLoop 6-phase cycle | 12-13 |
+| [Architecture](wiki/Architecture.md) | Full-stack pipeline, delegation, architecture diagram | 14-15 |
 
 ---
 
 ## Project Status
 
-loom-agent is under active development. Current version: **v0.5.7**.
-
-The framework focuses on:
-
-* Agent identity modeling
-* Fractal agent composition
-* Long-horizon execution loops
-* Structured memory layering
-* Failure-aware task evolution
+Current version: **v0.6.0**.
 
 APIs may evolve rapidly.
 
@@ -325,8 +281,8 @@ Structure will not.
 
 ## Philosophy
 
-> Intelligence solves problems.
-> Structure survives time.
+> Structure holds the shape.
+> Life fills the shape with motion.
 
 ---
 
@@ -348,4 +304,4 @@ See [LICENSE](LICENSE) for details.
 
 ---
 
-**Welcome to Long Horizon Agents.**
+**Welcome to living agents.**

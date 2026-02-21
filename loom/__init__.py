@@ -1,92 +1,86 @@
-"""
-Loom Agent Framework
+"""Loom — minimal self-organizing multi-agent framework."""
 
-公理驱动的多智能体框架，支持四范式工作模式：
-- 反思 (Reflection)
-- 工具使用 (Tool Use)
-- 规划 (Planning)
-- 协作 (Collaboration)
-"""
-
-from importlib.metadata import version as _version
-
-__version__ = _version("loom-agent")
-
-# Core Agent abstractions
-from loom.agent import Agent, AgentBuilder, BaseNode
-from loom.agent.factory import AgentFactory
-from loom.config.context import ContextConfig
-from loom.config.memory import MemoryConfig
-
-# Config (渐进式披露)
-from loom.config.tool import ToolConfig
-
-# Events
-from loom.events.event_bus import EventBus
-
-# Exceptions
-from loom.exceptions import (
-    ConfigurationError,
-    ContextBuildError,
-    DelegationError,
-    LLMProviderError,
-    LoomError,
-    MaxIterationsExceeded,
-    MemoryBudgetExceeded,
-    PermissionDenied,
-    TaskComplete,
-    ToolExecutionError,
-    ToolNotFoundError,
+from .types import (
+    Message, SystemMessage, UserMessage, AssistantMessage, ToolMessage, ToolCall,
+    ToolDefinition, ToolSchema, ToolContext,
+    MemoryEntry, MemoryLayer, ContextFragment, ContextSource, ContextProvider,
+    AgentEvent, TextDeltaEvent, ToolCallStartEvent, ToolCallDeltaEvent, ToolCallEndEvent,
+    StepStartEvent, StepEndEvent, StepEvent, ErrorEvent, DoneEvent, TokenUsage,
+    CompletionParams, StreamChunk, LLMProvider,
+    AgentNode, CapabilityProfile, RewardSignal, RewardRecord, TaskAd, Bid, SubTask,
+    Document, Chunk, RetrievalResult, RetrieverOptions, SkillTrigger, SkillActivation,
 )
-from loom.memory.shared_pool import SharedMemoryPool
-
-# Observability
-from loom.observability import (
-    ConsoleSpanExporter,
-    LoomMetrics,
-    LoomTracer,
-    OTLPMetricsExporter,
-    OTLPSpanExporter,
-    setup_otlp,
+from .config import AgentConfig, ClusterConfig
+from .agent import (
+    Agent, DelegateHandler, InterceptorChain, InterceptorContext, Interceptor,
+    LoopStrategy, LoopContext, ToolUseStrategy,
 )
+from .memory import MemoryManager, SlidingWindow, WorkingMemory, PersistentStore
+from .context import ContextOrchestrator, MemoryContextProvider, MitosisContextProvider
+from .events import EventBus
+from .tools import ToolRegistry, define_tool
+from .tools.builtin import done_tool, delegate_tool
+from .cluster import ClusterManager
+from .cluster.reward import RewardBus
+from .cluster.lifecycle import LifecycleManager, HealthReport, HealthStatus
+from .cluster.planner import TaskPlanner
+from .cluster.amoeba_loop import AmoebaLoop
+from .providers.base import BaseLLMProvider, RetryConfig, CircuitBreakerConfig
+from .errors import (
+    LoomError, LLMError, LLMRateLimitError, LLMAuthError, LLMStreamInterruptedError,
+    ToolError, ToolTimeoutError, ToolResultTooLargeError,
+    AgentAbortError, AgentMaxStepsError,
+    AuctionNoWinnerError, MitosisError, ApoptosisRejectedError,
+)
+from .session import SessionContext, get_current_session, set_session, reset_session
+from .knowledge import KnowledgeBase, KnowledgeProvider, FixedSizeChunker, RecursiveChunker
+from .skills import SkillRegistry, SkillProvider
+from .runtime import Runtime
 
-# Runtime
-from loom.runtime import Task, TaskStatus
+__version__ = "0.6.0"
 
 __all__ = [
-    "__version__",
-    # Core
-    "Agent",
-    "AgentBuilder",
-    "AgentFactory",
-    "BaseNode",
-    # Runtime
-    "Task",
-    "TaskStatus",
-    "EventBus",
-    # Exceptions
-    "LoomError",
-    "TaskComplete",
-    "PermissionDenied",
-    "ToolExecutionError",
-    "ToolNotFoundError",
-    "MemoryBudgetExceeded",
-    "ContextBuildError",
-    "MaxIterationsExceeded",
-    "DelegationError",
-    "LLMProviderError",
-    "ConfigurationError",
-    # Observability
-    "LoomTracer",
-    "LoomMetrics",
-    "OTLPSpanExporter",
-    "OTLPMetricsExporter",
-    "ConsoleSpanExporter",
-    "setup_otlp",
-    # Memory
-    "SharedMemoryPool",
+    # Agent
+    "Agent", "AgentConfig", "DelegateHandler",
+    "InterceptorChain", "InterceptorContext", "Interceptor",
+    "LoopStrategy", "LoopContext", "ToolUseStrategy",
+    # Types — messages
+    "Message", "SystemMessage", "UserMessage", "AssistantMessage", "ToolMessage", "ToolCall",
+    "ToolDefinition", "ToolSchema", "ToolContext",
+    "MemoryEntry", "MemoryLayer", "ContextFragment", "ContextSource", "ContextProvider",
+    # Types — events
+    "AgentEvent", "TextDeltaEvent", "ToolCallStartEvent", "ToolCallDeltaEvent", "ToolCallEndEvent",
+    "StepStartEvent", "StepEndEvent", "StepEvent", "ErrorEvent", "DoneEvent", "TokenUsage",
+    # Types — LLM
+    "CompletionParams", "StreamChunk", "LLMProvider",
+    # Types — cluster
+    "AgentNode", "CapabilityProfile", "RewardSignal", "RewardRecord", "TaskAd", "Bid", "SubTask",
     # Config
-    "ToolConfig",
-    "ContextConfig",
-    "MemoryConfig",
+    "ClusterConfig",
+    # Memory
+    "MemoryManager", "SlidingWindow", "WorkingMemory", "PersistentStore",
+    # Context
+    "ContextOrchestrator", "MemoryContextProvider", "MitosisContextProvider",
+    # Events
+    "EventBus",
+    # Tools
+    "ToolRegistry", "define_tool", "done_tool", "delegate_tool",
+    # Providers
+    "BaseLLMProvider", "RetryConfig", "CircuitBreakerConfig",
+    # Errors
+    "LoomError", "LLMError", "LLMRateLimitError", "LLMAuthError", "LLMStreamInterruptedError",
+    "ToolError", "ToolTimeoutError", "ToolResultTooLargeError",
+    "AgentAbortError", "AgentMaxStepsError",
+    "AuctionNoWinnerError", "MitosisError", "ApoptosisRejectedError",
+    # Session
+    "SessionContext", "get_current_session", "set_session", "reset_session",
+    # Cluster
+    "ClusterManager", "RewardBus", "LifecycleManager", "HealthReport", "HealthStatus", "TaskPlanner", "AmoebaLoop",
+    # Knowledge
+    "KnowledgeBase", "KnowledgeProvider", "FixedSizeChunker", "RecursiveChunker",
+    "Document", "Chunk", "RetrievalResult", "RetrieverOptions",
+    # Skills
+    "SkillRegistry", "SkillProvider", "SkillTrigger", "SkillActivation",
+    # Runtime
+    "Runtime",
 ]

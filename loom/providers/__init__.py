@@ -1,24 +1,17 @@
-"""
-Providers - 外部提供者
+"""LLM provider protocol re-export and helpers."""
 
-提供与外部服务的集成接口。
-
-导出内容：
-- Provider: 提供者基类
-- LLMProvider: LLM提供者抽象
-- LLMResponse: LLM响应类型
-- StreamChunk: 流式输出块
-- VectorStoreProvider: 向量存储提供者抽象
-"""
-
-from loom.providers.base import Provider
-from loom.providers.llm import LLMProvider, LLMResponse, StreamChunk
-from loom.providers.vector_store import VectorStoreProvider
+from ..types import LLMProvider, CompletionParams, StreamChunk, AssistantMessage
+from .base import BaseLLMProvider, RetryConfig, CircuitBreakerConfig
+from .gemini import GeminiProvider
+from .presets import (
+    create_deepseek, create_qwen, create_zhipu,
+    create_moonshot, create_baichuan, create_yi, create_doubao,
+)
 
 __all__ = [
-    "Provider",
-    "LLMProvider",
-    "LLMResponse",
-    "StreamChunk",
-    "VectorStoreProvider",
+    "LLMProvider", "CompletionParams", "StreamChunk", "AssistantMessage",
+    "BaseLLMProvider", "RetryConfig", "CircuitBreakerConfig",
+    "GeminiProvider",
+    "create_deepseek", "create_qwen", "create_zhipu",
+    "create_moonshot", "create_baichuan", "create_yi", "create_doubao",
 ]

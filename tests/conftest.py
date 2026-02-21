@@ -1,92 +1,130 @@
-"""
-Pytest 配置和共享 Fixtures
-
-提供测试所需的通用fixtures和配置。
-"""
+"""Shared fixtures for loom test suite."""
 
 import pytest
+from dataclasses import dataclass
+from typing import AsyncGenerator
 
-from loom.memory.tokenizer import EstimateCounter
-from loom.memory.types import MessageItem
-from tests.api_config import api_config, get_embedding_config, get_openai_config
+from loom.types import (
+    CompletionParams, CompletionResult, StreamChunk, TokenUsage,
+    ToolCall, DoneEvent, AgentNode, CapabilityProfile, TaskAd, Bid,
+    RewardRecord, Skill, SkillTrigger, SkillActivation,
+    Document, Chunk, RetrievalResult, RetrieverOptions,
+    ContextFragment,
+)
+from loom.config import AgentConfig, ClusterConfig
 
+
+# ── Mock LLM Provider ──
+
+class MockLLMProvider:
+    """Controllable mock LLM for testing."""
+
+    def __init__(self, responses: list[str] | None = None):
+        self._responses = list(responses or ["Mock response"])
+        self._call_count = 0
+        self.last_params: CompletionParams | None = None
+
+    async def complete(self, params: CompletionParams) -> CompletionResult:
+        self.last_params = params
+        text = self._responses[min(self._call_count, len(self._responses) - 1)]
+        self._call_count += 1
+        return CompletionResult(
+            content=text,
+            usage=TokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+        )
+
+    async def stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
+        self.last_params = params
+        text = self._responses[min(self._call_count, len(self._responses) - 1)]
+        self._call_count += 1
+        for word in text.split():
+            yield StreamChunk(text=word + " ")
+        yield StreamChunk(finish_reason="stop")
+
+
+# ── Mock Embedding Provider ──
+
+class MockEmbeddingProvider:
+    """Returns deterministic embeddings based on text hash."""
+
+    async def embed(self, text: str) -> list[float]:
+        return self._hash_vec(text)
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        return [self._hash_vec(t) for t in texts]
+
+    @staticmethod
+    def _hash_vec(text: str, dim: int = 8) -> list[float]:
+        h = hash(text)
+        return [(h >> i & 0xFF) / 255.0 for i in range(dim)]
+
+
+# ── Mock Graph Store ──
+
+class MockGraphStore:
+    def __init__(self):
+        self.nodes: list[dict] = []
+        self.edges: list[dict] = []
+
+    async def add_nodes(self, nodes):
+        self.nodes.extend(nodes)
+
+    async def add_edges(self, edges):
+        self.edges.extend(edges)
+
+    async def find_related(self, query, limit):
+        return [{"id": n["id"], "content": n.get("label", ""), "score": 0.5, "metadata": {}} for n in self.nodes[:limit]]
+
+    async def get_neighbors(self, node_id, depth=1):
+        return [e for e in self.edges if e.get("source") == node_id]
+
+
+# ── Mock Entity Extractor ──
+
+class MockEntityExtractor:
+    async def extract(self, text: str) -> list[dict]:
+        words = text.split()[:3]
+        return [{"id": w.lower(), "name": w, "type": "concept", "relations": []} for w in words]
+
+
+# ── Fixtures ──
 
 @pytest.fixture
-def estimate_counter():
-    """提供估算计数器"""
-    return EstimateCounter()
-
+def mock_llm():
+    return MockLLMProvider()
 
 @pytest.fixture
-def sample_messages():
-    """提供示例消息列表"""
-    return [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Hello, how are you?"},
-        {"role": "assistant", "content": "I'm doing well, thank you!"},
-        {"role": "user", "content": "Can you help me with a task?"},
-        {"role": "assistant", "content": "Of course! What do you need help with?"},
-    ]
-
+def mock_llm_json():
+    """LLM that returns JSON responses for planner/complexity."""
+    return MockLLMProvider(['[{"id":"a","description":"sub1","domain":"code","dependencies":[],"estimated_complexity":0.3}]'])
 
 @pytest.fixture
-def sample_message_items():
-    """提供示例 MessageItem 列表（替代旧的 sample_memory_units）"""
-    return [
-        MessageItem(
-            role="system",
-            content="You are a helpful assistant.",
-            token_count=10,
-        ),
-        MessageItem(
-            role="user",
-            content="Hello, how are you?",
-            token_count=8,
-        ),
-        MessageItem(
-            role="assistant",
-            content="I'm doing well, thank you!",
-            token_count=9,
-        ),
-        MessageItem(
-            role="user",
-            content="Can you help me with a task?",
-            token_count=10,
-        ),
-    ]
-
+def mock_embedder():
+    return MockEmbeddingProvider()
 
 @pytest.fixture
-def long_text():
-    """提供长文本用于token计数测试"""
-    return (
-        """
-    This is a longer text that will be used to test token counting functionality.
-    It contains multiple sentences and should result in a reasonable token count.
-    The purpose is to verify that our token counters work correctly with longer inputs.
-    """
-        * 10
+def mock_graph_store():
+    return MockGraphStore()
+
+@pytest.fixture
+def mock_entity_extractor():
+    return MockEntityExtractor()
+
+@pytest.fixture
+def agent_config():
+    return AgentConfig(max_steps=3, system_prompt="Test agent")
+
+@pytest.fixture
+def cluster_config():
+    return ClusterConfig(min_nodes=1, max_nodes=5, max_depth=2)
+
+@pytest.fixture
+def sample_node():
+    return AgentNode(
+        id="node-1", depth=0,
+        capabilities=CapabilityProfile(scores={"code": 0.8}, tools=["search"]),
     )
 
-
-# ============================================================================
-# API测试相关 Fixtures
-# ============================================================================
-
-
 @pytest.fixture
-def api_test_config():
-    """提供API测试配置"""
-    return api_config
-
-
-@pytest.fixture
-def openai_config():
-    """提供OpenAI配置字典"""
-    return get_openai_config()
-
-
-@pytest.fixture
-def embedding_config():
-    """提供Embedding配置字典"""
-    return get_embedding_config()
+def sample_task():
+    return TaskAd(domain="code", description="Write a function", estimated_complexity=0.5)
