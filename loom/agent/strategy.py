@@ -3,17 +3,27 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import time
-from typing import AsyncGenerator, Protocol, runtime_checkable
+from collections.abc import AsyncGenerator
+from typing import Any, Protocol, runtime_checkable
 
 from ..types import (
-    AgentEvent, TextDeltaEvent, ToolCallStartEvent, ToolCallEndEvent,
-    StepStartEvent, StepEndEvent, ErrorEvent, DoneEvent, TokenUsage,
-    CompletionParams, Message, AssistantMessage, ToolMessage,
-    ToolCall, ToolContext, LLMProvider, ToolDefinition,
+    AgentEvent,
+    AssistantMessage,
+    CompletionParams,
+    DoneEvent,
+    ErrorEvent,
+    StepEndEvent,
+    StepStartEvent,
+    TextDeltaEvent,
+    TokenUsage,
+    ToolCall,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
+    ToolContext,
+    ToolDefinition,
+    ToolMessage,
 )
-from ..errors import AgentAbortError, AgentMaxStepsError
 
 
 def _accumulate_usage(total: TokenUsage, step: TokenUsage) -> None:
@@ -25,19 +35,45 @@ def _accumulate_usage(total: TokenUsage, step: TokenUsage) -> None:
 @runtime_checkable
 class LoopStrategy(Protocol):
     name: str
+
     def execute(self, ctx: LoopContext) -> AsyncGenerator[AgentEvent, None]: ...
 
 
 class LoopContext:
-    __slots__ = (
-        "messages", "provider", "tools", "tool_registry",
-        "max_steps", "streaming", "temperature", "max_tokens",
-        "session_id", "tenant_id", "agent_id",
-        "interceptors", "events", "signal", "tool_config",
-    )
+    messages: Any
+    provider: Any
+    tools: Any
+    tool_registry: Any
+    max_steps: Any
+    streaming: Any
+    temperature: Any
+    max_tokens: Any
+    session_id: Any
+    tenant_id: Any
+    agent_id: Any
+    interceptors: Any
+    events: Any
+    signal: Any
+    tool_config: Any
 
-    def __init__(self, **kwargs) -> None:
-        for k in self.__slots__:
+    def __init__(self, **kwargs: Any) -> None:
+        for k in (
+            "messages",
+            "provider",
+            "tools",
+            "tool_registry",
+            "max_steps",
+            "streaming",
+            "temperature",
+            "max_tokens",
+            "session_id",
+            "tenant_id",
+            "agent_id",
+            "interceptors",
+            "events",
+            "signal",
+            "tool_config",
+        ):
             setattr(self, k, kwargs.get(k))
 
 
@@ -48,7 +84,7 @@ class ToolUseStrategy:
 
     async def execute(self, ctx: LoopContext) -> AsyncGenerator[AgentEvent, None]:
         messages = ctx.messages
-        provider: LLMProvider = ctx.provider
+        provider = ctx.provider
         tools: list[ToolDefinition] = ctx.tools
         max_steps: int = ctx.max_steps
         usage = TokenUsage()
@@ -64,8 +100,10 @@ class ToolUseStrategy:
             await _run_interceptors(ctx, step, "tool_use")
 
             params = CompletionParams(
-                messages=messages, tools=tools,
-                max_tokens=ctx.max_tokens, temperature=ctx.temperature,
+                messages=messages,
+                tools=tools,
+                max_tokens=ctx.max_tokens,
+                temperature=ctx.temperature,
             )
 
             text = ""
@@ -109,7 +147,9 @@ class ToolUseStrategy:
                 if tc.name == "done":
                     yield StepEndEvent(step=step, reason="complete")
                     dur = int((time.monotonic() - start) * 1000)
-                    yield DoneEvent(content=result_str, steps=step + 1, duration_ms=dur, usage=usage)
+                    yield DoneEvent(
+                        content=result_str, steps=step + 1, duration_ms=dur, usage=usage
+                    )
                     return
 
             yield StepEndEvent(step=step, reason="tool_use")
@@ -120,10 +160,6 @@ class ToolUseStrategy:
 
 
 async def _exec_tool(tc: ToolCall, ctx: LoopContext) -> str:
-    try:
-        args = json.loads(tc.arguments)
-    except (json.JSONDecodeError, TypeError):
-        args = {}
     tool_ctx = ToolContext(
         agent_id=getattr(ctx, "agent_id", ""),
         session_id=getattr(ctx, "session_id", None),
@@ -146,6 +182,7 @@ async def _run_interceptors(ctx: LoopContext, step: int, strategy: str) -> None:
     chain = ctx.interceptors
     if chain and hasattr(chain, "run"):
         from .interceptor import InterceptorContext
+
         ictx = InterceptorContext(
             messages=ctx.messages,
             metadata={"step": step, "strategy": strategy},
@@ -169,7 +206,7 @@ class ReactStrategy:
 
     async def execute(self, ctx: LoopContext) -> AsyncGenerator[AgentEvent, None]:
         messages = ctx.messages
-        provider: LLMProvider = ctx.provider
+        provider = ctx.provider
         tools: list[ToolDefinition] = ctx.tools
         max_steps: int = ctx.max_steps
         usage = TokenUsage()
@@ -192,8 +229,10 @@ class ReactStrategy:
             await _run_interceptors(ctx, step, "react")
 
             params = CompletionParams(
-                messages=messages, tools=tools,
-                max_tokens=ctx.max_tokens, temperature=ctx.temperature,
+                messages=messages,
+                tools=tools,
+                max_tokens=ctx.max_tokens,
+                temperature=ctx.temperature,
             )
 
             try:
@@ -224,12 +263,15 @@ class ReactStrategy:
                 t0 = time.monotonic()
                 try:
                     result_str = await _exec_tool(tc, ctx)
-                except asyncio.TimeoutError:
-                    result_str = f"Error: Tool timed out"
+                except TimeoutError:
+                    result_str = "Error: Tool timed out"
                 dur_ms = int((time.monotonic() - t0) * 1000)
-                messages.append(ToolMessage(
-                    content=f"Observation: {result_str}", tool_call_id=tc.id,
-                ))
+                messages.append(
+                    ToolMessage(
+                        content=f"Observation: {result_str}",
+                        tool_call_id=tc.id,
+                    )
+                )
                 yield ToolCallEndEvent(tool_call_id=tc.id, result=result_str, duration_ms=dur_ms)
 
             yield StepEndEvent(step=step, reason="tool_use")

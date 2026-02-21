@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..types import Document, Chunk
+from ..types import Chunk, Document
 
 
 class FixedSizeChunker:
@@ -17,12 +17,14 @@ class FixedSizeChunker:
         idx = 0
         while start < len(text):
             end = start + self._size
-            chunks.append(Chunk(
-                id=f"{doc.id}_c{idx}",
-                content=text[start:end],
-                document_id=doc.id,
-                tokens=len(text[start:end]) // 4 + 1,
-            ))
+            chunks.append(
+                Chunk(
+                    id=f"{doc.id}_c{idx}",
+                    content=text[start:end],
+                    document_id=doc.id,
+                    tokens=len(text[start:end]) // 4 + 1,
+                )
+            )
             idx += 1
             start = end - self._overlap if end < len(text) else end
         return chunks

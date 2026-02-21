@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from ..types import Message
 
@@ -20,6 +21,7 @@ Next = Callable[[], Awaitable[None]]
 @runtime_checkable
 class Interceptor(Protocol):
     name: str
+
     async def intercept(self, ctx: InterceptorContext, next: Next) -> None: ...
 
 
@@ -35,4 +37,5 @@ class InterceptorChain:
             if i >= len(self._interceptors):
                 return
             await self._interceptors[i].intercept(ctx, lambda: dispatch(i + 1))
+
         await dispatch(0)

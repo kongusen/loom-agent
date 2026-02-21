@@ -13,7 +13,7 @@ class MitosisContextProvider:
     def __init__(self, mitosis_ctx: MitosisContext) -> None:
         self._ctx = mitosis_ctx
 
-    async def provide(self, query: str, budget: int) -> list[ContextFragment]:
+    async def provide(self, _query: str, budget: int) -> list[ContextFragment]:
         parts = []
         if self._ctx.parent_task_spec and self._ctx.parent_task_spec.objective:
             parts.append(f"Parent objective: {self._ctx.parent_task_spec.objective}")
@@ -26,11 +26,13 @@ class MitosisContextProvider:
         content = "\n".join(parts)
         tokens = len(content.split()) * 2
         if tokens > budget:
-            content = content[:budget * 2]
+            content = content[: budget * 2]
             tokens = budget
-        return [ContextFragment(
-            source=ContextSource.MITOSIS,
-            content=content,
-            tokens=tokens,
-            relevance=0.9,
-        )]
+        return [
+            ContextFragment(
+                source=ContextSource.MITOSIS,
+                content=content,
+                tokens=tokens,
+                relevance=0.9,
+            )
+        ]

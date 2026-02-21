@@ -1,9 +1,10 @@
 """Unit tests for providers module (base, retry, circuit breaker)."""
 
 import pytest
-from loom.providers.base import BaseLLMProvider, RetryConfig, CircuitBreakerConfig
-from loom.types import CompletionParams, CompletionResult, TokenUsage, UserMessage
+
 from loom.errors import LLMError
+from loom.providers.base import BaseLLMProvider, CircuitBreakerConfig, RetryConfig
+from loom.types import CompletionParams, CompletionResult, TokenUsage, UserMessage
 
 
 class _FakeProvider(BaseLLMProvider):

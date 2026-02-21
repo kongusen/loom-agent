@@ -10,13 +10,13 @@ import asyncio
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from benchmarks import perf, logic, mechanism
+from benchmarks import logic, mechanism, perf
 
 
 async def run_all():
@@ -37,7 +37,7 @@ async def run_all():
     mech_passed = sum(1 for r in mech_results if r.passed)
 
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "total_duration_ms": round(elapsed * 1000, 1),
         "summary": {
             "perf_benchmarks": len(perf_results),

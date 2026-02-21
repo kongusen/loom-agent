@@ -28,6 +28,7 @@ class ContextFragment:
 @runtime_checkable
 class ContextProvider(Protocol):
     source: ContextSource
+
     async def provide(self, query: str, budget: int) -> list[ContextFragment]: ...
 
 
@@ -43,6 +44,7 @@ BudgetRatios = dict[ContextSource, float]
 
 
 # --- Knowledge types ---
+
 
 @dataclass
 class Document:
@@ -79,10 +81,13 @@ class Chunker(Protocol):
 
 @runtime_checkable
 class Retriever(Protocol):
-    async def retrieve(self, query: str, opts: RetrieverOptions | None = None) -> list[RetrievalResult]: ...
+    async def retrieve(
+        self, query: str, opts: RetrieverOptions | None = None
+    ) -> list[RetrievalResult]: ...
 
 
 # --- Skill types ---
+
 
 @dataclass
 class SkillTrigger:
@@ -91,7 +96,7 @@ class SkillTrigger:
     pattern: str = ""
     match_all: bool = False
     threshold: float = 0.7  # semantic similarity threshold
-    evaluator: Any = None   # custom evaluator callable(text) -> float|None
+    evaluator: Any = None  # custom evaluator callable(text) -> float|None
 
 
 @dataclass

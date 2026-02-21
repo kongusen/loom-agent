@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import random
 import time
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import AsyncGenerator
 
-from ..types import CompletionResult, CompletionParams, StreamChunk
+from ..types import CompletionParams, CompletionResult, StreamChunk
 
 
 @dataclass
@@ -40,7 +39,8 @@ class BaseLLMProvider:
 
     async def complete(self, params: CompletionParams) -> CompletionResult:
         self._check_circuit()
-        return await self._with_retry(lambda: self._do_complete(params))
+        result = await self._with_retry(lambda: self._do_complete(params))
+        return result  # type: ignore[no-any-return]
 
     async def stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
         self._check_circuit()
@@ -52,7 +52,7 @@ class BaseLLMProvider:
     async def _do_complete(self, params: CompletionParams) -> CompletionResult:
         raise NotImplementedError
 
-    async def _do_stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
+    async def _do_stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:  # noqa: ARG002
         raise NotImplementedError
         yield  # pragma: no cover
 
@@ -62,11 +62,12 @@ class BaseLLMProvider:
         if self._failures >= self._cb.failure_threshold:
             if time.time() - self._last_failure < self._cb.reset_time:
                 from ..errors import LLMError
+
                 raise LLMError("LLM_CIRCUIT_OPEN", "base", "Circuit breaker open")
             self._failures = 0
 
-    async def _with_retry(self, fn):
-        last_err = None
+    async def _with_retry(self, fn):  # type: ignore[no-untyped-def]
+        last_err: Exception | None = None
         for i in range(self._retry.max_retries + 1):
             try:
                 result = await fn()
@@ -78,8 +79,9 @@ class BaseLLMProvider:
                 self._last_failure = time.time()
                 if i < self._retry.max_retries:
                     delay = min(
-                        self._retry.base_delay * (2 ** i) + random.random() * 0.1,
+                        self._retry.base_delay * (2**i) + random.random() * 0.1,
                         self._retry.max_delay,
                     )
                     await asyncio.sleep(delay)
+        assert last_err is not None
         raise last_err

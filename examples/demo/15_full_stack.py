@@ -1,29 +1,42 @@
 """15 — 全栈流水线：Agent + Memory + Knowledge + Context + Events + Interceptors + Tools。"""
 
 import asyncio
+
+from _provider import OpenAIEmbedder, create_provider
 from pydantic import BaseModel
 
 from loom import (
-    Agent, AgentConfig, EventBus, InterceptorChain, InterceptorContext,
-    MemoryManager, SlidingWindow, WorkingMemory,
-    ContextOrchestrator, KnowledgeBase, KnowledgeProvider,
-    ToolRegistry, define_tool,
-    TextDeltaEvent, DoneEvent, Document,
+    Agent,
+    AgentConfig,
+    ContextOrchestrator,
+    Document,
+    EventBus,
+    InterceptorChain,
+    InterceptorContext,
+    KnowledgeBase,
+    KnowledgeProvider,
+    MemoryManager,
+    SlidingWindow,
+    ToolRegistry,
+    WorkingMemory,
+    define_tool,
 )
 from loom.knowledge import InMemoryVectorStore
-from _provider import create_provider, OpenAIEmbedder
 
 
 # ── 工具 ──
 class SearchParams(BaseModel):
     query: str
 
+
 async def search_exec(params, ctx):
     return f"搜索结果: 找到关于 '{params.query}' 的 3 篇文档"
+
 
 # ── 拦截器 ──
 class AuditInterceptor:
     name = "audit"
+
     async def intercept(self, ctx: InterceptorContext, nxt):
         ctx.metadata["audited"] = True
         await nxt()
@@ -38,7 +51,10 @@ async def main():
     provider = create_provider()
     bus = EventBus(node_id="main")
     events = []
-    async def log(e): events.append(e.type)
+
+    async def log(e):
+        events.append(e.type)
+
     bus.on_all(log)
 
     # 2. 记忆
@@ -49,10 +65,12 @@ async def main():
 
     # 3. 知识库
     kb = KnowledgeBase(embedder=OpenAIEmbedder(), vector_store=InMemoryVectorStore())
-    await kb.ingest([
-        Document(id="d1", content="AI Agent 采用 ReAct 模式：推理+行动循环"),
-        Document(id="d2", content="记忆系统分为 L1 工作记忆、L2 短期、L3 长期"),
-    ])
+    await kb.ingest(
+        [
+            Document(id="d1", content="AI Agent 采用 ReAct 模式：推理+行动循环"),
+            Document(id="d2", content="记忆系统分为 L1 工作记忆、L2 短期、L3 长期"),
+        ]
+    )
 
     # 4. Context + Knowledge Provider
     context = ContextOrchestrator()
@@ -85,14 +103,14 @@ async def main():
     print(f"  token: {result.usage.total_tokens}")
 
     # 9. 验证各层
-    print(f"\n[验证]")
+    print("\n[验证]")
     print(f"  事件数: {len(events)}")
     print(f"  L1 消息: {len(memory.l1.get_messages())}")
     l2 = await memory.l2.retrieve()
     print(f"  L2 条目: {len(l2)}")
-    print(f"  知识库文档: 2")
+    print("  知识库文档: 2")
     print(f"  工具: {[t.name for t in tools.list()]}")
-    print(f"  拦截器: 1 (audit)")
+    print("  拦截器: 1 (audit)")
 
     print("\n" + "=" * 50)
     print("全栈流水线完成")

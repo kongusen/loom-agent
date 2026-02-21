@@ -1,8 +1,7 @@
 """Unit tests for context module."""
 
-import pytest
-from loom.types import ContextFragment
 from loom.context import ContextOrchestrator
+from loom.types import ContextFragment
 
 
 class _StubProvider:
@@ -38,12 +37,22 @@ class TestContextOrchestrator:
 
     async def test_multi_provider_merge(self):
         orch = ContextOrchestrator()
-        orch.register(_StubProvider("memory", [
-            ContextFragment(source="memory", content="m", tokens=10, relevance=0.7),
-        ]))
-        orch.register(_StubProvider("knowledge", [
-            ContextFragment(source="knowledge", content="k", tokens=10, relevance=0.9),
-        ]))
+        orch.register(
+            _StubProvider(
+                "memory",
+                [
+                    ContextFragment(source="memory", content="m", tokens=10, relevance=0.7),
+                ],
+            )
+        )
+        orch.register(
+            _StubProvider(
+                "knowledge",
+                [
+                    ContextFragment(source="knowledge", content="k", tokens=10, relevance=0.9),
+                ],
+            )
+        )
         result = await orch.gather("q", 1000)
         assert len(result) == 2
         assert result[0].source == "knowledge"  # higher relevance first

@@ -27,6 +27,6 @@ class WorkingMemory:
             evicted.append(victim)
         return evicted
 
-    async def retrieve(self, query: str = "", limit: int = 20) -> list[MemoryEntry]:
+    async def retrieve(self, _query: str = "", limit: int = 20) -> list[MemoryEntry]:
         ranked = sorted(self._entries, key=lambda e: e.importance, reverse=True)
         return ranked[:limit]

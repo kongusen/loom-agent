@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import time
 import logging
 
-from ..types import AgentNode, TaskAd, Bid, CapabilityProfile
 from ..config import ClusterConfig
+from ..types import AgentNode, Bid, TaskAd
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,8 @@ class ClusterManager:
         tool_overlap = (
             len(set(task.required_tools) & set(node.capabilities.tools))
             / max(len(task.required_tools), 1)
-            if task.required_tools else 1.0
+            if task.required_tools
+            else 1.0
         )
         score = (
             w["capability"] * cap
@@ -48,8 +48,15 @@ class ClusterManager:
             + w["tools"] * tool_overlap
         )
         return Bid(
-            agent_id=node.id, task_id=task.task_id, score=score,
-            breakdown={"capability": cap, "availability": avail, "history": history, "tools": tool_overlap},
+            agent_id=node.id,
+            task_id=task.task_id,
+            score=score,
+            breakdown={
+                "capability": cap,
+                "availability": avail,
+                "history": history,
+                "tools": tool_overlap,
+            },
         )
 
     def collect_bids(self, task: TaskAd) -> list[tuple[AgentNode, Bid]]:
@@ -68,7 +75,7 @@ class ClusterManager:
                 return None
         bids.sort(key=lambda x: x[1].score, reverse=True)
         # Prefer idle nodes over busy ones at similar scores
-        for node, bid in bids:
+        for node, _bid in bids:
             if node.status == "idle":
                 return node
         return bids[0][0]

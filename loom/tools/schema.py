@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Type
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -10,7 +10,7 @@ from pydantic import BaseModel
 class PydanticSchema:
     """ToolSchema implementation backed by a Pydantic model."""
 
-    def __init__(self, model: Type[BaseModel]) -> None:
+    def __init__(self, model: type[BaseModel]) -> None:
         self._model = model
 
     def parse(self, raw: Any) -> Any:

@@ -1,15 +1,16 @@
 """Integration tests — end-to-end flows."""
 
-import pytest
 from loom.agent import Agent
-from loom.runtime.core import Runtime
-from loom.types import (
-    AgentNode, TaskAd, CapabilityProfile, DoneEvent,
-    Document, Skill, SkillTrigger,
-)
 from loom.config import AgentConfig
 from loom.knowledge.base import KnowledgeBase
-from tests.conftest import MockLLMProvider, MockEmbeddingProvider
+from loom.runtime.core import Runtime
+from loom.types import (
+    CapabilityProfile,
+    Document,
+    DoneEvent,
+    TaskAd,
+)
+from tests.conftest import MockLLMProvider
 
 
 class TestAgentEndToEnd:

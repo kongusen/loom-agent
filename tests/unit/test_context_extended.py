@@ -1,16 +1,21 @@
 """Coverage-boost tests for context providers: MitosisContextProvider, MemoryContextProvider."""
 
-import pytest
-from loom.context.mitosis_provider import MitosisContextProvider
 from loom.context.memory_provider import MemoryContextProvider
+from loom.context.mitosis_provider import MitosisContextProvider
 from loom.memory import MemoryManager
-from loom.types import MitosisContext, TaskSpec, SubTask, ContextSource, MemoryEntry
+from loom.types import ContextSource, MemoryEntry, MitosisContext, SubTask, TaskAd, TaskSpec
+
+
+def _dummy_task(**kw):
+    defaults = {"domain": "general", "description": "test", "estimated_complexity": 0.5}
+    defaults.update(kw)
+    return TaskAd(**defaults)
 
 
 class TestMitosisContextProvider:
     async def test_full_context(self):
         ctx = MitosisContext(
-            parent_task_spec=TaskSpec(objective="Build an app"),
+            parent_task_spec=TaskSpec(task=_dummy_task(), objective="Build an app"),
             subtask=SubTask(id="s1", description="Write tests"),
             parent_tools=["search", "shell"],
         )
@@ -29,7 +34,7 @@ class TestMitosisContextProvider:
         assert frags == []
 
     async def test_partial_context(self):
-        ctx = MitosisContext(parent_task_spec=TaskSpec(objective="Goal"))
+        ctx = MitosisContext(parent_task_spec=TaskSpec(task=_dummy_task(), objective="Goal"))
         p = MitosisContextProvider(ctx)
         frags = await p.provide("query", budget=5000)
         assert len(frags) == 1
@@ -37,7 +42,7 @@ class TestMitosisContextProvider:
 
     async def test_budget_truncation(self):
         ctx = MitosisContext(
-            parent_task_spec=TaskSpec(objective="x" * 500),
+            parent_task_spec=TaskSpec(task=_dummy_task(), objective="x" * 500),
             subtask=SubTask(id="s1", description="y" * 500),
             parent_tools=["a", "b", "c"],
         )

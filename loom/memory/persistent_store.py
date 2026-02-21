@@ -21,9 +21,7 @@ class PersistentStore:
 
     async def retrieve(self, query: str = "", limit: int = 10) -> list[MemoryEntry]:
         if not query:
-            entries = sorted(
-                self._entries.values(), key=lambda e: e.created_at, reverse=True
-            )
+            entries = sorted(self._entries.values(), key=lambda e: e.created_at, reverse=True)
             return entries[:limit]
         q_words = query.lower().split()
         scored = []

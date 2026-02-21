@@ -4,19 +4,24 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import TYPE_CHECKING
 
-from ..types import AgentNode, TaskAd, CapabilityProfile, LLMProvider, DoneEvent, SubTask, Skill
-from ..config import AgentConfig, ClusterConfig
 from ..agent import Agent
-from ..memory import MemoryManager
-from ..context import ContextOrchestrator, MemoryContextProvider, MitosisContextProvider
-from ..tools import ToolRegistry
-from ..tools.builtin import done_tool, delegate_tool
 from ..cluster import ClusterManager
-from ..cluster.reward import RewardBus
 from ..cluster.lifecycle import LifecycleManager
+
+if TYPE_CHECKING:
+    from ..cluster.amoeba_loop import AmoebaLoop
+
 from ..cluster.planner import TaskPlanner
+from ..cluster.reward import RewardBus
 from ..cluster.skill_registry import SkillNodeRegistry
+from ..config import AgentConfig, ClusterConfig
+from ..context import ContextOrchestrator, MemoryContextProvider
+from ..memory import MemoryManager
+from ..tools import ToolRegistry
+from ..tools.builtin import delegate_tool, done_tool
+from ..types import AgentNode, CapabilityProfile, DoneEvent, LLMProvider, Skill, SubTask, TaskAd
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +56,10 @@ class Runtime:
             agent = self._create_agent(tools)
         agent.on_delegate = self._handle_delegate
         node = AgentNode(
-            id=agent.id, depth=depth,
-            capabilities=capabilities or CapabilityProfile(
-                tools=[t.name for t in agent.tools.list()]
-            ),
+            id=agent.id,
+            depth=depth,
+            capabilities=capabilities
+            or CapabilityProfile(tools=[t.name for t in agent.tools.list()]),
             agent=agent,
         )
         self.cluster.add_node(node)
@@ -124,8 +129,7 @@ class Runtime:
     def _check_health(self) -> None:
         for node in self.cluster.nodes:
             self.reward_bus.decay_inactive(node)
-        dying = [n for n in self.cluster.nodes
-                 if self.lifecycle.check_health(n).status == "dying"]
+        dying = [n for n in self.cluster.nodes if self.lifecycle.check_health(n).status == "dying"]
         for node in dying:
             try:
                 self.lifecycle.apoptosis(node, self.cluster)
@@ -163,17 +167,26 @@ class Runtime:
     def get_memory(self) -> MemoryManager:
         return self._memory
 
-    def create_node(self, tools: ToolRegistry | None = None, capabilities: CapabilityProfile | None = None, depth: int = 0) -> AgentNode:
+    def create_node(
+        self,
+        tools: ToolRegistry | None = None,
+        capabilities: CapabilityProfile | None = None,
+        depth: int = 0,
+    ) -> AgentNode:
         """Factory: create and register a new agent node."""
         return self.add_agent(tools=tools, capabilities=capabilities, depth=depth)
 
-    def amoeba_loop(self) -> "AmoebaLoop":
+    def amoeba_loop(self) -> AmoebaLoop:
         """Factory: create an AmoebaLoop wired to this runtime's components."""
         from ..cluster.amoeba_loop import AmoebaLoop
+
         return AmoebaLoop(
-            cluster=self.cluster, reward_bus=self.reward_bus,
-            lifecycle=self.lifecycle, planner=self._planner,
-            skill_registry=self._skill_registry, llm=self._provider,
+            cluster=self.cluster,
+            reward_bus=self.reward_bus,
+            lifecycle=self.lifecycle,
+            planner=self._planner,
+            skill_registry=self._skill_registry,
+            llm=self._provider,
         )
 
     def health_check(self) -> list:

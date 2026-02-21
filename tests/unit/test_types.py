@@ -1,16 +1,32 @@
 """Unit tests for types, config, errors, session."""
 
-import pytest
 from loom.types import (
-    SystemMessage, UserMessage, AssistantMessage, ToolMessage, ToolCall,
-    TokenUsage, CompletionParams, CompletionResult, StreamChunk,
-    ToolDefinition, ToolContext, ToolResult,
-    TextDeltaEvent, ToolCallStartEvent, ToolCallEndEvent, StepStartEvent, StepEndEvent,
-    ErrorEvent, DoneEvent,
-    AgentNode, CapabilityProfile, TaskAd, Bid, SubTask, TaskResult, RewardRecord,
-    ContextFragment, ContextSource,
-    SkillTrigger, SkillActivation,
-    Document, Chunk, RetrievalResult, RetrieverOptions,
+    AgentNode,
+    AssistantMessage,
+    Bid,
+    CapabilityProfile,
+    CompletionParams,
+    CompletionResult,
+    ContextFragment,
+    DoneEvent,
+    ErrorEvent,
+    RetrieverOptions,
+    RewardRecord,
+    SkillActivation,
+    SkillTrigger,
+    StepEndEvent,
+    StepStartEvent,
+    StreamChunk,
+    SubTask,
+    SystemMessage,
+    TaskAd,
+    TextDeltaEvent,
+    TokenUsage,
+    ToolCall,
+    ToolContext,
+    ToolMessage,
+    ToolResult,
+    UserMessage,
 )
 
 

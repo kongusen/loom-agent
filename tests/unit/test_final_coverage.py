@@ -1,32 +1,41 @@
 """Final coverage-boost tests: orchestrate, schema, registry activate/deactivate, KB delete, activator patterns."""
 
-import pytest
 from pydantic import BaseModel
 
-from loom.cluster.orchestrate import OrchestrateStrategy
-from loom.cluster.reward import RewardBus
-from loom.cluster.lifecycle import LifecycleManager
-from loom.cluster.planner import TaskPlanner
 from loom.cluster import ClusterManager
-from loom.tools.schema import PydanticSchema, DictSchema
-from loom.skills.registry import SkillRegistry
-from loom.skills.activator import match_trigger, _evaluate
+from loom.cluster.lifecycle import LifecycleManager
+from loom.cluster.orchestrate import OrchestrateStrategy
+from loom.cluster.planner import TaskPlanner
+from loom.cluster.reward import RewardBus
 from loom.knowledge.base import KnowledgeBase
+from loom.skills.activator import _evaluate
+from loom.skills.registry import SkillRegistry
+from loom.tools.schema import DictSchema, PydanticSchema
 from loom.types import (
-    AgentNode, CapabilityProfile, TaskAd, UserMessage, DoneEvent,
-    TextDeltaEvent, StepStartEvent, ErrorEvent, SkillTrigger,
-    SkillActivation, Document,
+    AgentNode,
+    CapabilityProfile,
+    Document,
+    DoneEvent,
+    ErrorEvent,
+    SkillTrigger,
+    TextDeltaEvent,
+    UserMessage,
 )
-from loom.config import ClusterConfig
-from tests.conftest import MockLLMProvider, MockEmbeddingProvider, MockGraphStore, MockEntityExtractor
-
+from tests.conftest import (
+    MockEmbeddingProvider,
+    MockEntityExtractor,
+    MockGraphStore,
+    MockLLMProvider,
+)
 
 # ── Schema tests ──
+
 
 class TestPydanticSchema:
     def test_parse_dict(self):
         class M(BaseModel):
             x: int
+
         s = PydanticSchema(M)
         r = s.parse({"x": 42})
         assert r.x == 42
@@ -34,6 +43,7 @@ class TestPydanticSchema:
     def test_parse_json_string(self):
         class M(BaseModel):
             x: int
+
         s = PydanticSchema(M)
         r = s.parse('{"x": 7}')
         assert r.x == 7
@@ -41,9 +51,11 @@ class TestPydanticSchema:
     def test_to_json_schema(self):
         class M(BaseModel):
             x: int
+
         s = PydanticSchema(M)
         js = s.to_json_schema()
         assert "properties" in js
+
 
 class TestDictSchema:
     def test_parse_dict(self):
@@ -61,6 +73,7 @@ class TestDictSchema:
 
 
 # ── Activator pattern + match_all tests ──
+
 
 class TestActivatorPatterns:
     def test_pattern_trigger_match(self):
@@ -92,17 +105,21 @@ class TestActivatorPatterns:
 
 # ── SkillRegistry activate/deactivate ──
 
+
 class TestSkillRegistryActivate:
     async def test_activate_auto_with_on_activate(self):
         reg = SkillRegistry()
         activated = []
+
         class S:
             name = "s1"
             trigger = SkillTrigger(type="keyword", keywords=["test"])
             priority = 0.5
             activation_level = "auto"
+
             async def on_activate(self):
                 activated.append(True)
+
         reg.register(S())
         results = await reg.activate("test input")
         assert len(results) == 1
@@ -110,22 +127,26 @@ class TestSkillRegistryActivate:
 
     async def test_activate_on_demand_skipped(self):
         reg = SkillRegistry()
+
         class S:
             name = "od"
             trigger = SkillTrigger(type="keyword", keywords=["test"])
             priority = 0.5
             activation_level = "on-demand"
+
         reg.register(S())
         results = await reg.activate("test input")
         assert len(results) == 0
 
     async def test_activate_always(self):
         reg = SkillRegistry()
+
         class S:
             name = "alw"
             activation_level = "always"
             trigger = None
             priority = 1.0
+
         reg.register(S())
         results = await reg.activate("anything")
         assert len(results) == 1
@@ -134,13 +155,16 @@ class TestSkillRegistryActivate:
     async def test_deactivate_with_callback(self):
         reg = SkillRegistry()
         deactivated = []
+
         class S:
             name = "d1"
             activation_level = "always"
             trigger = None
             priority = 1.0
+
             async def on_deactivate(self):
                 deactivated.append(True)
+
         reg.register(S())
         assert "d1" in reg._active
         await reg.deactivate("d1")
@@ -153,22 +177,27 @@ class TestSkillRegistryActivate:
 
     def test_get_active(self):
         reg = SkillRegistry()
+
         class S:
             name = "a1"
             activation_level = "always"
+
         reg.register(S())
         assert len(reg.get_active()) == 1
 
     def test_all(self):
         reg = SkillRegistry()
+
         class S:
             name = "x"
             activation_level = "auto"
+
         reg.register(S())
         assert len(reg.all()) == 1
 
 
 # ── OrchestrateStrategy ──
+
 
 class TestOrchestrateStrategy:
     async def test_no_winner(self):
@@ -180,6 +209,7 @@ class TestOrchestrateStrategy:
 
         class FakeCtx:
             messages = [UserMessage(content="hello")]
+
         events = [e async for e in strat.execute(FakeCtx())]
         types = [type(e) for e in events]
         assert ErrorEvent in types
@@ -193,6 +223,7 @@ class TestOrchestrateStrategy:
         strat = OrchestrateStrategy(cm, rb, lm, pl)
 
         from loom.agent import Agent
+
         agent = Agent(provider=MockLLMProvider(["orchestrated result"]))
         node = AgentNode(id="w1", capabilities=CapabilityProfile(scores={"general": 0.9}))
         node.agent = agent
@@ -200,6 +231,7 @@ class TestOrchestrateStrategy:
 
         class FakeCtx:
             messages = [UserMessage(content="hello")]
+
         events = [e async for e in strat.execute(FakeCtx())]
         texts = [e.text for e in events if isinstance(e, TextDeltaEvent)]
         assert any("orchestrated result" in t for t in texts)
@@ -207,6 +239,7 @@ class TestOrchestrateStrategy:
 
 
 # ── KnowledgeBase delete + graph ingest ──
+
 
 class TestKnowledgeBaseExtended:
     async def test_delete_document(self):
@@ -228,6 +261,7 @@ class TestKnowledgeBaseExtended:
     async def test_ingest_with_embedder(self):
         emb = MockEmbeddingProvider()
         from loom.knowledge.retrievers import InMemoryVectorStore
+
         vs = InMemoryVectorStore()
         kb = KnowledgeBase(embedder=emb, vector_store=vs)
         await kb.ingest([Document(id="d1", content="Python is great")])

@@ -1,18 +1,23 @@
 """Coverage-boost tests for lifecycle mitosis, reward decay, skills provider extended."""
 
 import time
+
 import pytest
+
 from loom.cluster.lifecycle import LifecycleManager
 from loom.cluster.reward import RewardBus
-from loom.cluster import ClusterManager
+from loom.config import ClusterConfig
+from loom.errors import MitosisError
 from loom.skills.provider import SkillProvider
 from loom.skills.registry import SkillRegistry
 from loom.types import (
-    AgentNode, TaskAd, CapabilityProfile, RewardRecord,
-    Skill, SkillTrigger, ContextFragment,
+    AgentNode,
+    CapabilityProfile,
+    ContextFragment,
+    RewardRecord,
+    SkillTrigger,
+    TaskAd,
 )
-from loom.config import ClusterConfig, AgentConfig
-from loom.errors import MitosisError
 from tests.conftest import MockLLMProvider
 
 
@@ -22,6 +27,7 @@ class TestLifecycleMitosis:
         parent = AgentNode(id="p", depth=1, capabilities=CapabilityProfile(tools=["search"]))
         task = TaskAd(domain="code", description="test")
         from loom.agent import Agent
+
         child = lm.mitosis(parent, task, lambda depth: Agent(provider=MockLLMProvider()))
         assert child.depth == 2
         assert "search" in child.capabilities.tools
@@ -42,8 +48,12 @@ class TestLifecycleMitosis:
 
     def test_check_health_warning(self):
         lm = LifecycleManager(ClusterConfig(consecutive_loss_limit=6))
-        node = AgentNode(id="w", consecutive_losses=3, last_active_at=time.time(),
-                         reward_history=[RewardRecord(reward=0.8, domain="code")])
+        node = AgentNode(
+            id="w",
+            consecutive_losses=3,
+            last_active_at=time.time(),
+            reward_history=[RewardRecord(reward=0.8, domain="code")],
+        )
         report = lm.check_health(node)
         assert report.status == "warning"
 
@@ -58,8 +68,11 @@ class TestLifecycleMitosis:
 class TestRewardBusExtended:
     def test_decay_inactive(self):
         rb = RewardBus()
-        node = AgentNode(id="n", capabilities=CapabilityProfile(scores={"code": 0.9}),
-                         reward_history=[RewardRecord(reward=0.5, domain="code")])
+        node = AgentNode(
+            id="n",
+            capabilities=CapabilityProfile(scores={"code": 0.9}),
+            reward_history=[RewardRecord(reward=0.5, domain="code")],
+        )
         rb.decay_inactive(node)
         assert node.capabilities.scores["code"] <= 0.9
 
@@ -78,7 +91,10 @@ class TestRewardBusExtended:
 
     async def test_evaluate_hybrid_with_judge(self):
         rb = RewardBus()
-        async def _judge(n, t, s): return 0.9
+
+        async def _judge(n, t, s):
+            return 0.9
+
         rb.set_llm_judge(_judge, interval=1)
         node = AgentNode(id="n", capabilities=CapabilityProfile(scores={"code": 0.5}))
         task = TaskAd(domain="code", description="test")
@@ -95,8 +111,11 @@ class TestSkillProviderExtended:
             trigger = SkillTrigger(type="keyword", keywords=["test"])
             priority = 0.8
             activation_level = "auto"
+
             async def provide_context(self, query, budget):
-                return [ContextFragment(source="skill", content="custom ctx", tokens=5, relevance=0.9)]
+                return [
+                    ContextFragment(source="skill", content="custom ctx", tokens=5, relevance=0.9)
+                ]
 
         reg.register(CustomSkill())
         p = SkillProvider(reg)

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..types import ContextFragment, ContextSource
 from ..memory import MemoryManager
+from ..types import ContextFragment, ContextSource
 
 
 class MemoryContextProvider:
@@ -21,11 +21,13 @@ class MemoryContextProvider:
         for entry in sorted(l2 + l3, key=lambda e: e.importance, reverse=True):
             if total + entry.tokens > budget:
                 break
-            fragments.append(ContextFragment(
-                source=ContextSource.MEMORY,
-                content=entry.content,
-                tokens=entry.tokens,
-                relevance=entry.importance,
-            ))
+            fragments.append(
+                ContextFragment(
+                    source=ContextSource.MEMORY,
+                    content=entry.content,
+                    tokens=entry.tokens,
+                    relevance=entry.importance,
+                )
+            )
             total += entry.tokens
         return fragments

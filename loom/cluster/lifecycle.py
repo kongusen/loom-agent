@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import time
 import logging
+import time
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
-from ..types import AgentNode, TaskAd, SubTask, CapabilityProfile
 from ..config import ClusterConfig
 from ..errors import ApoptosisRejectedError
+from ..types import AgentNode, CapabilityProfile, TaskAd
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +42,24 @@ class LifecycleManager:
         avg = sum(r.reward for r in recent) / len(recent) if recent else 0.0
         idle_ms = (time.time() - node.last_active_at) * 1000
 
-        if (node.consecutive_losses >= self.config.consecutive_loss_limit
-                or avg < self.config.apoptosis_threshold
-                or idle_ms / 1000 > self.config.idle_timeout):
+        if (
+            node.consecutive_losses >= self.config.consecutive_loss_limit
+            or avg < self.config.apoptosis_threshold
+            or idle_ms / 1000 > self.config.idle_timeout
+        ):
             status: HealthStatus = "dying"
             rec = "recycle" if not recent else "merge"
         elif node.consecutive_losses >= self.config.consecutive_loss_limit // 2:
             status, rec = "warning", "merge"
         else:
-            status, rec = "healthy", "keep"
+            status, rec = "healthy", "keep"  # type: ignore[assignment]
 
         return HealthReport(
-            node_id=node.id, status=status,
-            recent_avg_reward=avg, idle_ms=idle_ms, recommendation=rec,
+            node_id=node.id,
+            status=status,
+            recent_avg_reward=avg,
+            idle_ms=idle_ms,
+            recommendation=rec,  # type: ignore[arg-type]
         )
 
     def find_merge_target(self, dying: AgentNode, candidates: list[AgentNode]) -> AgentNode | None:
@@ -91,9 +96,7 @@ class LifecycleManager:
         total = max(sw + tw, 1)
         for domain, score in source.capabilities.scores.items():
             existing = target.capabilities.scores.get(domain, 0.5)
-            target.capabilities.scores[domain] = (
-                existing * tw / total + score * sw / total
-            )
+            target.capabilities.scores[domain] = existing * tw / total + score * sw / total
         # Merge tools list (Amoba merges tools on capability merge)
         existing_tools = set(target.capabilities.tools)
         for tool in source.capabilities.tools:
@@ -103,11 +106,13 @@ class LifecycleManager:
     def mitosis(self, parent: AgentNode, task: TaskAd, agent_factory) -> AgentNode:
         """Split a parent node into a child specialized for the task (matches Amoba)."""
         from ..errors import MitosisError
+
         if parent.depth >= self.config.max_depth:
             raise MitosisError(parent.id, f"max depth {self.config.max_depth} reached")
         child_agent = agent_factory(depth=parent.depth + 1)
         child = AgentNode(
-            id=child_agent.id, depth=parent.depth + 1,
+            id=child_agent.id,
+            depth=parent.depth + 1,
             capabilities=CapabilityProfile(
                 scores={task.domain: 0.5},
                 tools=list(parent.capabilities.tools),

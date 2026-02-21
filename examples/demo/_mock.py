@@ -1,10 +1,15 @@
 """共享 Mock 组件 — 让所有 demo 无需真实 API Key 即可运行。"""
 
 from __future__ import annotations
-from typing import AsyncGenerator
+
+from collections.abc import AsyncGenerator
 
 from loom.types import (
-    CompletionParams, CompletionResult, StreamChunk, TokenUsage, ToolCall,
+    CompletionParams,
+    CompletionResult,
+    StreamChunk,
+    TokenUsage,
+    ToolCall,
 )
 
 
@@ -26,7 +31,9 @@ class MockProvider:
             if tool.name in text.lower():
                 return CompletionResult(
                     content="",
-                    tool_calls=[ToolCall(id=f"call_{self._call_count}", name=tool.name, arguments="{}")],
+                    tool_calls=[
+                        ToolCall(id=f"call_{self._call_count}", name=tool.name, arguments="{}")
+                    ],
                     usage=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
                     finish_reason="tool_calls",
                 )

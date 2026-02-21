@@ -1,17 +1,32 @@
 """Knowledge — document ingestion, chunking, and retrieval."""
 
 from .base import KnowledgeBase
-from .provider import KnowledgeProvider
 from .chunkers import FixedSizeChunker, RecursiveChunker
+from .provider import KnowledgeProvider
 from .retrievers import (
-    KeywordRetriever, VectorRetriever, HybridRetriever, GraphRetriever,
-    InMemoryVectorStore, EmbeddingProvider, VectorStore, GraphStore, EntityExtractor,
+    EmbeddingProvider,
+    EntityExtractor,
+    GraphRetriever,
+    GraphStore,
+    HybridRetriever,
+    InMemoryVectorStore,
+    KeywordRetriever,
+    VectorRetriever,
+    VectorStore,
 )
 
 __all__ = [
-    "KnowledgeBase", "KnowledgeProvider",
-    "FixedSizeChunker", "RecursiveChunker",
-    "KeywordRetriever", "VectorRetriever", "HybridRetriever", "GraphRetriever",
-    "InMemoryVectorStore", "EmbeddingProvider", "VectorStore",
-    "GraphStore", "EntityExtractor",
+    "KnowledgeBase",
+    "KnowledgeProvider",
+    "FixedSizeChunker",
+    "RecursiveChunker",
+    "KeywordRetriever",
+    "VectorRetriever",
+    "HybridRetriever",
+    "GraphRetriever",
+    "InMemoryVectorStore",
+    "EmbeddingProvider",
+    "VectorStore",
+    "GraphStore",
+    "EntityExtractor",
 ]

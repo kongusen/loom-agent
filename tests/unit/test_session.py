@@ -1,13 +1,22 @@
 """Unit tests for session context module."""
 
 import pytest
-from loom.session import SessionContext, get_current_session, set_session, reset_session, run_in_session
-from loom.memory import MemoryManager
+
 from loom.events import EventBus
+from loom.memory import MemoryManager
+from loom.session import (
+    SessionContext,
+    get_current_session,
+    reset_session,
+    run_in_session,
+    set_session,
+)
 
 
 def _make_session():
-    return SessionContext(tenant_id="t1", user_id="u1", session_id="s1", memory=MemoryManager(), events=EventBus())
+    return SessionContext(
+        tenant_id="t1", user_id="u1", session_id="s1", memory=MemoryManager(), events=EventBus()
+    )
 
 
 class TestSessionContext:
@@ -43,8 +52,7 @@ class TestSessionContext:
 
     def test_run_in_session_restores_on_exception(self):
         s = _make_session()
-        with pytest.raises(ValueError):
-            with run_in_session(s):
-                raise ValueError("boom")
+        with pytest.raises(ValueError), run_in_session(s):
+            raise ValueError("boom")
         with pytest.raises(RuntimeError):
             get_current_session()

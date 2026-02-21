@@ -8,21 +8,32 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import AsyncGenerator, TYPE_CHECKING
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
-from ..types import (
-    AgentEvent, TextDeltaEvent, ErrorEvent, DoneEvent, TokenUsage,
-    AgentNode, TaskAd, TaskSpec, TaskResult, ComplexityEstimate,
-    CompletionParams, UserMessage, CapabilityProfile,
-)
 from ..errors import AuctionNoWinnerError
+from ..types import (
+    AgentEvent,
+    AgentNode,
+    CapabilityProfile,
+    CompletionParams,
+    ComplexityEstimate,
+    DoneEvent,
+    ErrorEvent,
+    TaskAd,
+    TaskResult,
+    TaskSpec,
+    TextDeltaEvent,
+    TokenUsage,
+    UserMessage,
+)
 
 if TYPE_CHECKING:
     from ..types import LLMProvider
     from . import ClusterManager
-    from .reward import RewardBus
     from .lifecycle import LifecycleManager
     from .planner import TaskPlanner
+    from .reward import RewardBus
     from .skill_registry import SkillNodeRegistry
 
 _DOMAIN_KEYWORDS: dict[str, list[str]] = {
@@ -73,13 +84,17 @@ class AmoebaLoop:
 
         # Phase 1: SENSE
         spec = await self._sense(input_text)
-        yield TextDeltaEvent(text=f"[Sense] complexity={spec.task.estimated_complexity:.2f} domains={spec.domain_hints}\n")
+        yield TextDeltaEvent(
+            text=f"[Sense] complexity={spec.task.estimated_complexity:.2f} domains={spec.domain_hints}\n"
+        )
 
         # Phase 2: MATCH
         winner, tier = await self._match(spec, input_text)
         if not winner:
             yield ErrorEvent(error=str(AuctionNoWinnerError(spec.task.task_id)), recoverable=False)
-            yield DoneEvent(content="", steps=1, duration_ms=int((time.monotonic() - start) * 1000), usage=usage)
+            yield DoneEvent(
+                content="", steps=1, duration_ms=int((time.monotonic() - start) * 1000), usage=usage
+            )
             return
         yield TextDeltaEvent(text=f"[Match] winner={winner.id} tier={tier}\n")
 
@@ -92,7 +107,12 @@ class AmoebaLoop:
         reward, recycled = await self._evaluate_and_adapt(winner, spec, result)
         yield TextDeltaEvent(text=f"\n[Adapt] reward={reward:.2f} recycled={recycled}\n")
 
-        yield DoneEvent(content=result.content, steps=1, duration_ms=int((time.monotonic() - start) * 1000), usage=usage)
+        yield DoneEvent(
+            content=result.content,
+            steps=1,
+            duration_ms=int((time.monotonic() - start) * 1000),
+            usage=usage,
+        )
 
     # ── Phase 1: SENSE ──
 
@@ -118,17 +138,27 @@ class AmoebaLoop:
         has_list = bool(re.search(r"\d+[.)]|[-*•]", text))
         domains = self._detect_domains(text)
         score = min(words / 200, 0.5)
-        if sentences > 2: score += 0.15
-        if has_list: score += 0.1
-        if len(domains) > 2: score += 0.15
+        if sentences > 2:
+            score += 0.15
+        if has_list:
+            score += 0.1
+        if len(domains) > 2:
+            score += 0.15
         return ComplexityEstimate(score=min(score, 1.0), domains=domains, method="heuristic")
 
     async def _llm_complexity(self, text: str) -> ComplexityEstimate:
         try:
-            r = await self._llm.complete(CompletionParams(
-                messages=[UserMessage(content=f'Assess this task. Reply ONLY with JSON: {{"score":0.0-1.0,"domains":["..."],"reasoning":"..."}}\n\nTask: {text}')],
-                temperature=0, max_tokens=128,
-            ))
+            r = await self._llm.complete(
+                CompletionParams(
+                    messages=[
+                        UserMessage(
+                            content=f'Assess this task. Reply ONLY with JSON: {{"score":0.0-1.0,"domains":["..."],"reasoning":"..."}}\n\nTask: {text}'
+                        )
+                    ],
+                    temperature=0,
+                    max_tokens=128,
+                )
+            )
             m = re.search(r"\{[\s\S]*\}", r.content)
             if m:
                 obj = json.loads(m.group())
@@ -171,8 +201,10 @@ class AmoebaLoop:
 
     def _skill_to_node(self, skill) -> AgentNode:
         from ..agent import Agent
+
         agent = Agent(
-            provider=self._llm, name=f"skill:{skill.name}",
+            provider=self._llm,
+            name=f"skill:{skill.name}",
         )
         scores = {skill.name: 0.7}
         trigger = getattr(skill, "trigger", None)
@@ -180,8 +212,11 @@ class AmoebaLoop:
             for kw in getattr(trigger, "keywords", []):
                 scores[kw] = 0.6
         node = AgentNode(
-            id=f"skill:{skill.name}", depth=0,
-            capabilities=CapabilityProfile(scores=scores, tools=[t.name for t in getattr(skill, "tools", [])]),
+            id=f"skill:{skill.name}",
+            depth=0,
+            capabilities=CapabilityProfile(
+                scores=scores, tools=[t.name for t in getattr(skill, "tools", [])]
+            ),
             agent=agent,
         )
         self._cluster.add_node(node)
@@ -190,7 +225,9 @@ class AmoebaLoop:
 
     # ── Phase 3+4: SCALE + EXECUTE ──
 
-    async def _scale_and_execute(self, winner: AgentNode, spec: TaskSpec, input_text: str) -> TaskResult:
+    async def _scale_and_execute(
+        self, winner: AgentNode, spec: TaskSpec, input_text: str
+    ) -> TaskResult:
         winner.status = "busy"
         winner.last_active_at = time.time()
         self._cluster.update_load(winner.id, 0.8)
@@ -202,15 +239,20 @@ class AmoebaLoop:
             t0 = time.monotonic()
             done = await winner.agent.run(prompt)
             return TaskResult(
-                task_id=spec.task.task_id, agent_id=winner.id,
-                content=done.content, success=True,
+                task_id=spec.task.task_id,
+                agent_id=winner.id,
+                content=done.content,
+                success=True,
                 token_cost=done.usage.total_tokens,
                 duration_ms=int((time.monotonic() - t0) * 1000),
             )
         except Exception:
             return TaskResult(
-                task_id=spec.task.task_id, agent_id=winner.id,
-                content="", success=False, error_count=1,
+                task_id=spec.task.task_id,
+                agent_id=winner.id,
+                content="",
+                success=False,
+                error_count=1,
             )
         finally:
             winner.status = "idle"
@@ -224,9 +266,12 @@ class AmoebaLoop:
         )
         content = await self._planner.aggregate(spec.task, results)
         return TaskResult(
-            task_id=spec.task.task_id, agent_id=parent.id,
-            content=content, success=True,
-            token_cost=0, duration_ms=0,
+            task_id=spec.task.task_id,
+            agent_id=parent.id,
+            content=content,
+            success=True,
+            token_cost=0,
+            duration_ms=0,
         )
 
     async def _run_subtask(self, parent: AgentNode, spec: TaskSpec, st) -> str:
@@ -239,29 +284,41 @@ class AmoebaLoop:
         if not winner:
             # Use lifecycle.mitosis() to create child node
             from ..agent import Agent
+
             child = self._lifecycle.mitosis(
-                parent, sub_ad,
-                agent_factory=lambda depth: Agent(provider=self._llm, name=f"child:{parent.id}"),
+                parent,
+                sub_ad,
+                agent_factory=lambda _depth: Agent(provider=self._llm, name=f"child:{parent.id}"),
             )
             self._cluster.add_node(child)
             winner = child
-        return (await winner.agent.run(st.description)).content
+        return str((await winner.agent.run(st.description)).content)
 
     def _build_enriched_prompt(self, spec: TaskSpec) -> str:
         p = f"Objective: {spec.objective}"
-        if spec.output_format: p += f"\nOutput format: {spec.output_format}"
-        if spec.boundaries: p += f"\nConstraints: {spec.boundaries}"
-        if spec.tool_guidance: p += f"\nTool guidance: {spec.tool_guidance}"
+        if spec.output_format:
+            p += f"\nOutput format: {spec.output_format}"
+        if spec.boundaries:
+            p += f"\nConstraints: {spec.boundaries}"
+        if spec.tool_guidance:
+            p += f"\nTool guidance: {spec.tool_guidance}"
         return p
 
     # ── Phase 5+6: EVALUATE + ADAPT ──
 
     async def _evaluate_and_adapt(
-        self, winner: AgentNode, spec: TaskSpec, result: TaskResult,
+        self,
+        winner: AgentNode,
+        spec: TaskSpec,
+        result: TaskResult,
     ) -> tuple[float, bool]:
         # EVALUATE
         reward = self._reward.evaluate(
-            winner, spec.task, result.success, result.token_cost, result.error_count,
+            winner,
+            spec.task,
+            result.success,
+            result.token_cost,
+            result.error_count,
         )
 
         # ADAPT: consecutive losses
@@ -308,7 +365,7 @@ class AmoebaLoop:
 
     def _should_evolve_skill(self, node: AgentNode) -> bool:
         """Check if node's recent performance warrants skill evolution."""
-        recent = node.reward_history[-self._evo_window:]
+        recent = node.reward_history[-self._evo_window :]
         if len(recent) < self._evo_window:
             return False
         avg = sum(r.reward for r in recent) / len(recent)
@@ -317,16 +374,24 @@ class AmoebaLoop:
     async def _trigger_skill_evolution(self, node: AgentNode, spec: TaskSpec) -> None:
         """Use LLM to suggest skill improvements for underperforming node."""
         try:
-            r = await self._llm.complete(CompletionParams(
-                messages=[UserMessage(content=(
-                    f"Agent {node.id} is underperforming on domain '{spec.task.domain}'. "
-                    f"Capabilities: {node.capabilities.scores}. "
-                    f"Suggest a focused skill improvement as JSON: "
-                    f'{{"domain":"...","boost":0.0-0.3,"reasoning":"..."}}'
-                ))],
-                temperature=0.3, max_tokens=128,
-            ))
+            r = await self._llm.complete(
+                CompletionParams(
+                    messages=[
+                        UserMessage(
+                            content=(
+                                f"Agent {node.id} is underperforming on domain '{spec.task.domain}'. "
+                                f"Capabilities: {node.capabilities.scores}. "
+                                f"Suggest a focused skill improvement as JSON: "
+                                f'{{"domain":"...","boost":0.0-0.3,"reasoning":"..."}}'
+                            )
+                        )
+                    ],
+                    temperature=0.3,
+                    max_tokens=128,
+                )
+            )
             import re as _re
+
             m = _re.search(r"\{[\s\S]*\}", r.content)
             if m:
                 obj = json.loads(m.group())
@@ -341,11 +406,14 @@ class AmoebaLoop:
         """Tier 3: LLM-based skill evolution — create a new specialized node."""
         try:
             from ..agent import Agent
+
             agent = Agent(provider=self._llm, name=f"evolved:{spec.task.domain}")
             node = AgentNode(
-                id=agent.id, depth=0,
+                id=agent.id,
+                depth=0,
                 capabilities=CapabilityProfile(
-                    scores={spec.task.domain: 0.6}, tools=[],
+                    scores={spec.task.domain: 0.6},
+                    tools=[],
                 ),
                 agent=agent,
             )

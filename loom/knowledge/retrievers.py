@@ -44,12 +44,14 @@ class KeywordRetriever:
     def remove_by_document(self, doc_id: str) -> None:
         self._chunks = [c for c in self._chunks if c.document_id != doc_id]
 
-    async def retrieve(self, query: str, opts: RetrieverOptions | None = None) -> list[RetrievalResult]:
+    async def retrieve(
+        self, query: str, opts: RetrieverOptions | None = None
+    ) -> list[RetrievalResult]:
         limit = (opts or RetrieverOptions()).limit
-        words = set(re.findall(r'\w+', query.lower()))
+        words = set(re.findall(r"\w+", query.lower()))
         scored = []
         for c in self._chunks:
-            cwords = set(re.findall(r'\w+', c.content.lower()))
+            cwords = set(re.findall(r"\w+", c.content.lower()))
             overlap = len(words & cwords)
             if overlap:
                 scored.append(RetrievalResult(chunk=c, score=overlap / max(len(words), 1)))
@@ -73,7 +75,15 @@ class InMemoryVectorStore:
             score = self._cosine(vector, item["vector"])
             scored.append((item, score))
         scored.sort(key=lambda x: x[1], reverse=True)
-        return [{"id": it["id"], "score": s, "content": it.get("content", ""), "metadata": it.get("metadata", {})} for it, s in scored[:limit]]
+        return [
+            {
+                "id": it["id"],
+                "score": s,
+                "content": it.get("content", ""),
+                "metadata": it.get("metadata", {}),
+            }
+            for it, s in scored[:limit]
+        ]
 
     async def delete(self, ids: list[str]) -> None:
         for id_ in ids:
@@ -81,10 +91,10 @@ class InMemoryVectorStore:
 
     @staticmethod
     def _cosine(a: list[float], b: list[float]) -> float:
-        dot = sum(x * y for x, y in zip(a, b))
+        dot = sum(x * y for x, y in zip(a, b, strict=False))
         na = sum(x * x for x in a) ** 0.5
         nb = sum(x * x for x in b) ** 0.5
-        return dot / max(na * nb, 1e-10)
+        return float(dot / max(na * nb, 1e-10))
 
 
 class VectorRetriever:
@@ -94,12 +104,19 @@ class VectorRetriever:
         self._embedder = embedder
         self._store = store
 
-    async def retrieve(self, query: str, opts: RetrieverOptions | None = None) -> list[RetrievalResult]:
+    async def retrieve(
+        self, query: str, opts: RetrieverOptions | None = None
+    ) -> list[RetrievalResult]:
         limit = (opts or RetrieverOptions()).limit
         vec = await self._embedder.embed(query)
         raw = await self._store.query(vec, limit)
         return [
-            RetrievalResult(chunk=Chunk(id=r["id"], content=r.get("content", ""), metadata=r.get("metadata", {})), score=r.get("score", 0.0))
+            RetrievalResult(
+                chunk=Chunk(
+                    id=r["id"], content=r.get("content", ""), metadata=r.get("metadata", {})
+                ),
+                score=r.get("score", 0.0),
+            )
             for r in raw
         ]
 
@@ -107,12 +124,16 @@ class VectorRetriever:
 class HybridRetriever:
     """Combines keyword + vector retrieval with reciprocal rank fusion."""
 
-    def __init__(self, keyword: KeywordRetriever, vector: VectorRetriever, keyword_weight: float = 0.4) -> None:
+    def __init__(
+        self, keyword: KeywordRetriever, vector: VectorRetriever, keyword_weight: float = 0.4
+    ) -> None:
         self._keyword = keyword
         self._vector = vector
         self._kw = keyword_weight
 
-    async def retrieve(self, query: str, opts: RetrieverOptions | None = None) -> list[RetrievalResult]:
+    async def retrieve(
+        self, query: str, opts: RetrieverOptions | None = None
+    ) -> list[RetrievalResult]:
         limit = (opts or RetrieverOptions()).limit
         kw_results = await self._keyword.retrieve(query, RetrieverOptions(limit=limit * 2))
         vec_results = await self._vector.retrieve(query, RetrieverOptions(limit=limit * 2))
@@ -136,12 +157,16 @@ class GraphRetriever:
         self._graph = graph
         self._extractor = extractor
 
-    async def retrieve(self, query: str, opts: RetrieverOptions | None = None) -> list[RetrievalResult]:
+    async def retrieve(
+        self, query: str, opts: RetrieverOptions | None = None
+    ) -> list[RetrievalResult]:
         limit = (opts or RetrieverOptions()).limit
         related = await self._graph.find_related(query, limit)
         return [
             RetrievalResult(
-                chunk=Chunk(id=r.get("id", ""), content=r.get("content", ""), metadata=r.get("metadata", {})),
+                chunk=Chunk(
+                    id=r.get("id", ""), content=r.get("content", ""), metadata=r.get("metadata", {})
+                ),
                 score=r.get("score", 0.5),
             )
             for r in related[:limit]

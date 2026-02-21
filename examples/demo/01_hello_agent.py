@@ -1,8 +1,10 @@
 """01 — 基础 Agent：创建、运行、流式输出。"""
 
 import asyncio
-from loom import Agent, AgentConfig, DoneEvent, TextDeltaEvent
+
 from _provider import create_provider
+
+from loom import Agent, AgentConfig, DoneEvent, TextDeltaEvent
 
 
 async def main():

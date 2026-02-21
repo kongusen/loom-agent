@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..types import ToolDefinition, ToolContext
+from ..types import ToolContext, ToolDefinition
 from .schema import DictSchema
 
 
@@ -36,27 +36,34 @@ class McpClient:
 
     async def connect(self) -> None:
         self._proc = await asyncio.create_subprocess_exec(
-            self.config.command, *self.config.args,
+            self.config.command,
+            *self.config.args,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self.config.env,
         )
         self._reader_task = asyncio.create_task(self._read_loop())
-        await self._rpc("initialize", {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "loom", "version": "0.5.7"},
-        })
+        await self._rpc(
+            "initialize",
+            {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "loom", "version": "0.5.7"},
+            },
+        )
         await self._notify("notifications/initialized")
 
     async def list_tools(self) -> list[McpToolInfo]:
         res = await self._rpc("tools/list", {})
-        return [McpToolInfo(
-            name=t["name"],
-            description=t.get("description", ""),
-            input_schema=t.get("inputSchema"),
-        ) for t in res.get("tools", [])]
+        return [
+            McpToolInfo(
+                name=t["name"],
+                description=t.get("description", ""),
+                input_schema=t.get("inputSchema"),
+            )
+            for t in res.get("tools", [])
+        ]
 
     async def call_tool(self, name: str, args: dict[str, Any]) -> str:
         res = await self._rpc("tools/call", {"name": name, "arguments": args})
@@ -84,7 +91,7 @@ class McpClient:
         self._pending[rid] = fut
         try:
             return await asyncio.wait_for(fut, timeout=30.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._pending.pop(rid, None)
             raise
 
@@ -118,7 +125,11 @@ def mcp_tools_to_definitions(client: McpClient, tools: list[McpToolInfo]) -> lis
     defs = []
     for t in tools:
         schema = DictSchema(t.input_schema or {"type": "object", "properties": {}})
-        async def _exec(inp: Any, ctx: ToolContext, _c=client, _n=t.name) -> str:
-            return await _c.call_tool(_n, inp if isinstance(inp, dict) else {})
-        defs.append(ToolDefinition(name=t.name, description=t.description, parameters=schema, execute=_exec))
+
+        async def _exec(inp: Any, _ctx: ToolContext, _c=client, _n=t.name) -> str:
+            return str(await _c.call_tool(_n, inp if isinstance(inp, dict) else {}))
+
+        defs.append(
+            ToolDefinition(name=t.name, description=t.description, parameters=schema, execute=_exec)
+        )
     return defs

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..types import Message, AssistantMessage
+from ..types import AssistantMessage, Message
 
 _CHARS_PER_TOKEN = 4
 
@@ -12,7 +12,7 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _msg_tokens(msg: Message) -> int:
-    t = _estimate_tokens(msg.content)
+    t = _estimate_tokens(msg.content if isinstance(msg.content, str) else str(msg.content))
     if isinstance(msg, AssistantMessage):
         for tc in msg.tool_calls:
             t += _estimate_tokens(tc.arguments) + _estimate_tokens(tc.name)

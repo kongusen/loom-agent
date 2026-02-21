@@ -100,7 +100,7 @@ class TaskResult:
 
 @dataclass
 class TaskSpec:
-    task: TaskAd | None = None
+    task: TaskAd
     objective: str = ""
     output_format: str | None = None
     boundaries: str | None = None
@@ -122,7 +122,7 @@ class MitosisContext:
     subtask: SubTask | None = None
     parent_tools: list[str] = field(default_factory=list)
     context: Any = None  # ContextOrchestrator
-    memory: Any = None   # MemoryManager
+    memory: Any = None  # MemoryManager
 
 
 @dataclass
@@ -132,5 +132,5 @@ class Skill:
     instructions: str = ""
     activation_level: Literal["always", "conditional", "manual"] = "conditional"
     priority: float = 0.5
-    trigger: Any = None   # SkillTrigger
+    trigger: Any = None  # SkillTrigger
     tools: list[Any] = field(default_factory=list)

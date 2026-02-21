@@ -68,6 +68,7 @@ exclude = [
   ".mypy_cache",
   "build",
   "dist",
+  "old",
 ]
 
 [tool.ruff.lint]
@@ -90,6 +91,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ARG"]
+"examples/**/*.py" = ["ARG"]
+"benchmarks/**/*.py" = ["ARG"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["loom"]

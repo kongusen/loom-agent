@@ -1,13 +1,14 @@
 """Unit tests for tools module."""
 
-import pytest
 from pydantic import BaseModel
+
 from loom.tools import ToolRegistry, define_tool
 from loom.types import ToolCall, ToolContext
 
 
 class SearchInput(BaseModel):
     query: str
+
 
 async def _search(inp, ctx):
     return f"found: {inp.query}"
@@ -17,6 +18,7 @@ class TestDefineTool:
     def test_creates_tool_definition(self):
         tool = define_tool("search", "Search", SearchInput, _search)
         assert tool.name == "search"
+
 
 class TestToolRegistry:
     def test_register_and_get(self):

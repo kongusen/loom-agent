@@ -2,9 +2,11 @@
 
 import asyncio
 import time
-from loom import Agent, AgentConfig, ClusterManager, RewardBus, LifecycleManager, ClusterConfig
-from loom.types import AgentNode, CapabilityProfile, TaskAd, RewardRecord
+
 from _provider import create_provider
+
+from loom import Agent, AgentConfig, ClusterConfig, LifecycleManager, RewardBus
+from loom.types import AgentNode, CapabilityProfile, RewardRecord, TaskAd
 
 
 async def main():
@@ -15,8 +17,11 @@ async def main():
     # ── 1. 真实执行 + 奖励反馈 ──
     print("[1] 真实执行 → 奖励反馈")
     node = AgentNode(
-        id="coder", capabilities=CapabilityProfile(scores={"code": 0.5}),
-        agent=Agent(provider=provider, config=AgentConfig(system_prompt="你是编程专家", max_steps=2)),
+        id="coder",
+        capabilities=CapabilityProfile(scores={"code": 0.5}),
+        agent=Agent(
+            provider=provider, config=AgentConfig(system_prompt="你是编程专家", max_steps=2)
+        ),
         last_active_at=time.time(),
     )
     task = TaskAd(domain="code", token_budget=1000)

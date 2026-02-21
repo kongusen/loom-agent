@@ -5,13 +5,15 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..types import SkillTrigger, SkillActivation
+from ..types import SkillActivation, SkillTrigger
 
 
 def match_trigger(skill: Any, input_text: str) -> SkillActivation | None:
     trigger: SkillTrigger | None = getattr(skill, "trigger", None)
     if not trigger:
-        return SkillActivation(skill=skill, score=getattr(skill, "priority", 0.0), reason="always active")
+        return SkillActivation(
+            skill=skill, score=getattr(skill, "priority", 0.0), reason="always active"
+        )
 
     result = _evaluate(trigger, input_text)
     if not result:
@@ -41,6 +43,7 @@ def _evaluate(trigger: SkillTrigger, text: str) -> tuple[float, str] | None:
         if not embedder:
             return None
         import asyncio
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -61,11 +64,15 @@ def _evaluate(trigger: SkillTrigger, text: str) -> tuple[float, str] | None:
     return None
 
 
-async def match_trigger_async(skill: Any, input_text: str, embedder: Any = None) -> SkillActivation | None:
+async def match_trigger_async(
+    skill: Any, input_text: str, embedder: Any = None
+) -> SkillActivation | None:
     """Async version supporting semantic triggers."""
     trigger: SkillTrigger | None = getattr(skill, "trigger", None)
     if not trigger:
-        return SkillActivation(skill=skill, score=getattr(skill, "priority", 0.0), reason="always active")
+        return SkillActivation(
+            skill=skill, score=getattr(skill, "priority", 0.0), reason="always active"
+        )
 
     if trigger.type == "semantic" and embedder:
         score = await _semantic_score(embedder, trigger, input_text)
@@ -87,9 +94,9 @@ async def _semantic_score(embedder: Any, trigger: SkillTrigger, text: str) -> fl
         if not kw_text:
             return None
         vecs = await embedder.embed_batch([kw_text, text])
-        dot = sum(a * b for a, b in zip(vecs[0], vecs[1]))
+        dot = sum(a * b for a, b in zip(vecs[0], vecs[1], strict=False))
         na = sum(x * x for x in vecs[0]) ** 0.5
         nb = sum(x * x for x in vecs[1]) ** 0.5
-        return dot / max(na * nb, 1e-10)
+        return float(dot / max(na * nb, 1e-10))
     except Exception:
         return None

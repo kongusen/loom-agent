@@ -1,9 +1,7 @@
 """Coverage-boost tests for runtime/core.py extended paths."""
 
-import pytest
 from loom.runtime.core import Runtime
-from loom.types import AgentNode, TaskAd, CapabilityProfile, Skill, SkillTrigger
-from loom.config import AgentConfig
+from loom.types import AgentNode, CapabilityProfile, Skill, TaskAd
 from tests.conftest import MockLLMProvider
 
 
@@ -33,8 +31,10 @@ class TestRuntimeExtended:
     async def test_execute_single_error(self):
         rt = Runtime(MockLLMProvider(["done"]))
         node = rt.add_agent(capabilities=CapabilityProfile(scores={"code": 0.8}))
+
         async def fail_add(msg):
             raise RuntimeError("memory broken")
+
         node.agent.memory.add_message = fail_add
         result = await rt.submit(TaskAd(domain="code", description="test"))
         assert "Error" in result

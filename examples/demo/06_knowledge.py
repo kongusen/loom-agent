@@ -1,9 +1,11 @@
 """06 — 知识库 RAG：文档摄入、关键词+向量混合检索（RRF 融合）。"""
 
 import asyncio
-from loom import KnowledgeBase, Document
-from loom.knowledge import InMemoryVectorStore
+
 from _provider import OpenAIEmbedder
+
+from loom import Document, KnowledgeBase
+from loom.knowledge import InMemoryVectorStore
 
 
 async def main():
@@ -14,11 +16,13 @@ async def main():
 
     # ── 1. 摄入文档 ──
     print("[1] 摄入文档")
-    await kb.ingest([
-        Document(id="d1", content="Python 是一门通用编程语言，适合数据科学和 Web 开发"),
-        Document(id="d2", content="Rust 是系统级编程语言，注重安全和性能"),
-        Document(id="d3", content="Python 的 asyncio 库支持异步编程模式"),
-    ])
+    await kb.ingest(
+        [
+            Document(id="d1", content="Python 是一门通用编程语言，适合数据科学和 Web 开发"),
+            Document(id="d2", content="Rust 是系统级编程语言，注重安全和性能"),
+            Document(id="d3", content="Python 的 asyncio 库支持异步编程模式"),
+        ]
+    )
     print("  摄入 3 篇文档")
 
     # ── 2. 混合检索 ──

@@ -79,6 +79,12 @@ class DoneEvent:
 
 
 AgentEvent = (
-    TextDeltaEvent | ToolCallStartEvent | ToolCallDeltaEvent | ToolCallEndEvent
-    | StepStartEvent | StepEndEvent | ErrorEvent | DoneEvent
+    TextDeltaEvent
+    | ToolCallStartEvent
+    | ToolCallDeltaEvent
+    | ToolCallEndEvent
+    | StepStartEvent
+    | StepEndEvent
+    | ErrorEvent
+    | DoneEvent
 )

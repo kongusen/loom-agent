@@ -1,9 +1,8 @@
 """Coverage-boost tests for knowledge/provider.py."""
 
-import pytest
-from loom.knowledge.provider import KnowledgeProvider
 from loom.knowledge.base import KnowledgeBase
-from loom.types import Document, ContextFragment
+from loom.knowledge.provider import KnowledgeProvider
+from loom.types import ContextFragment, Document
 
 
 class TestKnowledgeProvider:

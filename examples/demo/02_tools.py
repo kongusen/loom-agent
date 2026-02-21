@@ -1,16 +1,18 @@
 """02 — 自定义工具：Agent 通过 LLM 自主决策调用工具完成任务。"""
 
 import asyncio
+
+from _provider import create_provider
 from pydantic import BaseModel
 
-from loom import Agent, AgentConfig, ToolRegistry, define_tool, ToolContext
-from _provider import create_provider
-
+from loom import Agent, AgentConfig, ToolContext, ToolRegistry, define_tool
 
 # ── 工具定义 ──
 
+
 class CalcParams(BaseModel):
     expression: str
+
 
 class WeatherParams(BaseModel):
     city: str

@@ -14,9 +14,11 @@ class ClusterConfig:
     apoptosis_threshold: float = 0.3
     idle_timeout: float = 300.0
     consecutive_loss_limit: int = 20
-    bid_weights: dict[str, float] = field(default_factory=lambda: {
-        "capability": 0.4,
-        "availability": 0.25,
-        "history": 0.2,
-        "tools": 0.15,
-    })
+    bid_weights: dict[str, float] = field(
+        default_factory=lambda: {
+            "capability": 0.4,
+            "availability": 0.25,
+            "history": 0.2,
+            "tools": 0.15,
+        }
+    )

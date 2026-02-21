@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
-from .messages import Message, AssistantMessage, ToolCall
-from .tools import ToolDefinition
 from .events import TokenUsage
+from .messages import Message, ToolCall
+from .tools import ToolDefinition
 
 FinishReason = Literal["stop", "tool_calls", "length"]
 

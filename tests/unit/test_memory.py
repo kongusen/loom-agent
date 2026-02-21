@@ -1,8 +1,7 @@
 """Unit tests for memory module."""
 
-import pytest
-from loom.types import UserMessage, AssistantMessage, MemoryEntry
-from loom.memory import SlidingWindow, WorkingMemory, PersistentStore, MemoryManager
+from loom.memory import MemoryManager, PersistentStore, SlidingWindow, WorkingMemory
+from loom.types import MemoryEntry, UserMessage
 
 
 class TestSlidingWindow:

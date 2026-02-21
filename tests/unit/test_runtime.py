@@ -1,9 +1,7 @@
 """Unit tests for runtime module."""
 
-import pytest
 from loom.runtime.core import Runtime
-from loom.types import AgentNode, TaskAd, CapabilityProfile, Skill, SkillTrigger
-from loom.config import AgentConfig, ClusterConfig
+from loom.types import AgentNode, CapabilityProfile, TaskAd
 from tests.conftest import MockLLMProvider
 
 
@@ -42,5 +40,5 @@ class TestRuntime:
 
     def test_create_node(self):
         rt = Runtime(MockLLMProvider())
-        node = rt.create_node()
+        rt.create_node()
         assert len(rt.cluster.nodes) == 1

@@ -3,21 +3,29 @@
 from __future__ import annotations
 
 import json
-import uuid
 import logging
-from typing import Any, AsyncGenerator, Callable, Awaitable
+import uuid
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from typing import Any
 
-from ..types import (
-    AgentEvent, DoneEvent, Message, SystemMessage, UserMessage, AssistantMessage,
-    ToolCall, ToolContext, LLMProvider,
-)
 from ..config import AgentConfig
-from ..memory import MemoryManager
 from ..context import ContextOrchestrator
-from ..tools import ToolRegistry
 from ..events import EventBus
+from ..memory import MemoryManager
+from ..tools import ToolRegistry
+from ..types import (
+    AgentEvent,
+    AssistantMessage,
+    DoneEvent,
+    LLMProvider,
+    Message,
+    SystemMessage,
+    ToolCall,
+    ToolContext,
+    UserMessage,
+)
 from .interceptor import InterceptorChain, InterceptorContext
-from .strategy import LoopStrategy, LoopContext, ToolUseStrategy
+from .strategy import LoopContext, LoopStrategy, ToolUseStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +69,7 @@ class Agent:
                 last_event = event
         # Persist conversation to memory (mirrors Amoba Agent.run)
         if last_event.content:
-            await self.memory.add_message(
-                AssistantMessage(content=last_event.content)
-            )
+            await self.memory.add_message(AssistantMessage(content=last_event.content))
         return last_event
 
     async def stream(self, input_text: str, signal: Any = None) -> AsyncGenerator[AgentEvent, None]:
@@ -71,12 +77,17 @@ class Agent:
         messages = await self._build_messages()
 
         ctx = LoopContext(
-            messages=messages, provider=self.provider,
-            tools=self.tools.list(), tool_registry=self.tools,
-            max_steps=self.config.max_steps, streaming=self.config.stream,
-            temperature=self.config.temperature, max_tokens=self.config.max_tokens,
+            messages=messages,
+            provider=self.provider,
+            tools=self.tools.list(),
+            tool_registry=self.tools,
+            max_steps=self.config.max_steps,
+            streaming=self.config.stream,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
             agent_id=self.id,
-            interceptors=self.interceptors, events=self.event_bus,
+            interceptors=self.interceptors,
+            events=self.event_bus,
             signal=signal,
         )
 
@@ -91,9 +102,7 @@ class Agent:
         if tc.name == "delegate" and self.on_delegate:
             try:
                 args = json.loads(tc.arguments)
-                return await self.on_delegate(
-                    args.get("task", ""), args.get("domain", "")
-                )
+                return await self.on_delegate(args.get("task", ""), args.get("domain", ""))
             except Exception as e:
                 return json.dumps({"error": str(e)})
         ctx = ToolContext(agent_id=self.id)
@@ -102,8 +111,11 @@ class Agent:
     async def _build_messages(self) -> list[Message]:
         messages: list[Message] = [SystemMessage(content=self.config.system_prompt)]
         computed = self.context.compute_budget(self.config.system_prompt)
-        budget = computed.available if computed.available < float("inf") else self.config.token_budget
-        query = self.memory.get_history()[-1].content if self.memory.get_history() else ""
+        budget = (
+            computed.available if computed.available < float("inf") else self.config.token_budget
+        )
+        last = self.memory.get_history()[-1].content if self.memory.get_history() else ""
+        query = last if isinstance(last, str) else str(last)
         fragments = await self.context.gather(query=query, budget=budget)
         if fragments:
             ctx_text = "\n".join(f"[{f.source}] {f.content}" for f in fragments)

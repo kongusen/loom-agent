@@ -2,7 +2,9 @@
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
+
 from loom.config import AgentConfig
 from loom.providers.openai import OpenAIProvider
 
@@ -27,6 +29,7 @@ class OpenAIEmbedder:
 
     def __init__(self):
         from openai import AsyncOpenAI
+
         self._client = AsyncOpenAI(api_key=_KEY, base_url=_BASE)
         self._model = _EMB_MODEL
 

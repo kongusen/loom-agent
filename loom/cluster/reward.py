@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Awaitable
-from ..types import AgentNode, TaskAd, RewardSignal, RewardRecord
+from collections.abc import Awaitable, Callable
+
+from ..types import AgentNode, RewardRecord, RewardSignal, TaskAd
 
 
 class RewardBus:
@@ -21,7 +22,9 @@ class RewardBus:
         self._llm_judge = judge_fn
         self._judge_interval = interval
 
-    def compute_signal(self, task: TaskAd, success: bool, token_cost: int, error_count: int) -> RewardSignal:
+    def compute_signal(
+        self, task: TaskAd, success: bool, token_cost: int, error_count: int
+    ) -> RewardSignal:
         return RewardSignal(
             quality=0.7 if success else 0.0,
             efficiency=max(0.0, 1.0 - token_cost / max(task.token_budget, 1)),
@@ -31,13 +34,25 @@ class RewardBus:
     def compute_reward(self, signal: RewardSignal) -> float:
         return 0.5 * signal.quality + 0.3 * signal.efficiency + 0.2 * signal.reliability
 
-    def evaluate(self, node: AgentNode, task: TaskAd, success: bool, token_cost: int = 0, error_count: int = 0) -> float:
+    def evaluate(
+        self,
+        node: AgentNode,
+        task: TaskAd,
+        success: bool,
+        token_cost: int = 0,
+        error_count: int = 0,
+    ) -> float:
         signal = self.compute_signal(task, success, token_cost, error_count)
         reward = self.compute_reward(signal)
         self._update_capability(node, task.domain, reward)
-        node.reward_history.append(RewardRecord(
-            task_id=task.task_id, reward=reward, domain=task.domain, token_cost=token_cost,
-        ))
+        node.reward_history.append(
+            RewardRecord(
+                task_id=task.task_id,
+                reward=reward,
+                domain=task.domain,
+                token_cost=token_cost,
+            )
+        )
         node.capabilities.total_tasks += 1
         # EMA success rate (matches Amoba)
         hit = 1.0 if reward > 0.5 else 0.0
@@ -50,7 +65,14 @@ class RewardBus:
             node.consecutive_losses += 1
         return reward
 
-    async def evaluate_hybrid(self, node: AgentNode, task: TaskAd, success: bool, token_cost: int = 0, error_count: int = 0) -> float:
+    async def evaluate_hybrid(
+        self,
+        node: AgentNode,
+        task: TaskAd,
+        success: bool,
+        token_cost: int = 0,
+        error_count: int = 0,
+    ) -> float:
         """Hybrid evaluation: rule-based + periodic LLM judge with bias correction."""
         rule_reward = self.evaluate(node, task, success, token_cost, error_count)
         if not self._llm_judge:
@@ -71,9 +93,9 @@ class RewardBus:
         now = time.time()
         for domain, score in list(node.capabilities.scores.items()):
             last = next((r for r in reversed(node.reward_history) if r.domain == domain), None)
-            days = (now - (last.timestamp if last and hasattr(last, 'timestamp') else 0)) / 86400
+            days = (now - (last.timestamp if last and hasattr(last, "timestamp") else 0)) / 86400
             if days > 1:
-                node.capabilities.scores[domain] = score * (self._decay_rate ** days)
+                node.capabilities.scores[domain] = score * (self._decay_rate**days)
 
     def _update_capability(self, node: AgentNode, domain: str, reward: float) -> None:
         current = node.capabilities.scores.get(domain, 0.5)

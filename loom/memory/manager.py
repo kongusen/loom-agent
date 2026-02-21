@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from ..types import MemoryEntry, Message
-from .tokens import _estimate_tokens
-from .sliding_window import SlidingWindow
-from .working_memory import WorkingMemory
 from .persistent_store import PersistentStore
+from .sliding_window import SlidingWindow
+from .tokens import _estimate_tokens
+from .working_memory import WorkingMemory
 
 
 class MemoryManager:
@@ -25,9 +25,10 @@ class MemoryManager:
     async def add_message(self, msg: Message) -> None:
         evicted = self.l1.add(msg)
         for old_msg in evicted:
+            text = old_msg.content if isinstance(old_msg.content, str) else str(old_msg.content)
             entry = MemoryEntry(
-                content=old_msg.content,
-                tokens=_estimate_tokens(old_msg.content),
+                content=text,
+                tokens=_estimate_tokens(text),
                 importance=0.3,
                 metadata={"role": old_msg.role},
             )

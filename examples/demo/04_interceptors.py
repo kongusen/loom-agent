@@ -1,30 +1,32 @@
 """04 — 拦截器：中间件管道在 LLM 调用前注入上下文、增强对话。"""
 
 import asyncio
+
+from _provider import create_provider
+
 from loom import Agent, AgentConfig, InterceptorChain, InterceptorContext
 from loom.types import SystemMessage
-from _provider import create_provider
 
 
 class ExpertiseInterceptor:
     """注入领域专家身份，增强 LLM 回答质量。"""
+
     name = "expertise"
 
     async def intercept(self, ctx: InterceptorContext, nxt):
-        ctx.messages.insert(0, SystemMessage(
-            content="你是资深 Python 架构师，回答要包含具体代码示例。"
-        ))
+        ctx.messages.insert(
+            0, SystemMessage(content="你是资深 Python 架构师，回答要包含具体代码示例。")
+        )
         await nxt()
 
 
 class GuardrailInterceptor:
     """添加安全护栏，限制输出范围。"""
+
     name = "guardrail"
 
     async def intercept(self, ctx: InterceptorContext, nxt):
-        ctx.messages.insert(0, SystemMessage(
-            content="回答限制在3句话以内，使用中文。"
-        ))
+        ctx.messages.insert(0, SystemMessage(content="回答限制在3句话以内，使用中文。"))
         await nxt()
 
 

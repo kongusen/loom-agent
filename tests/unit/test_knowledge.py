@@ -1,11 +1,12 @@
 """Unit tests for knowledge module (retrievers, chunkers, base)."""
 
-import pytest
-from loom.knowledge.retrievers import KeywordRetriever, InMemoryVectorStore, VectorRetriever, HybridRetriever, GraphRetriever
-from loom.knowledge.chunkers import FixedSizeChunker, RecursiveChunker
 from loom.knowledge.base import KnowledgeBase
-from loom.types import Chunk, Document, RetrieverOptions
-from tests.conftest import MockEmbeddingProvider, MockGraphStore, MockEntityExtractor
+from loom.knowledge.chunkers import FixedSizeChunker, RecursiveChunker
+from loom.knowledge.retrievers import (
+    InMemoryVectorStore,
+    KeywordRetriever,
+)
+from loom.types import Chunk, Document
 
 
 class TestKeywordRetriever:
@@ -23,7 +24,12 @@ class TestKeywordRetriever:
 
     def test_remove_by_document(self):
         kr = KeywordRetriever()
-        kr.add_chunks([Chunk(id="1", content="a", document_id="d1"), Chunk(id="2", content="b", document_id="d2")])
+        kr.add_chunks(
+            [
+                Chunk(id="1", content="a", document_id="d1"),
+                Chunk(id="2", content="b", document_id="d2"),
+            ]
+        )
         kr.remove_by_document("d1")
         assert len(kr._chunks) == 1
 
@@ -87,8 +93,10 @@ class TestKnowledgeBase:
 
     async def test_ingest_with_graph(self, mock_embedder, mock_graph_store, mock_entity_extractor):
         kb = KnowledgeBase(
-            embedder=mock_embedder, vector_store=InMemoryVectorStore(),
-            graph_store=mock_graph_store, entity_extractor=mock_entity_extractor,
+            embedder=mock_embedder,
+            vector_store=InMemoryVectorStore(),
+            graph_store=mock_graph_store,
+            entity_extractor=mock_entity_extractor,
         )
         await kb.ingest([Document(id="d1", content="Alice knows Bob")])
         assert len(mock_graph_store.nodes) > 0

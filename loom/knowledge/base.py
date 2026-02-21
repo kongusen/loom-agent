@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..types import Document, Chunk, RetrievalResult, RetrieverOptions
+from ..types import Chunk, Document, RetrievalResult, RetrieverOptions
 from .chunkers import FixedSizeChunker
 from .retrievers import (
-    KeywordRetriever, VectorRetriever, HybridRetriever, GraphRetriever,
-    EmbeddingProvider, VectorStore, GraphStore, EntityExtractor,
+    EmbeddingProvider,
+    EntityExtractor,
+    GraphRetriever,
+    GraphStore,
+    HybridRetriever,
+    KeywordRetriever,
+    VectorRetriever,
+    VectorStore,
 )
 
 
@@ -45,20 +51,41 @@ class KnowledgeBase:
             if self._embedder and self._vector_store:
                 texts = [c.content for c in chunks]
                 vectors = await self._embedder.embed_batch(texts)
-                await self._vector_store.upsert([
-                    {"id": c.id, "vector": v, "content": c.content, "metadata": {"document_id": doc.id}}
-                    for c, v in zip(chunks, vectors)
-                ])
+                await self._vector_store.upsert(
+                    [
+                        {
+                            "id": c.id,
+                            "vector": v,
+                            "content": c.content,
+                            "metadata": {"document_id": doc.id},
+                        }
+                        for c, v in zip(chunks, vectors, strict=False)
+                    ]
+                )
             if self._entity_extractor and self._graph_store:
                 entities = await self._entity_extractor.extract(doc.content)
-                nodes = [{"id": e.get("id", e.get("name", "")), "label": e.get("name", ""), "type": e.get("type", ""), "metadata": {"document_id": doc.id}} for e in entities]
-                edges = [{"source": e.get("id", e.get("name", "")), "target": r, "type": "related"} for e in entities for r in e.get("relations", [])]
+                nodes = [
+                    {
+                        "id": e.get("id", e.get("name", "")),
+                        "label": e.get("name", ""),
+                        "type": e.get("type", ""),
+                        "metadata": {"document_id": doc.id},
+                    }
+                    for e in entities
+                ]
+                edges = [
+                    {"source": e.get("id", e.get("name", "")), "target": r, "type": "related"}
+                    for e in entities
+                    for r in e.get("relations", [])
+                ]
                 if nodes:
                     await self._graph_store.add_nodes(nodes)
                 if edges:
                     await self._graph_store.add_edges(edges)
 
-    async def query(self, query: str, opts: RetrieverOptions | None = None) -> list[RetrievalResult]:
+    async def query(
+        self, query: str, opts: RetrieverOptions | None = None
+    ) -> list[RetrievalResult]:
         limit = (opts or RetrieverOptions()).limit
         base = self._hybrid or self._keyword
         results = await base.retrieve(query, opts)

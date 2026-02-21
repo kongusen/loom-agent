@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from ..types import ToolDefinition, ToolContext
+from ..types import ToolContext, ToolDefinition
 from .schema import PydanticSchema
 
 
@@ -12,7 +12,7 @@ class DoneParams(BaseModel):
     result: str
 
 
-async def _done_execute(params: DoneParams, ctx: ToolContext) -> str:
+async def _done_execute(params: DoneParams, _ctx: ToolContext) -> str:
     return params.result
 
 
@@ -29,7 +29,7 @@ class DelegateParams(BaseModel):
     domain: str = ""
 
 
-async def _delegate_execute(params: DelegateParams, ctx: ToolContext) -> str:
+async def _delegate_execute(params: DelegateParams, _ctx: ToolContext) -> str:
     # Actual delegation handled by agent loop — this is a signal tool
     return f"Delegating: {params.task}"
 

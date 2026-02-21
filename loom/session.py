@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Generator
+from typing import Any
 
-from .memory import MemoryManager
 from .events import EventBus
+from .memory import MemoryManager
 
 
 @dataclass

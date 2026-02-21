@@ -1,14 +1,22 @@
 """Unit tests for agent module (core, strategy, interceptor)."""
 
-import pytest
-from unittest.mock import AsyncMock
-from loom.agent import Agent, InterceptorChain, InterceptorContext, ToolUseStrategy, ReactStrategy, LoopContext
-from loom.types import (
-    UserMessage, DoneEvent, TextDeltaEvent, ErrorEvent,
-    CompletionParams, CompletionResult, TokenUsage, ToolCall,
+from loom.agent import (
+    Agent,
+    InterceptorChain,
+    InterceptorContext,
+    LoopContext,
+    ToolUseStrategy,
 )
 from loom.config import AgentConfig
 from loom.tools import ToolRegistry
+from loom.types import (
+    CompletionResult,
+    DoneEvent,
+    ErrorEvent,
+    TokenUsage,
+    ToolCall,
+    UserMessage,
+)
 from tests.conftest import MockLLMProvider
 
 
@@ -24,6 +32,7 @@ class TestInterceptorChain:
 
         class Upper:
             name = "upper"
+
             async def intercept(self, ctx, next):
                 ctx.messages = [type(m)(content=m.content.upper()) for m in ctx.messages]
                 await next()
@@ -39,12 +48,14 @@ class TestInterceptorChain:
 
         class A:
             name = "a"
+
             async def intercept(self, ctx, next):
                 order.append("a")
                 await next()
 
         class B:
             name = "b"
+
             async def intercept(self, ctx, next):
                 order.append("b")
                 await next()
@@ -73,7 +84,10 @@ class TestAgent:
         llm = MockLLMProvider(["ok"])
         agent = Agent(provider=llm)
         received = []
-        async def handler(e): received.append(e)
+
+        async def handler(e):
+            received.append(e)
+
         agent.on("done", handler)
         await agent.run("hi")
         assert len(received) >= 1
@@ -83,10 +97,18 @@ class TestToolUseStrategy:
     async def test_no_tools_completes_immediately(self):
         llm = MockLLMProvider(["done"])
         ctx = LoopContext(
-            messages=[UserMessage(content="hi")], provider=llm,
-            tools=[], tool_registry=ToolRegistry(),
-            max_steps=3, streaming=False, temperature=0.7, max_tokens=1024,
-            agent_id="t1", interceptors=InterceptorChain(), events=None, signal=None,
+            messages=[UserMessage(content="hi")],
+            provider=llm,
+            tools=[],
+            tool_registry=ToolRegistry(),
+            max_steps=3,
+            streaming=False,
+            temperature=0.7,
+            max_tokens=1024,
+            agent_id="t1",
+            interceptors=InterceptorChain(),
+            events=None,
+            signal=None,
             tool_config=None,
         )
         strategy = ToolUseStrategy()
@@ -95,18 +117,29 @@ class TestToolUseStrategy:
 
     async def test_max_steps_error(self):
         """Provider always returns tool calls → hits max steps."""
+
         class ToolCallProvider:
             async def complete(self, params):
                 return CompletionResult(
-                    content="", usage=TokenUsage(total_tokens=5),
-                    tool_calls=[ToolCall(id="t1", name="nope", arguments="{}")]
+                    content="",
+                    usage=TokenUsage(total_tokens=5),
+                    tool_calls=[ToolCall(id="t1", name="nope", arguments="{}")],
                 )
+
         reg = ToolRegistry()
         ctx = LoopContext(
-            messages=[UserMessage(content="hi")], provider=ToolCallProvider(),
-            tools=[], tool_registry=reg,
-            max_steps=2, streaming=False, temperature=0.7, max_tokens=1024,
-            agent_id="t1", interceptors=InterceptorChain(), events=None, signal=None,
+            messages=[UserMessage(content="hi")],
+            provider=ToolCallProvider(),
+            tools=[],
+            tool_registry=reg,
+            max_steps=2,
+            streaming=False,
+            temperature=0.7,
+            max_tokens=1024,
+            agent_id="t1",
+            interceptors=InterceptorChain(),
+            events=None,
+            signal=None,
             tool_config=None,
         )
         events = [e async for e in ToolUseStrategy().execute(ctx)]

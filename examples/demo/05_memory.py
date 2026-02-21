@@ -1,8 +1,10 @@
 """05 — 记忆层级：Memory 让 Agent 具备多轮对话上下文能力。"""
 
 import asyncio
-from loom import Agent, AgentConfig, MemoryManager, SlidingWindow, WorkingMemory
+
 from _provider import create_provider
+
+from loom import Agent, AgentConfig, MemoryManager, SlidingWindow, WorkingMemory
 
 
 async def main():
@@ -31,7 +33,7 @@ async def main():
     print(f"  回复: {r2.content[:150]}")
 
     # ── 3. 查看记忆状态 ──
-    print(f"\n[记忆状态]")
+    print("\n[记忆状态]")
     print(f"  L1 消息数: {len(memory.l1.get_messages())}")
     l2 = await memory.l2.retrieve()
     print(f"  L2 条目数: {len(l2)}")

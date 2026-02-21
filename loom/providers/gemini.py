@@ -2,21 +2,32 @@
 
 from __future__ import annotations
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
-from ..types import AssistantMessage, CompletionResult, CompletionParams, StreamChunk, ToolCall, TokenUsage, ToolDefinition, Message
 from ..config import AgentConfig
+from ..types import (
+    CompletionParams,
+    CompletionResult,
+    Message,
+    StreamChunk,
+    TokenUsage,
+    ToolCall,
+    ToolDefinition,
+)
 from .base import BaseLLMProvider
-
 
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
 def _msg_to_dict(m: Message) -> dict:
-    d = {"role": m.role, "content": m.content}
+    d: dict = {"role": m.role, "content": m.content}
     if hasattr(m, "tool_calls") and m.tool_calls:
         d["tool_calls"] = [
-            {"id": tc.id, "type": "function", "function": {"name": tc.name, "arguments": tc.arguments}}
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {"name": tc.name, "arguments": tc.arguments},
+            }
             for tc in m.tool_calls
         ]
     if hasattr(m, "tool_call_id"):
@@ -26,7 +37,14 @@ def _msg_to_dict(m: Message) -> dict:
 
 def _tools_to_dicts(tools: list[ToolDefinition]) -> list[dict]:
     return [
-        {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters.to_json_schema()}}
+        {
+            "type": "function",
+            "function": {
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters.to_json_schema(),
+            },
+        }
         for t in tools
     ]
 
@@ -37,7 +55,7 @@ class GeminiProvider(BaseLLMProvider):
         try:
             from openai import AsyncOpenAI
         except ImportError:
-            raise ImportError("pip install openai")
+            raise ImportError("pip install openai") from None
         self._client = AsyncOpenAI(
             api_key=config.api_key,
             base_url=config.base_url or _GEMINI_BASE,
@@ -57,11 +75,20 @@ class GeminiProvider(BaseLLMProvider):
         choice = resp.choices[0]
         tool_calls = []
         if choice.message.tool_calls:
-            tool_calls = [ToolCall(id=tc.id, name=tc.function.name, arguments=tc.function.arguments) for tc in choice.message.tool_calls]
+            tool_calls = [
+                ToolCall(id=tc.id, name=tc.function.name, arguments=tc.function.arguments)
+                for tc in choice.message.tool_calls
+            ]
         usage = TokenUsage()
         if resp.usage:
-            usage = TokenUsage(prompt_tokens=resp.usage.prompt_tokens, completion_tokens=resp.usage.completion_tokens, total_tokens=resp.usage.total_tokens)
-        return CompletionResult(content=choice.message.content or "", tool_calls=tool_calls, usage=usage)
+            usage = TokenUsage(
+                prompt_tokens=resp.usage.prompt_tokens,
+                completion_tokens=resp.usage.completion_tokens,
+                total_tokens=resp.usage.total_tokens,
+            )
+        return CompletionResult(
+            content=choice.message.content or "", tool_calls=tool_calls, usage=usage
+        )
 
     async def _do_stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
         kwargs: dict = {
@@ -95,8 +122,12 @@ class GeminiProvider(BaseLLMProvider):
                         tc_buffers[idx]["args"] += tc.function.arguments
             if finish:
                 for buf in tc_buffers.values():
-                    yield StreamChunk(tool_call=ToolCall(
-                        id=buf["id"], name=buf["name"], arguments=buf["args"],
-                    ))
+                    yield StreamChunk(
+                        tool_call=ToolCall(
+                            id=buf["id"],
+                            name=buf["name"],
+                            arguments=buf["args"],
+                        )
+                    )
                 tc_buffers.clear()
                 yield StreamChunk(finish_reason=finish)

@@ -1,20 +1,25 @@
 """Coverage-boost tests for cluster: amoeba_loop, orchestrate, cluster_provider, skill_registry."""
 
 import pytest
-from loom.cluster.amoeba_loop import AmoebaLoop, _DOMAIN_KEYWORDS
-from loom.cluster.orchestrate import OrchestrateStrategy
-from loom.cluster.cluster_provider import ClusterProvider
-from loom.cluster.skill_registry import SkillNodeRegistry
+
 from loom.cluster import ClusterManager
-from loom.cluster.reward import RewardBus
+from loom.cluster.amoeba_loop import AmoebaLoop
+from loom.cluster.cluster_provider import ClusterProvider
 from loom.cluster.lifecycle import LifecycleManager
 from loom.cluster.planner import TaskPlanner
-from loom.types import (
-    AgentNode, TaskAd, CapabilityProfile, TaskSpec, TaskResult,
-    ComplexityEstimate, RewardRecord, Skill, SkillTrigger,
-    UserMessage, DoneEvent, TextDeltaEvent, ErrorEvent,
-)
+from loom.cluster.reward import RewardBus
+from loom.cluster.skill_registry import SkillNodeRegistry
 from loom.config import ClusterConfig
+from loom.types import (
+    AgentNode,
+    CapabilityProfile,
+    ComplexityEstimate,
+    RewardRecord,
+    Skill,
+    TaskAd,
+    TaskResult,
+    TaskSpec,
+)
 from tests.conftest import MockLLMProvider
 
 
@@ -25,7 +30,9 @@ def _make_amoeba(llm=None):
     llm = llm or MockLLMProvider()
     pl = TaskPlanner(llm)
     sr = SkillNodeRegistry()
-    return AmoebaLoop(cluster=cm, reward_bus=rb, lifecycle=lm, planner=pl, skill_registry=sr, llm=llm)
+    return AmoebaLoop(
+        cluster=cm, reward_bus=rb, lifecycle=lm, planner=pl, skill_registry=sr, llm=llm
+    )
 
 
 class TestAmoebaHelpers:
@@ -51,7 +58,12 @@ class TestAmoebaHelpers:
 
     def test_build_enriched_prompt(self):
         a = _make_amoeba()
-        spec = TaskSpec(objective="Build app", output_format="JSON", boundaries="No external APIs")
+        spec = TaskSpec(
+            task=TaskAd(domain="general", description="test", estimated_complexity=0.5),
+            objective="Build app",
+            output_format="JSON",
+            boundaries="No external APIs",
+        )
         result = a._build_enriched_prompt(spec)
         assert "Build app" in result
         assert "JSON" in result
@@ -59,7 +71,14 @@ class TestAmoebaHelpers:
 
     def test_derive_actual_complexity(self):
         a = _make_amoeba()
-        r = TaskResult(task_id="t", agent_id="a", content="ok", success=True, token_cost=4096, duration_ms=15000)
+        r = TaskResult(
+            task_id="t",
+            agent_id="a",
+            content="ok",
+            success=True,
+            token_cost=4096,
+            duration_ms=15000,
+        )
         c = a._derive_actual_complexity(r)
         assert 0 < c < 1.0
 
@@ -83,7 +102,9 @@ class TestAmoebaHelpers:
 
     def test_should_evolve_skill_low_reward(self):
         a = _make_amoeba()
-        node = AgentNode(id="n", reward_history=[RewardRecord(reward=0.1, domain="code") for _ in range(5)])
+        node = AgentNode(
+            id="n", reward_history=[RewardRecord(reward=0.1, domain="code") for _ in range(5)]
+        )
         assert a._should_evolve_skill(node) is True
 
 
@@ -122,7 +143,9 @@ class TestAmoebaAsync:
         assert len(a._cluster.nodes) == 1
 
     async def test_trigger_skill_evolution(self):
-        llm = MockLLMProvider(['{"domain": "code", "boost": 0.2, "reasoning": "needs improvement"}'])
+        llm = MockLLMProvider(
+            ['{"domain": "code", "boost": 0.2, "reasoning": "needs improvement"}']
+        )
         a = _make_amoeba(llm)
         node = AgentNode(id="n", capabilities=CapabilityProfile(scores={"code": 0.5}))
         spec = TaskSpec(task=TaskAd(domain="code"), objective="test")
@@ -151,14 +174,18 @@ class TestSkillNodeRegistry:
 
     async def test_find_match_keyword(self):
         sr = SkillNodeRegistry()
-        sr.register(Skill(name="py", trigger={"type": "keyword", "keywords": ["python"]}, priority=0.8))
+        sr.register(
+            Skill(name="py", trigger={"type": "keyword", "keywords": ["python"]}, priority=0.8)
+        )
         result = await sr.find_match("python help")
         assert result is not None
         assert result["skill"].name == "py"
 
     async def test_find_match_skips_loaded(self):
         sr = SkillNodeRegistry()
-        sr.register(Skill(name="py", trigger={"type": "keyword", "keywords": ["python"]}, priority=0.8))
+        sr.register(
+            Skill(name="py", trigger={"type": "keyword", "keywords": ["python"]}, priority=0.8)
+        )
         sr.mark_loaded("py")
         result = await sr.find_match("python help")
         assert result is None

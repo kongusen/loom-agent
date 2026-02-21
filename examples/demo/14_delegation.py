@@ -1,8 +1,10 @@
 """14 — 多 Agent 委派：父子 Agent 通过 DelegateHandler 路由任务。"""
 
 import asyncio
-from loom import Agent, AgentConfig, EventBus
+
 from _provider import create_provider
+
+from loom import Agent, AgentConfig, EventBus
 
 
 async def main():
@@ -11,12 +13,14 @@ async def main():
 
     # ── 1. 创建子 Agent ──
     researcher = Agent(
-        provider=provider, name="researcher",
+        provider=provider,
+        name="researcher",
         config=AgentConfig(system_prompt="你是研究员", max_steps=2),
         event_bus=bus.create_child("researcher"),
     )
     writer = Agent(
-        provider=provider, name="writer",
+        provider=provider,
+        name="writer",
         config=AgentConfig(system_prompt="你是写作者", max_steps=2),
         event_bus=bus.create_child("writer"),
     )
@@ -31,7 +35,8 @@ async def main():
         return result.content
 
     coordinator = Agent(
-        provider=provider, name="coordinator",
+        provider=provider,
+        name="coordinator",
         config=AgentConfig(system_prompt="你是协调者", max_steps=3),
         event_bus=bus,
     )
@@ -39,8 +44,10 @@ async def main():
 
     # ── 3. 监听事件 ──
     events_log = []
+
     async def log_event(e):
         events_log.append(f"{e.type}")
+
     bus.on_all(log_event)
 
     # ── 4. 执行委派 ──
@@ -52,7 +59,7 @@ async def main():
     r2 = await writer.run("撰写技术文章")
     print(f"  结果: {r2.content[:50]}")
 
-    print(f"\n[3] 事件传播")
+    print("\n[3] 事件传播")
     print(f"  根节点收到 {len(events_log)} 个事件: {events_log[:5]}...")
 
 

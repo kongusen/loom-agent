@@ -41,7 +41,13 @@ class SkillNodeRegistry:
                 lower = input_text.lower()
                 matched = [k for k in trigger.get("keywords", []) if k.lower() in lower]
                 if matched:
-                    score = (getattr(skill, "priority", 0.5)) * (len(matched) / len(trigger["keywords"]))
+                    score = (getattr(skill, "priority", 0.5)) * (
+                        len(matched) / len(trigger["keywords"])
+                    )
                     if score >= min_score:
-                        return {"skill": skill, "score": score, "reason": f"keywords: {', '.join(matched)}"}
+                        return {
+                            "skill": skill,
+                            "score": score,
+                            "reason": f"keywords: {', '.join(matched)}",
+                        }
         return None

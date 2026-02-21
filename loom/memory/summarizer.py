@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..types import MemoryEntry, LLMProvider, CompletionParams, UserMessage
+from ..types import CompletionParams, LLMProvider, MemoryEntry, UserMessage
 
 _PROMPT = "Summarize these conversation fragments into a concise summary. Preserve key facts and decisions.\n\nFragments:\n"
 
@@ -14,10 +14,13 @@ class LLMSummarizer:
 
     async def compress(self, entries: list[MemoryEntry]) -> MemoryEntry:
         body = "\n".join(f"[{i+1}] {e.content}" for i, e in enumerate(entries))
-        result = await self._llm.complete(CompletionParams(
-            messages=[UserMessage(content=_PROMPT + body)],
-            temperature=0, max_tokens=256,
-        ))
+        result = await self._llm.complete(
+            CompletionParams(
+                messages=[UserMessage(content=_PROMPT + body)],
+                temperature=0,
+                max_tokens=256,
+            )
+        )
         content = result.content
         max_imp = max(e.importance for e in entries)
         return MemoryEntry(

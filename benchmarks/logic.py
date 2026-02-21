@@ -1,17 +1,20 @@
 """Core logic correctness benchmarks — algorithm verification."""
 
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from loom.cluster.reward import RewardBus
 from loom.cluster import ClusterManager
+from loom.cluster.reward import RewardBus
 from loom.context.orchestrator import ContextOrchestrator
 from loom.knowledge.base import KnowledgeBase
-from loom.knowledge.retrievers import InMemoryVectorStore, KeywordRetriever
+from loom.knowledge.retrievers import InMemoryVectorStore
 from loom.memory.working_memory import WorkingMemory
 from loom.types import (
-    AgentNode, CapabilityProfile, TaskAd, RewardRecord,
-    MemoryEntry, Document, ContextFragment,
+    AgentNode,
+    CapabilityProfile,
+    ContextFragment,
+    Document,
+    MemoryEntry,
+    TaskAd,
 )
 
 
@@ -27,15 +30,18 @@ class LogicResult:
 
 # ── Mock embedding for logic tests ──
 
+
 class _LogicEmbedder:
     async def embed(self, text):
         h = hash(text)
         return [(h >> i & 0xFF) / 255.0 for i in range(8)]
+
     async def embed_batch(self, texts):
         return [await self.embed(t) for t in texts]
 
 
 # ── EMA convergence ──
+
 
 def test_ema_convergence():
     """After repeated successes, capability score should converge toward high value."""
@@ -75,18 +81,21 @@ async def test_rrf_fusion_ranking():
     emb = _LogicEmbedder()
     vs = InMemoryVectorStore()
     kb = KnowledgeBase(embedder=emb, vector_store=vs)
-    await kb.ingest([
-        Document(id="d1", content="Python programming language"),
-        Document(id="d2", content="Java enterprise framework"),
-        Document(id="d3", content="Python data science tutorial"),
-    ])
+    await kb.ingest(
+        [
+            Document(id="d1", content="Python programming language"),
+            Document(id="d2", content="Java enterprise framework"),
+            Document(id="d3", content="Python data science tutorial"),
+        ]
+    )
     results = await kb.query("Python programming")
     ids = [r.chunk.id for r in results]
     # Python docs (d1, d3) should rank above Java doc (d2) via keyword+vector fusion
     python_ids = [i for i in ids if "d1" in i or "d3" in i]
     java_ids = [i for i in ids if "d2" in i]
-    python_above_java = (python_ids and java_ids
-                         and ids.index(python_ids[0]) < ids.index(java_ids[0]))
+    python_above_java = (
+        python_ids and java_ids and ids.index(python_ids[0]) < ids.index(java_ids[0])
+    )
     return LogicResult(
         name="rrf_fusion_ranking",
         passed=python_above_java and len(results) >= 2,
@@ -103,6 +112,7 @@ async def test_budget_allocation_proportional():
         def __init__(self, src, rel):
             self.source = src
             self._rel = rel
+
         async def provide(self, q, budget):
             budgets_seen[self.source] = budget
             return [ContextFragment(source=self.source, content="x", tokens=5, relevance=self._rel)]

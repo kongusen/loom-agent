@@ -1,25 +1,27 @@
 """Core mechanism feature benchmarks — behavioral verification."""
 
-import asyncio
 import time
 from dataclasses import dataclass
 
 from loom.agent.interceptor import InterceptorChain, InterceptorContext
+from loom.cluster.lifecycle import LifecycleManager
+from loom.cluster.reward import RewardBus
+from loom.config import ClusterConfig
 from loom.events.bus import EventBus
 from loom.memory.manager import MemoryManager
 from loom.memory.sliding_window import SlidingWindow
 from loom.memory.working_memory import WorkingMemory
-from loom.cluster.lifecycle import LifecycleManager
-from loom.cluster.reward import RewardBus
-from loom.cluster import ClusterManager
-from loom.skills.activator import match_trigger, match_trigger_async
+from loom.skills.activator import match_trigger
 from loom.types import (
-    UserMessage, AssistantMessage, TextDeltaEvent, ErrorEvent,
-    AgentNode, CapabilityProfile, TaskAd, RewardRecord,
-    MemoryEntry, Skill, SkillTrigger,
+    AgentNode,
+    CapabilityProfile,
+    RewardRecord,
+    Skill,
+    SkillTrigger,
+    TaskAd,
+    TextDeltaEvent,
+    UserMessage,
 )
-from loom.config import ClusterConfig
-from loom.errors import MitosisError
 
 
 @dataclass
@@ -34,6 +36,7 @@ class MechanismResult:
 
 # ── Interceptor chain ──
 
+
 async def test_interceptor_ordering():
     """Interceptors execute in registration order, mutations propagate."""
     chain = InterceptorChain()
@@ -43,6 +46,7 @@ async def test_interceptor_ordering():
         def __init__(self, name, tag):
             self.name = name
             self._tag = tag
+
         async def intercept(self, ctx, nxt):
             order.append(self._tag)
             ctx.metadata[self._tag] = True
@@ -63,6 +67,7 @@ async def test_interceptor_ordering():
 
 # ── EventBus ──
 
+
 async def test_eventbus_pattern_matching():
     """Pattern 'tool:*' should match 'tool:call' but not 'text_delta'."""
     matched = []
@@ -74,7 +79,10 @@ async def test_eventbus_pattern_matching():
         type = "text_delta"
 
     bus = EventBus()
-    async def _h(e): matched.append(e.type)
+
+    async def _h(e):
+        matched.append(e.type)
+
     bus.on_pattern("tool:*", _h)
     await bus.emit(_ToolEvt())
     await bus.emit(_TextEvt())
@@ -90,7 +98,10 @@ async def test_eventbus_parent_propagation():
     """Child bus events should propagate to parent."""
     parent_events = []
     parent = EventBus(node_id="parent")
-    async def _h(e): parent_events.append(getattr(e, "type", ""))
+
+    async def _h(e):
+        parent_events.append(getattr(e, "type", ""))
+
     parent.on_all(_h)
     child = parent.create_child("child")
     await child.emit(TextDeltaEvent(text="hello"))
@@ -103,6 +114,7 @@ async def test_eventbus_parent_propagation():
 
 
 # ── Memory L1→L2→L3 cascade ──
+
 
 async def test_memory_cascade():
     """Messages overflowing L1 should cascade to L2, then L3."""
@@ -126,6 +138,7 @@ async def test_memory_cascade():
 
 # ── Lifecycle mitosis/apoptosis ──
 
+
 def test_lifecycle_mitosis_trigger():
     """Mitosis should trigger when complexity > threshold AND depth < max."""
     lm = LifecycleManager(ClusterConfig(max_depth=3, mitosis_threshold=0.6))
@@ -138,9 +151,11 @@ def test_lifecycle_mitosis_trigger():
         "shallow+simple": lm.should_split(task_simple, node_shallow),
         "deep+complex": lm.should_split(task_complex, node_deep),
     }
-    passed = (results["shallow+complex"] is True
-              and results["shallow+simple"] is False
-              and results["deep+complex"] is False)
+    passed = (
+        results["shallow+complex"] is True
+        and results["shallow+simple"] is False
+        and results["deep+complex"] is False
+    )
     return MechanismResult(
         name="lifecycle_mitosis_trigger",
         passed=passed,
@@ -151,10 +166,16 @@ def test_lifecycle_mitosis_trigger():
 def test_lifecycle_merge_capabilities():
     """Merge should combine capabilities weighted by task count."""
     lm = LifecycleManager()
-    src = AgentNode(id="s", capabilities=CapabilityProfile(
-        scores={"code": 0.9}, total_tasks=10, tools=["search"]))
-    tgt = AgentNode(id="t", capabilities=CapabilityProfile(
-        scores={"code": 0.5, "data": 0.7}, total_tasks=10, tools=["shell"]))
+    src = AgentNode(
+        id="s",
+        capabilities=CapabilityProfile(scores={"code": 0.9}, total_tasks=10, tools=["search"]),
+    )
+    tgt = AgentNode(
+        id="t",
+        capabilities=CapabilityProfile(
+            scores={"code": 0.5, "data": 0.7}, total_tasks=10, tools=["shell"]
+        ),
+    )
     lm.merge_capabilities(src, tgt)
     merged_code = tgt.capabilities.scores["code"]
     has_tools = "search" in tgt.capabilities.tools and "shell" in tgt.capabilities.tools
@@ -169,19 +190,26 @@ def test_lifecycle_merge_capabilities():
 def test_lifecycle_health_states():
     """Health check should return correct status based on node state."""
     lm = LifecycleManager(ClusterConfig(consecutive_loss_limit=6, idle_timeout=60))
-    healthy = AgentNode(id="h", last_active_at=time.time(),
-                        reward_history=[RewardRecord(reward=0.8, domain="code")])
-    dying = AgentNode(id="d", consecutive_losses=10, last_active_at=time.time(),
-                      reward_history=[RewardRecord(reward=0.1, domain="code")])
+    healthy = AgentNode(
+        id="h", last_active_at=time.time(), reward_history=[RewardRecord(reward=0.8, domain="code")]
+    )
+    dying = AgentNode(
+        id="d",
+        consecutive_losses=10,
+        last_active_at=time.time(),
+        reward_history=[RewardRecord(reward=0.1, domain="code")],
+    )
     idle = AgentNode(id="i", last_active_at=0)
     results = {
         "healthy": lm.check_health(healthy).status,
         "dying_losses": lm.check_health(dying).status,
         "dying_idle": lm.check_health(idle).status,
     }
-    passed = (results["healthy"] == "healthy"
-              and results["dying_losses"] == "dying"
-              and results["dying_idle"] == "dying")
+    passed = (
+        results["healthy"] == "healthy"
+        and results["dying_losses"] == "dying"
+        and results["dying_idle"] == "dying"
+    )
     return MechanismResult(
         name="lifecycle_health_states",
         passed=passed,
@@ -191,9 +219,12 @@ def test_lifecycle_health_states():
 
 # ── Skill activation ──
 
+
 def test_skill_trigger_keyword():
     """Keyword trigger should match when keywords present in input."""
-    skill = Skill(name="py", trigger=SkillTrigger(type="keyword", keywords=["python"]), priority=0.8)
+    skill = Skill(
+        name="py", trigger=SkillTrigger(type="keyword", keywords=["python"]), priority=0.8
+    )
     hit = match_trigger(skill, "help with python code")
     miss = match_trigger(skill, "help with java code")
     passed = hit is not None and miss is None
@@ -206,7 +237,9 @@ def test_skill_trigger_keyword():
 
 def test_skill_trigger_pattern():
     """Pattern trigger should match regex in input."""
-    skill = Skill(name="fn", trigger=SkillTrigger(type="pattern", pattern=r"\bdef\s+\w+"), priority=0.9)
+    skill = Skill(
+        name="fn", trigger=SkillTrigger(type="pattern", pattern=r"\bdef\s+\w+"), priority=0.9
+    )
     hit = match_trigger(skill, "def hello():")
     miss = match_trigger(skill, "call hello()")
     passed = hit is not None and miss is None

@@ -17,7 +17,14 @@ class LoomError(Exception):
 
 
 class LLMError(LoomError):
-    def __init__(self, code: str, provider: str, message: str, status_code: int | None = None, cause: Exception | None = None) -> None:
+    def __init__(
+        self,
+        code: str,
+        provider: str,
+        message: str,
+        status_code: int | None = None,
+        cause: Exception | None = None,
+    ) -> None:
         super().__init__(code, message, cause)
         self.provider = provider
         self.status_code = status_code
@@ -35,26 +42,38 @@ class LLMAuthError(LLMError):
 
 
 class LLMStreamInterruptedError(LLMError):
-    def __init__(self, provider: str, partial_content: str = "", cause: Exception | None = None) -> None:
-        super().__init__("LLM_STREAM_INTERRUPTED", provider, f"Stream interrupted from {provider}", cause=cause)
+    def __init__(
+        self, provider: str, partial_content: str = "", cause: Exception | None = None
+    ) -> None:
+        super().__init__(
+            "LLM_STREAM_INTERRUPTED", provider, f"Stream interrupted from {provider}", cause=cause
+        )
         self.partial_content = partial_content
 
 
 class ToolError(LoomError):
-    def __init__(self, code: str, tool_name: str, message: str, cause: Exception | None = None) -> None:
+    def __init__(
+        self, code: str, tool_name: str, message: str, cause: Exception | None = None
+    ) -> None:
         super().__init__(code, message, cause)
         self.tool_name = tool_name
 
 
 class ToolTimeoutError(ToolError):
     def __init__(self, tool_name: str, timeout_ms: int) -> None:
-        super().__init__("TOOL_TIMEOUT", tool_name, f'Tool "{tool_name}" timed out after {timeout_ms}ms')
+        super().__init__(
+            "TOOL_TIMEOUT", tool_name, f'Tool "{tool_name}" timed out after {timeout_ms}ms'
+        )
         self.timeout_ms = timeout_ms
 
 
 class ToolResultTooLargeError(ToolError):
     def __init__(self, tool_name: str, size_bytes: int, limit_bytes: int) -> None:
-        super().__init__("TOOL_RESULT_TOO_LARGE", tool_name, f'Tool "{tool_name}" result {size_bytes}B exceeds limit {limit_bytes}B')
+        super().__init__(
+            "TOOL_RESULT_TOO_LARGE",
+            tool_name,
+            f'Tool "{tool_name}" result {size_bytes}B exceeds limit {limit_bytes}B',
+        )
         self.size_bytes = size_bytes
         self.limit_bytes = limit_bytes
 

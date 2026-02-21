@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from ..types import ToolDefinition, ToolContext
+from ..types import ToolContext, ToolDefinition
 from .schema import PydanticSchema
 
 
@@ -18,18 +18,22 @@ class ShellParams(BaseModel):
     timeout: int = 30000
 
 
-async def _shell_exec(params: ShellParams, ctx: ToolContext) -> dict:
+async def _shell_exec(params: ShellParams, _ctx: ToolContext) -> dict:
     proc = await asyncio.create_subprocess_shell(
-        params.command, cwd=params.cwd,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        params.command,
+        cwd=params.cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=params.timeout / 1000)
     return {"exitCode": proc.returncode, "stdout": stdout.decode(), "stderr": stderr.decode()}
 
 
 shell_tool = ToolDefinition(
-    name="shell", description="Execute a shell command and return stdout/stderr",
-    parameters=PydanticSchema(ShellParams), execute=_shell_exec,
+    name="shell",
+    description="Execute a shell command and return stdout/stderr",
+    parameters=PydanticSchema(ShellParams),
+    execute=_shell_exec,
 )
 
 
@@ -38,14 +42,16 @@ class ReadFileParams(BaseModel):
     encoding: str = "utf-8"
 
 
-async def _read_file_exec(params: ReadFileParams, ctx: ToolContext) -> dict:
+async def _read_file_exec(params: ReadFileParams, _ctx: ToolContext) -> dict:
     content = Path(params.path).read_text(encoding=params.encoding)
     return {"content": content}
 
 
 read_file_tool = ToolDefinition(
-    name="read_file", description="Read the contents of a file",
-    parameters=PydanticSchema(ReadFileParams), execute=_read_file_exec,
+    name="read_file",
+    description="Read the contents of a file",
+    parameters=PydanticSchema(ReadFileParams),
+    execute=_read_file_exec,
 )
 
 
@@ -55,7 +61,7 @@ class WriteFileParams(BaseModel):
     mkdirp: bool = True
 
 
-async def _write_file_exec(params: WriteFileParams, ctx: ToolContext) -> dict:
+async def _write_file_exec(params: WriteFileParams, _ctx: ToolContext) -> dict:
     p = Path(params.path)
     if params.mkdirp:
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -64,8 +70,10 @@ async def _write_file_exec(params: WriteFileParams, ctx: ToolContext) -> dict:
 
 
 write_file_tool = ToolDefinition(
-    name="write_file", description="Write content to a file",
-    parameters=PydanticSchema(WriteFileParams), execute=_write_file_exec,
+    name="write_file",
+    description="Write content to a file",
+    parameters=PydanticSchema(WriteFileParams),
+    execute=_write_file_exec,
 )
 
 
@@ -74,10 +82,14 @@ class ListDirParams(BaseModel):
     recursive: bool = False
 
 
-async def _list_dir_exec(params: ListDirParams, ctx: ToolContext) -> dict:
+async def _list_dir_exec(params: ListDirParams, _ctx: ToolContext) -> dict:
     p = Path(params.path)
     if not params.recursive:
-        return {"entries": [{"name": e.name, "type": "directory" if e.is_dir() else "file"} for e in p.iterdir()]}
+        return {
+            "entries": [
+                {"name": e.name, "type": "directory" if e.is_dir() else "file"} for e in p.iterdir()
+            ]
+        }
     result = []
     for root, dirs, files in os.walk(params.path):
         for d in dirs:
@@ -88,6 +100,8 @@ async def _list_dir_exec(params: ListDirParams, ctx: ToolContext) -> dict:
 
 
 list_dir_tool = ToolDefinition(
-    name="list_directory", description="List files and directories at a given path",
-    parameters=PydanticSchema(ListDirParams), execute=_list_dir_exec,
+    name="list_directory",
+    description="List files and directories at a given path",
+    parameters=PydanticSchema(ListDirParams),
+    execute=_list_dir_exec,
 )

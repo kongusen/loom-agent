@@ -1,11 +1,12 @@
 """Coverage-boost tests for memory module: summarizer, tokens, provider, manager extended."""
 
 import pytest
-from loom.memory.tokens import _estimate_tokens, _msg_tokens, EstimatorTokenizer
-from loom.memory.summarizer import LLMSummarizer
-from loom.memory.provider import MemoryProvider
+
 from loom.memory import MemoryManager
-from loom.types import MemoryEntry, UserMessage, AssistantMessage, ToolCall, ContextFragment
+from loom.memory.provider import MemoryProvider
+from loom.memory.summarizer import LLMSummarizer
+from loom.memory.tokens import EstimatorTokenizer, _estimate_tokens, _msg_tokens
+from loom.types import AssistantMessage, ContextFragment, MemoryEntry, ToolCall, UserMessage
 from tests.conftest import MockLLMProvider
 
 
@@ -32,7 +33,9 @@ class TestTokenHelpers:
         assert _msg_tokens(UserMessage(content="hello")) >= 1
 
     def test_msg_tokens_assistant_with_tool_calls(self):
-        msg = AssistantMessage(content="ok", tool_calls=[ToolCall(id="t1", name="search", arguments='{"q":"x"}')])
+        msg = AssistantMessage(
+            content="ok", tool_calls=[ToolCall(id="t1", name="search", arguments='{"q":"x"}')]
+        )
         tokens = _msg_tokens(msg)
         assert tokens > _msg_tokens(AssistantMessage(content="ok"))
 
@@ -56,7 +59,9 @@ class TestLLMSummarizer:
 class TestMemoryProvider:
     async def test_provide_returns_fragments(self):
         mgr = MemoryManager()
-        await mgr.l2.store(MemoryEntry(content="test data", tokens=5, importance=0.8, metadata={"role": "user"}))
+        await mgr.l2.store(
+            MemoryEntry(content="test data", tokens=5, importance=0.8, metadata={"role": "user"})
+        )
         tok = EstimatorTokenizer()
         provider = MemoryProvider(mgr, tok)
         frags = await provider.provide("test", budget=1000)

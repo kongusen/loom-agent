@@ -1,20 +1,22 @@
 """Shared fixtures for loom test suite."""
 
+from collections.abc import AsyncGenerator
+
 import pytest
-from dataclasses import dataclass
-from typing import AsyncGenerator
 
-from loom.types import (
-    CompletionParams, CompletionResult, StreamChunk, TokenUsage,
-    ToolCall, DoneEvent, AgentNode, CapabilityProfile, TaskAd, Bid,
-    RewardRecord, Skill, SkillTrigger, SkillActivation,
-    Document, Chunk, RetrievalResult, RetrieverOptions,
-    ContextFragment,
-)
 from loom.config import AgentConfig, ClusterConfig
-
+from loom.types import (
+    AgentNode,
+    CapabilityProfile,
+    CompletionParams,
+    CompletionResult,
+    StreamChunk,
+    TaskAd,
+    TokenUsage,
+)
 
 # ── Mock LLM Provider ──
+
 
 class MockLLMProvider:
     """Controllable mock LLM for testing."""
@@ -44,6 +46,7 @@ class MockLLMProvider:
 
 # ── Mock Embedding Provider ──
 
+
 class MockEmbeddingProvider:
     """Returns deterministic embeddings based on text hash."""
 
@@ -61,6 +64,7 @@ class MockEmbeddingProvider:
 
 # ── Mock Graph Store ──
 
+
 class MockGraphStore:
     def __init__(self):
         self.nodes: list[dict] = []
@@ -73,13 +77,17 @@ class MockGraphStore:
         self.edges.extend(edges)
 
     async def find_related(self, query, limit):
-        return [{"id": n["id"], "content": n.get("label", ""), "score": 0.5, "metadata": {}} for n in self.nodes[:limit]]
+        return [
+            {"id": n["id"], "content": n.get("label", ""), "score": 0.5, "metadata": {}}
+            for n in self.nodes[:limit]
+        ]
 
     async def get_neighbors(self, node_id, depth=1):
         return [e for e in self.edges if e.get("source") == node_id]
 
 
 # ── Mock Entity Extractor ──
+
 
 class MockEntityExtractor:
     async def extract(self, text: str) -> list[dict]:
@@ -89,41 +97,55 @@ class MockEntityExtractor:
 
 # ── Fixtures ──
 
+
 @pytest.fixture
 def mock_llm():
     return MockLLMProvider()
 
+
 @pytest.fixture
 def mock_llm_json():
     """LLM that returns JSON responses for planner/complexity."""
-    return MockLLMProvider(['[{"id":"a","description":"sub1","domain":"code","dependencies":[],"estimated_complexity":0.3}]'])
+    return MockLLMProvider(
+        [
+            '[{"id":"a","description":"sub1","domain":"code","dependencies":[],"estimated_complexity":0.3}]'
+        ]
+    )
+
 
 @pytest.fixture
 def mock_embedder():
     return MockEmbeddingProvider()
 
+
 @pytest.fixture
 def mock_graph_store():
     return MockGraphStore()
+
 
 @pytest.fixture
 def mock_entity_extractor():
     return MockEntityExtractor()
 
+
 @pytest.fixture
 def agent_config():
     return AgentConfig(max_steps=3, system_prompt="Test agent")
+
 
 @pytest.fixture
 def cluster_config():
     return ClusterConfig(min_nodes=1, max_nodes=5, max_depth=2)
 
+
 @pytest.fixture
 def sample_node():
     return AgentNode(
-        id="node-1", depth=0,
+        id="node-1",
+        depth=0,
         capabilities=CapabilityProfile(scores={"code": 0.8}, tools=["search"]),
     )
+
 
 @pytest.fixture
 def sample_task():

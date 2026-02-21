@@ -1,14 +1,21 @@
 """Unit tests for config, errors, session."""
 
-import pytest
 from loom.config import AgentConfig, ClusterConfig
 from loom.errors import (
-    LoomError, LLMError, LLMRateLimitError, LLMAuthError, LLMStreamInterruptedError,
-    ToolError, ToolTimeoutError, ToolResultTooLargeError,
-    AuctionNoWinnerError, MitosisError, ApoptosisRejectedError,
-    AgentAbortError, AgentMaxStepsError,
+    AgentAbortError,
+    AgentMaxStepsError,
+    ApoptosisRejectedError,
+    AuctionNoWinnerError,
+    LLMAuthError,
+    LLMError,
+    LLMRateLimitError,
+    LLMStreamInterruptedError,
+    LoomError,
+    MitosisError,
+    ToolError,
+    ToolResultTooLargeError,
+    ToolTimeoutError,
 )
-from loom.session import SessionContext, get_current_session, set_session, reset_session
 
 
 class TestAgentConfig:

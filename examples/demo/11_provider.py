@@ -1,11 +1,13 @@
 """11 — 弹性 Provider：重试 + 熔断器保障 LLM 调用可靠性。"""
 
 import asyncio
+
+from _provider import _BASE, _KEY, _MODEL, create_provider
+
 from loom import Agent, AgentConfig
-from loom.providers.base import BaseLLMProvider, RetryConfig, CircuitBreakerConfig
+from loom.providers.base import BaseLLMProvider, CircuitBreakerConfig, RetryConfig
 from loom.providers.openai import OpenAIProvider
-from loom.types import CompletionParams, CompletionResult, TokenUsage, UserMessage
-from _provider import create_provider, _KEY, _BASE, _MODEL
+from loom.types import CompletionParams, UserMessage
 
 
 class FlakyProvider(BaseLLMProvider):
@@ -34,18 +36,22 @@ async def main():
     # ── 1. 重试成功 — 2次失败后恢复真实 LLM ──
     print("[1] 重试机制 (2次网络超时后恢复)")
     provider = FlakyProvider(
-        real, fail_count=2,
+        real,
+        fail_count=2,
         retry=RetryConfig(max_retries=3, base_delay=0.1),
     )
-    result = await provider.complete(CompletionParams(
-        messages=[UserMessage(content="用一句话介绍Python")],
-    ))
+    result = await provider.complete(
+        CompletionParams(
+            messages=[UserMessage(content="用一句话介绍Python")],
+        )
+    )
     print(f"  第{provider._calls}次成功: {result.content[:80]}")
 
     # ── 2. 熔断器保护 ──
     print("\n[2] 熔断器 (连续失败后快速拒绝)")
     provider2 = FlakyProvider(
-        real, fail_count=100,
+        real,
+        fail_count=100,
         retry=RetryConfig(max_retries=0),
         circuit_breaker=CircuitBreakerConfig(failure_threshold=3, reset_time=60),
     )

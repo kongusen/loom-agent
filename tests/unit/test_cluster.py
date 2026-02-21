@@ -1,13 +1,14 @@
 """Unit tests for cluster module (manager, reward, lifecycle, planner)."""
 
 import pytest
+
 from loom.cluster import ClusterManager
-from loom.cluster.reward import RewardBus
 from loom.cluster.lifecycle import LifecycleManager
 from loom.cluster.planner import TaskPlanner
-from loom.types import AgentNode, TaskAd, CapabilityProfile, RewardRecord, SubTask, TaskResult
+from loom.cluster.reward import RewardBus
 from loom.config import ClusterConfig
 from loom.errors import ApoptosisRejectedError
+from loom.types import AgentNode, CapabilityProfile, RewardRecord, SubTask, TaskAd, TaskResult
 from tests.conftest import MockLLMProvider
 
 
@@ -32,8 +33,12 @@ class TestClusterManager:
 
     def test_select_winner_prefers_idle(self):
         cm = ClusterManager()
-        busy = AgentNode(id="busy", capabilities=CapabilityProfile(scores={"code": 0.9}), status="busy")
-        idle = AgentNode(id="idle", capabilities=CapabilityProfile(scores={"code": 0.8}), status="idle")
+        busy = AgentNode(
+            id="busy", capabilities=CapabilityProfile(scores={"code": 0.9}), status="busy"
+        )
+        idle = AgentNode(
+            id="idle", capabilities=CapabilityProfile(scores={"code": 0.8}), status="idle"
+        )
         cm.add_node(busy)
         cm.add_node(idle)
         winner = cm.select_winner(TaskAd(domain="code"))
@@ -99,8 +104,12 @@ class TestLifecycleManager:
 
     def test_check_health_healthy(self):
         import time
-        node = AgentNode(id="h", last_active_at=time.time(),
-                         reward_history=[RewardRecord(reward=0.8, domain="code")])
+
+        node = AgentNode(
+            id="h",
+            last_active_at=time.time(),
+            reward_history=[RewardRecord(reward=0.8, domain="code")],
+        )
         lm = LifecycleManager()
         report = lm.check_health(node)
         assert report.status == "healthy"
@@ -117,8 +126,12 @@ class TestLifecycleManager:
 
     def test_merge_capabilities(self):
         lm = LifecycleManager()
-        src = AgentNode(id="s", capabilities=CapabilityProfile(scores={"code": 0.9}, tools=["a"], total_tasks=5))
-        tgt = AgentNode(id="t", capabilities=CapabilityProfile(scores={"code": 0.5}, tools=["b"], total_tasks=5))
+        src = AgentNode(
+            id="s", capabilities=CapabilityProfile(scores={"code": 0.9}, tools=["a"], total_tasks=5)
+        )
+        tgt = AgentNode(
+            id="t", capabilities=CapabilityProfile(scores={"code": 0.5}, tools=["b"], total_tasks=5)
+        )
         lm.merge_capabilities(src, tgt)
         assert tgt.capabilities.scores["code"] == pytest.approx(0.7)
         assert "a" in tgt.capabilities.tools
@@ -139,7 +152,10 @@ class TestTaskPlanner:
 
     async def test_execute_dag_linear(self):
         planner = TaskPlanner(MockLLMProvider())
-        subs = [SubTask(id="a", description="first"), SubTask(id="b", description="second", dependencies=["a"])]
+        subs = [
+            SubTask(id="a", description="first"),
+            SubTask(id="b", description="second", dependencies=["a"]),
+        ]
         results = await planner.execute_dag(subs, lambda s: _fake_exec(s))
         assert len(results) == 2
         assert all(r.success for r in results)
@@ -152,7 +168,10 @@ class TestTaskPlanner:
 
     async def test_aggregate(self):
         planner = TaskPlanner(MockLLMProvider(["synthesized"]))
-        result = await planner.aggregate(TaskAd(description="task"), [TaskResult(task_id="a", agent_id="", content="done", success=True)])
+        result = await planner.aggregate(
+            TaskAd(description="task"),
+            [TaskResult(task_id="a", agent_id="", content="done", success=True)],
+        )
         assert result == "synthesized"
 
 

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from ..types import ContextFragment, ContextProvider, ContextSource, TokenBudget, BudgetRatios
+
+from ..types import BudgetRatios, ContextFragment, ContextProvider, ContextSource, TokenBudget
 
 
 class ContextOrchestrator:
@@ -71,7 +72,9 @@ class ContextOrchestrator:
     @property
     def ratios(self) -> dict[str, float]:
         total = sum(self._scores.values()) or 1
-        return {s.value if hasattr(s, 'value') else str(s): v / total for s, v in self._scores.items()}
+        return {
+            s.value if hasattr(s, "value") else str(s): v / total for s, v in self._scores.items()
+        }
 
     def _update_scores(self, selected: list[ContextFragment]) -> None:
         by_source: dict[ContextSource, list[float]] = {}
