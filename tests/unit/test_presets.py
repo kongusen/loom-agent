@@ -13,7 +13,14 @@ from loom.providers.presets import (
     create_zhipu,
 )
 
-_NO_PROXY = {"https_proxy": "", "HTTPS_PROXY": "", "http_proxy": "", "HTTP_PROXY": "", "ALL_PROXY": "", "all_proxy": ""}
+_NO_PROXY = {
+    "https_proxy": "",
+    "HTTPS_PROXY": "",
+    "http_proxy": "",
+    "HTTP_PROXY": "",
+    "ALL_PROXY": "",
+    "all_proxy": "",
+}
 
 
 class TestPresets:
