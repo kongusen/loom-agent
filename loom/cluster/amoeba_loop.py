@@ -36,13 +36,7 @@ if TYPE_CHECKING:
     from .reward import RewardBus
     from .skill_registry import SkillNodeRegistry
 
-_DOMAIN_KEYWORDS: dict[str, list[str]] = {
-    "code": ["code", "function", "bug", "api", "implement", "refactor"],
-    "data": ["data", "database", "query", "sql", "schema"],
-    "writing": ["write", "draft", "essay", "article", "document"],
-    "math": ["calculate", "equation", "formula", "math", "statistics"],
-    "research": ["research", "analyze", "compare", "evaluate", "study"],
-}
+_DOMAIN_KEYWORDS: dict[str, list[str]] = {}  # kept for backward compat; unused by LLM routing
 
 
 class AmoebaLoop:
@@ -82,21 +76,19 @@ class AmoebaLoop:
         user_msg = next((m for m in reversed(msgs) if m.role == "user"), None)
         input_text = user_msg.content if user_msg else ""
 
-        # Phase 1: SENSE
-        spec = await self._sense(input_text)
+        # Phase 1+2: SENSE + MATCH (combined LLM semantic selection)
+        spec, winner = await self._sense_and_match(input_text)
         yield TextDeltaEvent(
-            text=f"[Sense] complexity={spec.task.estimated_complexity:.2f} domains={spec.domain_hints}\n"
+            text=f"complexity={spec.task.estimated_complexity:.2f} domains={','.join(spec.domain_hints)} "
         )
 
-        # Phase 2: MATCH
-        winner, tier = await self._match(spec, input_text)
         if not winner:
             yield ErrorEvent(error=str(AuctionNoWinnerError(spec.task.task_id)), recoverable=False)
             yield DoneEvent(
                 content="", steps=1, duration_ms=int((time.monotonic() - start) * 1000), usage=usage
             )
             return
-        yield TextDeltaEvent(text=f"[Match] winner={winner.id} tier={tier}\n")
+        yield TextDeltaEvent(text=f"winner={winner.id} ")
 
         # Phase 3+4: SCALE + EXECUTE
         result = await self._scale_and_execute(winner, spec, input_text)
@@ -114,45 +106,52 @@ class AmoebaLoop:
             usage=usage,
         )
 
-    # ── Phase 1: SENSE ──
+    # ── Phase 1+2: SENSE + MATCH (LLM semantic selection, à la Claude Code) ──
 
-    async def _sense(self, input_text: str) -> TaskSpec:
-        estimate = (
-            self._heuristic_complexity(input_text)
-            if len(input_text) < self._complexity_threshold
-            else await self._llm_complexity(input_text)
-        )
-        calibrated = self._calibrate(estimate)
+    async def _sense_and_match(self, input_text: str) -> tuple[TaskSpec, AgentNode | None]:
+        skill_descs = self._collect_skill_descriptions()
+        complexity, selected_skill, domains = await self._llm_sense_and_match(input_text, skill_descs)
+        calibrated = self._calibrate(ComplexityEstimate(score=complexity, domains=domains, method="llm"))
         c = calibrated.score
         task = TaskAd(
-            domain=calibrated.domains[0] if calibrated.domains else "general",
+            domain=selected_skill or "general",
             description=input_text,
             estimated_complexity=c,
             token_budget=2048 if c < 0.4 else 4096 if c < 0.7 else 8192,
         )
-        return TaskSpec(task=task, objective=input_text, domain_hints=calibrated.domains)
+        spec = TaskSpec(task=task, objective=input_text, domain_hints=calibrated.domains)
+        winner = self._resolve_skill_node(selected_skill) if selected_skill else self._cluster.find_idle()
+        return spec, winner
 
-    def _heuristic_complexity(self, text: str) -> ComplexityEstimate:
-        words = len(text.split())
-        sentences = len(re.findall(r"[.!?。！？]", text))
-        has_list = bool(re.search(r"\d+[.)]|[-*•]", text))
-        domains = self._detect_domains(text)
-        score = min(words / 200, 0.5)
-        if sentences > 2:
-            score += 0.15
-        if has_list:
-            score += 0.1
-        if len(domains) > 2:
-            score += 0.15
-        return ComplexityEstimate(score=min(score, 1.0), domains=domains, method="heuristic")
+    def _collect_skill_descriptions(self) -> list[dict[str, str]]:
+        """Collect name+description from loaded nodes and unloaded catalog."""
+        from_nodes = []
+        for node in self._cluster.nodes:
+            if node.id.startswith("skill:"):
+                name = node.id.removeprefix("skill:")
+                skill = self._skills.get(name)
+                from_nodes.append({"name": name, "description": getattr(skill, "description", name) if skill else name})
+        loaded_names = {d["name"] for d in from_nodes}
+        from_catalog = [d for d in self._skills.describe_all() if d["name"] not in loaded_names]
+        return from_nodes + from_catalog
 
-    async def _llm_complexity(self, text: str) -> ComplexityEstimate:
+    async def _llm_sense_and_match(
+        self, input_text: str, skills: list[dict[str, str]]
+    ) -> tuple[float, str | None, list[str]]:
+        """Single LLM call: estimate complexity + select best skill."""
+        skill_list = "\n".join(f"- {s['name']}: {s['description']}" for s in skills)
         try:
             r = await self._llm.complete(
                 CompletionParams(
                     messages=[
                         UserMessage(
-                            content=f'Assess this task. Reply ONLY with JSON: {{"score":0.0-1.0,"domains":["..."],"reasoning":"..."}}\n\nTask: {text}'
+                            content=(
+                                "You are a task router. Given available skills and a task, "
+                                "select the BEST skill and assess complexity.\n\n"
+                                f"Available skills:\n{skill_list}\n\n"
+                                'Reply ONLY with JSON: {"skill":"<name>","complexity":0.0-1.0,"domains":["..."]}\n\n'
+                                f"Task: {input_text}"
+                            )
                         )
                     ],
                     temperature=0,
@@ -162,65 +161,36 @@ class AmoebaLoop:
             m = re.search(r"\{[\s\S]*\}", r.content)
             if m:
                 obj = json.loads(m.group())
-                return ComplexityEstimate(
-                    score=max(0.0, min(1.0, obj.get("score", 0.5))),
-                    domains=obj.get("domains", ["general"]),
-                    reasoning=obj.get("reasoning"),
-                    method="llm",
+                name = obj.get("skill", "").strip().lower() if isinstance(obj.get("skill"), str) else None
+                matched = next((s["name"] for s in skills if s["name"] == name), None)
+                return (
+                    max(0.0, min(1.0, obj.get("complexity", 0.5))),
+                    matched,
+                    obj.get("domains", ["general"]),
                 )
         except Exception:
             pass
-        return self._heuristic_complexity(text)
+        return 0.5, skills[0]["name"] if skills else None, ["general"]
 
-    def _detect_domains(self, text: str) -> list[str]:
-        lower = text.lower()
-        found = [d for d, kws in _DOMAIN_KEYWORDS.items() if any(k in lower for k in kws)]
-        return found or ["general"]
-
-    # ── Phase 2: MATCH (3-tier) ──
-
-    async def _match(self, spec: TaskSpec, input_text: str) -> tuple[AgentNode | None, int]:
-        # Tier 1: auction across loaded nodes
-        winner = self._cluster.select_winner(spec.task)
-        if winner:
-            return winner, 1
-        # Tier 2: scan unloaded skill catalog
-        skill_match = await self._skills.find_match(input_text)
-        if skill_match:
-            node = self._skill_to_node(skill_match["skill"])
-            return node, 2
-        # Tier 3: LLM-based skill evolution (matches Amoba)
-        evolved = await self._evolve_skill_for(spec)
-        if evolved:
-            return evolved, 3
-        # Fallback: any idle node
-        idle = self._cluster.find_idle()
-        if idle:
-            return idle, 4
-        return None, 0
-
-    def _skill_to_node(self, skill) -> AgentNode:
+    def _resolve_skill_node(self, skill_name: str) -> AgentNode | None:
+        """Resolve a skill name to a loaded node, lazy-loading if needed."""
+        node_id = f"skill:{skill_name}"
+        existing = self._cluster.get_node(node_id)
+        if existing and existing.status != "dying":
+            return existing
+        skill = self._skills.get(skill_name)
+        if not skill:
+            return None
         from ..agent import Agent
-
-        agent = Agent(
-            provider=self._llm,
-            name=f"skill:{skill.name}",
-        )
-        scores = {skill.name: 0.7}
-        trigger = getattr(skill, "trigger", None)
-        if trigger and getattr(trigger, "type", "") == "keyword":
-            for kw in getattr(trigger, "keywords", []):
-                scores[kw] = 0.6
+        agent = Agent(provider=self._llm, name=node_id)
         node = AgentNode(
-            id=f"skill:{skill.name}",
+            id=node_id,
             depth=0,
-            capabilities=CapabilityProfile(
-                scores=scores, tools=[t.name for t in getattr(skill, "tools", [])]
-            ),
+            capabilities=CapabilityProfile(scores={skill_name: 0.7}, tools=[]),
             agent=agent,
         )
         self._cluster.add_node(node)
-        self._skills.mark_loaded(skill.name)
+        self._skills.mark_loaded(skill_name)
         return node
 
     # ── Phase 3+4: SCALE + EXECUTE ──
@@ -401,26 +371,6 @@ class AmoebaLoop:
                 node.capabilities.scores[domain] = min(1.0, current + boost)
         except Exception:
             pass
-
-    async def _evolve_skill_for(self, spec: TaskSpec) -> AgentNode | None:
-        """Tier 3: LLM-based skill evolution — create a new specialized node."""
-        try:
-            from ..agent import Agent
-
-            agent = Agent(provider=self._llm, name=f"evolved:{spec.task.domain}")
-            node = AgentNode(
-                id=agent.id,
-                depth=0,
-                capabilities=CapabilityProfile(
-                    scores={spec.task.domain: 0.6},
-                    tools=[],
-                ),
-                agent=agent,
-            )
-            self._cluster.add_node(node)
-            return node
-        except Exception:
-            return None
 
     def _calibrate(self, estimate: ComplexityEstimate) -> ComplexityEstimate:
         domain = estimate.domains[0] if estimate.domains else "general"

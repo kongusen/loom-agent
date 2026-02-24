@@ -26,6 +26,13 @@ class SkillNodeRegistry:
     def get(self, name: str):
         return self._catalog.get(name)
 
+    def describe_all(self) -> list[dict[str, str]]:
+        """Return name+description of ALL skills (for LLM semantic matching)."""
+        return [
+            {"name": s.name, "description": getattr(s, "description", s.name)}
+            for s in self._catalog.values()
+        ]
+
     @property
     def size(self) -> int:
         return len(self._catalog)

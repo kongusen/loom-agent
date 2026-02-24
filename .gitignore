@@ -201,3 +201,4 @@ docs/design/*.md
 .ruff_cache/
 AGENTS.md
 docs/
+old/

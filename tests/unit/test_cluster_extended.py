@@ -36,25 +36,17 @@ def _make_amoeba(llm=None):
 
 
 class TestAmoebaHelpers:
-    def test_detect_domains_code(self):
+    def test_collect_skill_descriptions_empty(self):
         a = _make_amoeba()
-        assert "code" in a._detect_domains("implement a function")
+        assert a._collect_skill_descriptions() == []
 
-    def test_detect_domains_general(self):
+    def test_collect_skill_descriptions_with_skills(self):
         a = _make_amoeba()
-        assert a._detect_domains("hello world") == ["general"]
-
-    def test_heuristic_complexity_short(self):
-        a = _make_amoeba()
-        est = a._heuristic_complexity("fix bug")
-        assert 0 <= est.score <= 1.0
-        assert est.method == "heuristic"
-
-    def test_heuristic_complexity_complex(self):
-        a = _make_amoeba()
-        text = "1. implement code function. 2. write data query. 3. research and analyze!"
-        est = a._heuristic_complexity(text)
-        assert est.score > 0.1
+        a._skills.register(Skill(name="coder", description="writes code"))
+        a._skills.register(Skill(name="writer", description="writes docs"))
+        descs = a._collect_skill_descriptions()
+        assert len(descs) == 2
+        assert any(d["name"] == "coder" for d in descs)
 
     def test_build_enriched_prompt(self):
         a = _make_amoeba()
@@ -109,37 +101,38 @@ class TestAmoebaHelpers:
 
 
 class TestAmoebaAsync:
-    async def test_sense(self):
-        a = _make_amoeba()
-        spec = await a._sense("implement a code function")
-        assert spec.task is not None
-        assert spec.objective == "implement a code function"
-
-    async def test_llm_complexity(self):
-        llm = MockLLMProvider(['{"score": 0.7, "domains": ["code"], "reasoning": "complex"}'])
+    async def test_llm_sense_and_match(self):
+        llm = MockLLMProvider(['{"skill":"coder","complexity":0.7,"domains":["code"]}'])
         a = _make_amoeba(llm)
-        est = await a._llm_complexity("build a complex system")
-        assert est.score == pytest.approx(0.7)
-        assert est.method == "llm"
+        skills = [{"name": "coder", "description": "writes code"}]
+        complexity, selected, domains = await a._llm_sense_and_match("build app", skills)
+        assert complexity == pytest.approx(0.7)
+        assert selected == "coder"
+        assert "code" in domains
 
-    async def test_llm_complexity_fallback(self):
+    async def test_llm_sense_and_match_fallback(self):
         llm = MockLLMProvider(["not json"])
         a = _make_amoeba(llm)
-        est = await a._llm_complexity("task")
-        assert est.method == "heuristic"
+        skills = [{"name": "coder", "description": "writes code"}]
+        complexity, selected, domains = await a._llm_sense_and_match("task", skills)
+        assert complexity == 0.5
+        assert selected == "coder"  # falls back to first skill
 
-    async def test_match_no_nodes(self):
-        a = _make_amoeba()
-        spec = TaskSpec(task=TaskAd(domain="code", description="test"), objective="test")
-        winner, tier = await a._match(spec, "test")
-        assert winner is not None  # evolve_skill_for creates one
-        assert tier == 3
+    async def test_sense_and_match(self):
+        llm = MockLLMProvider(['{"skill":"coder","complexity":0.6,"domains":["code"]}'])
+        a = _make_amoeba(llm)
+        a._skills.register(Skill(name="coder", description="writes code"))
+        spec, winner = await a._sense_and_match("write a function")
+        assert spec.task is not None
+        assert spec.objective == "write a function"
+        assert winner is not None
 
-    async def test_evolve_skill_for(self):
+    async def test_resolve_skill_node(self):
         a = _make_amoeba()
-        spec = TaskSpec(task=TaskAd(domain="code", description="test"), objective="test")
-        node = await a._evolve_skill_for(spec)
+        a._skills.register(Skill(name="coder", description="writes code"))
+        node = a._resolve_skill_node("coder")
         assert node is not None
+        assert node.id == "skill:coder"
         assert len(a._cluster.nodes) == 1
 
     async def test_trigger_skill_evolution(self):

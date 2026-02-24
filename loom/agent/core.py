@@ -67,9 +67,6 @@ class Agent:
         async for event in self.stream(input_text, signal=signal):
             if isinstance(event, DoneEvent):
                 last_event = event
-        # Persist conversation to memory (mirrors Amoba Agent.run)
-        if last_event.content:
-            await self.memory.add_message(AssistantMessage(content=last_event.content))
         return last_event
 
     async def stream(self, input_text: str, signal: Any = None) -> AsyncGenerator[AgentEvent, None]:
@@ -91,8 +88,14 @@ class Agent:
             signal=signal,
         )
 
+        done_content: str | None = None
         async for event in self.strategy.execute(ctx):
+            if isinstance(event, DoneEvent):
+                done_content = event.content
             yield await self._emit(event)
+
+        if done_content is not None:
+            await self.memory.add_message(AssistantMessage(content=done_content))
 
     async def _emit(self, event: AgentEvent) -> AgentEvent:
         await self.event_bus.emit(event)
@@ -120,6 +123,11 @@ class Agent:
         if fragments:
             ctx_text = "\n".join(f"[{f.source}] {f.content}" for f in fragments)
             messages.append(SystemMessage(content=ctx_text))
+        # L2/L3: inject long-term memories that fell out of the sliding window
+        recalled = await self.memory.extract_for(query, budget=budget // 4)
+        if recalled:
+            mem_text = "\n".join(e.content for e in recalled)
+            messages.append(SystemMessage(content=f"[Recalled context]\n{mem_text}"))
         messages.extend(self.memory.get_history())
         # Run interceptor chain
         if self.interceptors._interceptors:
