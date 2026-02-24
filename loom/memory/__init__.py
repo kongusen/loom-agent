@@ -1,7 +1,7 @@
 """3-layer memory — re-exported from sub-modules."""
 
-from .manager import MemoryManager
 from .adapters import VectorPersistentStore
+from .manager import MemoryManager
 from .persistent_store import PersistentStore
 from .provider import MemoryProvider
 from .sliding_window import SlidingWindow

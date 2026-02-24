@@ -25,7 +25,6 @@ from loom.knowledge.adapters import OrmGraphStoreAdapter, OrmVectorStoreAdapter
 from loom.memory.adapters import VectorPersistentStore
 from loom.types import SearchOptions, Skill
 
-
 # ═══════════════════════════════════════════════════════════════
 # Part 1: Mock 数据库层
 # ═══════════════════════════════════════════════════════════════
@@ -36,7 +35,7 @@ relation_table: list[dict] = []
 
 
 def cosine_sim(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(x * x for x in b))
     return dot / (na * nb) if na and nb else 0.0
@@ -149,8 +148,8 @@ async def main():
 
     q_vec = await embedder.embed("记忆怎么工作")
     results = await orm_vector.query(q_vec, 2)
-    print(f"  存储: 3 条向量")
-    print(f"  查询 '记忆怎么工作' top-2:")
+    print("  存储: 3 条向量")
+    print("  查询 '记忆怎么工作' top-2:")
     for r in results:
         print(f"    → {r['id']}: {r['content'][:40]}")
     assert results[0]["id"] == "v2", f"期望 v2 排第一，实际 {results[0]['id']}"
@@ -180,7 +179,7 @@ async def main():
     ])
 
     related = await orm_graph.find_related("Memory", 5)
-    print(f"  实体: 4, 关系: 3")
+    print("  实体: 4, 关系: 3")
     print(f"  find_related('Memory'): {[r['name'] for r in related]}")
 
     neighbors = await orm_graph.get_neighbors("n1")
@@ -217,8 +216,8 @@ async def main():
     ))
 
     hits = await vector_persistent.search("记忆系统怎么工作", SearchOptions(limit=2))
-    print(f"  存储: 3 条记忆")
-    print(f"  语义搜索 '记忆系统怎么工作' top-2:")
+    print("  存储: 3 条记忆")
+    print("  语义搜索 '记忆系统怎么工作' top-2:")
     for h in hits:
         print(f"    → {h.id}: {h.content[:40]}...")
     assert hits[0].id == "mem-1", f"期望 mem-1 排第一，实际 {hits[0].id}"
@@ -252,7 +251,7 @@ async def main():
     )
 
     l3_results = await memory.get_l3_context("自组织集群", limit=2)
-    print(f"  L3 语义召回 '自组织集群' top-2:")
+    print("  L3 语义召回 '自组织集群' top-2:")
     for e in l3_results:
         print(f"    → {e.id}: {e.content[:40]}...")
     assert any(e.id == "mem-2" for e in l3_results), "mem-2 应在 L3 召回中"
@@ -290,7 +289,7 @@ async def main():
     # 测试语义路由
     fragments = await skill_catalog.provide("快速排序算法的时间复杂度", budget=500)
     print(f"  技能目录: {catalog.size} 个技能")
-    print(f"  查询 '快速排序算法的时间复杂度':")
+    print("  查询 '快速排序算法的时间复杂度':")
     if fragments:
         loaded_name = fragments[0].metadata.get("skill_name", "?")
         print(f"    → 路由到: {loaded_name}")
