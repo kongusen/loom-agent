@@ -110,8 +110,12 @@ class AmoebaLoop:
 
     async def _sense_and_match(self, input_text: str) -> tuple[TaskSpec, AgentNode | None]:
         skill_descs = self._collect_skill_descriptions()
-        complexity, selected_skill, domains = await self._llm_sense_and_match(input_text, skill_descs)
-        calibrated = self._calibrate(ComplexityEstimate(score=complexity, domains=domains, method="llm"))
+        complexity, selected_skill, domains = await self._llm_sense_and_match(
+            input_text, skill_descs
+        )
+        calibrated = self._calibrate(
+            ComplexityEstimate(score=complexity, domains=domains, method="llm")
+        )
         c = calibrated.score
         task = TaskAd(
             domain=selected_skill or "general",
@@ -120,7 +124,11 @@ class AmoebaLoop:
             token_budget=2048 if c < 0.4 else 4096 if c < 0.7 else 8192,
         )
         spec = TaskSpec(task=task, objective=input_text, domain_hints=calibrated.domains)
-        winner = self._resolve_skill_node(selected_skill) if selected_skill else self._cluster.find_idle()
+        winner = (
+            self._resolve_skill_node(selected_skill)
+            if selected_skill
+            else self._cluster.find_idle()
+        )
         return spec, winner
 
     def _collect_skill_descriptions(self) -> list[dict[str, str]]:
@@ -130,7 +138,12 @@ class AmoebaLoop:
             if node.id.startswith("skill:"):
                 name = node.id.removeprefix("skill:")
                 skill = self._skills.get(name)
-                from_nodes.append({"name": name, "description": getattr(skill, "description", name) if skill else name})
+                from_nodes.append(
+                    {
+                        "name": name,
+                        "description": getattr(skill, "description", name) if skill else name,
+                    }
+                )
         loaded_names = {d["name"] for d in from_nodes}
         from_catalog = [d for d in self._skills.describe_all() if d["name"] not in loaded_names]
         return from_nodes + from_catalog
@@ -161,7 +174,11 @@ class AmoebaLoop:
             m = re.search(r"\{[\s\S]*\}", r.content)
             if m:
                 obj = json.loads(m.group())
-                name = obj.get("skill", "").strip().lower() if isinstance(obj.get("skill"), str) else None
+                name = (
+                    obj.get("skill", "").strip().lower()
+                    if isinstance(obj.get("skill"), str)
+                    else None
+                )
                 matched = next((s["name"] for s in skills if s["name"] == name), None)
                 return (
                     max(0.0, min(1.0, obj.get("complexity", 0.5))),
@@ -182,6 +199,7 @@ class AmoebaLoop:
         if not skill:
             return None
         from ..agent import Agent
+
         agent = Agent(provider=self._llm, name=node_id)
         node = AgentNode(
             id=node_id,

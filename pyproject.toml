@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.6.0"
+version = "0.6.1"
 description = "Minimal self-organizing multi-agent framework"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
