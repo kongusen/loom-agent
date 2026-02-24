@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.6.1"
+version = "0.6.2"
 description = "Minimal self-organizing multi-agent framework"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
@@ -11,7 +11,7 @@ homepage = "https://github.com/kongusen/loom-agent"
 repository = "https://github.com/kongusen/loom-agent"
 documentation = "https://github.com/kongusen/loom-agent#readme"
 
-keywords = ["ai", "llm", "agent", "multi-agent", "rag", "tooling", "asyncio"]
+keywords = ["ai", "llm", "agent", "multi-agent", "rag", "tooling", "asyncio", "vector-store", "graph-store", "skill-routing", "adapter"]
 
 classifiers = [
   "Development Status :: 3 - Alpha",                            # First release - Alpha stage

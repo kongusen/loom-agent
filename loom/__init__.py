@@ -38,7 +38,7 @@ from .memory import MemoryManager, PersistentStore, SlidingWindow, WorkingMemory
 from .providers.base import BaseLLMProvider, CircuitBreakerConfig, RetryConfig
 from .runtime import Runtime
 from .session import SessionContext, get_current_session, reset_session, set_session
-from .skills import SkillProvider, SkillRegistry
+from .skills import SkillCatalogProvider, SkillProvider, SkillRegistry
 from .tools import ToolRegistry, define_tool
 from .tools.builtin import delegate_tool, done_tool
 from .types import (
@@ -85,7 +85,7 @@ from .types import (
     UserMessage,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.6.2"
 
 __all__ = [
     # Agent
@@ -196,6 +196,7 @@ __all__ = [
     "RetrievalResult",
     "RetrieverOptions",
     # Skills
+    "SkillCatalogProvider",
     "SkillRegistry",
     "SkillProvider",
     "SkillTrigger",

@@ -1,4 +1,4 @@
-"""Provider presets — OpenAI-compatible Chinese LLM factories."""
+"""Provider presets — OpenAI-compatible LLM factories."""
 
 from __future__ import annotations
 
@@ -55,3 +55,28 @@ def create_doubao(api_key: str, model: str = "doubao-pro-4k", **kw) -> OpenAIPro
             api_key=api_key, model=model, base_url="https://ark.cn-beijing.volces.com/api/v3", **kw
         )
     )
+
+
+# --- Local / self-hosted (OpenAI-compatible) ---
+
+
+def create_ollama(
+    model: str = "llama3", base_url: str = "http://localhost:11434/v1", **kw
+) -> OpenAIProvider:
+    return OpenAIProvider(AgentConfig(api_key="ollama", model=model, base_url=base_url, **kw))
+
+
+def create_vllm(
+    model: str = "default", base_url: str = "http://localhost:8000/v1", **kw
+) -> OpenAIProvider:
+    return OpenAIProvider(AgentConfig(api_key="vllm", model=model, base_url=base_url, **kw))
+
+
+def create_gpustack(
+    api_key: str, model: str = "default", base_url: str = "http://localhost:80/v1", **kw
+) -> OpenAIProvider:
+    return OpenAIProvider(AgentConfig(api_key=api_key, model=model, base_url=base_url, **kw))
+
+
+def create_custom(api_key: str, model: str, base_url: str, **kw) -> OpenAIProvider:
+    return OpenAIProvider(AgentConfig(api_key=api_key, model=model, base_url=base_url, **kw))

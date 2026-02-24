@@ -1,5 +1,6 @@
 """Knowledge — document ingestion, chunking, and retrieval."""
 
+from .adapters import OrmGraphStoreAdapter, OrmVectorStoreAdapter
 from .base import KnowledgeBase
 from .chunkers import FixedSizeChunker, RecursiveChunker
 from .provider import KnowledgeProvider
@@ -25,6 +26,8 @@ __all__ = [
     "HybridRetriever",
     "GraphRetriever",
     "InMemoryVectorStore",
+    "OrmVectorStoreAdapter",
+    "OrmGraphStoreAdapter",
     "EmbeddingProvider",
     "VectorStore",
     "GraphStore",
