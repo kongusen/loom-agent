@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -17,3 +18,4 @@ class AgentConfig:
     max_tokens: int = 4096
     token_budget: int = 128_000
     stream: bool = True
+    tool_context: dict[str, Any] = field(default_factory=dict)

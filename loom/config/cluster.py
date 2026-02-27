@@ -22,3 +22,10 @@ class ClusterConfig:
             "tools": 0.15,
         }
     )
+    # Blueprint Forge
+    blueprint_forge_enabled: bool = True
+    blueprint_evolve_threshold: float = 0.35
+    blueprint_evolve_window: int = 5
+    blueprint_prune_min_reward: float = 0.2
+    blueprint_prune_min_tasks: int = 3
+    blueprint_max_count: int = 50

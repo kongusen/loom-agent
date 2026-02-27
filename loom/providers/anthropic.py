@@ -13,6 +13,7 @@ from ..types import (
     StreamChunk,
     TokenUsage,
     ToolCall,
+    ToolCallDelta,
     ToolDefinition,
 )
 from .base import BaseLLMProvider
@@ -115,6 +116,12 @@ class AnthropicProvider(BaseLLMProvider):
                         yield StreamChunk(text=event.delta.text)
                     elif hasattr(event.delta, "partial_json") and current_tool:
                         current_tool["args"] += event.delta.partial_json
+                        yield StreamChunk(
+                            tool_call_delta=ToolCallDelta(
+                                tool_call_id=current_tool["id"],
+                                partial_args=event.delta.partial_json,
+                            )
+                        )
                 elif event.type == "content_block_stop" and current_tool:
                     yield StreamChunk(
                         tool_call=ToolCall(

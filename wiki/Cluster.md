@@ -83,6 +83,41 @@ report = lm.check_health(node)
 print(report.status)  # "healthy"
 ```
 
+## Blueprint Forge — 自主 Agent 创建
+
+v0.6.3 新增。当拍卖无赢家时，集群可通过 LLM 自动设计并孵化专家 Agent：
+
+```python
+from loom.cluster.blueprint_forge import BlueprintForge
+from loom.cluster.blueprint_store import BlueprintStore
+
+store = BlueprintStore()
+forge = BlueprintForge(llm=provider, store=store)
+
+# 锻造蓝图 → 孵化 Agent → 加入集群
+task = TaskAd(domain="data", description="分析销售趋势")
+blueprint = await forge.forge(task)
+node = forge.spawn(blueprint, coder)  # 以 coder 为父节点
+cm.add_node(node)
+
+# 蓝图参与后续拍卖
+winner = cm.select_winner(task)
+```
+
+蓝图通过 reward 信号持续进化，低效蓝图被自动淘汰。详见 [Blueprint Forge](Blueprint) 完整文档。
+
+### 蓝图相关配置
+
+```python
+config = ClusterConfig(
+    blueprint_forge_enabled=True,
+    blueprint_evolve_threshold=0.35,
+    blueprint_prune_min_reward=0.2,
+    blueprint_prune_min_tasks=3,
+    blueprint_max_count=50,
+)
+```
+
 ## API 参考
 
 ```python

@@ -59,6 +59,39 @@ result = await agent.run("2的20次方是多少？北京天气如何？")
 print(result.steps)  # 2 (两次工具调用步骤)
 ```
 
+## ToolContext 扩展 — 动态元数据访问
+
+v0.6.3 新增。通过 `AgentConfig.tool_context` 向工具传递任意上下文数据，工具函数可以属性方式直接访问：
+
+```python
+from loom import Agent, AgentConfig, ToolRegistry, define_tool, ToolContext
+
+agent = Agent(
+    provider=provider,
+    config=AgentConfig(
+        max_steps=5,
+        tool_context={"documentContext": ["block-A", "block-B"], "selectedText": "hello"},
+    ),
+    tools=registry,
+)
+```
+
+在工具函数中，通过 `ctx.metadata` 字典或直接属性访问：
+
+```python
+async def my_tool(params, ctx: ToolContext) -> str:
+    # 字典访问
+    docs = ctx.metadata["documentContext"]
+    # 属性访问（等价，通过 __getattr__ 代理到 metadata）
+    docs = ctx.documentContext
+    text = ctx.selectedText
+    return f"Found {len(docs)} docs"
+```
+
+数据流链路：`AgentConfig.tool_context` → `LoopContext.tool_context` → `_exec_tool()` → `ToolContext.metadata`
+
+注意：metadata 中的键不会覆盖 ToolContext 的原生字段（`agent_id`、`session_id` 等）。
+
 ## API 参考
 
 ```python
@@ -73,10 +106,11 @@ define_tool(name, description, params_model, execute_fn) -> ToolDefinition
 # ToolContext — 工具执行时的上下文
 @dataclass
 class ToolContext:
-    agent_id: str
-    signal: Any = None
-    session_id: str = ""
-    tenant_id: str = ""
+    agent_id: str = ""
+    session_id: str | None = None
+    tenant_id: str | None = None
+    signal: Any | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 # 内置工具
 from loom import done_tool, delegate_tool

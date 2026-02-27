@@ -12,6 +12,7 @@ from ..types import (
     StreamChunk,
     TokenUsage,
     ToolCall,
+    ToolCallDelta,
     ToolDefinition,
 )
 from .base import BaseLLMProvider
@@ -83,8 +84,12 @@ class OpenAIProvider(BaseLLMProvider):
                 completion_tokens=resp.usage.completion_tokens,
                 total_tokens=resp.usage.total_tokens,
             )
+        reasoning = getattr(choice.message, "reasoning_content", None) or ""
         return CompletionResult(
-            content=choice.message.content or "", tool_calls=tool_calls, usage=usage
+            content=choice.message.content or "",
+            tool_calls=tool_calls,
+            usage=usage,
+            reasoning=reasoning,
         )
 
     async def _do_stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
@@ -104,6 +109,8 @@ class OpenAIProvider(BaseLLMProvider):
                 continue
             delta = chunk.choices[0].delta
             finish = chunk.choices[0].finish_reason
+            if delta and getattr(delta, "reasoning_content", None):
+                yield StreamChunk(reasoning=delta.reasoning_content)
             if delta and delta.content:
                 yield StreamChunk(text=delta.content)
             if delta and delta.tool_calls:
@@ -117,6 +124,13 @@ class OpenAIProvider(BaseLLMProvider):
                         tc_buffers[idx]["name"] = tc.function.name
                     if tc.function and tc.function.arguments:
                         tc_buffers[idx]["args"] += tc.function.arguments
+                        if tc_buffers[idx]["id"]:
+                            yield StreamChunk(
+                                tool_call_delta=ToolCallDelta(
+                                    tool_call_id=tc_buffers[idx]["id"],
+                                    partial_args=tc.function.arguments,
+                                )
+                            )
             if finish:
                 for buf in tc_buffers.values():
                     yield StreamChunk(

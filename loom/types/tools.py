@@ -40,8 +40,17 @@ class ToolResult:
 
 @dataclass
 class ToolContext:
-    agent_id: str
+    agent_id: str = ""
     session_id: str | None = None
     tenant_id: str | None = None
     signal: Any | None = None  # asyncio.Event for cancellation
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __getattr__(self, name: str) -> Any:
+        """Index-signature equivalent: fall back to metadata for unknown attrs."""
+        if name.startswith("_"):
+            raise AttributeError(name)
+        try:
+            return self.metadata[name]
+        except KeyError:
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")

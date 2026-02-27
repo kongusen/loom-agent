@@ -86,6 +86,7 @@ class Agent:
             interceptors=self.interceptors,
             events=self.event_bus,
             signal=signal,
+            tool_context=self.config.tool_context,
         )
 
         done_content: str | None = None

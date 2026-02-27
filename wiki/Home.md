@@ -1,4 +1,4 @@
-# Loom v0.6.0 — 自组织多智能体框架
+# Loom v0.6.3 — 自组织多智能体框架
 
 Loom 是一个极简的自组织多智能体（Multi-Agent）框架，采用组合优于继承的设计，通过可插拔模块构建从单 Agent 到集群协作的完整 AI 应用。
 
@@ -7,7 +7,7 @@ Loom 是一个极简的自组织多智能体（Multi-Agent）框架，采用组�
 | 模块 | 说明 |
 |------|------|
 | [Agent](Agent) | 核心执行循环，组合 provider + memory + tools + context |
-| [Tools](Tools) | 工具注册与 LLM 自主调用 |
+| [Tools](Tools) | 工具注册与 LLM 自主调用 + ToolContext 扩展 |
 | [Events](Events) | 类型化事件总线，父子传播 |
 | [Interceptors](Interceptors) | 中间件管道，LLM 调用前注入/变换 |
 | [Memory](Memory) | 三层记忆：L1 滑动窗口 / L2 工作记忆 / L3 持久化 |
@@ -15,7 +15,8 @@ Loom 是一个极简的自组织多智能体（Multi-Agent）框架，采用组�
 | [Context](Context) | 上下文编排器，自动注入知识到 LLM |
 | [Skills](Skills) | 技能系统，关键词/模式触发自动激活 |
 | [Cluster](Cluster) | 集群拍卖，能力评分竞标选择最佳 Agent |
-| [Providers](Providers) | 弹性 LLM 提供者：重试 + 熔断器 |
+| [Blueprint](Blueprint) | 蓝图锻造，LLM 自主设计并孵化专家 Agent |
+| [Providers](Providers) | 弹性 LLM 提供者：重试 + 熔断器 + Thinking Model |
 | [Runtime](Runtime) | 运行时编排 + AmoebaLoop 自组织循环 |
 | [Architecture](Architecture) | 全栈架构：多 Agent 委派 + 完整流水线 |
 

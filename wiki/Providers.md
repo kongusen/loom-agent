@@ -70,6 +70,68 @@ safe_provider = OpenAIProvider(
 agent = Agent(provider=safe_provider, config=AgentConfig(max_steps=2))
 ```
 
+## Thinking Model 支持
+
+v0.6.3 新增。全面支持推理/思考模型（DeepSeek-R1、QwQ 等），`reasoning_content` 字段在流式和非流式模式下均被捕获。
+
+### 非流式模式
+
+推理内容通过 `CompletionResult.reasoning` 返回：
+
+```python
+from loom.providers.openai import OpenAIProvider
+
+provider = OpenAIProvider(AgentConfig(
+    api_key="sk-xxx",
+    model="deepseek-reasoner",
+    base_url="https://api.deepseek.com/v1",
+))
+
+result = await provider.complete(CompletionParams(messages=[...]))
+print(result.reasoning)  # 思考过程
+print(result.content)    # 最终回答
+```
+
+### 流式模式
+
+推理内容通过 `StreamChunk.reasoning` 和 `ReasoningDeltaEvent` 实时流出：
+
+```python
+from loom import Agent, AgentConfig, ReasoningDeltaEvent, TextDeltaEvent
+
+agent = Agent(provider=provider, config=AgentConfig(max_steps=3))
+
+async for event in agent.stream("解释量子纠缠"):
+    if isinstance(event, ReasoningDeltaEvent):
+        print(f"[思考] {event.text}", end="")
+    elif isinstance(event, TextDeltaEvent):
+        print(event.text, end="")
+```
+
+### 支持的 Provider
+
+| Provider | reasoning_content | 说明 |
+|----------|:-:|------|
+| `OpenAIProvider` | ✓ | DeepSeek-R1、QwQ 等 OpenAI 兼容 API |
+| `GeminiProvider` | ✓ | Gemini 思考模型 |
+| `AnthropicProvider` | — | Claude 使用 extended thinking（独立机制） |
+
+### 相关类型
+
+```python
+@dataclass
+class CompletionResult:
+    content: str
+    reasoning: str = ""       # 思考过程（非流式）
+    ...
+
+@dataclass
+class StreamChunk:
+    text: str | None = None
+    reasoning: str | None = None  # 思考过程（流式）
+    ...
+```
+
 ## API 参考
 
 ```python

@@ -28,6 +28,7 @@ class CompletionResult:
     tool_calls: list[ToolCall] = field(default_factory=list)
     usage: TokenUsage = field(default_factory=TokenUsage)
     finish_reason: FinishReason = "stop"
+    reasoning: str = ""
 
 
 @dataclass
@@ -36,9 +37,20 @@ class StreamOptions:
 
 
 @dataclass
+class ToolCallDelta:
+    """Partial tool-call arguments streamed in real time."""
+
+    tool_call_id: str
+    name: str | None = None
+    partial_args: str = ""
+
+
+@dataclass
 class StreamChunk:
     text: str | None = None
+    reasoning: str | None = None
     tool_call: ToolCall | None = None
+    tool_call_delta: ToolCallDelta | None = None
     finish_reason: str | None = None
 
 

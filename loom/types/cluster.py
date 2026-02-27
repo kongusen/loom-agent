@@ -47,6 +47,7 @@ class AgentNode:
     agent: Any = None
     last_active_at: float = field(default_factory=time.time)
     consecutive_losses: int = 0
+    blueprint_id: str | None = None
 
 
 @dataclass

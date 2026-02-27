@@ -6,6 +6,7 @@ SENSE → MATCH → SCALE+EXECUTE → EVALUATE+ADAPT
 from __future__ import annotations
 
 import json
+import random
 import re
 import time
 from collections.abc import AsyncGenerator
@@ -31,6 +32,7 @@ from ..types import (
 if TYPE_CHECKING:
     from ..types import LLMProvider
     from . import ClusterManager
+    from .blueprint_forge import BlueprintForge
     from .lifecycle import LifecycleManager
     from .planner import TaskPlanner
     from .reward import RewardBus
@@ -55,6 +57,7 @@ class AmoebaLoop:
         complexity_llm_threshold: int = 200,
         evolution_reward_threshold: float = 0.35,
         evolution_window: int = 5,
+        forge: BlueprintForge | None = None,
     ) -> None:
         self._cluster = cluster
         self._reward = reward_bus
@@ -66,6 +69,7 @@ class AmoebaLoop:
         self._evo_threshold = evolution_reward_threshold
         self._evo_window = evolution_window
         self._calibration: dict[str, dict] = {}  # domain → {bias, count}
+        self._forge = forge
 
     # ── Main execute (LoopStrategy interface) ──
 
@@ -129,6 +133,17 @@ class AmoebaLoop:
             if selected_skill
             else self._cluster.find_idle()
         )
+
+        # Blueprint Forge fallback: match or forge when no winner found
+        if not winner and self._forge:
+            bp = await self._forge.match(task)
+            if not bp:
+                bp = await self._forge.forge(task, context=input_text)
+            fallback_parent = self._cluster.nodes[0] if self._cluster.nodes else None
+            if bp and fallback_parent:
+                winner = self._forge.spawn(bp, fallback_parent)
+                self._cluster.add_node(winner)
+
         return spec, winner
 
     def _collect_skill_descriptions(self) -> list[dict[str, str]]:
@@ -269,8 +284,14 @@ class AmoebaLoop:
             estimated_complexity=st.estimated_complexity,
         )
         winner = self._cluster.select_winner(sub_ad)
-        if not winner:
-            # Use lifecycle.mitosis() to create child node
+        if not winner and self._forge:
+            bp = await self._forge.match(sub_ad)
+            if not bp:
+                bp = await self._forge.forge(sub_ad, context=spec.objective)
+            child = self._forge.spawn(bp, parent)
+            self._cluster.add_node(child)
+            winner = child
+        elif not winner:
             from ..agent import Agent
 
             child = self._lifecycle.mitosis(
@@ -335,6 +356,30 @@ class AmoebaLoop:
 
         # ADAPT: decay inactive
         self._reward.decay_inactive(winner)
+
+        # ADAPT: blueprint reward propagation + evolution
+        if self._forge and winner.blueprint_id:
+            bp = self._forge.store.get(winner.blueprint_id)
+            if bp:
+                bp.total_tasks += 1
+                bp.reward_history.append(reward)
+                recent = bp.reward_history[-20:]
+                bp.avg_reward = sum(recent) / len(recent)
+                self._forge.store.save(bp)
+                # Trigger evolution if underperforming
+                if (
+                    len(bp.reward_history) >= self._forge.evolve_window
+                    and bp.avg_reward < self._forge.evolve_threshold
+                ):
+                    await self._forge.evolve(bp)
+
+        # ADAPT: blueprint pruning (10% chance per cycle)
+        if self._forge and random.random() < 0.1:
+            config = self._cluster.config
+            self._forge.store.prune(
+                min_reward=getattr(config, "blueprint_prune_min_reward", 0.2),
+                min_tasks=getattr(config, "blueprint_prune_min_tasks", 3),
+            )
 
         return reward, recycled
 

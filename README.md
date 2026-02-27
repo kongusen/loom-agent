@@ -9,11 +9,12 @@
 
 [![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kongusen/loom-agent)
 [![License: Apache 2.0 + Commons Clause](https://img.shields.io/badge/License-Apache_2.0_with_Commons_Clause-red.svg)](LICENSE)
 
 **English** | [中文](README_CN.md)
 
-[Wiki](wiki/Home.md) | [Examples](examples/demo/) | [v0.6.0](https://pypi.org/project/loom-agent/)
+[Wiki](wiki/Home.md) | [Examples](examples/demo/) | [v0.6.3](https://pypi.org/project/loom-agent/)
 
 </div>
 
@@ -211,6 +212,48 @@ r2 = await writer.run("Write a technical article")
 
 ---
 
+## What's New in v0.6.3
+
+### Blueprint Forge — Autonomous Agent Creation
+When no existing agent can handle a task, the cluster now **auto-designs** a specialized agent via LLM. Blueprints carry tailored `system_prompt`, filtered tools, and domain scores. They evolve through reward signals and get pruned when underperforming.
+
+```python
+from loom.cluster.blueprint_forge import BlueprintForge
+from loom.cluster.blueprint_store import BlueprintStore
+
+store = BlueprintStore(persist_path=Path("blueprints.json"))
+forge = BlueprintForge(llm=provider, store=store)
+
+# LLM designs a specialist blueprint → spawns an agent
+blueprint = await forge.forge(task)
+node = forge.spawn(blueprint, parent_node)
+result = await node.agent.run("Analyze this dataset")
+```
+
+See [Blueprint Forge](wiki/Blueprint.md) for the full lifecycle.
+
+### ToolContext Extension — Dynamic Metadata Access
+Tools can now receive arbitrary context via `AgentConfig.tool_context`. Access custom fields directly as attributes on `ToolContext`:
+
+```python
+agent = Agent(
+    provider=provider,
+    config=AgentConfig(
+        tool_context={"documentContext": ["block-A", "block-B"]},
+    ),
+    tools=registry,
+)
+
+# Inside your tool function:
+async def my_tool(params, ctx: ToolContext) -> str:
+    docs = ctx.documentContext  # attribute-style access via metadata
+```
+
+### Thinking Model Support
+Full support for reasoning/thinking models (DeepSeek, QwQ, etc.) across all providers. The `reasoning_content` field is captured in both streaming and non-streaming modes, exposed via `CompletionResult.reasoning` and `ReasoningDeltaEvent`.
+
+---
+
 ## Core Features
 
 ### Composition-Based Architecture
@@ -263,7 +306,8 @@ See the [Wiki](wiki/Home.md) for detailed documentation:
 | [Context](wiki/Context.md) | ContextOrchestrator, multi-source | 07 |
 | [Skills](wiki/Skills.md) | SkillRegistry, trigger-based activation | 08 |
 | [Cluster](wiki/Cluster.md) | ClusterManager, auction, RewardBus | 09-10 |
-| [Providers](wiki/Providers.md) | BaseLLMProvider, retry, circuit breaker | 11 |
+| [Blueprint](wiki/Blueprint.md) | BlueprintForge, autonomous agent creation | — |
+| [Providers](wiki/Providers.md) | BaseLLMProvider, retry, circuit breaker, thinking models | 11 |
 | [Runtime](wiki/Runtime.md) | Runtime, AmoebaLoop 6-phase cycle | 12-13 |
 | [Architecture](wiki/Architecture.md) | Full-stack pipeline, delegation, architecture diagram | 14-15 |
 
@@ -271,7 +315,7 @@ See the [Wiki](wiki/Home.md) for detailed documentation:
 
 ## Project Status
 
-Current version: **v0.6.0**.
+Current version: **v0.6.3**.
 
 APIs may evolve rapidly.
 

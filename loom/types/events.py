@@ -20,6 +20,12 @@ class TextDeltaEvent:
 
 
 @dataclass
+class ReasoningDeltaEvent:
+    text: str
+    type: str = "reasoning_delta"
+
+
+@dataclass
 class ToolCallStartEvent:
     tool_call_id: str
     name: str
@@ -80,6 +86,7 @@ class DoneEvent:
 
 AgentEvent = (
     TextDeltaEvent
+    | ReasoningDeltaEvent
     | ToolCallStartEvent
     | ToolCallDeltaEvent
     | ToolCallEndEvent

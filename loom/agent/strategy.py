@@ -13,11 +13,13 @@ from ..types import (
     CompletionParams,
     DoneEvent,
     ErrorEvent,
+    ReasoningDeltaEvent,
     StepEndEvent,
     StepStartEvent,
     TextDeltaEvent,
     TokenUsage,
     ToolCall,
+    ToolCallDeltaEvent,
     ToolCallEndEvent,
     ToolCallStartEvent,
     ToolContext,
@@ -56,6 +58,8 @@ class LoopContext:
     signal: Any
     tool_config: Any
 
+    tool_context: Any
+
     def __init__(self, **kwargs: Any) -> None:
         for k in (
             "messages",
@@ -73,6 +77,7 @@ class LoopContext:
             "events",
             "signal",
             "tool_config",
+            "tool_context",
         ):
             setattr(self, k, kwargs.get(k))
 
@@ -107,20 +112,32 @@ class ToolUseStrategy:
             )
 
             text = ""
+            reasoning = ""
             tool_calls: list[ToolCall] = []
             try:
                 if ctx.streaming:
                     async for chunk in provider.stream(params):
+                        if chunk.reasoning:
+                            reasoning += chunk.reasoning
+                            yield ReasoningDeltaEvent(text=chunk.reasoning)
                         if chunk.text:
                             text += chunk.text
                             yield TextDeltaEvent(text=chunk.text)
+                        if chunk.tool_call_delta:
+                            yield ToolCallDeltaEvent(
+                                tool_call_id=chunk.tool_call_delta.tool_call_id,
+                                partial_args=chunk.tool_call_delta.partial_args,
+                            )
                         if chunk.tool_call:
                             tool_calls.append(chunk.tool_call)
                 else:
                     result = await provider.complete(params)
                     text = result.content
+                    reasoning = result.reasoning
                     tool_calls = result.tool_calls
                     _accumulate_usage(usage, result.usage)
+                    if reasoning:
+                        yield ReasoningDeltaEvent(text=reasoning)
                     if text:
                         yield TextDeltaEvent(text=text)
             except Exception as e:
@@ -147,8 +164,9 @@ class ToolUseStrategy:
                 if tc.name == "done":
                     yield StepEndEvent(step=step, reason="complete")
                     dur = int((time.monotonic() - start) * 1000)
+                    final = content if content else result_str
                     yield DoneEvent(
-                        content=result_str, steps=step + 1, duration_ms=dur, usage=usage
+                        content=final, steps=step + 1, duration_ms=dur, usage=usage
                     )
                     return
 
@@ -164,6 +182,7 @@ async def _exec_tool(tc: ToolCall, ctx: LoopContext) -> str:
         agent_id=getattr(ctx, "agent_id", ""),
         session_id=getattr(ctx, "session_id", None),
         tenant_id=getattr(ctx, "tenant_id", None),
+        metadata=dict(getattr(ctx, "tool_context", None) or {}),
     )
     timeout_ms = getattr(ctx.tool_config, "timeout_ms", 30000) if ctx.tool_config else 30000
     registry = ctx.tool_registry
@@ -235,19 +254,40 @@ class ReactStrategy:
                 temperature=ctx.temperature,
             )
 
+            text = ""
+            reasoning = ""
+            tool_calls: list[ToolCall] = []
             try:
-                result = await provider.complete(params)
-                text = result.content
-                tool_calls = result.tool_calls
-                _accumulate_usage(usage, result.usage)
+                if ctx.streaming:
+                    async for chunk in provider.stream(params):
+                        if chunk.reasoning:
+                            reasoning += chunk.reasoning
+                            yield ReasoningDeltaEvent(text=chunk.reasoning)
+                        if chunk.text:
+                            text += chunk.text
+                            yield TextDeltaEvent(text=chunk.text)
+                        if chunk.tool_call_delta:
+                            yield ToolCallDeltaEvent(
+                                tool_call_id=chunk.tool_call_delta.tool_call_id,
+                                partial_args=chunk.tool_call_delta.partial_args,
+                            )
+                        if chunk.tool_call:
+                            tool_calls.append(chunk.tool_call)
+                else:
+                    result = await provider.complete(params)
+                    text = result.content
+                    reasoning = result.reasoning
+                    tool_calls = result.tool_calls
+                    _accumulate_usage(usage, result.usage)
+                    if reasoning:
+                        yield ReasoningDeltaEvent(text=reasoning)
+                    if text:
+                        yield TextDeltaEvent(text=text)
             except Exception as e:
                 yield ErrorEvent(error=str(e), recoverable=False)
                 return
 
-            if text:
-                content += text
-                yield TextDeltaEvent(text=text)
-
+            content += text
             has_final = "Final Answer:" in text
             if has_final or not tool_calls:
                 yield StepEndEvent(step=step, reason="complete")

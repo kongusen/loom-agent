@@ -9,11 +9,12 @@
 
 [![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kongusen/loom-agent)
 [![License: Apache 2.0 + Commons Clause](https://img.shields.io/badge/License-Apache_2.0_with_Commons_Clause-red.svg)](LICENSE)
 
 [English](README.md) | **中文**
 
-[Wiki 文档](wiki/Home.md) | [示例代码](examples/demo/) | [v0.6.0](https://pypi.org/project/loom-agent/)
+[Wiki 文档](wiki/Home.md) | [示例代码](examples/demo/) | [v0.6.3](https://pypi.org/project/loom-agent/)
 
 </div>
 
@@ -211,6 +212,48 @@ r2 = await writer.run("撰写技术文章")
 
 ---
 
+## v0.6.3 新特性
+
+### Blueprint Forge — 自主 Agent 创建
+当集群中没有合适的 Agent 能处理某个任务时，系统会通过 LLM **自动设计**一个专门的 Agent 蓝图。蓝图包含定制的 `system_prompt`、筛选后的工具集和领域能力分数。蓝图通过 reward 信号持续进化，表现差的蓝图会被自动淘汰。
+
+```python
+from loom.cluster.blueprint_forge import BlueprintForge
+from loom.cluster.blueprint_store import BlueprintStore
+
+store = BlueprintStore(persist_path=Path("blueprints.json"))
+forge = BlueprintForge(llm=provider, store=store)
+
+# LLM 设计专家蓝图 → 孵化 Agent
+blueprint = await forge.forge(task)
+node = forge.spawn(blueprint, parent_node)
+result = await node.agent.run("分析这个数据集")
+```
+
+详见 [Blueprint Forge](wiki/Blueprint.md) 完整生命周期文档。
+
+### ToolContext 扩展 — 动态元数据访问
+工具现在可以通过 `AgentConfig.tool_context` 接收任意上下文。在 `ToolContext` 上以属性方式直接访问自定义字段：
+
+```python
+agent = Agent(
+    provider=provider,
+    config=AgentConfig(
+        tool_context={"documentContext": ["block-A", "block-B"]},
+    ),
+    tools=registry,
+)
+
+# 在工具函数内部：
+async def my_tool(params, ctx: ToolContext) -> str:
+    docs = ctx.documentContext  # 通过 metadata 的属性式访问
+```
+
+### Thinking Model 支持
+全面支持推理/思考模型（DeepSeek、QwQ 等），覆盖所有 Provider。`reasoning_content` 字段在流式和非流式模式下均被捕获，通过 `CompletionResult.reasoning` 和 `ReasoningDeltaEvent` 暴露。
+
+---
+
 ## 核心特性
 
 ### 组合式架构
@@ -263,7 +306,8 @@ L1 `SlidingWindow`（近期对话）→ L2 `WorkingMemory`（关键事实）→ 
 | [上下文编排](wiki/Context.md) | ContextOrchestrator、多源收集 | 07 |
 | [技能系统](wiki/Skills.md) | SkillRegistry、触发式激活 | 08 |
 | [集群拍卖](wiki/Cluster.md) | ClusterManager、拍卖、RewardBus | 09-10 |
-| [弹性 Provider](wiki/Providers.md) | BaseLLMProvider、重试、熔断器 | 11 |
+| [蓝图锻造](wiki/Blueprint.md) | BlueprintForge、自主 Agent 创建 | — |
+| [弹性 Provider](wiki/Providers.md) | BaseLLMProvider、重试、熔断器、Thinking Model | 11 |
 | [运行时](wiki/Runtime.md) | Runtime、AmoebaLoop 6 阶段循环 | 12-13 |
 | [架构总览](wiki/Architecture.md) | 全栈流水线、委派、架构图 | 14-15 |
 
@@ -271,7 +315,7 @@ L1 `SlidingWindow`（近期对话）→ L2 `WorkingMemory`（关键事实）→ 
 
 ## 项目状态
 
-当前版本：**v0.6.0**。
+当前版本：**v0.6.3**。
 
 API 可能会快速演化。
 

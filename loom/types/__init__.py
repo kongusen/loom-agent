@@ -1,5 +1,6 @@
 """Core type definitions — re-exported from sub-modules."""
 
+from .blueprint import AgentBlueprint
 from .cluster import (
     AgentNode,
     AgentNodeStatus,
@@ -36,6 +37,7 @@ from .events import (
     AgentEvent,
     DoneEvent,
     ErrorEvent,
+    ReasoningDeltaEvent,
     StepEndEvent,
     StepEvent,
     StepStartEvent,
@@ -52,6 +54,7 @@ from .llm import (
     LLMProvider,
     StreamChunk,
     StreamOptions,
+    ToolCallDelta,
 )
 from .memory import (
     ImportanceScorer,
@@ -108,6 +111,7 @@ __all__ = [
     "SkillActivation",
     "AgentEvent",
     "TextDeltaEvent",
+    "ReasoningDeltaEvent",
     "ToolCallStartEvent",
     "ToolCallDeltaEvent",
     "ToolCallEndEvent",
@@ -121,6 +125,7 @@ __all__ = [
     "CompletionResult",
     "StreamOptions",
     "StreamChunk",
+    "ToolCallDelta",
     "LLMProvider",
     "FinishReason",
     "AgentNode",
@@ -138,4 +143,5 @@ __all__ = [
     "ComplexityEstimate",
     "MitosisContext",
     "Skill",
+    "AgentBlueprint",
 ]
