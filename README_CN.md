@@ -14,7 +14,7 @@
 
 [English](README.md) | **中文**
 
-[Wiki 文档](wiki/Home.md) | [示例代码](examples/demo/) | [v0.6.3](https://pypi.org/project/loom-agent/)
+[Wiki 文档](wiki/Home.md) | [示例代码](examples/demo/) | [v0.6.4](https://pypi.org/project/loom-agent/)
 
 </div>
 
@@ -212,7 +212,7 @@ r2 = await writer.run("撰写技术文章")
 
 ---
 
-## v0.6.3 新特性
+## v0.6.4 新特性
 
 ### Blueprint Forge — 自主 Agent 创建
 当集群中没有合适的 Agent 能处理某个任务时，系统会通过 LLM **自动设计**一个专门的 Agent 蓝图。蓝图包含定制的 `system_prompt`、筛选后的工具集和领域能力分数。蓝图通过 reward 信号持续进化，表现差的蓝图会被自动淘汰。
@@ -315,7 +315,7 @@ L1 `SlidingWindow`（近期对话）→ L2 `WorkingMemory`（关键事实）→ 
 
 ## 项目状态
 
-当前版本：**v0.6.3**。
+当前版本：**v0.6.4**。
 
 API 可能会快速演化。
 

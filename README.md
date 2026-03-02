@@ -14,7 +14,7 @@
 
 **English** | [中文](README_CN.md)
 
-[Wiki](wiki/Home.md) | [Examples](examples/demo/) | [v0.6.3](https://pypi.org/project/loom-agent/)
+[Wiki](wiki/Home.md) | [Examples](examples/demo/) | [v0.6.4](https://pypi.org/project/loom-agent/)
 
 </div>
 
@@ -212,7 +212,7 @@ r2 = await writer.run("Write a technical article")
 
 ---
 
-## What's New in v0.6.3
+## What's New in v0.6.4
 
 ### Blueprint Forge — Autonomous Agent Creation
 When no existing agent can handle a task, the cluster now **auto-designs** a specialized agent via LLM. Blueprints carry tailored `system_prompt`, filtered tools, and domain scores. They evolve through reward signals and get pruned when underperforming.
@@ -315,7 +315,7 @@ See the [Wiki](wiki/Home.md) for detailed documentation:
 
 ## Project Status
 
-Current version: **v0.6.3**.
+Current version: **v0.6.4**.
 
 APIs may evolve rapidly.
 
