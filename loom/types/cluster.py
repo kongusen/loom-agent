@@ -131,7 +131,8 @@ class Skill:
     name: str = ""
     description: str = ""
     instructions: str = ""
+    resources: dict[str, list[str]] | None = None  # scripts/, references/, assets/
+    tools: list[Any] = field(default_factory=list)  # allowed-tools
     activation_level: Literal["always", "conditional", "manual"] = "conditional"
     priority: float = 0.5
-    trigger: Any = None  # SkillTrigger
-    tools: list[Any] = field(default_factory=list)
+    trigger: Any = None  # 废弃：不再使用复杂触发器，保留仅为兼容性

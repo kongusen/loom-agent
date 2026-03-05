@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.5] - 2026-03-05
+
+### 🎯 Claude 标准 Skills 格式支持
+
+- **SKILL.md 标准格式**：完全符合 Claude Skills 规范
+  - YAML frontmatter（name, description）+ Markdown instructions
+  - 固定文件名 SKILL.md
+  - 移除自动生成的 keyword trigger
+- **标准资源目录**：自动加载 scripts/、references/、assets/ 子目录
+  - `Skill.resources` 字段存储资源文件路径
+  - 支持任意深度的子目录扫描
+- **Progressive Disclosure**：三阶段加载机制
+  - Discovery：只加载 name + description（轻量级）
+  - Activation：通过 Skill tool 按需加载完整 instructions
+  - 移除复杂的 trigger 匹配（keyword、pattern、semantic）
+- **简化激活机制**：基于名称的简单调用 `Skill(name="skill-name")`
+- **示例更新**：`examples/skills/python-expert/` 展示标准格式
+
 ## [0.5.7] - 2026-02-13
 
 ### 💾 L3 记忆存储可插拔化

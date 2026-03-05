@@ -1,52 +1,51 @@
-"""08 — Skill 系统：根据用户输入自动激活技能，增强 Agent 专业能力。"""
+"""08 — Progressive Disclosure：Agent 按需加载技能，避免 context bloat。"""
 
 import asyncio
 
 from _provider import create_provider
 
-from loom import Agent, AgentConfig, SkillRegistry
-from loom.types import Skill, SkillTrigger
+from loom import Agent, AgentConfig, SkillRegistry, ToolRegistry
+from loom.tools import create_skill_tool
+from loom.types import Skill
 
 
 async def main():
     provider = create_provider()
 
-    # ── 1. 定义技能 ──
+    # ── 1. 注册技能 ──
     registry = SkillRegistry()
     registry.register(
         Skill(
             name="python-expert",
-            trigger=SkillTrigger(type="keyword", keywords=["python", "pip", "asyncio"]),
-            instructions="你是资深 Python 专家，回答要包含最佳实践和代码示例。",
-            priority=0.9,
+            description="Python 编程专家，精通 asyncio 和最佳实践",
+            instructions="你是资深 Python 专家。回答时使用类型提示、遵循 PEP 8、提供完整代码示例。",
         )
     )
     registry.register(
         Skill(
             name="code-reviewer",
-            trigger=SkillTrigger(type="pattern", pattern=r"\bdef\s+\w+|class\s+\w+"),
-            instructions="你是代码审查专家，关注代码质量、性能和安全性。",
-            priority=0.8,
+            description="代码审查专家，关注质量、性能和安全",
+            instructions="你是代码审查专家。检查：代码风格、性能问题、安全漏洞、错误处理。",
         )
     )
-    print(f"已注册技能: {[s.name for s in registry.all()]}")
+    print(f"已注册 {len(registry.all())} 个技能")
 
-    # ── 2. 自动激活匹配技能 ──
-    query = "用 python asyncio 写一个并发爬虫"
-    activations = await registry.activate(query)
-    print(f"\n[技能匹配] '{query}'")
-    for a in activations:
-        print(f"  {a.skill.name}: score={a.score:.2f}")
+    # ── 2. Discovery：只注入轻量级列表 ──
+    discovery = registry.get_discovery_prompt()
+    system_prompt = "你是智能助手。需要时调用 Skill tool 加载完整指导。\n\n" + discovery
+    print(f"System prompt 大小: {len(system_prompt)} 字符（轻量级）\n")
 
-    # ── 3. 用激活的技能增强 Agent ──
-    print("\n[Agent + Skill] 技能增强对话")
-    skill_prompt = "\n".join(a.skill.instructions for a in activations if a.skill.instructions)
-    agent = Agent(
-        provider=provider,
-        config=AgentConfig(system_prompt=skill_prompt, max_steps=2),
-    )
+    # ── 3. 创建 Skill tool ──
+    tools = ToolRegistry()
+    tools.register(create_skill_tool(registry))
+
+    # ── 4. Agent 按需加载技能 ──
+    agent = Agent(provider, config=AgentConfig(system_prompt=system_prompt, max_steps=5), tools=tools)
+
+    query = "用 Python asyncio 写一个并发爬虫"
+    print(f"用户: {query}\n")
     result = await agent.run(query)
-    print(f"  回复: {result.content[:200]}")
+    print(f"\n回复: {result.content[:200]}...")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from ..types import ToolCall, ToolContext, ToolDefinition
 from .builtin import delegate_tool, done_tool
 from .mcp_client import McpClient, McpServerConfig, McpToolInfo, mcp_tools_to_definitions
 from .schema import DictSchema, PydanticSchema
+from .skill_tool import create_skill_tool
 from .system import list_dir_tool, read_file_tool, shell_tool, write_file_tool
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "mcp_tools_to_definitions",
     "DictSchema",
     "PydanticSchema",
+    "create_skill_tool",
     "list_dir_tool",
     "read_file_tool",
     "shell_tool",
