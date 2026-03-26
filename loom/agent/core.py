@@ -93,6 +93,13 @@ class Agent:
         self._history_cache: dict[str, Any] = {}
         self._history_dirty = True
 
+        # 阶段 3: 边界检测和响应
+        from .boundary import BoundaryDetector, BoundaryHandler
+        self.boundary_detector = BoundaryDetector(
+            self.partition_mgr, self.resource_guard, self.scene_mgr
+        )
+        self.boundary_handler = BoundaryHandler(self)
+
         # 公理四：自动注册 E1/E2 工具
         self._register_evolution_tools()
 
