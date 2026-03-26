@@ -352,6 +352,7 @@ class AmoebaLoop:
         # ADAPT: complexity calibration
         actual = self._derive_actual_complexity(result)
         self._record_calibration(spec.task.domain, spec.task.estimated_complexity, actual)
+        self._record_blueprint_reward(winner, reward)
 
         # ADAPT: decay inactive
         self._decay_inactive_nodes()
@@ -411,6 +412,26 @@ class AmoebaLoop:
         entry["bias"] = 0.3 * (actual - estimated) + 0.7 * entry["bias"]
         entry["count"] += 1
         self._calibration[domain] = entry
+
+    def _record_blueprint_reward(self, node: AgentNode, reward: float) -> None:
+        """Propagate execution reward back to the originating blueprint."""
+        if self._forge is None or not node.blueprint_id:
+            return
+
+        blueprint = self._forge.store.get(node.blueprint_id)
+        if blueprint is None:
+            return
+
+        blueprint.total_tasks += 1
+        blueprint.reward_history.append(reward)
+        blueprint.avg_reward = sum(blueprint.reward_history) / len(blueprint.reward_history)
+        self._forge.store.save(blueprint)
+
+    def _decay_inactive_nodes(self) -> None:
+        """Apply passive reward decay to idle peers between tasks."""
+        for node in self._cluster.nodes:
+            if node.status == "idle":
+                self._reward.decay_inactive(node)
 
     def _should_evolve_skill(self, node: AgentNode) -> bool:
         """Check if node's recent performance warrants skill evolution."""

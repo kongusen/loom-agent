@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from ..types import Tokenizer
@@ -14,7 +14,6 @@ class EstimatorTokenizer:
     def __init__(self, chars_per_token: int = 4, cache_size: int = 1000) -> None:
         self._ratio = chars_per_token
         self._cache_size = cache_size
-
 
     def count(self, text: str) -> int:
         """P2: LRU 缓存 - 自动淘汰."""
@@ -37,6 +36,7 @@ class TiktokenTokenizer:
     def __init__(self, model: str = "gpt-4") -> None:
         try:
             import tiktoken
+
             self._enc = tiktoken.encoding_for_model(model)
         except ImportError:
             raise ImportError("tiktoken not installed. Run: pip install tiktoken") from None
@@ -48,7 +48,7 @@ class TiktokenTokenizer:
         tokens = self._enc.encode(text)
         if len(tokens) <= max_tokens:
             return text
-        return self._enc.decode(tokens[:max_tokens])
+        return cast(str, self._enc.decode(tokens[:max_tokens]))
 
 
 def create_tokenizer(provider: str = "estimator", model: str = "gpt-4") -> Tokenizer:

@@ -28,12 +28,13 @@ class ScenePackage:
 
     def _chain_verify(self, other_hook: Callable | None) -> Callable | None:
         """串联验证钩子"""
-        if not self.verify_hook:
+        current_hook = self.verify_hook
+        if current_hook is None:
             return other_hook
         if not other_hook:
-            return self.verify_hook
+            return current_hook
 
         async def chained(state: dict) -> bool:
-            return await self.verify_hook(state) and await other_hook(state)
+            return await current_hook(state) and await other_hook(state)
 
         return chained

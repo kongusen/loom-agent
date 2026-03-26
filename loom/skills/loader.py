@@ -34,7 +34,10 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
             elif not val or val == "|":
                 meta[current_key] = ""
         elif current_key and re.match(r"^\s+-\s+", line):
-            item = re.match(r"^\s+-\s+(.+)", line).group(1).strip()
+            item_match = re.match(r"^\s+-\s+(.+)", line)
+            if item_match is None:
+                continue
+            item = item_match.group(1).strip()
             existing = meta.get(current_key, "")
             if isinstance(existing, list):
                 existing.append(item)
@@ -51,7 +54,9 @@ def _load_resources(skill_dir: Path) -> dict[str, list[str]]:
     for subdir in ["scripts", "references", "assets"]:
         dir_path = skill_dir / subdir
         if dir_path.is_dir():
-            resources[subdir] = [str(f.relative_to(skill_dir)) for f in dir_path.rglob("*") if f.is_file()]
+            resources[subdir] = [
+                str(f.relative_to(skill_dir)) for f in dir_path.rglob("*") if f.is_file()
+            ]
     return resources
 
 
@@ -115,7 +120,9 @@ def load_dir(path: str | Path, metadata_only: bool = False) -> list[Skill]:
     return skills
 
 
-def load_git(url: str, target: str | Path | None = None, metadata_only: bool = False) -> list[Skill]:
+def load_git(
+    url: str, target: str | Path | None = None, metadata_only: bool = False
+) -> list[Skill]:
     """从 git 仓库克隆并加载技能
 
     Args:
@@ -128,7 +135,9 @@ def load_git(url: str, target: str | Path | None = None, metadata_only: bool = F
 
     dest = Path(target) if target else Path(tempfile.mkdtemp(prefix="loom-skills-"))
     if not (dest / ".git").exists():
-        subprocess.run(["git", "clone", "--depth", "1", url, str(dest)], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "clone", "--depth", "1", url, str(dest)], check=True, capture_output=True
+        )
     return load_dir(dest, metadata_only=metadata_only)
 
 

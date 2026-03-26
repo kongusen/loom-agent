@@ -51,7 +51,9 @@ class CompressionScorer:
             current_time = time.time()
 
         # 批量提取文本
-        texts = [msg.content if isinstance(msg.content, str) else str(msg.content) for msg in history]
+        texts = [
+            msg.content if isinstance(msg.content, str) else str(msg.content) for msg in history
+        ]
         texts.append(goal)
 
         # 一次性 embed
@@ -76,15 +78,18 @@ class CompressionScorer:
 
     async def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         """批量 embedding."""
-        if hasattr(self.embedding, "embed_batch"):
-            return await self.embedding.embed_batch(texts)
+        embedding = self.embedding
+        if embedding is None:
+            raise RuntimeError("Embedding provider is required for batch scoring")
+        if hasattr(embedding, "embed_batch"):
+            return await embedding.embed_batch(texts)
         # 回退到逐个调用
-        return [await self.embedding.embed(text) for text in texts]
+        return [await embedding.embed(text) for text in texts]
 
     def _kernel_score(self, msg: Message) -> int:
         """层A：结构护栏（0 或 1）"""
         # 简化：assistant 消息保留，其他根据内容判断
-        if hasattr(msg, 'role'):
+        if hasattr(msg, "role"):
             if msg.role == "assistant":
                 return 1
             if msg.role == "tool":
@@ -96,9 +101,10 @@ class CompressionScorer:
         if not self.embedding:
             return 0.5
 
+        embedding = self.embedding
         content = msg.content if isinstance(msg.content, str) else str(msg.content)
-        msg_emb = await self.embedding.embed(content)
-        goal_emb = await self.embedding.embed(goal)
+        msg_emb = await embedding.embed(content)
+        goal_emb = await embedding.embed(goal)
         return self._cosine_similarity(msg_emb, goal_emb)
 
     def _cosine_similarity(self, a: list[float], b: list[float]) -> float:

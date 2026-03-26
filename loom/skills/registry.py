@@ -8,7 +8,7 @@ from typing import Any
 class SkillRegistry:
     def __init__(self) -> None:
         self._catalog: dict[str, Any] = {}  # All available skills (metadata only)
-        self._active: dict[str, Any] = {}   # Activated skills (full instructions loaded)
+        self._active: dict[str, Any] = {}  # Activated skills (full instructions loaded)
 
     def register(self, skill: Any) -> None:
         """Register skill to catalog (Layer 1 - Discovery)"""
@@ -29,7 +29,9 @@ class SkillRegistry:
     def all(self) -> list[Any]:
         return list(self._catalog.values())
 
-
+    def list_active(self) -> list[Any]:
+        """Return list of active skills"""
+        return list(self._active.values())
 
     def invalidate_cache(self) -> None:
         """Clear active skills cache"""

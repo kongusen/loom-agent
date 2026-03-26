@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections import deque
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 
@@ -87,8 +88,7 @@ class Agent:
         # P0: Harness 约束系统
         self.constraint_validator = ConstraintValidator(self.scene_mgr)
         self.resource_guard = ResourceGuard(
-            max_tokens=self.config.max_tokens or 100000,
-            max_time_sec=300
+            max_tokens=self.config.max_tokens or 100000, max_time_sec=300
         )
 
         # P2: 历史缓存优化
@@ -184,8 +184,9 @@ class Agent:
 
     async def _build_messages(self) -> list[Message]:
         # P2: 增量构建 - 避免重复计算
-        if not self._history_dirty and self._history_cache.get("messages"):
-            return self._history_cache["messages"]
+        cached_messages = self._history_cache.get("messages")
+        if not self._history_dirty and isinstance(cached_messages, list):
+            return cached_messages
 
         # 公理一：更新分区
         self.partition_mgr.update_partition("system", self.config.system_prompt)
@@ -250,7 +251,16 @@ class Agent:
         keep_count = max(1, int(len(scored) * 0.4))
         # 保留高分消息（简化实现：直接更新 L1）
         compressed = [msg for msg, _ in scored[:keep_count]]
-        self.memory.l1._messages = compressed
+        self.memory.l1._messages = deque(
+            (
+                msg,
+                self.memory.tokenizer.count(
+                    msg.content if isinstance(msg.content, str) else str(msg.content)
+                ),
+            )
+            for msg in compressed
+        )
+        self.memory.l1.current_tokens = sum(tokens for _, tokens in self.memory.l1._messages)
 
     def _merge_context(self, memory_entries: list, knowledge_frags: list, budget: int) -> list:
         """合并记忆和知识，按相关度排序"""
@@ -317,10 +327,10 @@ class Agent:
 
     async def _auto_retrospect(self, task: str, result: str) -> None:
         """P0: 自动回顾蒸馏"""
-        from ..types import TaskResult
+        from ..types.evolution import TaskResult as EvolutionTaskResult
 
         success = bool(result and "error" not in result.lower())
-        task_result = TaskResult(
+        task_result = EvolutionTaskResult(
             task=task, success=success, trace=self._execution_trace, metadata={}
         )
         await self.evolution.e1_retrospect(task_result)
