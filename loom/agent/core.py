@@ -76,6 +76,10 @@ class Agent:
         self._goal = ""
         self.knowledge_provider = None  # 可选的 KnowledgeProvider
 
+        # 阶段 4: WorkingState 结构化
+        from ..types.working import WorkingState
+        self.working_state = WorkingState(budget=2000)
+
         # 公理二：场景包系统
         self.scene_mgr = SceneManager()
 
@@ -309,15 +313,16 @@ class Agent:
 
     def _build_working_state(self) -> str:
         """构建 working 分区内容"""
-        parts = []
-        if self._goal:
-            parts.append(f"<current_goal>{self._goal}</current_goal>")
-        recent_tools = self._execution_trace[-3:] if self._execution_trace else []
-        if recent_tools:
-            parts.append("<recent_actions>")
-            parts.extend(recent_tools)
-            parts.append("</recent_actions>")
-        return "\n".join(parts)
+        # 更新 WorkingState
+        self.working_state.goal = self._goal
+
+        # 最近动作放入 overflow
+        recent = self._execution_trace[-3:] if self._execution_trace else []
+        if recent:
+            self.working_state.overflow = "\n".join(recent)
+
+        # 转换为文本（自动截断）
+        return self.working_state.to_text(self.tokenizer)
 
     def _get_current_query(self) -> str:
         """获取当前查询（用于检索）"""
