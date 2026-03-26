@@ -95,6 +95,21 @@ class Agent:
         self._history_cache: dict[str, Any] = {}
         self._history_dirty = True
 
+        # 公理四：自动注册 E1/E2 工具
+        self._register_evolution_tools()
+
+    def _register_evolution_tools(self) -> None:
+        """自动注册进化工具"""
+        from ..tools.agent_tools import create_memory_tools, create_skill_tools
+
+        # E1: 记忆工具
+        for tool in create_memory_tools(self):
+            self.tools.register(tool)
+
+        # E2: 技能工具
+        for tool in create_skill_tools(self):
+            self.tools.register(tool)
+
     def on(self, event_type: str, handler: Callable) -> None:
         self.event_bus.on(event_type, handler)
 

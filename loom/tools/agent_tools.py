@@ -6,13 +6,10 @@ from ..types import ToolDefinition
 from .schema import DictSchema
 
 
-async def _not_implemented(_params: Any, _ctx: Any) -> str:
-    """Placeholder executor until these helpers are wired into Agent handlers."""
-    return "Tool factory created a definition, but no executor is wired for this runtime."
-
-
-def create_memory_tools() -> list[ToolDefinition]:
+def create_memory_tools(agent: Any) -> list[ToolDefinition]:
     """创建记忆管理工具（E1）"""
+    from ..agent.evolution_handlers import write_memory_handler
+
     return [
         ToolDefinition(
             name="write_memory",
@@ -31,13 +28,15 @@ def create_memory_tools() -> list[ToolDefinition]:
                     "required": ["content"],
                 }
             ),
-            execute=_not_implemented,
+            execute=lambda params, ctx: write_memory_handler(params, ctx, agent),
         )
     ]
 
 
-def create_skill_tools() -> list[ToolDefinition]:
+def create_skill_tools(agent: Any) -> list[ToolDefinition]:
     """创建技能管理工具（E2）"""
+    from ..agent.evolution_handlers import activate_skill_handler, deactivate_skill_handler
+
     return [
         ToolDefinition(
             name="activate_skill",
@@ -54,7 +53,7 @@ def create_skill_tools() -> list[ToolDefinition]:
                     "required": ["skill_name"],
                 }
             ),
-            execute=_not_implemented,
+            execute=lambda params, ctx: activate_skill_handler(params, ctx, agent),
         ),
         ToolDefinition(
             name="deactivate_skill",
@@ -71,6 +70,6 @@ def create_skill_tools() -> list[ToolDefinition]:
                     "required": ["skill_name"],
                 }
             ),
-            execute=_not_implemented,
+            execute=lambda params, ctx: deactivate_skill_handler(params, ctx, agent),
         ),
     ]
