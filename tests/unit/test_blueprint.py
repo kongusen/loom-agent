@@ -139,14 +139,20 @@ def _make_forge(llm=None):
 class TestBlueprintForge:
     @pytest.mark.asyncio
     async def test_forge_parses_llm_json(self):
-        llm = MockLLMProvider([json.dumps({
-            "name": "data-analyst",
-            "description": "Analyzes datasets",
-            "system_prompt": "You analyze data.",
-            "domain": "data",
-            "domain_scores": {"data": 0.8},
-            "tools_filter": [],
-        })])
+        llm = MockLLMProvider(
+            [
+                json.dumps(
+                    {
+                        "name": "data-analyst",
+                        "description": "Analyzes datasets",
+                        "system_prompt": "You analyze data.",
+                        "domain": "data",
+                        "domain_scores": {"data": 0.8},
+                        "tools_filter": [],
+                    }
+                )
+            ]
+        )
         forge, store = _make_forge(llm)
         task = TaskAd(domain="data", description="Analyze CSV")
         bp = await forge.forge(task, context="user uploaded csv")
@@ -170,6 +176,7 @@ class TestBlueprintForge:
         class FailLLM:
             async def complete(self, params):
                 raise RuntimeError("LLM down")
+
         forge = BlueprintForge(llm=FailLLM(), store=BlueprintStore())
         task = TaskAd(domain="ops", description="Deploy service")
         bp = await forge.forge(task)
@@ -179,7 +186,8 @@ class TestBlueprintForge:
     def test_spawn_creates_node(self):
         forge, store = _make_forge()
         bp = AgentBlueprint(
-            name="coder", domain="code",
+            name="coder",
+            domain="code",
             system_prompt="You write code.",
             domain_scores={"code": 0.9},
             tools_filter=["search"],
@@ -204,16 +212,25 @@ class TestBlueprintForge:
 
     @pytest.mark.asyncio
     async def test_evolve_creates_next_generation(self):
-        llm = MockLLMProvider([json.dumps({
-            "description": "Better at data analysis",
-            "system_prompt": "You are an improved data analyst.",
-            "reasoning": "More focused prompt",
-        })])
+        llm = MockLLMProvider(
+            [
+                json.dumps(
+                    {
+                        "description": "Better at data analysis",
+                        "system_prompt": "You are an improved data analyst.",
+                        "reasoning": "More focused prompt",
+                    }
+                )
+            ]
+        )
         forge, store = _make_forge(llm)
         parent_bp = AgentBlueprint(
-            name="analyst", domain="data",
-            description="Analyzes data", system_prompt="You analyze.",
-            domain_scores={"data": 0.6}, generation=1,
+            name="analyst",
+            domain="data",
+            description="Analyzes data",
+            system_prompt="You analyze.",
+            domain_scores={"data": 0.6},
+            generation=1,
             reward_history=[0.2, 0.3, 0.1],
         )
         store.save(parent_bp)
@@ -228,6 +245,7 @@ class TestBlueprintForge:
         class FailLLM:
             async def complete(self, params):
                 raise RuntimeError("down")
+
         forge = BlueprintForge(llm=FailLLM(), store=BlueprintStore())
         bp = AgentBlueprint(name="x", generation=2)
         result = await forge.evolve(bp)
@@ -273,8 +291,13 @@ def _make_amoeba_with_forge(llm=None):
     store = BlueprintStore()
     forge = BlueprintForge(llm=llm, store=store)
     loop = AmoebaLoop(
-        cluster=cm, reward_bus=rb, lifecycle=lm,
-        planner=pl, skill_registry=sr, llm=llm, forge=forge,
+        cluster=cm,
+        reward_bus=rb,
+        lifecycle=lm,
+        planner=pl,
+        skill_registry=sr,
+        llm=llm,
+        forge=forge,
     )
     return loop, cm, forge, store
 
@@ -286,18 +309,22 @@ class TestAmoebaForgeIntegration:
         # LLM call 1: sense_and_match routing → no skill match
         # LLM call 2: forge.match → no existing blueprint
         # LLM call 3: forge.forge → creates new blueprint
-        llm = MockLLMProvider([
-            json.dumps({"skill": "nonexistent", "complexity": 0.5, "domains": ["code"]}),
-            json.dumps({"id": "none"}),
-            json.dumps({
-                "name": "code-writer",
-                "description": "Writes code",
-                "system_prompt": "You write code.",
-                "domain": "code",
-                "domain_scores": {"code": 0.8},
-                "tools_filter": [],
-            }),
-        ])
+        llm = MockLLMProvider(
+            [
+                json.dumps({"skill": "nonexistent", "complexity": 0.5, "domains": ["code"]}),
+                json.dumps({"id": "none"}),
+                json.dumps(
+                    {
+                        "name": "code-writer",
+                        "description": "Writes code",
+                        "system_prompt": "You write code.",
+                        "domain": "code",
+                        "domain_scores": {"code": 0.8},
+                        "tools_filter": [],
+                    }
+                ),
+            ]
+        )
         loop, cm, forge, store = _make_amoeba_with_forge(llm)
         # Add a busy parent so find_idle() returns None but fallback_parent exists
         parent = AgentNode(id="root", depth=0, status="busy", capabilities=CapabilityProfile())
@@ -316,7 +343,9 @@ class TestAmoebaForgeIntegration:
         bp = AgentBlueprint(name="test-bp", domain="code")
         store.save(bp)
         node = AgentNode(
-            id="forged:test", blueprint_id=bp.id, depth=1,
+            id="forged:test",
+            blueprint_id=bp.id,
+            depth=1,
             capabilities=CapabilityProfile(scores={"code": 0.7}),
         )
         cm.add_node(node)
@@ -325,8 +354,12 @@ class TestAmoebaForgeIntegration:
             objective="test",
         )
         result = TaskResult(
-            task_id=spec.task.task_id, agent_id=node.id,
-            content="done", success=True, token_cost=100, duration_ms=500,
+            task_id=spec.task.task_id,
+            agent_id=node.id,
+            content="done",
+            success=True,
+            token_cost=100,
+            duration_ms=500,
         )
         reward, recycled = await loop._evaluate_and_adapt(node, spec, result)
         assert reward > 0

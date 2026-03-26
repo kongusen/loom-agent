@@ -49,6 +49,7 @@ BudgetRatios = dict[ContextSource, float]
 @dataclass
 class ContextPartition:
     """单个上下文分区（公理一）"""
+
     name: str
     content: str
     tokens: int

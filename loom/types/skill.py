@@ -27,6 +27,7 @@ class Skill:
         if path.exists():
             text = path.read_text(encoding="utf-8")
             import re
+
             m = re.match(r"\A---\s*\n.*?\n---\s*\n", text, re.DOTALL)
             self.instructions = text[m.end() :].strip() if m else text.strip()
             self._instructions_loaded = True

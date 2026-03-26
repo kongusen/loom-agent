@@ -165,9 +165,7 @@ class ToolUseStrategy:
                     yield StepEndEvent(step=step, reason="complete")
                     dur = int((time.monotonic() - start) * 1000)
                     final = content if content else result_str
-                    yield DoneEvent(
-                        content=final, steps=step + 1, duration_ms=dur, usage=usage
-                    )
+                    yield DoneEvent(content=final, steps=step + 1, duration_ms=dur, usage=usage)
                     return
 
             yield StepEndEvent(step=step, reason="tool_use")

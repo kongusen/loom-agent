@@ -64,9 +64,7 @@ class EventBus:
         if self._parent:
             await self._parent.emit(event)
 
-    async def publish_with_gain(
-        self, event: AgentEvent, payload: str, context: str = ""
-    ) -> bool:
+    async def publish_with_gain(self, event: AgentEvent, payload: str, context: str = "") -> bool:
         """公理 3.1-3.2: 带信息增益门控的发布"""
         delta_h = self.info_calc.calculate_delta_h(payload, context)
 

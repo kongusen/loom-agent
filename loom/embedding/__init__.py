@@ -44,6 +44,7 @@ class CachedEmbedding:
 
     def _embed_sync(self, text: str) -> tuple[float, ...]:
         import asyncio
+
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(self._provider.embed(text))
         return tuple(result)

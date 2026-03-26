@@ -40,7 +40,9 @@ async def main():
     tools.register(create_skill_tool(registry))
 
     # ── 4. Agent 按需加载技能 ──
-    agent = Agent(provider, config=AgentConfig(system_prompt=system_prompt, max_steps=5), tools=tools)
+    agent = Agent(
+        provider, config=AgentConfig(system_prompt=system_prompt, max_steps=5), tools=tools
+    )
 
     query = "用 Python asyncio 写一个并发爬虫"
     print(f"用户: {query}\n")

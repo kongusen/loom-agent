@@ -29,16 +29,27 @@ class ConstraintValidator:
         # 工具白名单检查
         if not self._scene_mgr.is_tool_allowed(tool_call.name):
             self._record_violation(tool_call.name, "whitelist", "Tool not in scene whitelist")
-            return False, f"Tool '{tool_call.name}' not allowed in scene '{self._scene_mgr.current.id}'"
+            return (
+                False,
+                f"Tool '{tool_call.name}' not allowed in scene '{self._scene_mgr.current.id}'",
+            )
 
         # 约束检查
         constraints = self._scene_mgr.current.constraints
 
-        if constraints.get("network") is False and tool_call.name in ["web_search", "web_fetch", "http_request"]:
+        if constraints.get("network") is False and tool_call.name in [
+            "web_search",
+            "web_fetch",
+            "http_request",
+        ]:
             self._record_violation(tool_call.name, "network", "Network disabled")
             return False, "Network access disabled in current scene"
 
-        if constraints.get("write") is False and tool_call.name in ["write_file", "bash", "file_write"]:
+        if constraints.get("write") is False and tool_call.name in [
+            "write_file",
+            "bash",
+            "file_write",
+        ]:
             self._record_violation(tool_call.name, "write", "Write disabled")
             return False, "Write access disabled in current scene"
 
@@ -50,12 +61,14 @@ class ConstraintValidator:
 
     def _record_violation(self, tool_name: str, constraint_type: str, reason: str) -> None:
         """记录违规用于审计."""
-        self._violations.append({
-            "timestamp": time.time(),
-            "tool": tool_name,
-            "constraint": constraint_type,
-            "reason": reason,
-        })
+        self._violations.append(
+            {
+                "timestamp": time.time(),
+                "tool": tool_name,
+                "constraint": constraint_type,
+                "reason": reason,
+            }
+        )
 
     def get_violations(self) -> list[dict]:
         """获取违规记录."""

@@ -27,7 +27,10 @@ class ResourceGuard:
         """
         # Token 配额检查
         if self._used_tokens + estimated_tokens > self._max_tokens:
-            return False, f"Token quota exceeded: {self._used_tokens + estimated_tokens}/{self._max_tokens}"
+            return (
+                False,
+                f"Token quota exceeded: {self._used_tokens + estimated_tokens}/{self._max_tokens}",
+            )
 
         # 时间配额检查
         if self._start_time > 0:

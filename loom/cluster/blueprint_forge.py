@@ -109,7 +109,9 @@ class BlueprintForge:
         self.store.save(new_bp)
         logger.info(
             "Evolved blueprint %s → %s (gen %d)",
-            blueprint.id[:8], new_bp.id[:8], new_bp.generation,
+            blueprint.id[:8],
+            new_bp.id[:8],
+            new_bp.generation,
         )
         return new_bp
 
@@ -120,20 +122,21 @@ class BlueprintForge:
         blueprints = self.store.list_all()
         if not blueprints:
             return None
-        bp_list = "\n".join(
-            f"- {bp.name} (id={bp.id[:8]}): {bp.description}"
-            for bp in blueprints
-        )
+        bp_list = "\n".join(f"- {bp.name} (id={bp.id[:8]}): {bp.description}" for bp in blueprints)
         try:
             result = await self._llm.complete(
                 CompletionParams(
-                    messages=[UserMessage(content=(
-                        "Given these agent blueprints:\n"
-                        f"{bp_list}\n\n"
-                        f"Task: {task.description}\n\n"
-                        'If one matches well, reply with JSON: {{"id":"<8-char-id>"}}\n'
-                        'If none match, reply: {{"id":"none"}}'
-                    ))],
+                    messages=[
+                        UserMessage(
+                            content=(
+                                "Given these agent blueprints:\n"
+                                f"{bp_list}\n\n"
+                                f"Task: {task.description}\n\n"
+                                'If one matches well, reply with JSON: {{"id":"<8-char-id>"}}\n'
+                                'If none match, reply: {{"id":"none"}}'
+                            )
+                        )
+                    ],
                     temperature=0,
                     max_tokens=64,
                 )
@@ -153,11 +156,12 @@ class BlueprintForge:
     # ── Private: prompt builders ──
 
     def _build_forge_prompt(
-        self, task: TaskAd, existing: list[dict[str, str]], context: str,
+        self,
+        task: TaskAd,
+        existing: list[dict[str, str]],
+        context: str,
     ) -> str:
-        existing_str = "\n".join(
-            f"- {e['name']}: {e['description']}" for e in existing
-        ) or "(none)"
+        existing_str = "\n".join(f"- {e['name']}: {e['description']}" for e in existing) or "(none)"
         return (
             "You are an agent architect. Design a specialized AI agent blueprint "
             "for the task below.\n\n"

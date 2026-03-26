@@ -93,6 +93,7 @@ async def test_agent_history_dirty_flag():
 
     # 添加新消息应该标记为脏
     from loom.types import UserMessage
+
     await agent.memory.add_message(UserMessage(content="New message"))
     # 注意：实际使用中 stream 方法会设置脏标记
 

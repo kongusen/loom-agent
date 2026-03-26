@@ -8,6 +8,7 @@ from loom.types import MemoryEntry, SearchOptions
 
 # ── Mock helpers ──
 
+
 class _MockVectorStore:
     def __init__(self):
         self.data: dict[str, dict] = {}
@@ -31,20 +32,25 @@ class _MockEmbedder:
 
 # ── VectorPersistentStore ──
 
+
 class TestVectorPersistentStore:
     @pytest.fixture
     def store(self):
         return VectorPersistentStore(_MockVectorStore(), _MockEmbedder())
 
     async def test_save_and_search(self, store):
-        entry = MemoryEntry(id="m1", content="hello", tokens=5, importance=0.8, metadata={}, created_at=1.0)
+        entry = MemoryEntry(
+            id="m1", content="hello", tokens=5, importance=0.8, metadata={}, created_at=1.0
+        )
         await store.save(entry)
         hits = await store.search("hello", SearchOptions(limit=1))
         assert len(hits) == 1
         assert hits[0].id == "m1"
 
     async def test_delete(self, store):
-        entry = MemoryEntry(id="m2", content="bye", tokens=3, importance=0.5, metadata={}, created_at=2.0)
+        entry = MemoryEntry(
+            id="m2", content="bye", tokens=3, importance=0.5, metadata={}, created_at=2.0
+        )
         await store.save(entry)
         await store.delete("m2")
         hits = await store.search("bye", SearchOptions(limit=5))
@@ -52,6 +58,7 @@ class TestVectorPersistentStore:
 
 
 # ── OrmVectorStoreAdapter ──
+
 
 class TestOrmVectorStoreAdapter:
     @pytest.fixture
@@ -65,6 +72,7 @@ class TestOrmVectorStoreAdapter:
             class Row:
                 def __init__(self, d):
                     self.id, self.vector, self.metadata = d["id"], d["vector"], d["metadata"]
+
             return [Row(v) for v in list(table.values())[:top_k]]
 
         async def delete(ids):
@@ -92,6 +100,7 @@ class TestOrmVectorStoreAdapter:
 
 # ── OrmGraphStoreAdapter ──
 
+
 class TestOrmGraphStoreAdapter:
     @pytest.fixture
     def adapter(self):
@@ -108,12 +117,14 @@ class TestOrmGraphStoreAdapter:
             class E:
                 def __init__(self, d):
                     self.id, self.name, self.type = d["id"], d.get("name", ""), d.get("type", "")
+
             return [E(e) for e in list(entities.values())[:limit]]
 
         async def get_neighbors(node_id, depth=1):
             class E:
                 def __init__(self, d):
                     self.id, self.name, self.type = d["id"], d.get("name", ""), d.get("type", "")
+
             nids = set()
             for r in relations:
                 if r.get("source") == node_id:
@@ -131,10 +142,12 @@ class TestOrmGraphStoreAdapter:
         assert results[0]["id"] == "x"
 
     async def test_edges_and_neighbors(self, adapter):
-        await adapter.add_nodes([
-            {"id": "a", "name": "A", "type": "t"},
-            {"id": "b", "name": "B", "type": "t"},
-        ])
+        await adapter.add_nodes(
+            [
+                {"id": "a", "name": "A", "type": "t"},
+                {"id": "b", "name": "B", "type": "t"},
+            ]
+        )
         await adapter.add_edges([{"source": "a", "target": "b"}])
         neighbors = await adapter.get_neighbors("a")
         assert any(n["id"] == "b" for n in neighbors)

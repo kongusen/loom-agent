@@ -48,7 +48,9 @@ class BlueprintStore:
             if bp.total_tasks >= min_tasks and bp.avg_reward < min_reward:
                 del self._blueprints[bp_id]
                 pruned.append(bp_id)
-                logger.info("Pruned blueprint %s (%s) avg_reward=%.2f", bp_id[:8], bp.name, bp.avg_reward)
+                logger.info(
+                    "Pruned blueprint %s (%s) avg_reward=%.2f", bp_id[:8], bp.name, bp.avg_reward
+                )
         if pruned:
             self._persist()
         return pruned
@@ -81,24 +83,37 @@ class BlueprintStore:
     @staticmethod
     def _bp_to_dict(bp: AgentBlueprint) -> dict:
         return {
-            "id": bp.id, "name": bp.name, "description": bp.description,
-            "system_prompt": bp.system_prompt, "domain": bp.domain,
-            "domain_scores": bp.domain_scores, "tools_filter": bp.tools_filter,
-            "created_at": bp.created_at, "updated_at": bp.updated_at,
-            "generation": bp.generation, "parent_id": bp.parent_id,
-            "total_spawns": bp.total_spawns, "total_tasks": bp.total_tasks,
-            "avg_reward": bp.avg_reward, "reward_history": bp.reward_history,
+            "id": bp.id,
+            "name": bp.name,
+            "description": bp.description,
+            "system_prompt": bp.system_prompt,
+            "domain": bp.domain,
+            "domain_scores": bp.domain_scores,
+            "tools_filter": bp.tools_filter,
+            "created_at": bp.created_at,
+            "updated_at": bp.updated_at,
+            "generation": bp.generation,
+            "parent_id": bp.parent_id,
+            "total_spawns": bp.total_spawns,
+            "total_tasks": bp.total_tasks,
+            "avg_reward": bp.avg_reward,
+            "reward_history": bp.reward_history,
         }
 
     @staticmethod
     def _dict_to_bp(d: dict) -> AgentBlueprint:
         return AgentBlueprint(
-            id=d["id"], name=d["name"], description=d["description"],
-            system_prompt=d["system_prompt"], domain=d.get("domain", "general"),
+            id=d["id"],
+            name=d["name"],
+            description=d["description"],
+            system_prompt=d["system_prompt"],
+            domain=d.get("domain", "general"),
             domain_scores=d.get("domain_scores", {}),
             tools_filter=d.get("tools_filter", []),
-            created_at=d.get("created_at", 0), updated_at=d.get("updated_at", 0),
-            generation=d.get("generation", 1), parent_id=d.get("parent_id"),
+            created_at=d.get("created_at", 0),
+            updated_at=d.get("updated_at", 0),
+            generation=d.get("generation", 1),
+            parent_id=d.get("parent_id"),
             total_spawns=d.get("total_spawns", 0),
             total_tasks=d.get("total_tasks", 0),
             avg_reward=d.get("avg_reward", 0.0),

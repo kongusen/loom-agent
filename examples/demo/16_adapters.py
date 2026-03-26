@@ -72,6 +72,7 @@ def vector_row_to_dict(row) -> dict:
 
 # ── Mock Graph DB ──
 
+
 async def mock_add_entity(node: dict) -> None:
     entity_table[node["id"]] = node
 
@@ -118,6 +119,7 @@ def entity_to_dict(e) -> dict:
 # Main
 # ═══════════════════════════════════════════════════════════════
 
+
 async def main():
     print("=" * 60)
     print("Loom v0.6.1 — Adapter 能力验证 (Demo 16)")
@@ -140,11 +142,17 @@ async def main():
     vec2 = await embedder.embed("记忆系统分为三层：滑动窗口、工作记忆、持久存储")
     vec3 = await embedder.embed("Amoeba 机制实现自组织集群")
 
-    await orm_vector.upsert([
-        {"id": "v1", "vector": vec1, "metadata": {"content": "Loom 是一个多智能体框架"}},
-        {"id": "v2", "vector": vec2, "metadata": {"content": "记忆系统分为三层：滑动窗口、工作记忆、持久存储"}},
-        {"id": "v3", "vector": vec3, "metadata": {"content": "Amoeba 机制实现自组织集群"}},
-    ])
+    await orm_vector.upsert(
+        [
+            {"id": "v1", "vector": vec1, "metadata": {"content": "Loom 是一个多智能体框架"}},
+            {
+                "id": "v2",
+                "vector": vec2,
+                "metadata": {"content": "记忆系统分为三层：滑动窗口、工作记忆、持久存储"},
+            },
+            {"id": "v3", "vector": vec3, "metadata": {"content": "Amoeba 机制实现自组织集群"}},
+        ]
+    )
 
     q_vec = await embedder.embed("记忆怎么工作")
     results = await orm_vector.query(q_vec, 2)
@@ -166,17 +174,21 @@ async def main():
         entity_to_dict=entity_to_dict,
     )
 
-    await orm_graph.add_nodes([
-        {"id": "n1", "name": "Loom-Agent", "type": "framework"},
-        {"id": "n2", "name": "Memory", "type": "module"},
-        {"id": "n3", "name": "Amoeba", "type": "module"},
-        {"id": "n4", "name": "Knowledge", "type": "module"},
-    ])
-    await orm_graph.add_edges([
-        {"source": "n1", "target": "n2", "relation": "contains"},
-        {"source": "n1", "target": "n3", "relation": "contains"},
-        {"source": "n1", "target": "n4", "relation": "contains"},
-    ])
+    await orm_graph.add_nodes(
+        [
+            {"id": "n1", "name": "Loom-Agent", "type": "framework"},
+            {"id": "n2", "name": "Memory", "type": "module"},
+            {"id": "n3", "name": "Amoeba", "type": "module"},
+            {"id": "n4", "name": "Knowledge", "type": "module"},
+        ]
+    )
+    await orm_graph.add_edges(
+        [
+            {"source": "n1", "target": "n2", "relation": "contains"},
+            {"source": "n1", "target": "n3", "relation": "contains"},
+            {"source": "n1", "target": "n4", "relation": "contains"},
+        ]
+    )
 
     related = await orm_graph.find_related("Memory", 5)
     print("  实体: 4, 关系: 3")
@@ -196,24 +208,36 @@ async def main():
     vector_table.clear()
     vector_persistent = VectorPersistentStore(store=orm_vector, embedder=embedder)
 
-    await vector_persistent.save(MemoryEntry(
-        id="mem-1",
-        content="记忆系统的三层架构：L1 滑动窗口保持最近对话，L2 工作记忆存储重要摘要，L3 持久存储用于长期知识",
-        tokens=30, importance=0.9,
-        metadata={"topic": "memory"}, created_at=time.time(),
-    ))
-    await vector_persistent.save(MemoryEntry(
-        id="mem-2",
-        content="Amoeba 自组织机制通过拍卖、有丝分裂、凋亡实现集群动态伸缩",
-        tokens=25, importance=0.8,
-        metadata={"topic": "amoeba"}, created_at=time.time(),
-    ))
-    await vector_persistent.save(MemoryEntry(
-        id="mem-3",
-        content="SkillCatalogProvider 使用 LLM 语义路由实现渐进式技能加载",
-        tokens=20, importance=0.7,
-        metadata={"topic": "skills"}, created_at=time.time(),
-    ))
+    await vector_persistent.save(
+        MemoryEntry(
+            id="mem-1",
+            content="记忆系统的三层架构：L1 滑动窗口保持最近对话，L2 工作记忆存储重要摘要，L3 持久存储用于长期知识",
+            tokens=30,
+            importance=0.9,
+            metadata={"topic": "memory"},
+            created_at=time.time(),
+        )
+    )
+    await vector_persistent.save(
+        MemoryEntry(
+            id="mem-2",
+            content="Amoeba 自组织机制通过拍卖、有丝分裂、凋亡实现集群动态伸缩",
+            tokens=25,
+            importance=0.8,
+            metadata={"topic": "amoeba"},
+            created_at=time.time(),
+        )
+    )
+    await vector_persistent.save(
+        MemoryEntry(
+            id="mem-3",
+            content="SkillCatalogProvider 使用 LLM 语义路由实现渐进式技能加载",
+            tokens=20,
+            importance=0.7,
+            metadata={"topic": "skills"},
+            created_at=time.time(),
+        )
+    )
 
     hits = await vector_persistent.search("记忆系统怎么工作", SearchOptions(limit=2))
     print("  存储: 3 条记忆")
@@ -261,23 +285,25 @@ async def main():
     print("\n[Part 6] SkillCatalogProvider — LLM 语义路由 + 渐进式技能加载")
 
     catalog = SkillNodeRegistry()
-    catalog.register_all([
-        Skill(
-            name="translator",
-            description="多语言翻译专家，擅长中英日韩互译",
-            instructions="你是翻译专家。保持原文语义，输出自然流畅的译文。",
-        ),
-        Skill(
-            name="coder",
-            description="编程专家，擅长算法、数据结构、系统设计",
-            instructions="你是编程专家。给出高效、可读的代码实现，附带复杂度分析。",
-        ),
-        Skill(
-            name="mathematician",
-            description="数学专家，擅长微积分、线性代数、概率统计",
-            instructions="你是数学专家。给出严谨的推导过程和最终结果。",
-        ),
-    ])
+    catalog.register_all(
+        [
+            Skill(
+                name="translator",
+                description="多语言翻译专家，擅长中英日韩互译",
+                instructions="你是翻译专家。保持原文语义，输出自然流畅的译文。",
+            ),
+            Skill(
+                name="coder",
+                description="编程专家，擅长算法、数据结构、系统设计",
+                instructions="你是编程专家。给出高效、可读的代码实现，附带复杂度分析。",
+            ),
+            Skill(
+                name="mathematician",
+                description="数学专家，擅长微积分、线性代数、概率统计",
+                instructions="你是数学专家。给出严谨的推导过程和最终结果。",
+            ),
+        ]
+    )
 
     skill_registry = SkillRegistry()
     skill_catalog = SkillCatalogProvider(

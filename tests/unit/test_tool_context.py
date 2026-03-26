@@ -72,6 +72,7 @@ class TestExecToolMergesContext:
         class _Schema:
             def parse(self, raw):
                 return raw
+
             def to_json_schema(self):
                 return {"type": "object"}
 
@@ -81,9 +82,14 @@ class TestExecToolMergesContext:
             return "ok"
 
         registry = ToolRegistry()
-        registry.register(ToolDefinition(
-            name="my_tool", description="test", parameters=_Schema(), execute=my_tool,
-        ))
+        registry.register(
+            ToolDefinition(
+                name="my_tool",
+                description="test",
+                parameters=_Schema(),
+                execute=my_tool,
+            )
+        )
 
         from loom.agent.strategy import _exec_tool
         from loom.types import ToolCall
