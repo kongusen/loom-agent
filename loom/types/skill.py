@@ -14,6 +14,7 @@ class Skill:
     description: str = ""
     instructions: str = ""
     resources: dict[str, list[str]] | None = None
+    tools: list[str] | None = None  # scripts/ 中的可执行脚本
 
     # Progressive loading
     _skill_path: Path | None = None

@@ -60,6 +60,15 @@ def _load_resources(skill_dir: Path) -> dict[str, list[str]]:
     return resources
 
 
+def _extract_tools(resources: dict[str, list[str]]) -> list[str] | None:
+    """从 scripts/ 目录提取可执行工具"""
+    scripts = resources.get("scripts", [])
+    if not scripts:
+        return None
+    # 提取脚本名称作为工具名（去掉扩展名）
+    return [Path(s).stem for s in scripts]
+
+
 def parse_skill_md(path: Path, metadata_only: bool = False) -> Skill:
     """Parse Claude-standard SKILL.md file.
 
@@ -87,11 +96,13 @@ def parse_skill_md(path: Path, metadata_only: bool = False) -> Skill:
 
     # Layer 2: Full load
     resources = _load_resources(skill_dir)
+    tools = _extract_tools(resources)
     return Skill(
         name=name,
         description=desc,
         instructions=body.strip(),
         resources=resources if resources else None,
+        tools=tools,
         _skill_path=path,
         _instructions_loaded=True,
     )

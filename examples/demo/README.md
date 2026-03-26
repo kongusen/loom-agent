@@ -51,6 +51,12 @@
 - Layer 2: 按需激活（根据对话选择）
 - 动态替换机制（每轮重新选择）
 
+**11_skill_owned_tools.py**
+- Skill 持有工具机制
+- scripts/ 目录自动识别为工具
+- 工具与 Skill 生命周期绑定
+- 按需加载，节省资源
+
 ### L1 - 持久化能力
 
 **05_memory_layers.py**
