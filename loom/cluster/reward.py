@@ -65,6 +65,29 @@ class RewardBus:
             node.consecutive_losses += 1
         return reward
 
+    def evaluate_step(self, node: AgentNode, step_result: dict) -> float:
+        """P1: 步骤级即时反馈 - 在线学习."""
+        score = 0.0
+
+        # 工具调用成功
+        if step_result.get("tool_success"):
+            score += 0.1
+
+        # Token 效率
+        output_tokens = step_result.get("output_tokens", 0)
+        input_tokens = step_result.get("input_tokens", 1)
+        if output_tokens > 0:
+            efficiency = output_tokens / max(input_tokens, 1)
+            score += min(efficiency * 0.05, 0.2)
+
+        # 即时更新能力分数（轻量级 EMA）
+        if hasattr(node.capabilities, "step_score"):
+            node.capabilities.step_score = 0.5 * score + 0.5 * node.capabilities.step_score
+        else:
+            node.capabilities.step_score = score
+
+        return score
+
     async def evaluate_hybrid(
         self,
         node: AgentNode,

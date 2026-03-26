@@ -355,33 +355,50 @@ class AmoebaLoop:
         self._record_calibration(spec.task.domain, spec.task.estimated_complexity, actual)
 
         # ADAPT: decay inactive
-        self._reward.decay_inactive(winner)
-
-        # ADAPT: blueprint reward propagation + evolution
-        if self._forge and winner.blueprint_id:
-            bp = self._forge.store.get(winner.blueprint_id)
-            if bp:
-                bp.total_tasks += 1
-                bp.reward_history.append(reward)
-                recent = bp.reward_history[-20:]
-                bp.avg_reward = sum(recent) / len(recent)
-                self._forge.store.save(bp)
-                # Trigger evolution if underperforming
-                if (
-                    len(bp.reward_history) >= self._forge.evolve_window
-                    and bp.avg_reward < self._forge.evolve_threshold
-                ):
-                    await self._forge.evolve(bp)
-
-        # ADAPT: blueprint pruning (10% chance per cycle)
-        if self._forge and random.random() < 0.1:
-            config = self._cluster.config
-            self._forge.store.prune(
-                min_reward=getattr(config, "blueprint_prune_min_reward", 0.2),
-                min_tasks=getattr(config, "blueprint_prune_min_tasks", 3),
-            )
+        self._decay_inactive_nodes()
 
         return reward, recycled
+
+    async def _evaluate_and_adapt_online(
+        self,
+        winner: AgentNode,
+        spec: TaskSpec,
+        result: TaskResult,
+    ) -> tuple[float, bool]:
+        """P1: EVALUATE-ADAPT 融合 - 在线学习模式."""
+        # 即时评估
+        reward = self._reward.evaluate(
+            winner, spec.task, result.success, result.token_cost, result.error_count
+        )
+
+        # 即时适应：低分立即触发健康检查
+        recycled = False
+        if reward < self._evo_threshold:
+            health = self._lifecycle.check_health(winner)
+            if health.recommendation == "recycle":
+                try:
+                    self._lifecycle.apoptosis(winner, self._cluster)
+                    recycled = True
+                except Exception:
+                    pass
+
+        # 即时技能进化
+        if not recycled and reward > 0.6:
+            await self._trigger_skill_evolution(winner, spec)
+
+        # 即时复杂度校准
+        actual = self._derive_actual_complexity(result)
+        self._calibrate_complexity_instant(spec.task.domain, actual)
+
+        return reward, recycled
+
+    def _calibrate_complexity_instant(self, domain: str, actual_complexity: float) -> None:
+        """P1: 即时复杂度校准."""
+        if domain not in self._calibration:
+            self._calibration[domain] = {"bias": 0.0, "count": 0}
+        cal = self._calibration[domain]
+        cal["bias"] = 0.7 * cal["bias"] + 0.3 * actual_complexity
+        cal["count"] += 1
 
     # ── Helpers: calibration ──
 

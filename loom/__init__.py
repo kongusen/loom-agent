@@ -17,6 +17,7 @@ from .cluster.planner import TaskPlanner
 from .cluster.reward import RewardBus
 from .config import AgentConfig, ClusterConfig
 from .context import ContextOrchestrator, MemoryContextProvider, MitosisContextProvider
+from .embedding import CachedEmbedding, OpenAIEmbedding
 from .errors import (
     AgentAbortError,
     AgentMaxStepsError,
@@ -63,8 +64,6 @@ from .types import (
     RetrieverOptions,
     RewardRecord,
     RewardSignal,
-    SkillActivation,
-    SkillTrigger,
     StepEndEvent,
     StepEvent,
     StepStartEvent,
@@ -85,7 +84,7 @@ from .types import (
     UserMessage,
 )
 
-__version__ = "0.6.4"
+__version__ = "0.6.6"
 
 __all__ = [
     # Agent
@@ -199,8 +198,9 @@ __all__ = [
     "SkillCatalogProvider",
     "SkillRegistry",
     "SkillProvider",
-    "SkillTrigger",
-    "SkillActivation",
+    # Embedding
+    "OpenAIEmbedding",
+    "CachedEmbedding",
     # Runtime
     "Runtime",
 ]
