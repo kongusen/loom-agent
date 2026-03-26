@@ -80,18 +80,16 @@
 
 ---
 
-## 🔄 Phase 5: 清理向后兼容代码 - 待开始
+## ✅ Phase 5: 清理向后兼容代码 - 已完成
 
-**预计工作量**: 1 天
+**完成时间**: 2026-03-26
+**提交**: 6a2485e
 
-### 待完成任务
-- [ ] 实现 `_emit_with_gain()` 方法
-- [ ] 替换所有 `emit()` 为 `_emit_with_gain()`
-- [ ] 实现 `_filter_tool_output()` 和 `_summarize_output()`
-- [ ] 实现 StreamGatingBuffer 类
-- [ ] 集成流式门控到 `run()` 方法
-- [ ] 添加 GatingConfig 配置类
-- [ ] 编写门控集成测试
+### 完成内容
+- ✅ 删除 Agent 中的 ContextOrchestrator 导入
+- ✅ 删除 Agent.__init__() 的 context 参数
+- ✅ 删除 self.context 初始化
+- ✅ 所有 239 个测试通过
 
 ---
 
@@ -101,12 +99,12 @@
 - [x] Phase 2: 公理二约束前置 (100%)
 - [x] Phase 3: 公理三门控全覆盖 (100%)
 - [x] Phase 4: 公理四进化闭环 (100%)
-- [ ] Phase 5: 清理向后兼容代码 (0%)
+- [x] Phase 5: 清理向后兼容代码 (100%)
 
-**总进度**: 80% (4/5 完成)
+**总进度**: 100% (5/5 完成)
 
 ---
 
-## 下一步
+## ✅ v0.7.0 完成
 
-开始 Phase 5，参考 `PHASE5_CLEANUP_PLAN.md` 删除所有向后兼容代码。
+所有 5 个 Phase 已完成，loom 现在是完全基于四公理的统一架构。
