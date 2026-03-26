@@ -34,6 +34,10 @@
 - 场景组合
 - 约束收窄规则
 
+**08_real_world_scenario.py**
+- 真实场景综合演示
+- 展示所有 L0/L1/L2 机制协同工作
+
 ### L1 - 持久化能力
 
 **05_memory_layers.py**
