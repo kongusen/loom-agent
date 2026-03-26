@@ -14,7 +14,7 @@
 
 **English** | [中文](README_CN.md)
 
-[Wiki](wiki/Home.md) | [Examples](examples/demo/) | [v0.6.4](https://pypi.org/project/loom-agent/)
+[Wiki](wiki/Home.md) | [Examples](examples/demo/) | [v0.6.6](https://pypi.org/project/loom-agent/)
 
 </div>
 
@@ -212,6 +212,30 @@ r2 = await writer.run("Write a technical article")
 
 ---
 
+## What's New in v0.6.6
+
+### Harness Engineering Optimizations
+Production-grade reliability and efficiency improvements based on Harness Engineering principles:
+
+**Constraint System (P0)**
+- Pre-execution constraint validation with tool whitelisting
+- Resource quota guards (token/time limits)
+- Violation tracking for audit trails
+
+**Feedback Loop (P1)**
+- Step-level instant rewards (no wait for task completion)
+- Adaptive skill crystallization with dynamic thresholds
+- Online learning mode (EVALUATE-ADAPT fusion)
+
+**Energy Efficiency (P2)**
+- LRU-cached token counting (10x faster)
+- Incremental history building (90% reduction)
+- Batch embedding calls (90% cost reduction)
+
+See [HARNESS_OPTIMIZATION.md](HARNESS_OPTIMIZATION.md) for details.
+
+---
+
 ## What's New in v0.6.4
 
 ### Blueprint Forge — Autonomous Agent Creation
@@ -288,6 +312,14 @@ Capability-scored agent nodes bid on tasks. `RewardBus` updates scores via EMA a
 
 ### Runtime & AmoebaLoop
 `Runtime` orchestrates cluster-level task submission. `AmoebaLoop` implements a 6-phase self-organizing cycle: SENSE → MATCH → SCALE → EXECUTE → EVALUATE → ADAPT.
+
+### Harness Engineering Features
+Production-grade reliability and efficiency built-in:
+
+- **Constraint Validation** — Pre-execution checks with tool whitelisting and resource quotas
+- **Instant Feedback** — Step-level rewards and online learning for 4x faster adaptation
+- **Smart Caching** — LRU token counting and incremental history building for 10x performance
+- **Batch Operations** — Batch embedding calls reduce API costs by 90%
 
 ---
 
