@@ -1,110 +1,110 @@
-# Loom v0.7.0 实施进度
+# Loom 版本进度
 
-## ✅ Phase 1: 公理一完整接入 - 已完成
+## ✅ v0.7.0 - L2 完整 Agent (2026-03-26)
 
-**完成时间**: 2026-03-26
-**提交**: 520b1e0
+**基于**: Agent 公理系统 v2.2
+**能力等级**: L2 完整（受约束 Agent）
+**测试**: 233/233 通过
 
-### 完成内容
-- ✅ 重写 `_build_messages()` 使用 PartitionManager
-- ✅ 实现 `_update_all_partitions()` 更新所有 5 个分区
-- ✅ 实现 `_build_working_state()` 构建 working 分区
-- ✅ 实现 `_get_current_query()` 获取当前查询
-- ✅ 实现 `_context_to_messages()` 转换分区为消息
-- ✅ 修改 `_execute_tool()` 更新 working 分区
-- ✅ 添加 4 个新测试验证分区集成
-- ✅ 所有 228 个测试通过
+### 核心实现
 
----
+#### 阶段 1: 修复热路径 (提交 969bd38)
+- ✅ 创建 `StepExecutor` 统一执行入口
+- ✅ 集成资源配额检查、约束验证、轨迹记录
+- ✅ 修改 `ToolUseStrategy` 使用 StepExecutor
+- ✅ 扩展 `LoopContext` 传递必需参数
+- ✅ 新增 3 个集成测试
 
-## ✅ Phase 2: 公理二约束前置 - 已完成
+**解决问题**: P0 热路径旁路 - 约束检查和资源配额现在在主循环生效
 
-**完成时间**: 2026-03-26
-**提交**: 121f010
+#### 阶段 2: 修正 Scene 组合 (提交 a105350)
+- ✅ 实现约束收窄语义
+- ✅ 布尔约束：AND 逻辑（两者都允许才允许）
+- ✅ 数值约束：取 min（更小的限制）
+- ✅ 列表约束：取交集（更严格的白名单）
+- ✅ 新增 5 个组合测试
 
-### 完成内容
-- ✅ 修改 ToolRegistry.execute() 集成 constraint_validator
-- ✅ 修改 Agent._execute_tool() 传递 validator
-- ✅ 约束验证集中到 ToolRegistry
-- ✅ 添加 3 个新测试验证约束集成
-- ✅ 所有 231 个测试通过
+**解决问题**: P1 Scene 组合放宽约束 - 现在组合时约束变得更严格
 
-### 关键变更
-1. 所有工具调用现在必须通过约束验证
-2. 约束检查在 ToolRegistry 层统一执行
-3. 场景约束自动生效
+#### 阶段 3: 边界检测和响应 (提交 e5de50c)
+- ✅ 定义 4 类边界：物理/权限/能力/时间
+- ✅ 定义 5 种响应：renew/wait/handoff/decompose/stop
+- ✅ 实现 `BoundaryDetector` 检测上下文压力、资源配额、超时
+- ✅ 实现 `BoundaryHandler` 执行响应策略
+- ✅ 集成到 Agent 主循环
+- ✅ 新增 4 个边界测试
 
----
+**解决问题**: 缺少边界响应机制 - 现在可以检测和响应各类边界条件
 
-## ✅ Phase 3: 公理三门控全覆盖 - 已完成
+#### 阶段 4: WorkingState 结构化 (提交 1b1e351)
+- ✅ 创建 `WorkingState` 类
+- ✅ 实现预算化灵活结构（2000 tokens）
+- ✅ 推荐 schema: goal/plan/progress/blockers/next_action
+- ✅ overflow 字段支持自由内容
+- ✅ to_text() / from_text() 方法
+- ✅ 集成到 Agent._build_working_state()
+- ✅ 新增 4 个状态测试
 
-**完成时间**: 2026-03-26
-**提交**: 14645ba
+**解决问题**: Working 状态无结构 - 现在有预算约束的灵活结构
 
-### 完成内容
-- ✅ 实现 `_emit_with_gain()` 方法
-- ✅ 实现 `_filter_tool_output()` 过滤冗余输出
-- ✅ 实现 `_summarize_output()` 截断输出
-- ✅ 工具输出基于信息增益过滤
-- ✅ 添加 3 个新测试验证门控集成
-- ✅ 所有 234 个测试通过
+### 架构改进
 
-### 关键变更
-1. 工具输出现在根据 ΔH 自动过滤
-2. 低增益 (<0.1): 标记为冗余
-3. 中等增益 (<0.3): 总结到 200 tokens
-4. 高增益: 完整保留
+**新增模块**:
+- `loom/agent/step_executor.py` - 统一执行入口
+- `loom/agent/boundary.py` - 边界检测和响应
+- `loom/types/working.py` - 工作状态结构
 
----
+**修改模块**:
+- `loom/agent/core.py` - 集成 StepExecutor、Boundary、WorkingState
+- `loom/agent/strategy.py` - 使用 StepExecutor
+- `loom/types/scene.py` - 约束收窄语义
 
-## ✅ Phase 4: 公理四进化闭环 - 已完成
+**新增文档**:
+- `Langchain Agent Axioms v2.2.md` - 务实理论框架
+- `LOOM_V2.2_ROADMAP.md` - 详细实施路线图
 
-**完成时间**: 2026-03-26
-**提交**: c66f756
+### 能力对比
 
-### 完成内容
-- ✅ 创建 evolution_handlers.py 实现 E1/E2 handlers
-- ✅ 实现 write_memory_handler (L2/L3 存储)
-- ✅ 实现 activate_skill_handler (预算检查)
-- ✅ 实现 deactivate_skill_handler (技能管理)
-- ✅ 修改 agent_tools.py 绑定 handlers
-- ✅ Agent 自动注册 E1/E2 工具
-- ✅ 添加 5 个新测试验证进化工具
-- ✅ 所有 239 个测试通过
+| 能力层 | v0.6.6 | v0.7.0 |
+|--------|--------|--------|
+| L0 基础 | ✅ | ✅ |
+| L1 可续存 | ✅ | ✅ |
+| L2 受约束 | ⚠️ 40% | ✅ 100% |
+| L3 可验证 | ❌ | ❌ |
 
-### 关键变更
-1. E1/E2 工具完全可用
-2. Agent 初始化时自动注册进化工具
-3. write_memory 可写入 L2/L3
-4. activate_skill/deactivate_skill 可管理技能
+### 测试覆盖
 
----
+- v0.6.6: 220 个测试
+- v0.7.0: 233 个测试 (+13)
 
-## ✅ Phase 5: 清理向后兼容代码 - 已完成
-
-**完成时间**: 2026-03-26
-**提交**: 6a2485e
-
-### 完成内容
-- ✅ 删除 Agent 中的 ContextOrchestrator 导入
-- ✅ 删除 Agent.__init__() 的 context 参数
-- ✅ 删除 self.context 初始化
-- ✅ 所有 239 个测试通过
+新增测试文件:
+- `test_step_executor_integration.py` (3 tests)
+- `test_scene_composition.py` (5 tests)
+- `test_boundary_detection.py` (4 tests)
+- `test_working_state.py` (4 tests)
 
 ---
 
-## 📊 总体进度
+## 历史版本
 
-- [x] Phase 1: 公理一完整接入 (100%)
-- [x] Phase 2: 公理二约束前置 (100%)
-- [x] Phase 3: 公理三门控全覆盖 (100%)
-- [x] Phase 4: 公理四进化闭环 (100%)
-- [x] Phase 5: 清理向后兼容代码 (100%)
+### v0.6.6 - 公理四完整接入 (2026-03-26)
+- Phase 1-5 完成
+- 四公理基础实现
+- 220 个测试通过
 
-**总进度**: 100% (5/5 完成)
+### v0.6.5 - Claude 标准 Skills 格式支持
+### v0.6.4 - SkillLoader for Anthropic SKILL.md
+### v0.6.3 - Blueprint Forge, ToolContext extension
+### v0.6.2 - ORM adapters, VectorPersistentStore
 
 ---
 
-## ✅ v0.7.0 完成
+## 下一步 (v0.8.0 - L3 基础)
 
-所有 5 个 Phase 已完成，loom 现在是完全基于四公理的统一架构。
+可选的 L3 能力增强:
+1. Verifier 接口 - 外部验证支持
+2. 事件日志 - 替代可变字典的共享记忆
+3. 证据收集 - 完成时提供可信度证据
+4. 冲突检测 - 多 Agent 协作保证
+
+**当前状态**: v0.7.0 已是生产可用的 L2 Agent，L3 是可选增强。
