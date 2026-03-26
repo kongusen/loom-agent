@@ -60,6 +60,11 @@ class LoopContext:
 
     tool_context: Any
 
+    # 新增：阶段 1 需要的参数
+    agent: Any
+    constraint_validator: Any
+    resource_guard: Any
+
     def __init__(self, **kwargs: Any) -> None:
         for k in (
             "messages",
@@ -78,6 +83,9 @@ class LoopContext:
             "signal",
             "tool_config",
             "tool_context",
+            "agent",
+            "constraint_validator",
+            "resource_guard",
         ):
             setattr(self, k, kwargs.get(k))
 
@@ -176,18 +184,39 @@ class ToolUseStrategy:
 
 
 async def _exec_tool(tc: ToolCall, ctx: LoopContext) -> str:
+    """执行工具 - 通过 StepExecutor 统一入口"""
+    from .step_executor import StepExecutor
+
     tool_ctx = ToolContext(
         agent_id=getattr(ctx, "agent_id", ""),
         session_id=getattr(ctx, "session_id", None),
         tenant_id=getattr(ctx, "tenant_id", None),
         metadata=dict(getattr(ctx, "tool_context", None) or {}),
     )
-    timeout_ms = getattr(ctx.tool_config, "timeout_ms", 30000) if ctx.tool_config else 30000
-    registry = ctx.tool_registry
-    return await asyncio.wait_for(
-        registry.execute(tc, tool_ctx),
-        timeout=timeout_ms / 1000,
-    )
+
+    # 使用 StepExecutor 统一执行
+    if ctx.agent and ctx.constraint_validator and ctx.resource_guard:
+        executor = StepExecutor(
+            agent=ctx.agent,
+            tool_registry=ctx.tool_registry,
+            constraint_validator=ctx.constraint_validator,
+            resource_guard=ctx.resource_guard,
+        )
+        timeout_ms = getattr(ctx.tool_config, "timeout_ms", 30000) if ctx.tool_config else 30000
+        result = await asyncio.wait_for(
+            executor.execute_step(tc, tool_ctx),
+            timeout=timeout_ms / 1000,
+        )
+        if result.error:
+            return f'{{"error": "{result.error}"}}'
+        return result.output or ""
+    else:
+        # 降级：直接调用 registry（向后兼容）
+        timeout_ms = getattr(ctx.tool_config, "timeout_ms", 30000) if ctx.tool_config else 30000
+        return await asyncio.wait_for(
+            ctx.tool_registry.execute(tc, tool_ctx),
+            timeout=timeout_ms / 1000,
+        )
 
 
 def _is_aborted(ctx: LoopContext) -> bool:

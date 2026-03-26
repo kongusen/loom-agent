@@ -152,6 +152,9 @@ class Agent:
             events=self.event_bus,
             signal=signal,
             tool_context=self.config.tool_context,
+            agent=self,
+            constraint_validator=self.constraint_validator,
+            resource_guard=self.resource_guard,
         )
 
         done_content: str | None = None

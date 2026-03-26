@@ -1,641 +1,426 @@
-# Agent 公理系统 v2.1
+# Agent 公理系统 v2.0
 
-> 副标题：Agent runtime 的控制论宪法
->
-> v2.1 的目标不是再补几个工程经验，而是把 v2.0 从“设计宣言”推进到“带失效域、可验证终止、共享状态一致性约束”的硬理论。
+> 基于 v1.0 的根本性重构：公理一是唯一公理，二三四是它的推论。
 
 ---
 
-## v2.1 的立场变化
+## 与 v1.0 的核心差异
 
-v2.0 最强的地方有三点：
-
-1. `C_working` 是 Agent 的一等公民，而不是散落在 history 里的隐性状态。
-2. `early_stop` 不是失败信号，而是能力边界声明。
-3. Harness `Ψ` 是舞台，不是演员；它设置硬边界，但不代替 LLM 做语义判断。
-
-v2.1 保留这三点，但做三个关键收紧：
-
-1. **把“公理”和“策略”分开。**
-   `ρ`、`δ_min`、压缩打分、`d_max(σ)` 这类参数不再伪装成公理，它们属于策略层。
-2. **把“完成”从自我感觉改成可验证谓词。**
-   `goal_reached` 不能只由 LLM 自评给出，必须有 `V` 提供的终止证据。
-3. **把共享 `M_f` 从存储介质改成一致性契约。**
-   多 Agent 一旦共享文件系统，就必须先定义冲突、顺序、可见性和审计语义。
-
----
-
-## 核心主张
-
-> **Agent 不是一段续写，而是一个在硬边界内运行、对外部世界施加动作、并对自身状态承担可验证责任的受约束控制系统。**
-
-因此，本系统不再只描述“它由哪些部件构成”，而要约束：
-
-1. 什么状态是必须保持的。
-2. 什么状态变化是合法的。
-3. 什么条件下可以宣称任务完成。
-4. 多个 Agent 共享状态时，什么读写是可接受的。
-
----
-
-## 三层结构
-
-### 第一层：本体层（Ontology）
-
-```
-A = ⟨C, M, L, S, Ψ, V, Γ⟩
-```
-
-| 符号 | 名称 | 作用 |
+| 维度 | v1.0 | v2.0 |
 |---|---|---|
-| `C` | Context | 有界感知窗口；Agent 的唯一直接观察界面 |
-| `M` | Memory | `M = (M_s, M_f, M_w)`；短时状态 / 外部持久化 / 模型权重 |
-| `L` | Loop | 状态转移系统，负责 `Reason → Act → Observe → Decide` |
-| `S` | Skill | 可被调度的能力代数，不是平铺工具列表 |
-| `Ψ` | Harness | 硬边界、权限和否决权的持有者 |
-| `V` | Verifier | 终止、阶段完成、约束满足的外部验证接口 |
-| `Γ` | Consistency Contract | 多 Agent 共享 `M_f` 时的一致性语义 |
-
-### 第二层：不变量层（Invariants）
-
-本层给出系统成立所需的最小不变量。
-
-### 第三层：策略层（Policy）
-
-本层只描述实现上的可调参数，例如：
-
-```
-ρ_warn, δ_min, ε, d_max(σ), compression_score, priority_map
-```
-
-它们重要，但不是公理。它们可以替换、学习、任务化，且不改变系统本体。
+| 系统结构 | 四条平行公理 | 一条公理 + 三条派生定理 |
+| 心跳机制 | `H_b` 独立于 `L` | 吸收进 `L*` 的 Δ 阶段 |
+| ρ 阈值 | 多档静态规则（0.6/0.85） | 只有 ρ=1.0 是硬约束，其余交 LLM |
+| early_stop | 需要对抗的失败信号 | 能力边界声明，触发拆解或交控 Harness |
+| 控制论立场 | 未明确 | 带安全阀的自主体：L* 自主，Harness 拥有否决权 |
+| 自我感知信息 | 散落在 C_history | C_working 的一等公民，永不压缩 |
 
 ---
 
-## 唯一公理
+## 元定理
 
-> **唯一公理：**
->
-> Agent runtime 是一个带硬边界、可外部化状态、可验证终止、可审计共享记忆的一致控制系统：
->
-> ```
-> A = ⟨C, M, L, S, Ψ, V, Γ⟩
-> ```
+```
+唯一公理：A = ⟨C, M, L*, S, Ψ⟩
 
-为了让这条公理真正可操作，它必须展开为 6 条不变量。
+定理一（可操作域）  从 S 的管理方式派生    →  O = Σ × Constraint
+定理二（通信协议）  从 M_f 多 Agent 共享派生 →  V(e) = ΔH，Pub/Sub
+定理三（自我进化）  从 Observe 指向自身派生  →  Evolve(A) = {E1,E2,E3,E4}
+```
+
+```mermaid
+graph TD
+    AX["唯一公理<br/>A = ⟨C, M, L*, S, Ψ⟩"]
+
+    AX -->|"S 的管理方式派生"| T1["定理一<br/>可操作域<br/>O = Σ × Constraint"]
+    AX -->|"M_f 多 Agent 共享派生"| T2["定理二<br/>通信协议<br/>V(e) = ΔH"]
+    AX -->|"Observe 指向自身派生"| T3["定理三<br/>自我进化<br/>Evolve(A)"]
+
+    T1 --> D1["L* 需要工具<br/>→ S 需要管理<br/>→ 场景是管理 S 的自然单位"]
+    T2 --> D2["多 Agent 共存<br/>→ 共享 M_f<br/>→ 事件总线是 M_f 的结构化读写协议"]
+    T3 --> D3["Observe 检查自身执行质量<br/>→ 发现可修改的模式<br/>→ 修改自身结构 = 进化"]
+
+    MF[("M_f 文件系统<br/>三条定理的唯一公共基础设施")]
+    T1 --- MF
+    T2 --- MF
+    T3 --- MF
+```
 
 ---
 
-## 六条不变量
+## 唯一公理：A = ⟨C, M, L*, S, Ψ⟩
 
-### I1. 有界感知不变量
+### 基本定义
 
-```
-|C_t| ≤ W_max
-```
+| 符号 | 名称 | 定义 |
+|---|---|---|
+| `C` | Context 上下文 | 当前 token 窗口，Agent 的唯一感知界面，`\|C\| ≤ W_max` |
+| `M` | Memory 记忆 | `M = (M_s, M_f, M_w)`，会话内 / 文件系统 / 模型权重 |
+| `L*` | Loop 自持续执行闭环 | `(Reason → Act → Observe → Δ)*`，心跳内化于 Δ |
+| `S` | Skill 能力集 | 渐进式披露的工具/MCP 集合，按需加载进 `C` |
+| `Ψ` | Harness 外壳 | 构建环境与边界，拥有否决权，不替模型做决策 |
 
-Agent 在时刻 `t` 的直接感知只能发生在 `C_t` 内。任何未进入 `C_t` 的状态，对当前决策等价于不存在。
-
-**推论：**
-`renew` 不是优化技巧，而是由有界感知必然导出的保持连续性的操作。
-
-### I2. 状态可外部化不变量
-
-若某状态对后续决策必要，则它必须满足：
+**公理 0（Agent 不等于模型）：**
 
 ```
-critical(x) = true  =>  serializable(x) = true  =>  storable_in(M_f)
+Agent = Model ∘ Ψ
+
+Ψ 的职责边界：
+  ✓  设计 C_system（初始上下文结构）
+  ✓  提供工具和场景包（S, Σ）
+  ✓  设置物理约束（ρ=1.0 强制 renew，d_max 拆解深度上限）
+  ✓  拥有否决权（安全阀，不轻易使用）
+
+  ✗  不在运行时覆盖 LLM 的续写/拆解判断
+  ✗  不设置任意的中间阈值规则
 ```
 
-至少以下状态必须可外部化：
-
-1. 当前目标 `goal`
-2. 当前计划 `plan`
-3. 当前边界状态 `boundary_state`
-4. 最近验证结果 `verification_state`
-5. 子任务拓扑 `task_graph`
-
-**推论：**
-没有外部化能力，就不存在严格意义上的“跨窗口连续 Agent”。
-
-### I3. 转移显式化不变量
-
-每一步循环都必须产生显式可审计转移：
-
-```
-x_t --L--> x_{t+1}
-```
-
-其中至少记录：
-
-```
-τ_t = ⟨reason_summary, act, effect, observation, decision, verifier_result⟩
-```
-
-任何影响未来决策的隐式状态变化，如果没有记录到 `τ_t` 或 `M_f`，都视为理论外行为。
-
-### I4. 硬边界优先不变量
-
-Harness `Ψ` 对物理、权限、安全和拓扑边界拥有最终否决权。
-
-```
-violate_hard_boundary(x_t, Ψ) => veto
-```
-
-这里的 `veto` 可以是：
-
-1. 强制 `renew`
-2. 强制交控
-3. 强制终止
-4. 强制拒绝执行某个动作
-
-但 `Ψ` 不负责替模型做中间语义判断。
-
-### I5. 可验证终止不变量
-
-任务完成不能由 LLM 自评单独成立，必须满足：
-
-```
-goal_reached(x_t) := ∃ v ∈ V_terminal, verdict(v, x_t) = pass
-```
-
-LLM 的 `goal_progress` 仅是内部信号，不是终止证明。
-
-**推论：**
-`terminate` 是一个验证事件，而不是一个心理状态。
-
-### I6. 共享记忆一致性不变量
-
-若多个 Agent 共享 `M_f`，则所有共享写入必须满足一致性契约 `Γ`：
-
-```
-write(e, M_f) is valid  <=>  satisfies(e, Γ)
-```
-
-`Γ` 至少定义：
-
-1. 写入粒度
-2. 可见性时机
-3. 顺序语义
-4. 冲突检测
-5. 审计保留
-
-没有 `Γ`，则多 Agent 共享 `M_f` 只是偶然可用，而不是理论内合法行为。
+> **Ψ 是舞台，不是演员。**
 
 ---
 
-## 运行时状态
-
-定义时刻 `t` 的运行时状态为：
+### 上下文分区
 
 ```
-x_t = ⟨goal, C_t, w_t, m_t, b_t, d_t, q_t, status_t⟩
+C = C_system ⊕ C_memory ⊕ C_skill ⊕ C_history ⊕ C_working
+
+保护优先级：C_system > C_working > C_memory > C_skill > C_history
 ```
 
-| 字段 | 含义 |
-|---|---|
-| `goal` | 当前顶层目标 |
-| `C_t` | 当前上下文窗口 |
-| `w_t` | 工作状态 `C_working` 的结构化视图 |
-| `m_t` | 已外部化的持久记忆索引 |
-| `b_t` | 边界状态集合 |
-| `d_t` | 当前任务分解深度 |
-| `q_t` | 验证状态与待验证队列 |
-| `status_t` | `running / suspended / waiting / terminated / handed_off` |
-
-其中：
-
-```
-w_t = ⟨plan, dashboard, pending_checks, recent_failures, task_graph_ref⟩
+```mermaid
+graph LR
+    subgraph C["上下文窗口 C（W_max token 预算）"]
+        CS["C_system<br/>Ψ 注入，永不压缩<br/>只读"]
+        CM["C_memory<br/>AGENTS.md 注入<br/>间接可写"]
+        CK["C_skill<br/>工具声明<br/>动态换入/换出"]
+        CH["C_history<br/>执行历史<br/>可压缩，优先级最低"]
+        CW["C_working ★<br/>计划 · 仪表盘 · 推理草稿<br/>永不压缩，LLM 一等公民"]
+    end
 ```
 
-v2.1 对 `C_working` 的收紧如下：
-
-> **`C_working` 不是无限保留，而是固定 schema + 固定预算 + 可覆写槽位。**
-
-因此，“永不压缩”应理解为：
-
-1. 它的逻辑字段不能缺席。
-2. 它的槽位内容可以覆写和摘要化。
-3. 它不能无限膨胀成新的 `C_history`。
-
----
-
-## Loop 的形式化
+**关键设计原则：C_working 的仪表盘永不压缩**
 
 ```
-L = (Reason → Act → Observe → Decide)^*
-```
+C_working 中始终维护一个活的自我感知仪表盘：
 
-其中 `Decide` 取代 v2.0 的 `Δ`，因为这一阶段本质上是在当前状态和验证结果上选择下一状态转移。
-
-### 单步语义
-
-```
-Reason:   π_t = plan(x_t)
-Act:      e_t = execute(π_t.action, S, Ψ)
-Observe:  o_t = observe(e_t)
-Verify:   r_t = verify(o_t, V)
-Decide:   x_{t+1} = decide(x_t, o_t, r_t, Ψ)
-```
-
-### 合法转移集合
-
-```
-Decide(x_t) ∈ {
-  continue,
-  renew,
-  decompose,
-  wait,
-  handoff,
-  terminate
+dashboard = {
+  ρ:              当前上下文压力（token 数 / W_max）
+  goal_progress:  任务完成度的 LLM 自评（自由文本）
+  plan:           当前执行计划（Todo list，no-op tool）
+  error_count:    最近 N 步的错误计数
+  depth:          当前 Sub-Agent 递归深度
 }
 ```
 
-### 终止条件
+LLM 做所有决策时，这个仪表盘总是在场。信任 LLM 的判断力，首先要保证它有足够的信息。
+
+**硬边界：** `C_system` 和 `M_weight` 永远不可编辑——Agent 自主性的上限由 Harness 在构建时设定，不可在运行时逾越。
+
+---
+
+### L*：带心跳的自持续执行闭环
+
+这是 v2.0 最核心的变化。`H_b` 作为独立元素消失，心跳被吸收进 `L*` 的 Δ 阶段。
 
 ```
-terminate 仅当：
-  1. verdict(pass) 成立；或
-  2. Ψ 基于硬边界做强制终止。
+L* = (Reason → Act → Observe → Δ)*
 ```
 
-### 挂起条件
+```mermaid
+flowchart TD
+    START(["goal 注入<br/>L* 启动"])
+    R["Reason<br/>读取 C，制定/更新计划<br/>写入 C_working.plan"]
+    A["Act<br/>调用 S 中的工具<br/>执行操作，产生 Effect"]
+    O["Observe<br/>读取 Effect<br/>更新 C_working.dashboard<br/>（ρ, goal_progress, error_count）"]
+    D{"Δ  退出检查<br/>LLM 读取 dashboard<br/>自主决策"}
+
+    GOAL_DONE["terminate ✓<br/>goal_reached"]
+    RENEW["renew<br/>物理强制或 LLM 主动<br/>snapshot → compress → rebuild C"]
+    CONTINUE["continue<br/>进入下一轮 L*"]
+    DECOMPOSE["decompose<br/>spawn Sub-Agent(s)<br/>拆解后委托"]
+    HARNESS["交控 Harness<br/>能力边界已穷尽<br/>等待外部决策"]
+
+    PHYS{"ρ = 1.0 ?<br/>物理封顶"}
+
+    START --> R --> A --> O --> PHYS
+    PHYS -->|"是，唯一硬约束"| RENEW
+    PHYS -->|"否"| D
+
+    D -->|"goal_reached"| GOAL_DONE
+    D -->|"LLM 判断：上下文紧张"| RENEW
+    D -->|"LLM 判断：继续执行"| CONTINUE
+    D -->|"early_stop：任务超出能力"| DECOMPOSE
+    D -->|"early_stop：无法拆解"| HARNESS
+
+    CONTINUE --> R
+    RENEW --> R
+    DECOMPOSE -->|"子任务完成后汇报"| O
+```
+
+#### Δ 的完整决策语义
 
 ```
-wait / handoff 仅当：
-  1. 缺失外部输入；
-  2. 缺失权限；
-  3. 缺失工具；
-  4. 到达结构边界且不可再合法分解。
+Δ（每轮 Observe 后执行）：
+
+物理层（规则，不过 LLM）：
+  ρ = 1.0  →  强制 renew，这是唯一的硬性约束
+
+语义层（全部交 LLM，基于 C_working.dashboard）：
+  goal_reached = true
+            →  terminate ✓
+
+  LLM 判断上下文紧张（ρ 高但未到 1.0，近期推理质量下降）
+            →  主动 renew（compress C_history，注入摘要，重建 C）
+
+  LLM 判断任务可以继续
+            →  continue，进入下一轮 Reason
+
+  early_stop AND 任务可拆解
+            →  decompose，spawn Sub-Agent(s)
+               slice = LLM 判断的最小必要上下文
+               depth++，检查 depth < d_max（Harness 设置的唯一结构约束）
+
+  early_stop AND 任务不可拆解（depth = d_max 或无法细分）
+            →  交控 Harness，报告能力边界
+```
+
+#### early_stop 的语义重定义
+
+> **early_stop 不是失败信号，而是能力边界声明。**
+> 模型在说："此任务超出我当前 L\* 在当前 C 下能处理的范围。"
+> 系统的正确响应是拆解，不是强迫重试。
+
+```mermaid
+flowchart LR
+    ES["early_stop<br/>且 NOT goal_reached"]
+    Q{"任务可拆解？<br/>LLM 判断"}
+    SP["spawn Sub-Agent(s)<br/>委托子任务"]
+    DM{"depth < d_max ?<br/>Harness 硬约束"}
+    HC["交控 Harness<br/>能力边界已穷尽"]
+    RT["Sub-Agent 运行<br/>同一 L* 框架<br/>共享 M_f"]
+
+    ES --> Q
+    Q -->|"是"| DM
+    Q -->|"否，原子任务仍失败"| HC
+    DM -->|"是"| SP --> RT
+    DM -->|"否，递归上限"| HC
+```
+
+**递归终止保证：**
+```
+d_max 是 Harness 在构建时设置的唯一结构约束（非语义约束）。
+当 depth = d_max 时，强制交控 Harness，防止无限递归。
+
+最小可执行任务的判定：
+  若单步 Act → Observe 后 goal_reached = true，则为原子任务。
+  所有复杂任务 = 原子任务在 L* 上的组合：
+    横向：多轮循环
+    纵向：Sub-Agent 树（深度 ≤ d_max）
 ```
 
 ---
 
-## 边界条件模型
-
-v2.0 的 `early_stop` 很重要，但语义还不够细。v2.1 将边界条件显式分类。
-
-### 边界集合
+### renew（上下文窗口重建）
 
 ```
-B = {B_phys, B_topo, B_perm, B_safe, B_cap, B_epi, B_time}
+renew（主动或强制触发）：
+
+  1. snapshot(C_working.dashboard) → M_f["working_state"]
+  2. snapshot(C_working.plan)      → M_f["plan_state"]
+  3. summary = compress(C_history)
+       压缩评分：score(h) = K(h) · rel(h, goal) · e^(−λ·age(h))
+       K=1 不可压缩核：关键决策 / 最近错误 / 任务目标
+  4. new_C ← C_system
+             ⊕ reload(C_memory)
+             ⊕ C_skill
+             ⊕ summary
+             ⊕ M_f["working_state"]   ← dashboard 恢复
+             ⊕ M_f["plan_state"]      ← 计划恢复
+  5. resume(new_C, original_goal)     ← goal 永远随 renew 传递
 ```
 
-| 边界 | 含义 | 典型触发 |
-|---|---|---|
-| `B_phys` | 物理边界 | `ρ = 1.0`、token 用尽、资源耗尽 |
-| `B_topo` | 拓扑边界 | `depth = d_max` |
-| `B_perm` | 权限边界 | 无文件/网络/系统权限 |
-| `B_safe` | 安全边界 | 违反安全策略或约束 |
-| `B_cap` | 能力边界 | 缺少必要技能或工具 |
-| `B_epi` | 认识边界 | 无法形成可验证判断，证据不足 |
-| `B_time` | 时间边界 | deadline、超时、预算到期 |
-
-### early_stop 的严格语义
-
-```
-early_stop(x_t) := ∃ B_i ∈ B, triggered(B_i, x_t) ∧ ¬goal_reached(x_t)
-```
-
-因此 `early_stop` 不等于“做失败了”，而等于：
-
-> 当前状态已触到某类边界，继续原路径推进不再合法或不再经济。
-
-### 边界响应映射
-
-```
-response(B_phys) = renew | terminate
-response(B_topo) = handoff
-response(B_perm) = wait | handoff
-response(B_safe) = veto
-response(B_cap)  = decompose | handoff
-response(B_epi)  = verify_more | handoff
-response(B_time) = summarize_and_handoff | terminate
-```
-
-这意味着“拆解”只是 `early_stop` 的一个分支，而不是统一答案。
+renew 的本质：**用 M_f 做一次上下文的磁盘换页。** 新窗口比旧窗口小得多，但 goal、仪表盘、计划、关键历史全部保留。
 
 ---
 
-## 可验证性模型
+## 定理一：可操作域
 
-v2.0 最大的理论缺口，是把 `goal_progress` 和 `goal_reached` 靠得太近。v2.1 强制拆开。
-
-### 两种不同的量
+**派生路径：** `L*` 需要工具 → `S` 需要管理 → 场景是管理 `S` 的自然单位 → 场景绑定消除运行时选择负担
 
 ```
-self_estimate(x_t) ∈ [0, 1] or free_text
-verdict(x_t) ∈ {pass, fail, unknown}
+O_A = Σ_A × Constraint_A
+
+σ = ⟨id, tools, constraints, memory_scope, verify_hook⟩
 ```
 
-前者属于内部控制信号，后者属于外部验证信号。
-
-### 验证接口
-
-```
-V = {v_1, v_2, ..., v_n}
-```
-
-每个验证器是一个判定函数：
-
-```
-v_i : X -> {pass, fail, unknown}
-```
-
-常见类型：
-
-1. **结果验证器**：输出是否满足目标。
-2. **阶段验证器**：某个子目标是否完成。
-3. **约束验证器**：是否违反场景/权限/安全约束。
-4. **一致性验证器**：共享状态是否冲突。
-
-### 终止原则
-
-```
-LLM_claim_done(x_t) ∧ verdict = unknown   =>  不可 terminate
-LLM_claim_done(x_t) ∧ verdict = fail      =>  不可 terminate
-LLM_claim_done(x_t) ∧ verdict = pass      =>  可 terminate
+```mermaid
+graph TD
+    TG[("Tool_global<br/>全量工具，Agent 不直接访问")]
+    SR["场景库 Σ（动态生长）<br/>σ = ⟨tools, constraints, memory_scope, verify⟩"]
+    TG -->|"注册裁剪"| SR
+    SR --> SC["σ_code<br/>bash, git, test"]
+    SR --> SR2["σ_research<br/>search, fetch, read"]
+    SR --> SD["σ_data<br/>sql, csv, chart"]
+    SC -->|"⊕ 组合<br/>约束取交集"| COMP["σ_compound"]
+    SR2 -->|"⊕ 组合"| COMP
+    COMP --> AGT["Agent<br/>认知负担 O(|Σ|) 而非 O(|Tool|)"]
 ```
 
-### 最弱验证原则
-
-若任务类型暂时没有强验证器，则系统至少要输出：
-
+**场景组合：**
 ```
-certificate_t = ⟨claim, evidence, unresolved_risks⟩
+σ_compound = σ_a ⊕ σ_b
+  tools       = σ_a.tools ∪ σ_b.tools
+  constraints = σ_a.constraints ∩ σ_b.constraints   ← 取更严约束
+  verify_hook = σ_b.verify_hook ∘ σ_a.verify_hook   ← 串联验证
 ```
 
-即使无法强证真，也必须能把“我为什么认为已经完成”转化成结构化证据，而不是一句主观判断。
+> 推论：约束收窄反而提升可靠性（Harness 悖论）。解决方案空间变小，模型不再浪费 token 探索死路。
 
 ---
 
-## 一致性模型
+## 定理二：通信协议
 
-v2.0 把 `M_f` 当成三条定理的共同基础设施，这是对的；但只要进入多 Agent，就不能只说“共享”，必须定义共享语义。
-
-### 一致性契约
+**派生路径：** 多 Agent 共存 → 共享 `M_f` → 事件总线是 `M_f` 的结构化读写协议 → `ΔH` 决定写入价值
 
 ```
-Γ = ⟨namespace, log, order, visibility, conflict, compaction⟩
+V(e) = ΔH(e) = H(Ω) − H(Ω | e)
+
+Event e = ⟨id, sender, topic, payload, ΔH, priority, ts⟩
+priority = f(ΔH)，由 Producer 写入，Broker 视为不透明数字
 ```
 
-### v2.1 的最小一致性要求
+```mermaid
+flowchart TD
+    AGT["Agent A 产生 payload"]
+    G1{"ΔH(e) > δ_min ?<br/>发布门控"}
+    DROP["静默丢弃"]
+    G2{"H(payload) > ε ?<br/>压缩门"}
+    COMP2["compress(payload)<br/>保持 ΔH ≈ 不变"]
+    PUB["publish(e)<br/>priority = f(ΔH)"]
+    BUS["Event Bus / Broker<br/>topic 匹配，语义中立，不计算熵"]
+    B["Agent B ✓ 已订阅"]
+    C_["Agent C ✓ 已订阅"]
+    D["Agent D ✗ 未订阅"]
 
-#### Γ1. 追加优先
-
-共享写入的原语不是“原地覆盖”，而是：
-
-```
-append(event)
-```
-
-状态视图通过日志物化得到，而不是直接共享可变单元。
-
-#### Γ2. 事件元数据完备
-
-每个共享事件至少包含：
-
-```
-e = ⟨id, agent_id, parent_id, topic, payload, seq, ts, version, kind⟩
-```
-
-其中：
-
-1. `seq` 保证单 Agent 内部单调顺序。
-2. `parent_id` 记录因果来源。
-3. `version` 用于物化视图时的冲突检测。
-
-#### Γ3. 单 Agent 单调读
-
-对同一 Agent 而言，后续读取不能看见比自己先前读取更旧的共享视图。
-
-#### Γ4. 跨 Agent 最终可见
-
-跨 Agent 不要求强同步，但要求：
-
-```
-append(e) succeeded  =>  eventually visible(e)
+    AGT --> G1
+    G1 -->|"否"| DROP
+    G1 -->|"是"| G2
+    G2 -->|"是"| COMP2 --> PUB
+    G2 -->|"否"| PUB
+    PUB --> BUS --> B & C_ & D
 ```
 
-#### Γ5. 冲突显式化
-
-若两个事件同时修改同一物化键：
+**三条操作公理：**
 
 ```
-conflict(k, v1, v2) => {merge, reject, escalate}
+T2.1 发布门控：publish(e) 当且仅当 ΔH(e) > δ_min
+T2.2 发布前压缩：H(payload) > ε → compress，保持 ΔH ≈ 不变
+T2.3 任务复杂度隔离：H(task) 属于 L* 的 Δ 层，不参与 ΔH(e) 计算
+     H(task)高 → 触发 decompose（L* 机制）
+     ΔH(e)高  → 提升事件优先级（通信机制）
+     任务难 ≠ 事件重要，混用导致错误设计
 ```
-
-冲突必须进入日志并可审计，不能静默覆盖。
-
-### 理论后果
-
-因此，多 Agent 模型的基础设施不是“共享文件夹”，而是：
-
-> **带事件日志、版本和冲突语义的外部化工作记忆。**
 
 ---
 
-## Skill 与 Scene 的重述
+## 定理三：自我进化
 
-v2.0 的 `Σ` 很有价值，但它更像能力代数而不是独立定理。v2.1 将其放回 `S` 的结构里。
-
-### Skill 不是工具表，而是约束化能力单元
+**派生路径：** `Observe` 步骤可以指向外部世界，也可以指向 Agent 自身 → 自我观察 → 发现可修改的模式 → 修改自身结构 = 进化
 
 ```
-σ = ⟨id, tools, constraints, memory_scope, verifier_set⟩
+Evolve(A) = {E1_回顾蒸馏, E2_模式结晶, E3_约束固化, E4_阿米巴分裂}
 ```
 
-### 组合规则
+```mermaid
+flowchart LR
+    OBS["Observe 指向自身<br/>检查执行质量"]
+    OBS -->|"记录成功/失败"| E1["E1 回顾蒸馏<br/>→ M_f[patterns/ failures/]<br/>下次 session 注入 C_memory"]
+    E1 -->|"高频成功模式"| E2["E2 模式结晶<br/>frequency > θ<br/>→ 固化为新 Skill"]
+    E1 -->|"失败根因"| E3["E3 约束固化<br/>→ Ψ.constraints ∪ {κ_new}<br/>永不再犯"]
+    OBS -->|"task_ratio(d) > θ_split<br/>持续 early_stop"| E4["E4 阿米巴分裂<br/>→ spawn 专职 Sub-Agent<br/>→ 场景库 Σ 动态生长"]
 
+    E2 -->|"扩展"| S_["S 能力集"]
+    E3 -->|"增长"| PSI["Ψ.constraints"]
+    E4 -->|"新场景包"| SIGMA["Σ 场景库"]
 ```
-σ_a ⊕ σ_b = ⟨
-  tools_a ∪ tools_b,
-  constraints_a ∩ constraints_b,
-  memory_scope_a ∪ memory_scope_b,
-  verifier_a ∪ verifier_b
-⟩
-```
 
-这里保留 v2.0 最重要的思想：
+**四种机制的层次：**
 
-> 约束收窄通常提升可靠性，因为它减少无效搜索空间。
+| 机制 | 层面 | 改变什么 | 时机 |
+|---|---|---|---|
+| E1 回顾蒸馏 | 个体内 | `C_memory` 增长 | 每个任务结束 |
+| E2 模式结晶 | 个体内 | `S` 扩展 | 高频成功模式 |
+| E3 约束固化 | 个体内 | `Ψ.constraints` 增长 | 每次失败后 |
+| E4 阿米巴分裂 | 系统级 | Multi-Agent 拓扑 + `Σ` | 领域持续高负载 |
 
-但 v2.1 补上一条：
-
-> 约束收窄只有在验证器覆盖不下降时才成立；否则它可能只是把错误隐藏掉。
+> ⚠️ **E3 棘轮风险：** 约束只增不减可能导致能力退化。建议定期执行约束审计——检查过时或相互矛盾的约束。
 
 ---
 
-## 从“定理”改成“派生命题”
+## 公理与定理的依赖关系
 
-v2.0 里的“定理”更接近工程推论。v2.1 改称“派生命题”，并标注前提。
+```mermaid
+graph TD
+    AX["唯一公理 A = ⟨C, M, L*, S, Ψ⟩"]
+    LS["L* = Reason→Act→Observe→Δ<br/>心跳内化，自持续"]
+    CW["C_working 仪表盘<br/>ρ, goal_progress, plan, errors, depth<br/>永不压缩，LLM 一等公民"]
+    MF[("M_f 文件系统<br/>唯一公共基础设施")]
 
-### 命题 P1：可续存性
+    AX --> LS
+    AX --> CW
+    LS -->|"需要工具"| T1["定理一<br/>O = Σ × Constraint"]
+    MF -->|"多 Agent 共享"| T2["定理二<br/>V(e) = ΔH"]
+    LS -->|"Observe 指向自身"| T3["定理三<br/>Evolve(A)"]
 
-由 `I1 + I2` 可得：
+    T3 -->|"E2 结晶"| AX
+    T3 -->|"E3 固化"| AX
+    T3 -->|"E4 分裂新场景包"| T1
 
+    CW --> LS
+    MF --> T1
+    MF --> T3
+    AX --> MF
+
+    HARNESS["Harness Ψ<br/>否决权（安全阀）<br/>唯二硬约束：ρ=1.0, d_max"]
+    HARNESS -->|"构建时设定"| AX
+    HARNESS -.->|"运行时不干预<br/>除非安全阀触发"| LS
 ```
-bounded(C) ∧ externalizable(critical_state)
-=> renewable(runtime)
-```
-
-即：只要感知有界且关键状态可外部化，runtime 就可以跨窗口续存。
-
-### 命题 P2：可验证终止
-
-由 `I3 + I5` 可得：
-
-```
-auditable_transition ∧ verifier_available
-=> terminal_claims are checkable
-```
-
-即：终止不是主观声称，而是可检查断言。
-
-### 命题 P3：边界驱动分解
-
-由 `I4` 与边界分类可得：
-
-```
-early_stop ≠ failure
-early_stop = boundary_trigger
-```
-
-因此分解、交控、等待、拒绝，都是边界响应，不应混成单一失败恢复逻辑。
-
-### 命题 P4：多 Agent 一致协作
-
-由 `I2 + I6` 可得：
-
-```
-shared_memory ∧ consistency_contract
-=> multi_agent collaboration is auditable
-```
-
-若没有 `Γ`，则多 Agent 只是并发访问同一磁盘，不构成理论上的协作系统。
-
-### 命题 P5：可审计进化
-
-由 `I2 + I3 + I5 + I6` 可得：
-
-```
-evolution is admissible only if its cause, evidence, and effect are all auditable
-```
-
-也就是说，Evolve 不是“改得更聪明了”，而是“改动有触发原因、验证结果和回滚依据”。
 
 ---
 
-## 自我进化的收紧
-
-v2.0 的 `E1-E4` 很有启发性，但还欠缺“何时允许写入系统”的合法性条件。v2.1 补上准入门槛。
+## 控制论立场：带安全阀的自主体
 
 ```
-Evolve(A, ΔA) is admissible iff:
-  1. trigger_evidence exists
-  2. expected_gain is stated
-  3. verifier exists
-  4. rollback path exists
+平时：L* 完全自主
+  → LLM 基于 C_working.dashboard 自主做所有决策
+  → Harness 不干预
+
+例外（Harness 否决权触发）：
+  → ρ = 1.0（物理封顶，强制 renew）
+  → depth = d_max（递归上限，强制交控）
+  → 安全边界违反（Ψ.constraints 被触碰）
+  → 外部中断信号
+
+唯二结构约束（非语义，Harness 在构建时设定）：
+  ρ = 1.0    →  物理事实，模型无法在满窗口运行
+  d_max      →  防止无限递归的拓扑约束
 ```
 
-### 四种进化机制
-
-| 机制 | 合法触发 | 需要的验证 |
-|---|---|---|
-| `E1` 回顾蒸馏 | 重复模式被记录 | 下次任务命中率提升 |
-| `E2` 模式结晶 | 高频成功链路稳定出现 | 新 Skill 的通过率不低于旧路径 |
-| `E3` 约束固化 | 明确失败根因重复出现 | 新约束减少错误且不过度压制能力 |
-| `E4` 阿米巴分裂 | 某类子任务长期高负载 | 新拓扑提升吞吐或成功率 |
-
-### E3 的棘轮修正
-
-v2.0 已指出“约束只增不减”的风险。v2.1 进一步规定：
-
-```
-constraint κ is valid only within scope σ and review_window T
-```
-
-也就是说，约束默认不是永恒真理，而是：
-
-1. 有适用域 `σ`
-2. 有复审周期 `T`
-3. 有失效与撤销条件
-
-否则 E3 很容易把系统训成一个越来越胆小的执行器。
+> **核心立场：** 只有物理事实和拓扑约束才是硬性约束。其他所有判断——续写、压缩、拆解、终止——都是语义层面的问题，应该由 LLM 基于完整的自我感知信息来做。信任 LLM 的判断力，首先要保证它总是有足够的信息。
 
 ---
 
-## 失效域
+## 开放问题（v2.0 新增）
 
-一个理论要更硬，必须同时说明它在哪些地方会失效。
+1. **LLM 自我感知的可靠性：** LLM 在 `C_working.dashboard` 上更新 `goal_progress` 时，这个自评是否足够准确？尤其是在长任务末期，模型是否会系统性地高估或低估完成度？
 
-本系统在以下条件下不保证上述命题成立：
+2. **d_max 的设定依据：** 拆解深度上限是 Harness 的唯一结构约束，但它应该是固定值还是任务类型相关的函数？`d_max(σ_code) ≠ d_max(σ_research)`？
 
-1. `C_working` 不是结构化状态，而是自由文本堆积。
-2. `V` 缺席，或验证器长期返回 `unknown` 且无证据输出。
-3. `M_f` 存在静默覆盖，且没有事件日志。
-4. `Ψ` 在运行时频繁替 LLM 做中间语义判断。
-5. `S` 没有被约束化，只是大工具池直连。
-6. 进化写入无审计、无回滚、无作用域。
+3. **E4 与 L* 的耦合：** 阿米巴分裂产生的专职 Sub-Agent 也在同一 `L*` 框架下运行。分裂后的系统拓扑不是树而是 DAG（Sub-Agent 可能共享场景包），DAG 上的 `M_f` 写冲突如何解决？
 
-满足任一条时，本系统退化为“工程风格建议集”，而不是“控制论宪法”。
+4. **进化的可观测指标：** E1-E4 全部通过 `M_f` 持久化，但"系统整体进化了多少"的量化指标仍未定义（Skill 增长率？约束密度？Sub-Agent 拓扑深度？平均任务成功率？）
+
+5. **Ψ 否决权的触发日志：** 每次 Harness 行使否决权都应该产生一条结构化记录，用于后续分析"Harness 介入了多少次"以及"是否应该调整 d_max 或其他构建时参数"。
 
 ---
 
-## 对实现的约束解释
-
-为了避免理论和实现再次脱节，v2.1 明确区分：
-
-### 属于公理层的
-
-1. `C` 必须有界。
-2. 关键状态必须可外部化。
-3. 转移必须可审计。
-4. 终止必须可验证。
-5. 共享写入必须满足一致性契约。
-
-### 属于策略层的
-
-1. 何时主动 `renew`
-2. `ρ_warn` 取多少
-3. `d_max` 是常数还是 `d_max(σ)`
-4. `ΔH` 如何近似
-5. 压缩函数如何设计
-6. 优先级函数 `f` 如何实现
-
-这意味着：
-
-> `ΔH` 不是公理，只是通信价值的一个候选代理量。  
-> `goal_progress` 不是完成证明，只是控制信号。  
-> `d_max` 不是宇宙常数，只是拓扑预算。  
-
----
-
-## 总结
-
-v2.1 将 Agent runtime 定义为：
-
-> **一个在有界上下文中运行、通过可外部化状态保持连续、通过验证器声明完成、通过一致性契约共享记忆、并由 Harness 持有硬边界否决权的控制系统。**
-
-因此，系统的核心不再是“模型是否足够聪明”，而是以下五点是否成立：
-
-1. 状态是否完整
-2. 转移是否显式
-3. 完成是否可证
-4. 边界是否清楚
-5. 共享是否一致
-
-只要这五点不成立，再强的模型也只是把不确定性藏进 prompt；只有这五点成立，Agent 才开始拥有理论上的可控性。
-
----
-
-## 下一步待证明的问题
-
-1. **最小验证充分性：** 对开放任务而言，什么样的 `V` 才足够支撑 `terminate`？
-2. **边界到策略的最优映射：** `B_cap` 触发时，何时该 `decompose`，何时该 `handoff`？
-3. **一致性与吞吐的折中：** `Γ` 多强才不会把多 Agent 吞吐压垮？
-4. **进化准入的统计判据：** `E2/E3/E4` 的“足够证据”门槛如何定义？
-5. **Scene 组合的完备性：** `σ_a ⊕ σ_b` 是否总能保持验证器闭包？
-
-*Agent 公理系统 v2.1 · 完*
+*Agent 公理系统 v2.0 · 完*
