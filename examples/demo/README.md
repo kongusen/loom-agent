@@ -45,6 +45,12 @@
 - 用户级记忆恢复
 - 配置驱动能力组装
 
+**10_skill_progressive_loading.py**
+- Skill 渐进式加载与动态替换
+- Layer 1: 元数据发现（轻量级目录）
+- Layer 2: 按需激活（根据对话选择）
+- 动态替换机制（每轮重新选择）
+
 ### L1 - 持久化能力
 
 **05_memory_layers.py**
