@@ -66,9 +66,16 @@ class ToolRegistry:
         call: ToolCall,
         ctx: ToolContext | None = None,
         config: ToolExecutionConfig | None = None,
+        constraint_validator: Any = None,
     ) -> str:
         import asyncio
         import time
+
+        # P0: 约束前置验证
+        if constraint_validator:
+            is_valid, error_msg = constraint_validator.validate_before_call(call)
+            if not is_valid:
+                return json.dumps({"error": error_msg})
 
         tool = self._tools.get(call.name)
         if not tool:

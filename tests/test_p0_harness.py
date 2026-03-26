@@ -167,7 +167,7 @@ async def test_agent_constraint_integration():
 
     # 模拟工具调用
     result = await agent._execute_tool(ToolCall(id="1", name="web_search", arguments="{}"))
-    assert "Error" in result
+    assert "error" in result
     assert "not allowed" in result
 
 

@@ -158,19 +158,13 @@ class Agent:
         return event
 
     async def _execute_tool(self, tc: ToolCall) -> str:
-        # P0: 前置约束验证
-        valid, error_msg = self.constraint_validator.validate_before_call(tc)
-        if not valid:
-            logger.warning(f"Constraint violation: {error_msg}")
-            return f"Error: {error_msg}"
-
         # P0: 资源配额检查
         within_quota, quota_msg = self.resource_guard.check_quota()
         if not within_quota:
             logger.error(f"Resource quota exceeded: {quota_msg}")
             return f"Error: {quota_msg}"
 
-        # 执行工具
+        # 执行工具（约束验证在 ToolRegistry 中）
         if tc.name == "delegate" and self.on_delegate:
             try:
                 args = json.loads(tc.arguments)
@@ -179,7 +173,7 @@ class Agent:
                 result = json.dumps({"error": str(e)})
         else:
             ctx = ToolContext(agent_id=self.id)
-            result = await self.tools.execute(tc, ctx)
+            result = await self.tools.execute(tc, ctx, constraint_validator=self.constraint_validator)
 
         # 记录执行轨迹
         self._execution_trace.append(f"{tc.name}({tc.arguments[:50]}) → {result[:100]}")
