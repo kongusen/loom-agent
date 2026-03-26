@@ -1,0 +1,136 @@
+"""Demo 09: 语音优先运行时编排器
+
+展示 Loom 作为单 Agent 语音运行时的核心能力：
+- 低延迟语音回合响应
+- 强约束的上下文编排（按预算取上下文）
+- 用户级记忆恢复
+- 配置驱动的能力组装
+"""
+
+import asyncio
+import os
+from dotenv import load_dotenv
+from pydantic import BaseModel
+
+from loom.agent import Agent
+from loom.config import AgentConfig
+from loom.providers.openai import OpenAIProvider
+from loom.types import ToolDefinition, ToolContext, MemoryEntry, UserMessage
+from loom.tools.schema import PydanticSchema
+
+
+# === 1. Tool 层：确定性执行能力 ===
+
+class SearchParams(BaseModel):
+    query: str
+
+async def search_knowledge(params: SearchParams, ctx: ToolContext) -> str:
+    """模拟知识库检索"""
+    return f"知识库结果：关于 '{params.query}' 的最佳实践文档"
+
+search_tool = ToolDefinition(
+    name="search_knowledge",
+    description="检索知识库",
+    parameters=PydanticSchema(SearchParams),
+    execute=search_knowledge
+)
+
+
+class PythonParams(BaseModel):
+    code: str
+
+async def run_python(params: PythonParams, ctx: ToolContext) -> str:
+    """模拟 Python 沙箱"""
+    return f"执行结果: {params.code} -> OK"
+
+python_tool = ToolDefinition(
+    name="run_python",
+    description="执行 Python 代码",
+    parameters=PydanticSchema(PythonParams),
+    execute=run_python
+)
+
+
+# === 2. 配置驱动的 Agent 组装 ===
+
+async def main():
+    load_dotenv()
+
+    # Agent 配置：人格、系统提示词、能力开关
+    config = AgentConfig(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        base_url=os.getenv("OPENAI_BASE_URL"),
+        max_steps=5,
+        stream=True  # 语音链路需要流式输出
+    )
+
+    provider = OpenAIProvider(config)
+    agent = Agent(provider=provider, config=config)
+
+    # 注册工具（Tool 层）
+    agent.tools.register(search_tool)
+    agent.tools.register(python_tool)
+
+    print("=" * 60)
+    print("语音优先运行时编排器")
+    print("=" * 60)
+
+    # === 3. Memory 层：用户偏好 + 近期对话 + 长期事实 ===
+    print("\n[1] 用户级记忆恢复")
+
+    # 模拟用户偏好恢复
+    await agent.memory.add_message(UserMessage(content="我喜欢简洁的回答"))
+
+    # 存储长期事实到 L2
+    fact = MemoryEntry(
+        content="用户是 Python 开发者，关注性能优化",
+        tokens=15,
+        importance=0.9
+    )
+    await agent.memory.l2.store(fact)
+
+    print(f"✓ L1 对话历史: {len(agent.memory.get_history())} 条")
+    print("✓ L2 长期事实已恢复")
+
+    # === 4. 强约束的上下文编排（按预算取上下文）===
+    print("\n[2] 上下文预算控制")
+
+    # 设置分区预算
+    agent.partition_mgr.partitions["system"].budget = 1000
+    agent.partition_mgr.partitions["working"].budget = 2000
+    agent.partition_mgr.partitions["memory"].budget = 3000
+    agent.partition_mgr.partitions["history"].budget = 5000
+
+    print(f"✓ System 预算: 1000 tokens")
+    print(f"✓ Working 预算: 2000 tokens")
+    print(f"✓ Memory 预算: 3000 tokens")
+    print(f"✓ History 预算: 5000 tokens")
+
+    # === 5. 低延迟语音回合响应 ===
+    print("\n[3] 模拟语音回合（ASR -> Agent Stream -> TTS）")
+    print("-" * 60)
+
+    # 模拟 ASR final 输入
+    user_voice_input = "帮我查一下 Python 性能优化的最佳实践"
+
+    # Agent 流式响应（语音链路主路径）
+    result = await agent.run(user_voice_input)
+
+    print("-" * 60)
+    print(f"\nAgent 响应:\n{result.content}")
+    print(f"步数: {result.steps} | Tokens: {agent.resource_guard._used_tokens}")
+
+    # === 总结 ===
+    print("\n" + "=" * 60)
+    print("语音运行时编排器核心能力:")
+    print("✓ 低延迟流式响应（语音主链路）")
+    print("✓ 按预算编排上下文（5 分区独立预算）")
+    print("✓ 用户级记忆恢复（L1+L2）")
+    print("✓ 配置驱动能力组装（Tool 层确定性执行）")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
