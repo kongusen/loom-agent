@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from loom.agent import Agent
 from loom.config import AgentConfig
 from loom.providers.openai import OpenAIProvider
-from loom.types import ToolDefinition, ToolContext, MemoryEntry, UserMessage
+from loom.types import ToolDefinition, ToolContext, MemoryEntry, UserMessage, Skill
 from loom.tools.schema import PydanticSchema
 
 
@@ -51,7 +51,27 @@ python_tool = ToolDefinition(
 )
 
 
-# === 2. 配置驱动的 Agent 组装 ===
+# === 2. Skill 层：任务语义封装 ===
+
+def create_mock_skills() -> list[Skill]:
+    """创建模拟 skills（Layer 1 元数据）"""
+    return [
+        Skill(
+            name="python-expert",
+            description="Python 编程专家",
+            instructions="回答 Python 问题时给出代码示例和最佳实践",
+            _instructions_loaded=False,
+        ),
+        Skill(
+            name="code-reviewer",
+            description="代码审查专家",
+            instructions="审查代码质量，检查命名、类型注解、错误处理",
+            _instructions_loaded=False,
+        ),
+    ]
+
+
+# === 3. 配置驱动的 Agent 组装 ===
 
 async def main():
     load_dotenv()
@@ -72,8 +92,13 @@ async def main():
     agent.tools.register(search_tool)
     agent.tools.register(python_tool)
 
+    # 注册 Skills（Layer 1 元数据发现）
+    skills = create_mock_skills()
+    for skill in skills:
+        agent.skill_mgr.registry.register(skill)
+
     print("=" * 60)
-    print("语音优先运行时编排器")
+    print("语音优先运行时编排器（完整版）")
     print("=" * 60)
 
     # === 3. Memory 层：用户偏好 + 近期对话 + 长期事实 ===
@@ -107,8 +132,16 @@ async def main():
     print(f"✓ Memory 预算: 3000 tokens")
     print(f"✓ History 预算: 5000 tokens")
 
-    # === 5. 低延迟语音回合响应 ===
-    print("\n[3] 模拟语音回合（ASR -> Agent Stream -> TTS）")
+    # === 5. Skill 按需激活（Layer 2）===
+    print("\n[3] Skill 按需激活")
+
+    # 根据任务激活相关 skill
+    agent.skill_mgr.activate("python-expert", budget=2000)
+    print("✓ 激活 python-expert skill")
+    print(f"✓ 当前激活 skills: {len(agent.skill_mgr.registry.list_active())} 个")
+
+    # === 6. 低延迟语音回合响应 ===
+    print("\n[4] 模拟语音回合（ASR -> Agent Stream -> TTS）")
     print("-" * 60)
 
     # 模拟 ASR final 输入
@@ -127,6 +160,7 @@ async def main():
     print("✓ 低延迟流式响应（语音主链路）")
     print("✓ 按预算编排上下文（5 分区独立预算）")
     print("✓ 用户级记忆恢复（L1+L2）")
+    print("✓ Skill 按需激活（Layer 1 发现 + Layer 2 激活）")
     print("✓ 配置驱动能力组装（Tool 层确定性执行）")
     print("=" * 60)
 
