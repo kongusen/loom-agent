@@ -157,6 +157,18 @@ class Agent:
         await self.event_bus.emit(event)
         return event
 
+    async def _emit_with_gain(self, event: AgentEvent, payload: str = "") -> AgentEvent:
+        """公理三：带信息增益门控的事件发布"""
+        context = self.partition_mgr.get_context()
+        published = await self.event_bus.publish_with_gain(
+            event,
+            payload=payload or str(event),
+            context=context
+        )
+        if not published:
+            logger.debug(f"Event filtered by gain gating: {type(event).__name__}")
+        return event
+
     async def _execute_tool(self, tc: ToolCall) -> str:
         # P0: 资源配额检查
         within_quota, quota_msg = self.resource_guard.check_quota()
@@ -178,11 +190,37 @@ class Agent:
         # 记录执行轨迹
         self._execution_trace.append(f"{tc.name}({tc.arguments[:50]}) → {result[:100]}")
 
+        # 公理三：过滤工具输出
+        filtered_result = await self._filter_tool_output(tc.name, result)
+
         # 更新 working 分区
         working_content = self._build_working_state()
         self.partition_mgr.update_partition("working", working_content)
 
-        return result
+        return filtered_result
+
+    async def _filter_tool_output(self, tool_name: str, raw_output: str) -> str:
+        """公理三：过滤工具输出的冗余信息"""
+        context = self.partition_mgr.get_context()
+        delta_h = self.event_bus.info_calc.calculate_delta_h(raw_output, context)
+
+        # 低增益：截断
+        if delta_h < 0.1:
+            return f"[Tool {tool_name} executed, output redundant]"
+
+        # 中等增益：总结
+        if delta_h < 0.3:
+            return self._summarize_output(raw_output, max_tokens=200)
+
+        # 高增益：完整保留
+        return raw_output
+
+    def _summarize_output(self, text: str, max_tokens: int) -> str:
+        """总结输出（简单截断）"""
+        truncated = self.tokenizer.truncate(text, max_tokens)
+        if len(truncated) < len(text):
+            return truncated + "\n[... output truncated for brevity]"
+        return text
 
     async def _build_messages(self) -> list[Message]:
         """基于 PartitionManager 构建完整上下文（公理一完整接入）"""
