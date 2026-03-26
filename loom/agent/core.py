@@ -170,61 +170,42 @@ class Agent:
             logger.error(f"Resource quota exceeded: {quota_msg}")
             return f"Error: {quota_msg}"
 
-        # 记录执行轨迹
-        self._execution_trace.append(tc.name)
-
+        # 执行工具
         if tc.name == "delegate" and self.on_delegate:
             try:
                 args = json.loads(tc.arguments)
-                return await self.on_delegate(args.get("task", ""), args.get("domain", ""))
+                result = await self.on_delegate(args.get("task", ""), args.get("domain", ""))
             except Exception as e:
-                return json.dumps({"error": str(e)})
-        ctx = ToolContext(agent_id=self.id)
-        return await self.tools.execute(tc, ctx)
+                result = json.dumps({"error": str(e)})
+        else:
+            ctx = ToolContext(agent_id=self.id)
+            result = await self.tools.execute(tc, ctx)
+
+        # 记录执行轨迹
+        self._execution_trace.append(f"{tc.name}({tc.arguments[:50]}) → {result[:100]}")
+
+        # 更新 working 分区
+        working_content = self._build_working_state()
+        self.partition_mgr.update_partition("working", working_content)
+
+        return result
 
     async def _build_messages(self) -> list[Message]:
+        """基于 PartitionManager 构建完整上下文（公理一完整接入）"""
         # P2: 增量构建 - 避免重复计算
         cached_messages = self._history_cache.get("messages")
         if not self._history_dirty and isinstance(cached_messages, list):
             return cached_messages
 
-        # 公理一：更新分区
-        self.partition_mgr.update_partition("system", self.config.system_prompt)
+        # 1. 更新所有分区
+        await self._update_all_partitions()
 
-        # 构建历史
-        history = self.memory.get_history()
-        history_text = "\n".join(
-            f"{m.role}: {m.content if isinstance(m.content, str) else str(m.content)}"
-            for m in history
-        )
-        self.partition_mgr.update_partition("history", history_text)
+        # 2. 检查是否需要压缩/心跳（已在 stream() 中处理，这里跳过）
 
-        # 构建消息列表
-        messages: list[Message] = [SystemMessage(content=self.config.system_prompt)]
+        # 3. 统一组装（替换手工拼接）
+        messages = self._context_to_messages()
 
-        # 添加记忆 + 知识上下文
-        last = history[-1].content if history else ""
-        query = last if isinstance(last, str) else str(last)
-        budget = self.partition_mgr.get_available_budget("memory")
-
-        # L2/L3 记忆
-        memory_entries = await self.memory.extract_for(query, budget // 2)
-
-        # Knowledge 检索
-        knowledge_frags: list = []
-        if self.knowledge_provider:
-            knowledge_frags = await self.knowledge_provider.provide(query, budget // 2)
-
-        # 合并
-        combined = self._merge_context(memory_entries, knowledge_frags, budget)
-        if combined:
-            mem_text = "\n".join(item["content"] for item in combined)
-            self.partition_mgr.update_partition("memory", mem_text)
-            messages.append(SystemMessage(content=f"[Context]\n{mem_text}"))
-
-        messages.extend(history)
-
-        # 拦截器
+        # 4. 拦截器（保留）
         if self.interceptors._interceptors:
             ictx = InterceptorContext(messages=messages)
             await self.interceptors.run(ictx)
@@ -233,6 +214,81 @@ class Agent:
         # P2: 缓存结果
         self._history_cache["messages"] = messages
         self._history_dirty = False
+
+        return messages
+
+    async def _update_all_partitions(self) -> None:
+        """更新所有 5 个分区"""
+        # C_system: 基础 prompt
+        system_content = self.config.system_prompt
+        self.partition_mgr.update_partition("system", system_content)
+
+        # C_working: 当前任务状态
+        working_content = self._build_working_state()
+        self.partition_mgr.update_partition("working", working_content)
+
+        # C_memory: L2/L3 检索 + knowledge
+        query = self._get_current_query()
+        budget = self.partition_mgr.get_available_budget("memory")
+        memory_entries = await self.memory.extract_for(query, budget // 2)
+
+        knowledge_frags = []
+        if self.knowledge_provider:
+            knowledge_frags = await self.knowledge_provider.provide(query, budget // 2)
+
+        combined = self._merge_context(memory_entries, knowledge_frags, budget)
+        memory_text = "\n".join(item["content"] for item in combined)
+        self.partition_mgr.update_partition("memory", memory_text)
+
+        # C_skill: 激活的技能
+        skill_context = self.skill_mgr.get_context()
+        self.partition_mgr.update_partition("skill", skill_context)
+
+        # C_history: L1 历史
+        history = self.memory.get_history()
+        history_text = "\n".join(
+            f"{m.role}: {m.content if isinstance(m.content, str) else str(m.content)}"
+            for m in history
+        )
+        self.partition_mgr.update_partition("history", history_text)
+
+    def _build_working_state(self) -> str:
+        """构建 working 分区内容"""
+        parts = []
+        if self._goal:
+            parts.append(f"<current_goal>{self._goal}</current_goal>")
+        recent_tools = self._execution_trace[-3:] if self._execution_trace else []
+        if recent_tools:
+            parts.append("<recent_actions>")
+            parts.extend(recent_tools)
+            parts.append("</recent_actions>")
+        return "\n".join(parts)
+
+    def _get_current_query(self) -> str:
+        """获取当前查询（用于检索）"""
+        history = self.memory.get_history()
+        if not history:
+            return self._goal or ""
+        last = history[-1].content
+        return last if isinstance(last, str) else str(last)
+
+    def _context_to_messages(self) -> list[Message]:
+        """将完整上下文转换为 Message 列表"""
+        messages = []
+
+        # 前 4 个分区合并为 SystemMessage
+        context_parts = []
+        for name in ["system", "working", "memory", "skill"]:
+            content = self.partition_mgr.partitions[name].content
+            if content:
+                context_parts.append(f"[{name.upper()}]\n{content}")
+
+        if context_parts:
+            messages.append(SystemMessage(content="\n\n".join(context_parts)))
+
+        # history 保持原有结构
+        history = self.memory.get_history()
+        messages.extend(history)
 
         return messages
 
