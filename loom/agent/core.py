@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 
 from ..config import AgentConfig
-from ..context import CompressionScorer, ContextOrchestrator, HeartbeatLoop, PartitionManager
+from ..context import CompressionScorer, HeartbeatLoop, PartitionManager
 from ..events import EventBus
 from ..evolution import EvolutionEngine
 from ..memory import MemoryManager
@@ -50,7 +50,6 @@ class Agent:
         name: str | None = None,
         memory: MemoryManager | None = None,
         tools: ToolRegistry | None = None,
-        context: ContextOrchestrator | None = None,
         event_bus: EventBus | None = None,
         interceptors: InterceptorChain | None = None,
         strategy: LoopStrategy | None = None,
@@ -61,7 +60,6 @@ class Agent:
         self.provider = provider
         self.memory = memory or MemoryManager()
         self.tools = tools or ToolRegistry()
-        self.context = context or ContextOrchestrator()
         self.event_bus = event_bus or EventBus()
         self.interceptors = interceptors or InterceptorChain()
         self.strategy = strategy or ToolUseStrategy()
