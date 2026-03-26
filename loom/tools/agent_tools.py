@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from .schema import DictSchema
 from ..types import ToolDefinition
+from .schema import DictSchema
 
 
 async def _not_implemented(_params: Any, _ctx: Any) -> str:
