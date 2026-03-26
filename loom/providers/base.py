@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import random
 import time
+import warnings
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 
@@ -25,13 +26,22 @@ class CircuitBreakerConfig:
 
 
 class BaseLLMProvider:
-    """Abstract base with retry + circuit breaker. Subclass and implement _do_complete/_do_stream."""
+    """Abstract base with retry + circuit breaker. Subclass and implement _do_complete/_do_stream.
+
+    .. deprecated:: 0.7.0
+        Use Protocol-based LLMProvider instead. This class will be removed in 1.0.0.
+    """
 
     def __init__(
         self,
         retry: RetryConfig | None = None,
         circuit_breaker: CircuitBreakerConfig | None = None,
     ) -> None:
+        warnings.warn(
+            "BaseLLMProvider is deprecated. Use Protocol-based LLMProvider instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._retry = retry or RetryConfig()
         self._cb = circuit_breaker or CircuitBreakerConfig()
         self._failures = 0

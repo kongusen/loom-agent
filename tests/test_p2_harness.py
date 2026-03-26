@@ -6,9 +6,8 @@ import pytest
 
 from loom.agent import Agent
 from loom.config import AgentConfig
-from loom.context.compression import CompressionScorer
 from loom.memory.tokenizers import EstimatorTokenizer
-from loom.types import CompletionParams, CompletionResult, FinishReason, LLMProvider, SystemMessage
+from loom.types import CompletionParams, CompletionResult, FinishReason, LLMProvider
 
 
 class MockProvider(LLMProvider):

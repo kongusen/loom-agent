@@ -17,7 +17,7 @@ class SkillParams(BaseModel):
     name: str
 
 
-def create_skill_tool(registry: "SkillRegistry") -> ToolDefinition:
+def create_skill_tool(registry: SkillRegistry) -> ToolDefinition:
     """创建 Skill tool，用于 Progressive Disclosure"""
 
     async def skill_execute(params: SkillParams, _ctx: ToolContext) -> str:

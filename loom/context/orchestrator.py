@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from ..types import BudgetRatios, ContextFragment, ContextProvider, ContextSource, TokenBudget
 
@@ -16,12 +17,14 @@ class ContextOrchestrator:
         output_reserve_ratio: float = 0.25,
         ratios: BudgetRatios | None = None,
         adaptive_alpha: float = 0.3,
+        tokenizer: Any = None,
     ) -> None:
         self._providers: list[ContextProvider] = []
         self._scores: dict[ContextSource, float] = {}
         self._alpha = adaptive_alpha
         self._context_window = context_window
         self._output_reserve_ratio = output_reserve_ratio
+        self._tokenizer = tokenizer
         if ratios:
             self._scores.update(ratios)
 
@@ -59,7 +62,10 @@ class ContextOrchestrator:
         return selected
 
     def compute_budget(self, system_prompt: str | None = None) -> TokenBudget:
-        sys_tokens = len((system_prompt or "").split()) * 2  # rough estimate
+        if self._tokenizer and system_prompt:
+            sys_tokens = self._tokenizer.count(system_prompt)
+        else:
+            sys_tokens = len((system_prompt or "").split()) * 2
         reserved = int(self._context_window * self._output_reserve_ratio)
         available = self._context_window - reserved - sys_tokens
         return TokenBudget(
@@ -77,10 +83,18 @@ class ContextOrchestrator:
         }
 
     def _update_scores(self, selected: list[ContextFragment]) -> None:
+        """Update source scores via EMA based on selected fragments."""
         by_source: dict[ContextSource, list[float]] = {}
         for f in selected:
             by_source.setdefault(f.source, []).append(f.relevance)
-        for source, old in self._scores.items():
+
+        for source, old_score in self._scores.items():
             rels = by_source.get(source)
-            avg = sum(rels) / len(rels) if rels else 0.0
-            self._scores[source] = (1 - self._alpha) * old + self._alpha * avg
+            if rels:
+                # Source contributed: boost based on avg relevance
+                avg_relevance = sum(rels) / len(rels)
+                new_score = (1 - self._alpha) * old_score + self._alpha * avg_relevance
+            else:
+                # Source didn't contribute: gentle decay (not to zero)
+                new_score = (1 - self._alpha * 0.1) * old_score
+            self._scores[source] = max(new_score, 0.1)  # floor at 0.1

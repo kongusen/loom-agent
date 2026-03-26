@@ -34,20 +34,17 @@ class ConstraintValidator:
         # 约束检查
         constraints = self._scene_mgr.current.constraints
 
-        if constraints.get("network") is False:
-            if tool_call.name in ["web_search", "web_fetch", "http_request"]:
-                self._record_violation(tool_call.name, "network", "Network disabled")
-                return False, "Network access disabled in current scene"
+        if constraints.get("network") is False and tool_call.name in ["web_search", "web_fetch", "http_request"]:
+            self._record_violation(tool_call.name, "network", "Network disabled")
+            return False, "Network access disabled in current scene"
 
-        if constraints.get("write") is False:
-            if tool_call.name in ["write_file", "bash", "file_write"]:
-                self._record_violation(tool_call.name, "write", "Write disabled")
-                return False, "Write access disabled in current scene"
+        if constraints.get("write") is False and tool_call.name in ["write_file", "bash", "file_write"]:
+            self._record_violation(tool_call.name, "write", "Write disabled")
+            return False, "Write access disabled in current scene"
 
-        if constraints.get("read") is False:
-            if tool_call.name in ["read_file", "file_read"]:
-                self._record_violation(tool_call.name, "read", "Read disabled")
-                return False, "Read access disabled in current scene"
+        if constraints.get("read") is False and tool_call.name in ["read_file", "file_read"]:
+            self._record_violation(tool_call.name, "read", "Read disabled")
+            return False, "Read access disabled in current scene"
 
         return True, ""
 

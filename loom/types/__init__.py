@@ -11,7 +11,6 @@ from .cluster import (
     Priority,
     RewardRecord,
     RewardSignal,
-    Skill,
     SubTask,
     TaskAd,
     TaskResult,
@@ -23,16 +22,16 @@ from .context import (
     Chunk,
     Chunker,
     ContextFragment,
+    ContextPartition,
     ContextProvider,
     ContextSource,
     Document,
     RetrievalResult,
     Retriever,
     RetrieverOptions,
-    SkillActivation,
-    SkillTrigger,
     TokenBudget,
 )
+from .embedding import EmbeddingProvider
 from .events import (
     AgentEvent,
     DoneEvent,
@@ -47,6 +46,8 @@ from .events import (
     ToolCallEndEvent,
     ToolCallStartEvent,
 )
+from .evolution import FailureRecord, Pattern
+from .information import InformationEvent
 from .llm import (
     CompletionParams,
     CompletionResult,
@@ -74,6 +75,8 @@ from .messages import (
     ToolMessage,
     UserMessage,
 )
+from .scene import ScenePackage
+from .skill import Skill
 from .tools import ToolContext, ToolDefinition, ToolExecutionConfig, ToolResult, ToolSchema
 
 __all__ = [
@@ -96,8 +99,10 @@ __all__ = [
     "MemoryCompressor",
     "ImportanceScorer",
     "Tokenizer",
+    "EmbeddingProvider",
     "ContextSource",
     "ContextFragment",
+    "ContextPartition",
     "ContextProvider",
     "TokenBudget",
     "BudgetRatios",
@@ -107,8 +112,6 @@ __all__ = [
     "RetrieverOptions",
     "Chunker",
     "Retriever",
-    "SkillTrigger",
-    "SkillActivation",
     "AgentEvent",
     "TextDeltaEvent",
     "ReasoningDeltaEvent",
@@ -143,5 +146,10 @@ __all__ = [
     "ComplexityEstimate",
     "MitosisContext",
     "Skill",
+    "ScenePackage",
+    "InformationEvent",
+    "TaskResult",
+    "Pattern",
+    "FailureRecord",
     "AgentBlueprint",
 ]

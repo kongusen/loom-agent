@@ -7,6 +7,7 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 
 from ..types import AgentEvent
+from .information import InformationGainCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class EventBus:
         self._parent = parent
         self._handlers: dict[str, list[Handler]] = defaultdict(list)
         self._wildcard: list[Handler] = []
+        self.info_calc = InformationGainCalculator()  # 公理三
 
     def create_child(self, node_id: str) -> EventBus:
         return EventBus(node_id=node_id, parent=self)
@@ -61,3 +63,17 @@ class EventBus:
         # Propagate to parent
         if self._parent:
             await self._parent.emit(event)
+
+    async def publish_with_gain(
+        self, event: AgentEvent, payload: str, context: str = ""
+    ) -> bool:
+        """公理 3.1-3.2: 带信息增益门控的发布"""
+        delta_h = self.info_calc.calculate_delta_h(payload, context)
+
+        # 公理 3.1: 发布门控
+        if not self.info_calc.should_publish(delta_h):
+            return False
+
+        # 发布事件
+        await self.emit(event)
+        return True

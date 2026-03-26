@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -16,7 +15,7 @@ class EstimatorTokenizer:
         self._ratio = chars_per_token
         self._cache_size = cache_size
 
-    @lru_cache(maxsize=1000)
+
     def count(self, text: str) -> int:
         """P2: LRU 缓存 - 自动淘汰."""
         return len(text) // self._ratio + 1
@@ -40,7 +39,7 @@ class TiktokenTokenizer:
             import tiktoken
             self._enc = tiktoken.encoding_for_model(model)
         except ImportError:
-            raise ImportError("tiktoken not installed. Run: pip install tiktoken")
+            raise ImportError("tiktoken not installed. Run: pip install tiktoken") from None
 
     def count(self, text: str) -> int:
         return len(self._enc.encode(text))

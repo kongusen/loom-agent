@@ -174,8 +174,9 @@ async def test_agent_constraint_integration():
 @pytest.mark.asyncio
 async def test_agent_resource_guard_integration():
     """测试 Agent 集成资源守卫."""
-    from loom.tools import ToolRegistry, define_tool
     from pydantic import BaseModel
+
+    from loom.tools import ToolRegistry, define_tool
 
     class DummyParams(BaseModel):
         pass

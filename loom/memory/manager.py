@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from ..types import MemoryEntry, Message
+from typing import TYPE_CHECKING
+
+from ..types import MemoryEntry, Message, Tokenizer
 from .persistent_store import PersistentStore
 from .sliding_window import SlidingWindow
-from .tokens import _estimate_tokens
+from .tokenizers import EstimatorTokenizer
 from .working_memory import WorkingMemory
+
+if TYPE_CHECKING:
+    from ..types import EmbeddingProvider
 
 
 class MemoryManager:
@@ -17,20 +22,26 @@ class MemoryManager:
         l1: SlidingWindow | None = None,
         l2: WorkingMemory | None = None,
         l3: PersistentStore | None = None,
+        tokenizer: Tokenizer | None = None,
+        embedding: EmbeddingProvider | None = None,
     ) -> None:
         self.l1 = l1 or SlidingWindow()
-        self.l2 = l2 or WorkingMemory()
+        self.l2 = l2 or WorkingMemory(embedding=embedding)
         self.l3 = l3 or PersistentStore()
+        self.tokenizer = tokenizer or EstimatorTokenizer()
+        self.embedding = embedding
 
     async def add_message(self, msg: Message) -> None:
         evicted = self.l1.add(msg)
         for old_msg in evicted:
             text = old_msg.content if isinstance(old_msg.content, str) else str(old_msg.content)
+            emb = await self.embedding.embed(text) if self.embedding else None
             entry = MemoryEntry(
                 content=text,
-                tokens=_estimate_tokens(text),
+                tokens=self.tokenizer.count(text),
                 importance=0.3,
                 metadata={"role": old_msg.role},
+                embedding=emb,
             )
             l2_evicted = await self.l2.store(entry)
             for e in l2_evicted:
@@ -65,7 +76,7 @@ class MemoryManager:
         """Build a combined context string from L1 history + L2/L3 retrieval."""
         history = self.l1.get_messages()
         history_text = "\n".join(f"{m.role}: {m.content}" for m in history[-10:])
-        history_tokens = _estimate_tokens(history_text)
+        history_tokens = self.tokenizer.count(history_text)
         remaining = max(budget - history_tokens, 0)
         entries = await self.extract_for(query, remaining)
         memory_text = "\n".join(e.content for e in entries)

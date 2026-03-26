@@ -36,25 +36,3 @@ class SkillNodeRegistry:
     @property
     def size(self) -> int:
         return len(self._catalog)
-
-    async def find_match(self, input_text: str, min_score: float = 0.3):
-        for skill in self._catalog.values():
-            if skill.name in self._loaded:
-                continue
-            trigger = getattr(skill, "trigger", None)
-            if not trigger:
-                continue
-            if trigger.get("type") == "keyword":
-                lower = input_text.lower()
-                matched = [k for k in trigger.get("keywords", []) if k.lower() in lower]
-                if matched:
-                    score = (getattr(skill, "priority", 0.5)) * (
-                        len(matched) / len(trigger["keywords"])
-                    )
-                    if score >= min_score:
-                        return {
-                            "skill": skill,
-                            "score": score,
-                            "reason": f"keywords: {', '.join(matched)}",
-                        }
-        return None

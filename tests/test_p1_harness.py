@@ -4,9 +4,8 @@ import pytest
 
 from loom.cluster.reward import RewardBus
 from loom.evolution.engine import EvolutionEngine
-from loom.types import AgentNode, CapabilityProfile, TaskAd
-from loom.types.evolution import Pattern, TaskResult
-
+from loom.types import AgentNode, CapabilityProfile
+from loom.types.evolution import Pattern
 
 # ── RewardBus 步骤级反馈测试 ──
 

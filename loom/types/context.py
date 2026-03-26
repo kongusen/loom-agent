@@ -43,6 +43,20 @@ class TokenBudget:
 BudgetRatios = dict[ContextSource, float]
 
 
+# --- Axiom 1: Context Partition ---
+
+
+@dataclass
+class ContextPartition:
+    """单个上下文分区（公理一）"""
+    name: str
+    content: str
+    tokens: int
+    priority: int  # 5=system, 4=working, 3=memory, 2=skill, 1=history
+    writable: bool
+    compressible: bool
+
+
 # --- Knowledge types ---
 
 
@@ -86,21 +100,4 @@ class Retriever(Protocol):
     ) -> list[RetrievalResult]: ...
 
 
-# --- Skill types ---
-
-
-@dataclass
-class SkillTrigger:
-    type: str = "keyword"  # keyword | pattern | semantic | custom
-    keywords: list[str] = field(default_factory=list)
-    pattern: str = ""
-    match_all: bool = False
-    threshold: float = 0.7  # semantic similarity threshold
-    evaluator: Any = None  # custom evaluator callable(text) -> float|None
-
-
-@dataclass
-class SkillActivation:
-    skill: Any = None  # Skill reference
-    score: float = 0.0
-    reason: str = ""
+# --- Skill types (removed trigger mechanism for Claude standard alignment) ---

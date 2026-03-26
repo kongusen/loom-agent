@@ -18,6 +18,7 @@ class MemoryEntry:
     importance: float = 0.5
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
+    embedding: list[float] | None = None  # For semantic search
 
 
 @runtime_checkable

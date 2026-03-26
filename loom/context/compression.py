@@ -105,7 +105,7 @@ class CompressionScorer:
         """计算余弦相似度"""
         if not a or not b or len(a) != len(b):
             return 0.0
-        dot = sum(x * y for x, y in zip(a, b))
+        dot = sum(x * y for x, y in zip(a, b, strict=False))
         norm_a = math.sqrt(sum(x * x for x in a))
         norm_b = math.sqrt(sum(y * y for y in b))
         return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0

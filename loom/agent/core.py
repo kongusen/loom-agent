@@ -210,7 +210,7 @@ class Agent:
         memory_entries = await self.memory.extract_for(query, budget // 2)
 
         # Knowledge 检索
-        knowledge_frags = []
+        knowledge_frags: list = []
         if self.knowledge_provider:
             knowledge_frags = await self.knowledge_provider.provide(query, budget // 2)
 
@@ -269,7 +269,7 @@ class Agent:
         return result
 
     async def spawn(
-        self, goal: str, slice_type: str = "minimal", memory_chunks: list | None = None
+        self, _goal: str, slice_type: str = "minimal", memory_chunks: list | None = None
     ) -> Agent:
         """派生 Sub-Agent（E4: E_spawn）"""
         sub_agent = Agent(
@@ -340,10 +340,8 @@ class Agent:
             return False
 
         # P0: 约束检查
-        if constraints.get("network") is False:
-            if tool_call.name in ["web_search", "web_fetch"]:
-                return False
-        if constraints.get("write") is False:
-            if tool_call.name in ["write_file", "bash"]:
-                return False
+        if constraints.get("network") is False and tool_call.name in ["web_search", "web_fetch"]:
+            return False
+        if constraints.get("write") is False and tool_call.name in ["write_file", "bash"]:
+            return False
         return True

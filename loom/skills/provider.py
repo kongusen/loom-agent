@@ -13,14 +13,16 @@ class SkillProvider:
         self._registry = registry
 
     async def provide(self, query: str, budget: int) -> list[ContextFragment]:
-        activations = await self._registry.activate(query)
+        # Get active skills (already loaded with instructions)
+        active_skills = self._registry.list_active()
         frags: list[ContextFragment] = []
         used = 0
-        for act in activations:
+
+        for skill in active_skills:
             # Amoba pattern: skill.provideContext() takes priority over instructions
-            if hasattr(act.skill, "provide_context") and callable(act.skill.provide_context):
+            if hasattr(skill, "provide_context") and callable(skill.provide_context):
                 try:
-                    custom_frags = await act.skill.provide_context(query, budget - used)
+                    custom_frags = await skill.provide_context(query, budget - used)
                     for f in custom_frags or []:
                         if used + f.tokens > budget:
                             break
@@ -29,7 +31,8 @@ class SkillProvider:
                     continue
                 except Exception:
                     pass  # fall through to instructions
-            instructions = getattr(act.skill, "instructions", "")
+
+            instructions = getattr(skill, "instructions", "")
             if not instructions:
                 continue
             tokens = len(instructions) // 4 + 1
@@ -40,8 +43,8 @@ class SkillProvider:
                     source=ContextSource.SKILL,
                     content=instructions,
                     tokens=tokens,
-                    relevance=act.score,
-                    metadata={"skill_name": act.skill.name, "reason": act.reason},
+                    relevance=0.9,
+                    metadata={"skill_name": skill.name},
                 )
             )
             used += tokens

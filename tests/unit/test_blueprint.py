@@ -1,12 +1,13 @@
 """Tests for Blueprint Forge system: AgentBlueprint, BlueprintStore, BlueprintForge."""
 
 import json
+
 import pytest
 
-from loom.cluster.blueprint_store import BlueprintStore
-from loom.cluster.blueprint_forge import BlueprintForge
 from loom.cluster import ClusterManager
 from loom.cluster.amoeba_loop import AmoebaLoop
+from loom.cluster.blueprint_forge import BlueprintForge
+from loom.cluster.blueprint_store import BlueprintStore
 from loom.cluster.lifecycle import LifecycleManager
 from loom.cluster.planner import TaskPlanner
 from loom.cluster.reward import RewardBus
@@ -21,7 +22,6 @@ from loom.types import (
 )
 from loom.types.blueprint import AgentBlueprint
 from tests.conftest import MockLLMProvider
-
 
 # ── AgentBlueprint dataclass ──
 

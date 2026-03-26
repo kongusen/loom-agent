@@ -53,4 +53,4 @@ class ToolContext:
         try:
             return self.metadata[name]
         except KeyError:
-            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'") from None

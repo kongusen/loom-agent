@@ -1,18 +1,14 @@
 """Tests for ToolContext extension mechanism."""
 
-import json
 import pytest
 
-from loom.agent import Agent, LoopContext
+from loom.agent import LoopContext
 from loom.config import AgentConfig
 from loom.tools import ToolRegistry
 from loom.types import (
-    DoneEvent,
     ToolContext,
     ToolDefinition,
 )
-from tests.conftest import MockLLMProvider
-
 
 # ── ToolContext __getattr__ ──
 
