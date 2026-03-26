@@ -167,18 +167,14 @@ class TestSkillNodeRegistry:
 
     async def test_find_match_keyword(self):
         sr = SkillNodeRegistry()
-        sr.register(
-            Skill(name="py", trigger={"type": "keyword", "keywords": ["python"]}, priority=0.8)
-        )
+        sr.register(Skill(name="py", description="Python coding helper"))
         result = await sr.find_match("python help")
         assert result is not None
         assert result["skill"].name == "py"
 
     async def test_find_match_skips_loaded(self):
         sr = SkillNodeRegistry()
-        sr.register(
-            Skill(name="py", trigger={"type": "keyword", "keywords": ["python"]}, priority=0.8)
-        )
+        sr.register(Skill(name="py", description="Python coding helper"))
         sr.mark_loaded("py")
         result = await sr.find_match("python help")
         assert result is None
