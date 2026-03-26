@@ -4,6 +4,8 @@
 - 低延迟语音回合响应
 - 强约束的上下文编排（按预算取上下文）
 - 用户级记忆恢复
+- Skill 渐进式加载与动态替换
+- Skill 持有工具机制
 - 配置驱动的能力组装
 """
 
@@ -51,21 +53,29 @@ python_tool = ToolDefinition(
 )
 
 
-# === 2. Skill 层：任务语义封装 ===
+# === 2. Skill 层：任务语义封装 + 工具持有 ===
 
 def create_mock_skills() -> list[Skill]:
-    """创建模拟 skills（Layer 1 元数据）"""
+    """创建模拟 skills（Layer 1 元数据 + 工具持有）"""
     return [
         Skill(
             name="python-expert",
             description="Python 编程专家",
             instructions="回答 Python 问题时给出代码示例和最佳实践",
+            tools=["run_python"],  # Skill 持有工具
             _instructions_loaded=False,
         ),
         Skill(
             name="code-reviewer",
             description="代码审查专家",
             instructions="审查代码质量，检查命名、类型注解、错误处理",
+            tools=["search_knowledge"],  # Skill 持有工具
+            _instructions_loaded=False,
+        ),
+        Skill(
+            name="translator",
+            description="翻译专家",
+            instructions="翻译文本到不同语言",
             _instructions_loaded=False,
         ),
     ]
@@ -132,16 +142,23 @@ async def main():
     print(f"✓ Memory 预算: 3000 tokens")
     print(f"✓ History 预算: 5000 tokens")
 
-    # === 5. Skill 按需激活（Layer 2）===
-    print("\n[3] Skill 按需激活")
+    # === 5. Skill 渐进式加载与动态替换 ===
+    print("\n[3] Skill 渐进式加载与动态替换")
 
-    # 根据任务激活相关 skill
+    # Layer 1: 显示所有可用 skills
+    print(f"✓ Layer 1 发现: {len(skills)} 个 skills")
+    for skill in skills:
+        tools_info = f" (工具: {skill.tools})" if skill.tools else ""
+        print(f"  - {skill.name}: {skill.description}{tools_info}")
+
+    # Layer 2: 根据第一轮对话激活相关 skill
+    print("\n✓ Layer 2 激活 (第一轮对话):")
     agent.skill_mgr.activate("python-expert", budget=2000)
-    print("✓ 激活 python-expert skill")
-    print(f"✓ 当前激活 skills: {len(agent.skill_mgr.registry.list_active())} 个")
+    print(f"  激活 python-expert (持有工具: run_python)")
+    print(f"  当前激活: {len(agent.skill_mgr.registry.list_active())} 个")
 
     # === 6. 低延迟语音回合响应 ===
-    print("\n[4] 模拟语音回合（ASR -> Agent Stream -> TTS）")
+    print("\n[4] 第一轮语音回合（ASR -> Agent Stream -> TTS）")
     print("-" * 60)
 
     # 模拟 ASR final 输入
@@ -154,13 +171,27 @@ async def main():
     print(f"\nAgent 响应:\n{result.content}")
     print(f"步数: {result.steps} | Tokens: {agent.resource_guard._used_tokens}")
 
+    # === 7. 动态替换 Skill（第二轮对话）===
+    print("\n[5] 第二轮对话 - 动态替换 Skill")
+
+    # 卸载旧 skill
+    agent.skill_mgr.deactivate("python-expert")
+    print("✓ 卸载 python-expert")
+
+    # 激活新 skill
+    agent.skill_mgr.activate("translator", budget=2000)
+    print("✓ 激活 translator")
+    print(f"✓ 当前激活: {len(agent.skill_mgr.registry.list_active())} 个")
+
     # === 总结 ===
     print("\n" + "=" * 60)
     print("语音运行时编排器核心能力:")
     print("✓ 低延迟流式响应（语音主链路）")
     print("✓ 按预算编排上下文（5 分区独立预算）")
     print("✓ 用户级记忆恢复（L1+L2）")
-    print("✓ Skill 按需激活（Layer 1 发现 + Layer 2 激活）")
+    print("✓ Skill 渐进式加载（Layer 1 发现 + Layer 2 激活）")
+    print("✓ Skill 动态替换（每轮对话重新选择）")
+    print("✓ Skill 持有工具（工具与 Skill 生命周期绑定）")
     print("✓ 配置驱动能力组装（Tool 层确定性执行）")
     print("=" * 60)
 
