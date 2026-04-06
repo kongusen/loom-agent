@@ -1,12 +1,13 @@
-"""Context compression strategies - 四道压缩机制
+"""Context compression strategies - 五道压缩机制
 
 按 token 压力渐进触发：
 - Snip Compact (ρ > 0.7): 裁剪过长片段
 - Micro Compact (ρ > 0.8): 缓存工具结果
 - Context Collapse (ρ > 0.9): 折叠不活跃区域
 - Auto Compact (ρ > 0.95): 全量压缩
+- Reactive Compact (API 413): 紧急压缩 + 重试
 
-关键原则：每轮只触发一种压缩，按优先级递增
+关键原则：每轮只触发一种压缩，按优先级递增；Reactive 由 API 错误触发
 """
 
 from ..types import Message
@@ -171,6 +172,15 @@ class ContextCompressor:
             tool_call_id=msg.tool_call_id,
             name=msg.name,
         )
+
+    def reactive_compact(self, messages: list[Message], goal: str) -> list[Message]:
+        """Reactive Compact: emergency compression triggered by API 413 response.
+
+        Applies auto_compact then snip_compact to aggressively reduce payload size.
+        """
+        messages = self.auto_compact(messages, goal)
+        messages = self.snip_compact(messages, max_length=500)
+        return messages
 
     def _summarize_tool_result(self, content: str) -> str:
         """Keep a short preview while preserving the existence of the full tool output."""

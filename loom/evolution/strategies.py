@@ -235,3 +235,94 @@ class PolicyOptimizationStrategy(EvolutionStrategy):
             "deny": list(getattr(policy, "deny", [])),
             "require_approval": list(getattr(policy, "require_approval", [])),
         }
+
+
+class ConstraintHardeningStrategy(EvolutionStrategy):
+    """E3: Harden constraints from failure root causes → Ψ.constraints ∪ {κ_new}.
+
+    Ratchet-risk mitigation: also audits existing constraints for staleness
+    (no recent violations) so the constraint set doesn't grow unboundedly.
+    """
+
+    def __init__(self, stale_after: int = 20):
+        # A constraint is considered stale if it hasn't been triggered in
+        # the last `stale_after` feedback entries.
+        self.stale_after = stale_after
+
+    def apply(self, agent):
+        feedback = self._feedback_entries(agent)
+        existing: dict[str, dict] = dict(
+            getattr(agent, "hardened_constraints", {}) or {}
+        )
+
+        # Collect failure root causes → candidate new constraints
+        for item in feedback:
+            if item.get("success") is False or item.get("is_error"):
+                cause = item.get("root_cause") or item.get("error") or item.get("reason")
+                tool = item.get("tool") or item.get("tool_name")
+                if cause and tool:
+                    key = f"{tool}:{cause}"
+                    if key not in existing:
+                        existing[key] = {"tool": tool, "cause": cause, "hits": 0, "last_seen": 0}
+                    existing[key]["hits"] += 1
+                    existing[key]["last_seen"] = len(feedback)
+
+        # Audit: mark stale constraints (no hit in last `stale_after` entries)
+        cutoff = max(0, len(feedback) - self.stale_after)
+        active, stale = {}, {}
+        for key, c in existing.items():
+            (stale if c["last_seen"] < cutoff and c["hits"] > 0 else active)[key] = c
+
+        result = {
+            "active_constraints": active,
+            "stale_constraints": stale,
+            "total": len(existing),
+            "feedback_count": len(feedback),
+        }
+        return self._update_state(agent, "hardened_constraints", result)
+
+
+class AmoebaSplitStrategy(EvolutionStrategy):
+    """E4: Recommend spawning a specialist sub-agent when task_ratio(d) > θ_split.
+
+    Detects when a particular task domain causes persistent early_stop events,
+    suggesting the current agent is not the right shape for that work.
+    """
+
+    def __init__(self, split_threshold: float = 0.4, min_samples: int = 3):
+        self.split_threshold = split_threshold
+        self.min_samples = min_samples
+
+    def apply(self, agent):
+        feedback = self._feedback_entries(agent)
+        domain_counts: dict[str, dict[str, int]] = {}
+
+        for item in feedback:
+            domain = item.get("domain") or item.get("task_type") or item.get("goal_type")
+            if not domain:
+                continue
+            stats = domain_counts.setdefault(str(domain), {"total": 0, "early_stop": 0})
+            stats["total"] += 1
+            if item.get("early_stop") or item.get("type") == "early_stop":
+                stats["early_stop"] += 1
+
+        split_recommendations = []
+        for domain, stats in domain_counts.items():
+            if stats["total"] < self.min_samples:
+                continue
+            ratio = stats["early_stop"] / stats["total"]
+            if ratio > self.split_threshold:
+                split_recommendations.append({
+                    "domain": domain,
+                    "task_ratio": round(ratio, 3),
+                    "total": stats["total"],
+                    "early_stop": stats["early_stop"],
+                    "recommendation": f"spawn specialist sub-agent for domain '{domain}'",
+                })
+
+        result = {
+            "split_recommendations": split_recommendations,
+            "domain_stats": domain_counts,
+            "feedback_count": len(feedback),
+        }
+        return self._update_state(agent, "amoeba_split", result)

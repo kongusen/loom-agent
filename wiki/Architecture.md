@@ -16,8 +16,8 @@ A = ⟨C, M, L*, H_b, S, Ψ⟩
 | M | Memory (session/working/semantic/persistent) | `loom/memory/` |
 | L* | Execution loop (Reason → Act → Observe → Δ)* | `loom/runtime/loop.py` |
 | H_b | Heartbeat (independent perception layer) | `loom/runtime/heartbeat.py` |
-| S | Safety (permissions + hooks + veto) | `loom/safety/` |
-| Ψ | Evolution (self-improvement strategies) | `loom/evolution/` |
+| S | Skill (progressive disclosure, lazy-loaded into C) | `loom/ecosystem/skill.py` |
+| Ψ | Harness (builds environment + veto authority, never replaces model decisions) | `loom/safety/` |
 
 ---
 
@@ -210,7 +210,7 @@ Four-level compression triggered by ρ:
 
 ---
 
-### loom/safety/ — Safety Layer (S)
+### loom/safety/ — Harness (Ψ)
 
 Three-tier enforcement:
 
@@ -291,7 +291,7 @@ RetryConfig(max_retries=3, base_delay=1.0, circuit_open_after=5, circuit_reset_a
 
 ---
 
-### loom/evolution/ — Self-Evolution (Ψ)
+### loom/evolution/ — Self-Evolution (Evolve(A))
 
 **`EvolutionEngine`** (`engine.py`)
 - `register_strategy(strategy)`
