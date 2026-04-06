@@ -6,11 +6,34 @@ Skill 特性：
 3. 支持参数替换
 4. 支持 allowedTools 限制
 5. 支持 whenToUse 匹配
+6. Agent 框架特性：effort, agent, context, paths
 """
 
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
+
+
+def get_effort_token_limit(effort: int | None) -> int:
+    """Convert effort level to token limit
+
+    Args:
+        effort: Effort level (1-5) or None
+
+    Returns:
+        Token limit for the effort level
+    """
+    if effort is None:
+        return 4000  # Default
+
+    effort_map = {
+        1: 1000,    # 简单任务
+        2: 2000,    # 中等任务
+        3: 4000,    # 复杂任务（默认）
+        4: 8000,    # 困难任务
+        5: 16000,   # 极其复杂任务
+    }
+    return effort_map.get(effort, 4000)
 
 
 @dataclass
@@ -26,6 +49,15 @@ class Skill:
     argument_hint: str | None = None
     model: str | None = None
     user_invocable: bool = True
+
+    # Agent framework features (P0)
+    effort: int | None = None  # 1-5, controls token budget
+    agent: str | None = None  # general-purpose, code-expert, debug-assistant
+    context: str = "inline"  # inline | fork | isolated
+
+    # Advanced features (P1)
+    paths: list[str] | None = None  # [src/**, tests/**] - path restrictions
+    version: str | None = None  # 1.0.0 - version control
 
     # Metadata
     source: str = "user"  # user | plugin | bundled
@@ -149,6 +181,13 @@ class SkillLoader:
             argument_hint=frontmatter.get('argumentHint'),
             model=frontmatter.get('model'),
             user_invocable=frontmatter.get('userInvocable', True),
+            # Agent framework features
+            effort=frontmatter.get('effort'),
+            agent=frontmatter.get('agent'),
+            context=frontmatter.get('context', 'inline'),
+            paths=frontmatter.get('paths'),
+            version=frontmatter.get('version'),
+            # Metadata
             source='user',
             file_path=str(path),
         )

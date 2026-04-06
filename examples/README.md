@@ -1,6 +1,6 @@
 # Examples
 
-Runnable examples from simple to advanced. No API key needed for 01, 03, 04, 06, 07, 08.
+Runnable examples from simple to advanced. No API key needed for 01, 03, 04, 06, 07, 08, 09.
 
 | File | Concept | API key? |
 |---|---|---|
@@ -12,6 +12,7 @@ Runnable examples from simple to advanced. No API key needed for 01, 03, 04, 06,
 | [06_evolution.py](06_evolution.py) | Self-improvement strategies E1–E4 | No |
 | [07_context_pressure.py](07_context_pressure.py) | Context compression levels (ρ triggers) | No |
 | [08_skill_system.py](08_skill_system.py) | Skill discovery and invocation | No |
+| [09_advanced_skills.py](09_advanced_skills.py) | Advanced skill features (effort, agent, context) | No |
 
 ## Run
 
@@ -22,6 +23,7 @@ python examples/01_hello_agent.py
 python examples/06_evolution.py
 python examples/07_context_pressure.py
 python examples/08_skill_system.py
+python examples/09_advanced_skills.py
 
 # With a real LLM:
 ANTHROPIC_API_KEY=sk-ant-... python examples/02_provider_config.py

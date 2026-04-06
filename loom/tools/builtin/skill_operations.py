@@ -77,7 +77,20 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
         "model": skill_obj.model,
         "user_invocable": skill_obj.user_invocable,
         "source": skill_obj.source,
+        # Agent framework features
+        "effort": skill_obj.effort,
+        "effort_token_limit": _get_effort_token_limit(skill_obj.effort),
+        "agent": skill_obj.agent,
+        "context": skill_obj.context,
+        "paths": skill_obj.paths,
+        "version": skill_obj.version,
     }
+
+
+def _get_effort_token_limit(effort: int | None) -> int:
+    """Get token limit for effort level"""
+    from loom.ecosystem.skill import get_effort_token_limit
+    return get_effort_token_limit(effort)
 
 
 async def skill_discover() -> dict[str, Any]:
@@ -104,6 +117,12 @@ async def skill_discover() -> dict[str, Any]:
                 "source": skill_obj.source,
                 "allowed_tools": skill_obj.allowed_tools,
                 "model": skill_obj.model,
+                # Agent framework features
+                "effort": skill_obj.effort,
+                "agent": skill_obj.agent,
+                "context": skill_obj.context,
+                "paths": skill_obj.paths,
+                "version": skill_obj.version,
             })
 
     return {
