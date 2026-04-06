@@ -2,10 +2,9 @@
 
 <img src="loom.svg" alt="Loom Agent" width="300"/>
 
-# loom-agent
+# Loom — Python Agent Runtime Framework
 
-**Agent Runtime Framework for complex, long-running work**
-*Structure for agents when tasks stop fitting in a single prompt.*
+**Build autonomous AI agents that run, observe, and improve themselves.**
 
 [![PyPI](https://img.shields.io/pypi/v/loom-agent.svg)](https://pypi.org/project/loom-agent/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -14,169 +13,133 @@
 
 **English** | [中文](README_CN.md)
 
-[Wiki](wiki/Home.md) | [Docs Index](wiki/README.md) | [Package](https://pypi.org/project/loom-agent/)
+[Wiki](wiki/Home.md) | [Quick Start](wiki/01-getting-started/README.md) | [API Reference](wiki/07-api-reference/README.md) | [PyPI](https://pypi.org/project/loom-agent/)
 
 </div>
 
 ---
 
-## Positioning
+Loom is a **production-grade Python framework** for building autonomous AI agents. Unlike prompt wrappers or simple LangChain pipelines, Loom provides a complete agent runtime: structured context management, parallel background sensing, multi-agent orchestration, safety controls, and self-improvement strategies.
 
-Loom is not a prompt wrapper, and not a thin workflow shell around tools.
+## Why Loom?
 
-It is a runtime-oriented framework for teams building agents that need to stay coherent across longer tasks, multiple steps, external actions, and controlled collaboration.
-
-The project is organized around one core idea:
-
-> Do not force complex agent systems into a single loop.
-> Give them a runtime with objects, boundaries, observability, and room to evolve.
-
----
-
-## Why Loom
-
-Most agent projects break in the same places:
-
-- context grows until quality drops
-- tool use increases but governance disappears
-- retries, approvals, artifacts, and multi-step state turn into ad hoc scripts
-- collaboration logic becomes hard to reason about
-
-Loom addresses that by giving agent systems a clearer runtime structure:
-
-- **Runtime object model**: organize execution as `AgentRuntime -> Session -> Task -> Run`
-- **Context control**: separate context management, partitioning, compression, and renewal
-- **Execution loop**: keep loop, state machine, decision, and heartbeat as first-class modules
-- **Tooling and governance**: register tools, execute them, and put constraints around them
-- **Collaboration**: prepare for sub-agents, event-driven coordination, and cluster-style expansion
-- **Safety boundaries**: keep permissions, constraints, hooks, and veto points in explicit modules
-
-This makes Loom a better fit for systems that need runtime structure, not just model access.
-
----
-
-## What You Get Today
-
-The current repository already contains a real framework skeleton with a stable direction.
-
-| Area | Status | Code Fact |
-|---|---|---|
-| Runtime API and object model | Implemented | `loom/api/` |
-| Session / Task / Run handles | Implemented, base version | `loom/api/handles.py` |
-| Context and memory modules | Implemented, base version | `loom/context/`, `loom/memory/` |
-| Execution loop and state modules | Implemented, base version | `loom/execution/` |
-| Tool registry and execution layers | Implemented, base version | `loom/tools/` |
-| Collaboration and sub-agent modules | Partially implemented | `loom/orchestration/`, `loom/cluster/` |
-| Ecosystem: skills / plugins / MCP | Partially implemented | `loom/ecosystem/`, `loom/capabilities/` |
-| Safety, permissions, constraints | Implemented, base version | `loom/safety/` |
-
-The important distinction is deliberate: Loom already has a strong runtime shape, while some deeper execution integration is still converging.
-
----
+| | LangChain | AutoGen | CrewAI | **Loom** |
+|---|---|---|---|---|
+| Context pressure management | ❌ | ❌ | ❌ | ✅ |
+| Background heartbeat sensing | ❌ | ❌ | ❌ | ✅ |
+| Structured Reason→Act→Observe→Δ loop | ❌ | partial | ❌ | ✅ |
+| Veto authority (Harness) | ❌ | ❌ | ❌ | ✅ |
+| Self-improvement strategies (E1–E4) | ❌ | ❌ | ❌ | ✅ |
+| Multi-provider (Anthropic/OpenAI/Gemini) | ✅ | ✅ | ✅ | ✅ |
 
 ## Quick Start
-
-### Install
 
 ```bash
 pip install loom-agent
 ```
 
-### Start with the Runtime API
-
-If you are integrating Loom into an application, this is the cleanest entry point.
-
 ```python
 import asyncio
-
-from loom.api import AgentProfile, AgentRuntime
-
+from loom.api import AgentRuntime, AgentProfile
+from loom.providers import AnthropicProvider
 
 async def main():
-    profile = AgentProfile.from_preset("default")
-    runtime = AgentRuntime(profile=profile)
-
-    session = runtime.create_session(metadata={"project": "demo"})
-    task = session.create_task(
-        goal="Review the current repository structure",
-        context={"repo": "loom-agent"},
+    runtime = AgentRuntime(
+        profile=AgentProfile.from_preset("default"),
+        provider=AnthropicProvider(api_key="sk-ant-..."),
     )
-
+    session = runtime.create_session()
+    task = session.create_task("Summarize the latest commits in this repo")
     run = task.start()
+
     result = await run.wait()
-
-    print(result.state.value)
-    print(result.summary)
-
+    print(result.output)
 
 asyncio.run(main())
 ```
 
-### Then go deeper when needed
+## How It Works
 
-Loom exposes multiple layers depending on how much control you want:
+Every Loom agent is defined by six components:
 
-- `loom/api/`: runtime-facing objects and handles for application integration
-- `loom/agent/`: lower-level agent core and runtime skeleton
-- `loom/context/`, `loom/execution/`, `loom/memory/`: execution internals
-- `loom/tools/`, `loom/orchestration/`, `loom/safety/`: extension and control layers
-
----
-
-## Architecture At A Glance
-
-```text
-Interface Layer     -> loom/api
-Core Runtime        -> loom/agent, loom/context, loom/execution, loom/memory
-Capability Layer    -> loom/tools, loom/orchestration, loom/ecosystem, loom/capabilities
-Safety Layer        -> loom/safety
-Support Layer       -> loom/providers, loom/evolution, loom/utils
+```
+Agent = ⟨C, M, L*, H_b, S, Ψ⟩
 ```
 
-From a repository shape perspective, Loom is already closer to a runtime system than to a single-file SDK.
+| Component | What it does | Module |
+|---|---|---|
+| **C** — Context | Five-partition context window with five compression levels | `loom/context/` |
+| **M** — Memory | Session, working, semantic, and persistent memory | `loom/memory/` |
+| **L\*** — Loop | Reason → Act → Observe → Δ execution engine | `loom/runtime/loop.py` |
+| **H_b** — Heartbeat | Background thread sensing filesystem/process/resources in parallel | `loom/runtime/heartbeat.py` |
+| **S** — Skills | Progressively loaded tools, plugins, MCP servers | `loom/ecosystem/` |
+| **Ψ** — Harness | Safety layer with veto authority — sets boundaries, never replaces model decisions | `loom/safety/` |
 
----
+## Key Features
 
-## Best-Fit Use Cases
+### Context Management
+- Five partitions: `system / working / memory / skill / history`
+- Five compression levels triggered by context pressure ρ: Snip → Micro → Collapse → Auto → Reactive
+- Context renewal (disk paging) when ρ = 1.0 — agent continues without losing working state
 
-Loom is a strong fit when a task is not finished in one prompt:
+### Multi-Agent Orchestration
+- `TaskPlanner` builds dependency-ordered task graphs
+- `Coordinator` executes plans with timeout and error handling
+- `SubAgentManager` spawns specialist agents with depth limit (`d_max`)
 
-- coding and refactoring workflows that need persistent context and tool use
-- research and analysis loops that need evidence, memory, and structured continuation
-- agent backends that need sessions, tasks, runs, events, and artifacts
-- extensible products that need skills, plugins, or MCP-style capability integration
+### Safety & Control (Harness Ψ)
+- Three-tier protection: Speculative Classifier → Hook Policy → Permission Decision
+- `VetoAuthority` blocks any tool call — the safety valve
+- Modes: `DEFAULT` / `PLAN` / `AUTO`
 
-If all you need is one-shot chat or a thin model wrapper, Loom is probably more framework than you need.
+### Self-Improvement
+- **E1** Tool Learning — tracks reliability per tool
+- **E2** Policy Optimization — turns blocks into recommendations
+- **E3** Constraint Hardening — solidifies failure root causes into permanent constraints
+- **E4** Amoeba Split — detects when to spawn a specialist sub-agent
 
----
+### LLM Providers
+All providers include built-in retry and circuit breaker:
 
-## Why Teams Use It
+```python
+from loom.providers import AnthropicProvider, OpenAIProvider, GeminiProvider
+```
 
-- **Clear runtime entry point** instead of scattered helper functions
-- **Explicit lifecycle objects** instead of hidden internal state
-- **Better control surfaces** for approvals, events, artifacts, and policies
-- **Separation of concerns** across context, execution, tooling, collaboration, and safety
-- **A credible path to advanced agent systems** without pretending every capability is already fully finished
+## Architecture
 
-This is the practical value proposition: Loom helps teams move from demo-style agents to runtime-shaped agent systems.
+```
+loom/api/           ← Public entry point: AgentRuntime → Session → Task → Run
+loom/runtime/       ← L* loop + H_b heartbeat + monitors
+loom/context/       ← Context partitions, compression, renewal, dashboard
+loom/memory/        ← Session, working, semantic, persistent memory
+loom/tools/         ← Tool registry, executor, governance pipeline
+loom/orchestration/ ← TaskPlanner, Coordinator, SubAgentManager
+loom/safety/        ← PermissionManager, HookManager, VetoAuthority
+loom/ecosystem/     ← Skills, plugins, MCP bridge
+loom/evolution/     ← Self-improvement strategies E1–E4
+loom/providers/     ← Anthropic, OpenAI, Gemini
+```
 
----
+## Use Cases
+
+Loom is the right choice when a task doesn't fit in a single prompt:
+
+- **Coding agents** — multi-step refactoring with persistent context and tool use
+- **Research agents** — evidence gathering, memory, and structured continuation
+- **Agent backends** — sessions, tasks, runs, events, approvals, and artifacts
+- **Extensible products** — skills, plugins, or MCP-style capability integration
 
 ## Documentation
 
-- [Wiki Home](wiki/Home.md)
-- [Quick Start](wiki/04-开发说明/快速开始.md)
-- [Agent and Run](wiki/04-开发说明/Agent与Run.md)
-- [Architecture Overview](wiki/03-架构说明/总体架构.md)
-- [Capability Matrix](wiki/05-参考资料/代码能力矩阵.md)
-- [Strategic Positioning](wiki/02-战略表达/产品定位.md)
+| | |
+|---|---|
+| [Quick Start](wiki/01-getting-started/README.md) | Get running in 5 minutes |
+| [Core Concepts](wiki/02-core-concepts/README.md) | How Loom works |
+| [Multi-Agent](wiki/04-multi-agent/README.md) | Orchestration patterns |
+| [API Reference](wiki/07-api-reference/README.md) | Full API docs |
+| [Comparison](wiki/08-reference/comparison.md) | vs LangChain / AutoGen / CrewAI |
+| [Design Spec](hernss-agent-framework.md) | Internal architecture reference |
 
----
+## License
 
-## Current State
-
-The most accurate way to describe Loom today is:
-
-> a runtime framework with a real public object model, clear module boundaries, and a strong foundation for controlled agent systems, while deeper execution integration and some advanced collaboration capabilities are still maturing.
-
-That precision matters. The architecture is real, the direction is clear, and the repo is already useful for teams that care about runtime structure early.
+Apache 2.0 with Commons Clause. See [LICENSE](LICENSE).
