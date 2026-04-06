@@ -1,17 +1,15 @@
-"""Context package — re-exports orchestrator and memory provider."""
+"""Context management system"""
 
-from .compression import CompressionScorer
-from .heartbeat import HeartbeatLoop
-from .memory_provider import MemoryContextProvider
-from .mitosis_provider import MitosisContextProvider
-from .orchestrator import ContextOrchestrator
-from .partition import PartitionManager
+from .manager import ContextManager
+from .partitions import ContextPartitions
+from .dashboard import DashboardManager
+from .compression import ContextCompressor
+from .renewal import ContextRenewer
 
 __all__ = [
-    "ContextOrchestrator",
-    "MemoryContextProvider",
-    "MitosisContextProvider",
-    "PartitionManager",
-    "CompressionScorer",
-    "HeartbeatLoop",
+    "ContextManager",
+    "ContextPartitions",
+    "DashboardManager",
+    "ContextCompressor",
+    "ContextRenewer",
 ]

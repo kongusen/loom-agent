@@ -1,48 +1,30 @@
-"""Message types."""
-
-from __future__ import annotations
+"""Message types for Agent communication"""
 
 from dataclasses import dataclass, field
+from typing import Any, Literal
 
 
 @dataclass
 class ToolCall:
+    """Tool invocation request"""
     id: str
     name: str
-    arguments: str
+    arguments: dict[str, Any]
 
 
 @dataclass
-class SystemMessage:
+class ToolResult:
+    """Tool execution result"""
+    tool_call_id: str
     content: str
-    role: str = "system"
+    is_error: bool = False
 
 
 @dataclass
-class ContentPart:
-    type: str = "text"  # "text" | "image"
-    text: str | None = None
-    image_url: str | None = None
-
-
-@dataclass
-class UserMessage:
-    content: str | list[ContentPart] = ""
-    role: str = "user"
-
-
-@dataclass
-class AssistantMessage:
+class Message:
+    """Base message type"""
+    role: Literal["system", "user", "assistant", "tool"]
     content: str
     tool_calls: list[ToolCall] = field(default_factory=list)
-    role: str = "assistant"
-
-
-@dataclass
-class ToolMessage:
-    content: str
-    tool_call_id: str
-    role: str = "tool"
-
-
-Message = SystemMessage | UserMessage | AssistantMessage | ToolMessage
+    tool_call_id: str | None = None
+    name: str | None = None

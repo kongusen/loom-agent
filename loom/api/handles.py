@@ -243,27 +243,16 @@ class RunHandle:
         if provider is None:
             return self._local_summary()
 
+        params = CompletionParams(
+            model=runtime.profile.config.llm.model,
+            max_tokens=runtime.profile.config.llm.max_tokens or 512,
+            temperature=runtime.profile.config.llm.temperature,
+        )
         try:
-            from ..agent.core import Agent
-            from ..config import AgentConfig
-            config = AgentConfig(
-                system_prompt=runtime.profile.config.system_prompt,
-                model=runtime.profile.config.llm.model,
-                max_tokens=runtime.profile.config.llm.max_tokens or 4096,
-                temperature=runtime.profile.config.llm.temperature,
-            )
-            agent = Agent(provider=provider, config=config)
-            done = await agent.run(self._user_prompt())
-            return done.content or self._local_summary()
-        except Exception:
-            # Fallback to minimal single-turn completion
-            params = CompletionParams(
-                model=runtime.profile.config.llm.model,
-                max_tokens=runtime.profile.config.llm.max_tokens or 512,
-                temperature=runtime.profile.config.llm.temperature,
-            )
             response = await provider.complete(self._build_messages(), params)
             return response.strip() or self._local_summary()
+        except Exception:
+            return self._local_summary()
 
     def _build_messages(self) -> list[dict[str, str]]:
         """Build minimal prompt messages for provider-backed execution."""
