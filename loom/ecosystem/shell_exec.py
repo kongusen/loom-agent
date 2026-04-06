@@ -5,13 +5,14 @@ import asyncio
 from typing import Any
 
 
-async def execute_inline_shell(content: str) -> str:
+async def execute_inline_shell(content: str, shell_config: Any = None) -> str:
     """Execute inline shell commands in skill content
 
     Supports syntax: !`command`
 
     Args:
         content: Skill content with inline shell commands
+        shell_config: Optional ShellConfig object for custom shell settings
 
     Returns:
         Content with shell commands replaced by their output
@@ -30,7 +31,7 @@ async def execute_inline_shell(content: str) -> str:
     # Execute each command and replace
     for cmd in matches:
         try:
-            result = await execute_bash_command(cmd.strip())
+            result = await execute_bash_command(cmd.strip(), shell_config)
             content = content.replace(f'!`{cmd}`', result)
         except Exception as e:
             error_msg = f"[Error: {e}]"
@@ -39,23 +40,58 @@ async def execute_inline_shell(content: str) -> str:
     return content
 
 
-async def execute_bash_command(command: str) -> str:
+async def execute_bash_command(command: str, shell_config: Any = None) -> str:
     """Execute a bash command and return output
 
     Args:
         command: Shell command to execute
+        shell_config: Optional ShellConfig object for custom shell settings
 
     Returns:
         Command output (stdout)
     """
     try:
-        process = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        # Use custom shell config if provided
+        if shell_config:
+            shell_cmd = shell_config.command
+            shell_args = shell_config.args if isinstance(shell_config.args, list) else []
+            timeout = shell_config.timeout
 
-        stdout, stderr = await process.communicate()
+            # Merge custom env with current env
+            import os
+            env = os.environ.copy()
+            if shell_config.env:
+                env.update(shell_config.env)
+
+            # Build full command
+            if shell_args:
+                full_command = [shell_cmd] + shell_args + [command]
+            else:
+                full_command = [shell_cmd, command]
+
+            process = await asyncio.create_subprocess_exec(
+                *full_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+        else:
+            # Default shell execution
+            timeout = 30
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            process.kill()
+            return f"[Error: Command timed out after {timeout}s]"
 
         if process.returncode == 0:
             return stdout.decode('utf-8').strip()

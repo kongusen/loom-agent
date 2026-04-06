@@ -22,6 +22,15 @@ except ImportError:
     parse_hooks_from_frontmatter = None
 
 
+@dataclass
+class ShellConfig:
+    """Shell configuration for inline execution"""
+    command: str = "/bin/bash"
+    args: list[str] = field(default_factory=lambda: ["-c"])
+    env: dict[str, str] = field(default_factory=dict)
+    timeout: int = 30  # seconds
+
+
 def get_effort_token_limit(effort: int | None) -> int:
     """Convert effort level to token limit
 
@@ -42,6 +51,31 @@ def get_effort_token_limit(effort: int | None) -> int:
         5: 16000,   # 极其复杂任务
     }
     return effort_map.get(effort, 4000)
+
+
+def estimate_skill_tokens(skill: 'Skill', load_content: bool = False) -> int:
+    """Estimate token consumption for a skill
+
+    Args:
+        skill: Skill object
+        load_content: Whether to load full content (default: only frontmatter)
+
+    Returns:
+        Estimated token count
+    """
+    if not load_content:
+        # Only estimate frontmatter
+        text = f"{skill.name} {skill.description}"
+        if skill.when_to_use:
+            text += f" {skill.when_to_use}"
+        if skill.argument_hint:
+            text += f" {skill.argument_hint}"
+        # Rough estimation: ~1.3 tokens per word
+        return int(len(text.split()) * 1.3)
+    else:
+        # Estimate full content
+        full_text = f"{skill.name} {skill.description} {skill.content}"
+        return int(len(full_text.split()) * 1.3)
 
 
 @dataclass
@@ -67,6 +101,9 @@ class Skill:
     paths: list[str] | None = None  # [src/**, tests/**] - path restrictions
     version: str | None = None  # 1.0.0 - version control
     hooks: 'SkillHooks | None' = None  # Lifecycle hooks
+
+    # Sprint 3 features (P2)
+    shell: 'ShellConfig | None' = None  # Shell configuration
 
     # Metadata
     source: str = "user"  # user | plugin | bundled
@@ -191,7 +228,67 @@ class SkillLoader:
 
                         if ':' in nested_stripped:
                             nested_key, nested_value = nested_stripped.split(':', 1)
-                            nested[nested_key.strip()] = nested_value.strip()
+                            nested_key = nested_key.strip()
+                            nested_value = nested_value.strip()
+
+                            # Parse nested value types
+                            if not nested_value and i + 1 < len(lines):
+                                # Check for deeper nesting (e.g., env: with sub-keys)
+                                deeper_line = lines[i + 1]
+                                deeper_indent = len(deeper_line) - len(deeper_line.lstrip())
+
+                                if deeper_indent > nested_indent:
+                                    # Parse deeper nested object
+                                    deeper_nested = {}
+                                    i += 1
+
+                                    while i < len(lines):
+                                        deeper_line = lines[i]
+                                        deeper_stripped = deeper_line.strip()
+                                        deeper_indent_level = len(deeper_line) - len(deeper_line.lstrip())
+
+                                        if deeper_indent_level <= nested_indent:
+                                            # Back to parent level
+                                            break
+
+                                        if not deeper_stripped or deeper_stripped.startswith('#'):
+                                            i += 1
+                                            continue
+
+                                        if ':' in deeper_stripped:
+                                            deeper_key, deeper_value = deeper_stripped.split(':', 1)
+                                            deeper_key = deeper_key.strip()
+                                            deeper_value = deeper_value.strip()
+
+                                            # Parse deeper value types
+                                            if deeper_value.startswith('[') and deeper_value.endswith(']'):
+                                                items = deeper_value[1:-1].split(',')
+                                                deeper_nested[deeper_key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
+                                            elif deeper_value.lower() in ('true', 'false'):
+                                                deeper_nested[deeper_key] = deeper_value.lower() == 'true'
+                                            elif deeper_value.isdigit():
+                                                deeper_nested[deeper_key] = int(deeper_value)
+                                            else:
+                                                deeper_nested[deeper_key] = deeper_value.strip('"').strip("'")
+
+                                        i += 1
+
+                                    nested[nested_key] = deeper_nested
+                                    continue
+
+                            if nested_value.startswith('[') and nested_value.endswith(']'):
+                                # List
+                                items = nested_value[1:-1].split(',')
+                                nested[nested_key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
+                            elif nested_value.lower() in ('true', 'false'):
+                                # Boolean
+                                nested[nested_key] = nested_value.lower() == 'true'
+                            elif nested_value.isdigit():
+                                # Integer
+                                nested[nested_key] = int(nested_value)
+                            else:
+                                # String
+                                nested[nested_key] = nested_value.strip('"').strip("'")
 
                         i += 1
 
@@ -231,6 +328,17 @@ class SkillLoader:
         if parse_hooks_from_frontmatter:
             hooks = parse_hooks_from_frontmatter(frontmatter)
 
+        # Parse shell config if available
+        shell = None
+        if 'shell' in frontmatter and isinstance(frontmatter['shell'], dict):
+            shell_data = frontmatter['shell']
+            shell = ShellConfig(
+                command=shell_data.get('command', '/bin/bash'),
+                args=shell_data.get('args', ['-c']),
+                env=shell_data.get('env', {}),
+                timeout=shell_data.get('timeout', 30),
+            )
+
         return Skill(
             name=name,
             description=description,
@@ -247,6 +355,7 @@ class SkillLoader:
             paths=frontmatter.get('paths'),
             version=frontmatter.get('version'),
             hooks=hooks,
+            shell=shell,
             # Metadata
             source='user',
             file_path=str(path),

@@ -80,7 +80,7 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
 
         # Shell 内联执行（如果包含 !`command`）
         if has_inline_shell_commands(content):
-            content = await execute_inline_shell(content)
+            content = await execute_inline_shell(content, skill_obj.shell)
 
         result = {
             "success": True,
@@ -100,6 +100,7 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
             "paths": skill_obj.paths,
             "version": skill_obj.version,
             "has_hooks": skill_obj.hooks is not None,
+            "has_shell_config": skill_obj.shell is not None,
         }
 
         # Execute onComplete hook
@@ -133,7 +134,7 @@ async def skill_discover() -> dict[str, Any]:
     Returns:
         包含所有可用 skills 的列表
     """
-    from loom.ecosystem.skill import SkillRegistry, SkillLoader
+    from loom.ecosystem.skill import SkillRegistry, SkillLoader, estimate_skill_tokens
 
     # 获取或创建全局注册表
     registry = _get_or_create_registry()
@@ -157,6 +158,8 @@ async def skill_discover() -> dict[str, Any]:
                 "context": skill_obj.context,
                 "paths": skill_obj.paths,
                 "version": skill_obj.version,
+                # Token estimation (frontmatter only)
+                "estimated_tokens": estimate_skill_tokens(skill_obj, load_content=False),
             })
 
     return {
