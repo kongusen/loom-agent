@@ -1,9 +1,11 @@
 """LLM Providers"""
 
-from .base import LLMProvider, CompletionParams, TokenUsage
 from .anthropic import AnthropicProvider
-from .openai import OpenAIProvider
+from .base import CompletionParams, LLMProvider, TokenUsage
 from .gemini import GeminiProvider
+from .ollama import OllamaProvider
+from .openai import OpenAIProvider
+from .qwen import QwenProvider
 
 __all__ = [
     "LLMProvider",
@@ -12,4 +14,6 @@ __all__ = [
     "AnthropicProvider",
     "OpenAIProvider",
     "GeminiProvider",
+    "QwenProvider",
+    "OllamaProvider",
 ]
