@@ -124,6 +124,8 @@ class MCPBridge:
             self._instructions_cache[server_name] = server.config.instructions
         return True
 
+    _RPC_TIMEOUT = 10.0  # seconds for stdio readline
+
     def _connect_stdio(self, server: "MCPServer") -> None:
         """Launch stdio MCP subprocess and fetch tools/resources via JSON-RPC."""
         import subprocess, json, os
@@ -136,20 +138,25 @@ class MCPBridge:
         )
 
         def rpc(method: str, params: dict | None = None) -> dict:
+            if proc.poll() is not None:
+                raise RuntimeError("MCP subprocess has exited")
             msg = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
-            line = json.dumps(msg) + "\n"
-            proc.stdin.write(line.encode())
+            proc.stdin.write((json.dumps(msg) + "\n").encode())
             proc.stdin.flush()
+            # readline with timeout via select
+            import select
+            ready, _, _ = select.select([proc.stdout], [], [], self._RPC_TIMEOUT)
+            if not ready:
+                proc.kill()
+                raise TimeoutError(f"MCP server timed out on {method}")
             raw = proc.stdout.readline()
             return json.loads(raw).get("result", {})
 
-        tools_result = rpc("tools/list")
-        server.tools = tools_result.get("tools", [])
+        server.tools = rpc("tools/list").get("tools", [])
+        server.resources = rpc("resources/list").get("resources", [])
 
-        resources_result = rpc("resources/list")
-        server.resources = resources_result.get("resources", [])
-
-        self._stdio_procs = getattr(self, "_stdio_procs", {})
+        if not hasattr(self, "_stdio_procs"):
+            self._stdio_procs: dict[str, Any] = {}
         self._stdio_procs[server.name] = proc
 
     def list_tools(self, server_name: str) -> list[dict]:
@@ -186,18 +193,32 @@ class MCPBridge:
         # Try real stdio execution
         procs = getattr(self, "_stdio_procs", {})
         if server_name in procs:
-            import json
+            import json, select
             proc = procs[server_name]
-            msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                   "params": {"name": tool_name, "arguments": kwargs}}
-            proc.stdin.write((json.dumps(msg) + "\n").encode())
-            proc.stdin.flush()
-            raw = proc.stdout.readline()
-            result = json.loads(raw).get("result", {})
-            content = result.get("content", [])
-            if content and isinstance(content, list):
-                return content[0].get("text", result)
-            return result
+            # Reconnect if process has died
+            if proc.poll() is not None:
+                try:
+                    self._connect_stdio(server)
+                    proc = self._stdio_procs[server_name]
+                except Exception:
+                    del self._stdio_procs[server_name]
+                    proc = None
+            if proc is not None:
+                msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                       "params": {"name": tool_name, "arguments": kwargs}}
+                proc.stdin.write((json.dumps(msg) + "\n").encode())
+                proc.stdin.flush()
+                ready, _, _ = select.select([proc.stdout], [], [], self._RPC_TIMEOUT)
+                if not ready:
+                    proc.kill()
+                    del self._stdio_procs[server_name]
+                    raise TimeoutError(f"Tool call '{tool_name}' timed out")
+                raw = proc.stdout.readline()
+                result = json.loads(raw).get("result", {})
+                content = result.get("content", [])
+                if content and isinstance(content, list):
+                    return content[0].get("text", result)
+                return result
 
         # Mock fallback
         if tool_name in server.config.mock_tool_results:
@@ -221,12 +242,16 @@ class MCPBridge:
         self._instructions_cache[server_name] = instructions
 
 
+import threading
 _DEFAULT_BRIDGE: MCPBridge | None = None
+_DEFAULT_BRIDGE_LOCK = threading.Lock()
 
 
 def get_default_mcp_bridge() -> MCPBridge:
-    """Return a process-local default MCP bridge."""
+    """Return a process-local default MCP bridge (thread-safe)."""
     global _DEFAULT_BRIDGE
     if _DEFAULT_BRIDGE is None:
-        _DEFAULT_BRIDGE = MCPBridge()
+        with _DEFAULT_BRIDGE_LOCK:
+            if _DEFAULT_BRIDGE is None:
+                _DEFAULT_BRIDGE = MCPBridge()
     return _DEFAULT_BRIDGE
