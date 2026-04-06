@@ -2,18 +2,23 @@
 
 ## Claude Code 规范 vs Loom 实现
 
-### ✅ 已实现的核心特性
+### ✅ 已完全实现的特性
 
 | 特性 | Claude Code | Loom 实现 | 状态 |
 |------|-------------|-----------|------|
 | **Markdown + YAML frontmatter** | ✅ | ✅ | 完全一致 |
 | **懒加载（Lazy Loading）** | ✅ | ✅ | 完全一致 |
-| **参数替换** | `$ARGUMENTS`, `${ARG_NAME}` | `$ARGUMENTS`, `${ARGUMENTS}` | 部分实现 |
+| **参数替换** | `$ARGUMENTS`, `${ARG_NAME}` | `$ARGUMENTS`, `${name}` | ✅ 完全一致 |
 | **工具限制** | `allowed-tools` | `allowedTools` | ✅ 完全一致 |
 | **关键词匹配** | `when_to_use` | `whenToUse` | ✅ 完全一致 |
 | **用户可调用** | `user-invocable` | `userInvocable` | ✅ 完全一致 |
 | **模型覆盖** | `model` | `model` | ✅ 完全一致 |
 | **执行上下文** | `context: fork` | `context` | ✅ 完全一致 |
+| **Effort 级别** | `effort: 1-5` | `effort: 1-5` | ✅ 完全一致 |
+| **Agent 类型** | `agent: general-purpose` | `agent` | ✅ 完全一致 |
+| **路径限制** | `paths: [src/**]` | `paths` | ✅ 完全一致 |
+| **版本控制** | `version: 1.0.0` | `version` | ✅ 完全一致 |
+| **环境变量** | `${CLAUDE_SKILL_DIR}` | `${CLAUDE_SKILL_DIR}` | ✅ 完全一致 |
 
 ### ⚠️ 部分实现的特性
 
@@ -29,9 +34,6 @@
 
 | 特性 | Claude Code | Loom 实现 | 说明 |
 |------|-------------|-----------|------|
-| **Effort 级别** | `effort: 1-5` | 不支持 | 控制 token 预算 |
-| **Agent 类型** | `agent: general-purpose` | 不支持 | 指定子 agent 类型 |
-| **版本控制** | `version: 1.0.0` | 不支持 | Skill 版本管理 |
 | **Shell 配置** | `shell: {command, args}` | 不支持 | 自定义 shell |
 | **渐进式 token 估算** | `estimateSkillFrontmatterTokens()` | 不支持 | 只加载 frontmatter 估算 |
 
