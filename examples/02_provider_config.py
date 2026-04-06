@@ -19,7 +19,7 @@ def build_provider():
         return AnthropicProvider(api_key=key)
     if key := os.getenv("OPENAI_API_KEY"):
         from loom.providers import OpenAIProvider
-        return OpenAIProvider(api_key=key)
+        return OpenAIProvider(api_key=key, base_url=os.getenv("OPENAI_BASE_URL"))
     if key := os.getenv("GEMINI_API_KEY"):
         from loom.providers import GeminiProvider
         return GeminiProvider(api_key=key)
@@ -33,7 +33,7 @@ async def main():
         name="Demo Agent",
         config=AgentConfig(
             name="demo",
-            llm=LLMConfig(model="claude-opus-4-6", max_tokens=256),
+            llm=LLMConfig(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), max_tokens=256),
             system_prompt="You are a concise technical assistant.",
         ),
     )
