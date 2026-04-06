@@ -140,16 +140,16 @@ These are the remaining feature-level gaps that are actually still missing in th
 
 ### 1. Placeholder built-in tools
 
-- Status: not implemented
+- Status: partially implemented
 - Why it matters: several tools are registered in the builtin surface but still return placeholder payloads
 - Files:
-  - `loom/tools/builtin/skill_operations.py`
+  - `loom/tools/builtin/skill_operations.py` ✅ **IMPLEMENTED**
   - `loom/tools/builtin/lsp_operations.py`
 - Current gaps:
-  - `skill_invoke()`
-  - `skill_discover()`
-  - `lsp_get_diagnostics()`
-  - `lsp_execute_code()`
+  - `skill_invoke()` ✅ **IMPLEMENTED** - loads and executes skills from markdown files
+  - `skill_discover()` ✅ **IMPLEMENTED** - discovers all available skills
+  - `lsp_get_diagnostics()` - requires LSP server integration or MCP bridge
+  - `lsp_execute_code()` - requires REPL integration or MCP bridge
 
 ### 2. Legacy/full Agent execution path is not migrated
 

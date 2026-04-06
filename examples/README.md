@@ -1,6 +1,6 @@
 # Examples
 
-Runnable examples from simple to advanced. No API key needed for 01, 03, 04, 06, 07.
+Runnable examples from simple to advanced. No API key needed for 01, 03, 04, 06, 07, 08.
 
 | File | Concept | API key? |
 |---|---|---|
@@ -11,6 +11,7 @@ Runnable examples from simple to advanced. No API key needed for 01, 03, 04, 06,
 | [05_multi_agent.py](05_multi_agent.py) | TaskPlanner + Coordinator orchestration | No |
 | [06_evolution.py](06_evolution.py) | Self-improvement strategies E1–E4 | No |
 | [07_context_pressure.py](07_context_pressure.py) | Context compression levels (ρ triggers) | No |
+| [08_skill_system.py](08_skill_system.py) | Skill discovery and invocation | No |
 
 ## Run
 
@@ -20,6 +21,7 @@ pip install loom-agent
 python examples/01_hello_agent.py
 python examples/06_evolution.py
 python examples/07_context_pressure.py
+python examples/08_skill_system.py
 
 # With a real LLM:
 ANTHROPIC_API_KEY=sk-ant-... python examples/02_provider_config.py

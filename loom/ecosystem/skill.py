@@ -92,7 +92,7 @@ class SkillLoader:
 
     @staticmethod
     def parse_frontmatter(content: str) -> tuple[dict, str]:
-        """Parse YAML frontmatter from markdown"""
+        """Parse YAML frontmatter from markdown (simple parser, no external deps)"""
         if not content.startswith('---\n'):
             return {}, content
 
@@ -100,8 +100,34 @@ class SkillLoader:
         if len(parts) < 3:
             return {}, content
 
-        import yaml
-        frontmatter = yaml.safe_load(parts[1]) or {}
+        # Simple YAML parser for basic key: value and key: [list] syntax
+        frontmatter = {}
+        for line in parts[1].split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+
+            if ':' not in line:
+                continue
+
+            key, value = line.split(':', 1)
+            key = key.strip()
+            value = value.strip()
+
+            # Handle lists: [item1, item2] or comma-separated
+            if value.startswith('[') and value.endswith(']'):
+                items = value[1:-1].split(',')
+                frontmatter[key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
+            # Handle booleans
+            elif value.lower() in ('true', 'false'):
+                frontmatter[key] = value.lower() == 'true'
+            # Handle numbers
+            elif value.isdigit():
+                frontmatter[key] = int(value)
+            # Handle strings (remove quotes if present)
+            else:
+                frontmatter[key] = value.strip('"').strip("'")
+
         body = parts[2]
         return frontmatter, body
 
@@ -134,6 +160,10 @@ class SkillLoader:
             return
 
         for skill_file in directory.glob('**/*.md'):
+            # Skip README files
+            if skill_file.name.upper() == 'README.MD':
+                continue
+
             skill_name = skill_file.stem
             # Register lazy loader
             registry.register_lazy(
