@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.1] - 2026-04-07
+
+### 🌏 国内模型与本地部署支持
+
+- **QwenProvider**：新增阿里云通义千问支持，通过 DashScope OpenAI 兼容接口接入，支持 qwen-plus / qwen-turbo / qwen-max / qwen2.5 系列
+- **OllamaProvider**：新增本地 Ollama 支持，默认连接 `http://localhost:11434/v1`，无需 API Key，支持任意已拉取模型（llama3、qwen2.5、mistral、deepseek-r1 等）
+- **OpenAI 兼容扩展**：`OpenAIProvider` 的 `base_url` 参数可对接任意 OpenAI 兼容服务（DeepSeek、LM Studio、vLLM 等）
+- 清理历史开发文档（SKILL_*.md、SPRINT1_SUMMARY.md、TODO.md 等）
+
 ## [0.6.5] - 2026-03-05
 
 ### 🎯 Claude 标准 Skills 格式支持
