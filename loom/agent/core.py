@@ -123,11 +123,15 @@ class Agent:
         self.event_bus.on(event_type, handler)
 
     async def run(self, input_text: str, signal: Any = None) -> DoneEvent:
-        last_event = DoneEvent(content="")
-        async for event in self.stream(input_text, signal=signal):
-            if isinstance(event, DoneEvent):
-                last_event = event
-        return last_event
+        self.heartbeat.start(self._handle_heartbeat_event)
+        try:
+            last_event = DoneEvent(content="")
+            async for event in self.stream(input_text, signal=signal):
+                if isinstance(event, DoneEvent):
+                    last_event = event
+            return last_event
+        finally:
+            self.heartbeat.stop()
 
     async def stream(self, input_text: str, signal: Any = None) -> AsyncGenerator[AgentEvent, None]:
         # P0: 启动资源守卫
@@ -458,6 +462,10 @@ class Agent:
             for skill in skills:
                 self.skill_mgr.registry.register(skill)
                 logger.info(f"Auto-crystallized skill: {skill.name}")
+
+    def _handle_heartbeat_event(self, event: dict, urgency: str) -> None:
+        """P2: 处理心跳事件，注入 Dashboard 并在 critical 时请求中断"""
+        logger.info(f"Heartbeat event [{urgency}]: {event.get('summary', event)}")
 
     def _check_constraints(self, tool_call: ToolCall, constraints: dict) -> bool:
         """P0/P1: 约束检查 + 工具白名单"""

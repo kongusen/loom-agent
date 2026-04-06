@@ -1,135 +1,116 @@
-"""Anthropic Claude LLM provider."""
+"""Anthropic Claude provider."""
 
-from __future__ import annotations
+from typing import Any, AsyncIterator
 
-import json
-from collections.abc import AsyncGenerator
-
-from ..config import AgentConfig
-from ..types import (
-    CompletionParams,
-    CompletionResult,
-    Message,
-    StreamChunk,
-    TokenUsage,
-    ToolCall,
-    ToolCallDelta,
-    ToolDefinition,
-)
-from .base import BaseLLMProvider
+from .base import CompletionParams, LLMProvider
 
 
-def _msg_to_dict(m: Message) -> dict:
-    # ToolMessage → Anthropic tool_result (must be role=user)
-    if hasattr(m, "tool_call_id") and m.role == "tool":
-        return {
-            "role": "user",
-            "content": [
-                {"type": "tool_result", "tool_use_id": m.tool_call_id, "content": m.content}
-            ],
-        }
-    # AssistantMessage with tool_calls → mixed content blocks
-    if hasattr(m, "tool_calls") and m.tool_calls:
-        blocks: list[dict] = []
-        if m.content:
-            blocks.append({"type": "text", "text": m.content})
-        for tc in m.tool_calls:
-            blocks.append(
-                {
-                    "type": "tool_use",
-                    "id": tc.id,
-                    "name": tc.name,
-                    "input": json.loads(tc.arguments),
-                }
+class AnthropicProvider(LLMProvider):
+    """Anthropic messages API provider."""
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str | None = None,
+        client: Any | None = None,
+    ):
+        self.api_key = api_key
+        self.base_url = base_url
+        self._client = client
+
+    @property
+    def client(self) -> Any:
+        """Lazily construct the Anthropic async client."""
+        if self._client is None:
+            try:
+                from anthropic import AsyncAnthropic
+            except ImportError as exc:
+                raise ImportError(
+                    "anthropic package is required to use AnthropicProvider. "
+                    "Install loom-agent with the anthropic extra or add anthropic manually."
+                ) from exc
+
+            self._client = AsyncAnthropic(
+                api_key=self.api_key,
+                base_url=self.base_url,
             )
-        return {"role": "assistant", "content": blocks}
-    return {"role": m.role, "content": m.content}
 
+        return self._client
 
-def _tools_to_dicts(tools: list[ToolDefinition]) -> list[dict]:
-    return [
-        {
-            "name": t.name,
-            "description": t.description,
-            "input_schema": t.parameters.to_json_schema(),
+    async def _complete(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> str:
+        """Generate a completion through Anthropic messages API."""
+        request = self._build_request(messages, params)
+        response = await self.client.messages.create(**request)
+        return self._extract_text_blocks(getattr(response, "content", []))
+
+    async def stream(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> AsyncIterator[str]:
+        """Stream completion chunks from Anthropic messages API."""
+        request = self._build_request(messages, params)
+        stream = await self.client.messages.create(**request, stream=True)
+
+        async for event in stream:
+            event_type = getattr(event, "type", "")
+            if event_type == "content_block_delta":
+                delta = getattr(event, "delta", None)
+                text = getattr(delta, "text", "") if delta is not None else ""
+                if text:
+                    yield text
+
+    def _build_request(
+        self,
+        messages: list,
+        params: CompletionParams | None,
+    ) -> dict[str, Any]:
+        """Build an Anthropic messages request payload."""
+        resolved = params or CompletionParams()
+        system, converted = self._convert_messages(messages)
+        request: dict[str, Any] = {
+            "model": resolved.model,
+            "messages": converted,
+            "max_tokens": resolved.max_tokens,
+            "temperature": resolved.temperature,
         }
-        for t in tools
-    ]
-
-
-class AnthropicProvider(BaseLLMProvider):
-    def __init__(self, config: AgentConfig, **kwargs) -> None:
-        super().__init__(**kwargs)
-        try:
-            from anthropic import AsyncAnthropic
-        except ImportError:
-            raise ImportError("pip install anthropic") from None
-        self._client = AsyncAnthropic(api_key=config.api_key, base_url=config.base_url)
-        self._model = config.model
-        self._max_tokens = config.max_tokens
-
-    async def _do_complete(self, params: CompletionParams) -> CompletionResult:
-        system = "\n\n".join(str(m.content) for m in params.messages if m.role == "system")
-        msgs = [_msg_to_dict(m) for m in params.messages if m.role != "system"]
-        kwargs: dict = {"model": self._model, "max_tokens": params.max_tokens, "messages": msgs}
         if system:
-            kwargs["system"] = system
-        if params.tools:
-            kwargs["tools"] = _tools_to_dicts(params.tools)
-        resp = await self._client.messages.create(**kwargs)
-        text, tool_calls = "", []
-        for block in resp.content:
-            if block.type == "text":
-                text += block.text
-            elif block.type == "tool_use":
-                tool_calls.append(
-                    ToolCall(id=block.id, name=block.name, arguments=json.dumps(block.input))
-                )
-        usage = TokenUsage()
-        if resp.usage:
-            usage = TokenUsage(
-                prompt_tokens=resp.usage.input_tokens,
-                completion_tokens=resp.usage.output_tokens,
-                total_tokens=resp.usage.input_tokens + resp.usage.output_tokens,
-            )
-        return CompletionResult(content=text, tool_calls=tool_calls, usage=usage)
+            request["system"] = system
+        return request
 
-    async def _do_stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
-        system = "\n\n".join(str(m.content) for m in params.messages if m.role == "system")
-        msgs = [_msg_to_dict(m) for m in params.messages if m.role != "system"]
-        kwargs: dict = {"model": self._model, "max_tokens": params.max_tokens, "messages": msgs}
-        if system:
-            kwargs["system"] = system
-        if params.tools:
-            kwargs["tools"] = _tools_to_dicts(params.tools)
-        async with self._client.messages.stream(**kwargs) as stream:
-            current_tool: dict | None = None
-            async for event in stream:
-                if event.type == "content_block_start" and event.content_block.type == "tool_use":
-                    current_tool = {
-                        "id": event.content_block.id,
-                        "name": event.content_block.name,
-                        "args": "",
-                    }
-                elif event.type == "content_block_delta":
-                    if hasattr(event.delta, "text"):
-                        yield StreamChunk(text=event.delta.text)
-                    elif hasattr(event.delta, "partial_json") and current_tool:
-                        current_tool["args"] += event.delta.partial_json
-                        yield StreamChunk(
-                            tool_call_delta=ToolCallDelta(
-                                tool_call_id=current_tool["id"],
-                                partial_args=event.delta.partial_json,
-                            )
-                        )
-                elif event.type == "content_block_stop" and current_tool:
-                    yield StreamChunk(
-                        tool_call=ToolCall(
-                            id=current_tool["id"],
-                            name=current_tool["name"],
-                            arguments=current_tool["args"],
-                        )
-                    )
-                    current_tool = None
-                elif event.type == "message_stop":
-                    yield StreamChunk(finish_reason="end_turn")
+    def _convert_messages(self, messages: list) -> tuple[str | None, list[dict[str, str]]]:
+        """Convert generic chat messages to Anthropic format."""
+        system_parts: list[str] = []
+        converted: list[dict[str, str]] = []
+
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            if role == "system":
+                system_parts.append(content)
+                continue
+
+            converted.append({"role": role, "content": content})
+
+        system = "\n\n".join(part for part in system_parts if part).strip() or None
+        return system, converted
+
+    def _extract_text_blocks(self, blocks: list[Any]) -> str:
+        """Extract concatenated text from Anthropic content blocks."""
+        parts: list[str] = []
+        for block in blocks:
+            if isinstance(block, dict):
+                if block.get("type") == "text" and block.get("text"):
+                    parts.append(block["text"])
+                continue
+
+            if getattr(block, "type", None) == "text":
+                text = getattr(block, "text", "")
+                if text:
+                    parts.append(text)
+
+        return "".join(parts).strip()

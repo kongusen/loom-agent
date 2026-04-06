@@ -1,117 +1,179 @@
-"""CompressionScorer — 三层压缩评分（公理一）"""
+"""Context compression strategies - 四道压缩机制
 
-from __future__ import annotations
+按 token 压力渐进触发：
+- Snip Compact (ρ > 0.7): 裁剪过长片段
+- Micro Compact (ρ > 0.8): 缓存工具结果
+- Context Collapse (ρ > 0.9): 折叠不活跃区域
+- Auto Compact (ρ > 0.95): 全量压缩
 
+关键原则：每轮只触发一种压缩，按优先级递增
+"""
+
+from ..types import Message
 import math
-import time
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..types import EmbeddingProvider, Message
+from collections.abc import Iterable
 
 
-class CompressionScorer:
-    """三层压缩评分：score(h) = K(h) · rel(h, goal) · w(h)"""
+class ContextCompressor:
+    """Context compression with four-level strategy"""
 
-    def __init__(self, embedding: EmbeddingProvider | None = None, lambda_decay: float = 0.1):
-        self.embedding = embedding
-        self.lambda_decay = lambda_decay
+    def __init__(self, micro_max_chars: int = 240):
+        self.thresholds = {
+            'snip': 0.7,
+            'micro': 0.8,
+            'collapse': 0.9,
+            'auto': 0.95
+        }
+        self.micro_max_chars = micro_max_chars
 
-    async def score_history(
-        self, history: list[Message], goal: str, current_time: float | None = None
-    ) -> list[tuple[Message, float]]:
-        """对历史消息打分"""
-        if current_time is None:
-            current_time = time.time()
+    def should_compress(self, rho: float) -> str | None:
+        """Determine which compression to trigger"""
+        if rho >= self.thresholds['auto']:
+            return 'auto'
+        elif rho >= self.thresholds['collapse']:
+            return 'collapse'
+        elif rho >= self.thresholds['micro']:
+            return 'micro'
+        elif rho >= self.thresholds['snip']:
+            return 'snip'
+        return None
 
-        scored = []
-        for idx, msg in enumerate(history):
-            k = self._kernel_score(msg)
-            if k == 0:
-                scored.append((msg, 0.0))
+    def snip_compact(self, messages: list[Message], max_length: int = 2000) -> list[Message]:
+        """Snip Compact: 裁剪过长片段"""
+        result = []
+        for msg in messages:
+            if len(msg.content) > max_length:
+                snipped = msg.content[:max_length] + f"\n[...snipped {len(msg.content) - max_length} chars]"
+                result.append(Message(role=msg.role, content=snipped))
+            else:
+                result.append(msg)
+        return result
+
+    def micro_compact(self, messages: list[Message]) -> list[Message]:
+        """Micro Compact: 基于 tool_use_id 缓存编辑结果"""
+        result: list[Message] = []
+        seen_by_call_id: dict[str, tuple[str | None, str]] = {}
+        seen_by_signature: dict[tuple[str | None, str], str] = {}
+
+        for msg in messages:
+            if msg.role != "tool":
+                result.append(msg)
                 continue
 
-            rel = await self._relevance_score(msg, goal)
-            # 使用索引作为 age 的近似
-            age = len(history) - idx
-            w = math.exp(-self.lambda_decay * age)
-
-            scored.append((msg, k * rel * w))
-
-        return scored
-
-    async def score_history_batch(
-        self, history: list[Message], goal: str, current_time: float | None = None
-    ) -> list[tuple[Message, float]]:
-        """P2: 批量 embedding - 减少 API 调用."""
-        if not self.embedding:
-            return await self.score_history(history, goal, current_time)
-
-        if current_time is None:
-            current_time = time.time()
-
-        # 批量提取文本
-        texts = [
-            msg.content if isinstance(msg.content, str) else str(msg.content) for msg in history
-        ]
-        texts.append(goal)
-
-        # 一次性 embed
-        embeddings = await self._embed_batch(texts)
-        goal_emb = embeddings[-1]
-
-        scored = []
-        for idx, msg in enumerate(history):
-            k = self._kernel_score(msg)
-            if k == 0:
-                scored.append((msg, 0.0))
+            content = msg.content or ""
+            if not content:
+                result.append(msg)
                 continue
 
-            # 使用批量 embedding
-            similarity = self._cosine_similarity(embeddings[idx], goal_emb)
-            age = len(history) - idx
-            w = math.exp(-self.lambda_decay * age)
+            signature = (msg.name, content)
 
-            scored.append((msg, k * similarity * w))
+            if msg.tool_call_id and msg.tool_call_id in seen_by_call_id:
+                cached_name, cached_content = seen_by_call_id[msg.tool_call_id]
+                if cached_name == msg.name and cached_content == content:
+                    result.append(self._cached_tool_message(msg, msg.tool_call_id))
+                    continue
 
-        return scored
+            cached_from = seen_by_signature.get(signature)
+            if cached_from:
+                result.append(self._cached_tool_message(msg, cached_from))
+                if msg.tool_call_id:
+                    seen_by_call_id[msg.tool_call_id] = signature
+                continue
 
-    async def _embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量 embedding."""
-        embedding = self.embedding
-        if embedding is None:
-            raise RuntimeError("Embedding provider is required for batch scoring")
-        if hasattr(embedding, "embed_batch"):
-            return await embedding.embed_batch(texts)
-        # 回退到逐个调用
-        return [await embedding.embed(text) for text in texts]
+            compacted_content = content
+            if len(content) > self.micro_max_chars:
+                compacted_content = self._summarize_tool_result(content)
 
-    def _kernel_score(self, msg: Message) -> int:
-        """层A：结构护栏（0 或 1）"""
-        # 简化：assistant 消息保留，其他根据内容判断
-        if hasattr(msg, "role"):
-            if msg.role == "assistant":
-                return 1
-            if msg.role == "tool":
-                return 1
-        return 1
+            compacted = Message(
+                role=msg.role,
+                content=compacted_content,
+                tool_call_id=msg.tool_call_id,
+                name=msg.name,
+            )
+            result.append(compacted)
 
-    async def _relevance_score(self, msg: Message, goal: str) -> float:
-        """层B：目标锚定（embedding 相似度）"""
-        if not self.embedding:
+            cache_key = msg.tool_call_id or f"cached:{len(seen_by_signature) + 1}"
+            seen_by_signature[signature] = cache_key
+            if msg.tool_call_id:
+                seen_by_call_id[msg.tool_call_id] = signature
+
+        return result
+
+    def context_collapse(self, messages: list[Message], goal: str) -> list[Message]:
+        """Context Collapse: 折叠不活跃区域"""
+        if len(messages) < 10:
+            return messages
+        
+        # Keep first 3 and last 5, summarize middle
+        return messages[:3] + [self._summarize_middle(messages[3:-5])] + messages[-5:]
+
+    def auto_compact(self, messages: list[Message], goal: str) -> list[Message]:
+        """Auto Compact: 全量压缩，保留顺序"""
+        scored = [(i, msg, self._score_message(msg, goal, i, len(messages)))
+                  for i, msg in enumerate(messages)]
+        scored.sort(key=lambda x: x[2], reverse=True)
+        keep_count = max(5, len(messages) // 2)
+        kept_indices = {i for i, _, _ in scored[:keep_count]}
+        return [msg for i, msg in enumerate(messages) if i in kept_indices]
+
+    def _score_message(self, msg: Message, goal: str, index: int, total: int) -> float:
+        """score(h) = K(h) · rel(h,goal) · e^(-λ·age(h))"""
+        K = 1.0  # 不可压缩核
+        rel = self._relevance(msg.content, goal)
+        age = (total - index) / total
+        lambda_decay = 0.5
+        return K * rel * math.exp(-lambda_decay * age)
+
+    def _relevance(self, content: str, goal: str) -> float:
+        """简单的相关性计算"""
+        goal_words = set(goal.lower().split())
+        content_words = set(content.lower().split())
+        if not goal_words:
             return 0.5
+        overlap = len(goal_words & content_words)
+        return min(1.0, overlap / len(goal_words))
 
-        embedding = self.embedding
-        content = msg.content if isinstance(msg.content, str) else str(msg.content)
-        msg_emb = await embedding.embed(content)
-        goal_emb = await embedding.embed(goal)
-        return self._cosine_similarity(msg_emb, goal_emb)
+    def _summarize_middle(self, messages: list[Message]) -> Message:
+        """Summarize middle messages"""
+        summary = f"[Summarized {len(messages)} messages]"
+        return Message(role="system", content=summary)
 
-    def _cosine_similarity(self, a: list[float], b: list[float]) -> float:
-        """计算余弦相似度"""
-        if not a or not b or len(a) != len(b):
-            return 0.0
-        dot = sum(x * y for x, y in zip(a, b, strict=False))
-        norm_a = math.sqrt(sum(x * x for x in a))
-        norm_b = math.sqrt(sum(y * y for y in b))
-        return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
+    def _cached_tool_message(self, msg: Message, cached_from: str) -> Message:
+        """Replace duplicate tool output with a cache reference."""
+        label = msg.name or "tool"
+        content = f"[cached {label} result from {cached_from}]"
+        return Message(
+            role="tool",
+            content=content,
+            tool_call_id=msg.tool_call_id,
+            name=msg.name,
+        )
+
+    def _summarize_tool_result(self, content: str) -> str:
+        """Keep a short preview while preserving the existence of the full tool output."""
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        preview_source: Iterable[str] = lines if lines else (content.strip(),)
+        preview_parts: list[str] = []
+        total = 0
+
+        for part in preview_source:
+            if not part:
+                continue
+            remaining = self.micro_max_chars - total
+            if remaining <= 0:
+                break
+            chunk = part[:remaining]
+            preview_parts.append(chunk)
+            total += len(chunk)
+            if len(chunk) < len(part):
+                break
+
+        preview = " | ".join(preview_parts).strip()
+        if len(preview) > self.micro_max_chars:
+            preview = preview[: self.micro_max_chars].rstrip()
+
+        return (
+            f"[tool result cached: {len(content)} chars] {preview}"
+            if preview
+            else f"[tool result cached: {len(content)} chars]"
+        )

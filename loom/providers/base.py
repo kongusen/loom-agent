@@ -1,97 +1,104 @@
-"""Base LLM provider with retry and circuit breaker."""
-
-from __future__ import annotations
+"""LLM Provider base interface"""
 
 import asyncio
-import random
-import time
-import warnings
-from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import AsyncIterator
 
-from ..types import CompletionParams, CompletionResult, StreamChunk
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CompletionParams:
+    """LLM completion parameters"""
+    model: str = "claude-3-5-sonnet-20241022"
+    max_tokens: int = 4096
+    temperature: float = 1.0
+
+
+@dataclass
+class TokenUsage:
+    """Token usage statistics"""
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
 
 
 @dataclass
 class RetryConfig:
+    """Retry + circuit-breaker config."""
     max_retries: int = 3
-    base_delay: float = 1.0
-    max_delay: float = 30.0
+    base_delay: float = 1.0       # seconds, exponential backoff
+    circuit_open_after: int = 5   # consecutive failures before open
+    circuit_reset_after: float = 60.0  # seconds before half-open
 
 
-@dataclass
-class CircuitBreakerConfig:
-    failure_threshold: int = 5
-    reset_time: float = 60.0
+class CircuitBreaker:
+    """Simple circuit breaker: closed → open → half-open."""
 
-
-class BaseLLMProvider:
-    """Abstract base with retry + circuit breaker. Subclass and implement _do_complete/_do_stream.
-
-    .. deprecated:: 0.7.0
-        Use Protocol-based LLMProvider instead. This class will be removed in 1.0.0.
-    """
-
-    def __init__(
-        self,
-        retry: RetryConfig | None = None,
-        circuit_breaker: CircuitBreakerConfig | None = None,
-    ) -> None:
-        warnings.warn(
-            "BaseLLMProvider is deprecated. Use Protocol-based LLMProvider instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self._retry = retry or RetryConfig()
-        self._cb = circuit_breaker or CircuitBreakerConfig()
+    def __init__(self, config: RetryConfig):
+        self._cfg = config
         self._failures = 0
-        self._last_failure = 0.0
+        self._opened_at: float | None = None
 
-    async def complete(self, params: CompletionParams) -> CompletionResult:
-        self._check_circuit()
-        result = await self._with_retry(lambda: self._do_complete(params))
-        return result  # type: ignore[no-any-return]
+    def is_open(self) -> bool:
+        if self._opened_at is None:
+            return False
+        import time
+        if time.monotonic() - self._opened_at >= self._cfg.circuit_reset_after:
+            self._opened_at = None  # half-open: allow one attempt
+            return False
+        return True
 
-    async def stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
-        self._check_circuit()
-        async for chunk in self._do_stream(params):
-            yield chunk
+    def record_success(self) -> None:
+        self._failures = 0
+        self._opened_at = None
 
-    # -- Override these --
+    def record_failure(self) -> None:
+        self._failures += 1
+        if self._failures >= self._cfg.circuit_open_after:
+            import time
+            self._opened_at = time.monotonic()
+            logger.warning("Circuit breaker opened after %d failures", self._failures)
 
-    async def _do_complete(self, params: CompletionParams) -> CompletionResult:
-        raise NotImplementedError
 
-    async def _do_stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:  # noqa: ARG002
-        raise NotImplementedError
-        yield  # pragma: no cover
+class LLMProvider(ABC):
+    """Abstract LLM Provider with built-in retry + circuit breaker."""
 
-    # -- Internals --
+    def __init__(self, retry_config: RetryConfig | None = None):
+        self._retry = retry_config or RetryConfig()
+        self._circuit = CircuitBreaker(self._retry)
 
-    def _check_circuit(self) -> None:
-        if self._failures >= self._cb.failure_threshold:
-            if time.time() - self._last_failure < self._cb.reset_time:
-                from ..errors import LLMError
+    @abstractmethod
+    async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+        """Provider-specific completion (no retry logic)."""
 
-                raise LLMError("LLM_CIRCUIT_OPEN", "base", "Circuit breaker open")
-            self._failures = 0
+    @abstractmethod
+    async def stream(self, messages: list, params: CompletionParams | None = None) -> AsyncIterator[str]:
+        """Streaming completion."""
 
-    async def _with_retry(self, fn):  # type: ignore[no-untyped-def]
-        last_err: Exception | None = None
-        for i in range(self._retry.max_retries + 1):
+    async def complete(self, messages: list, params: CompletionParams | None = None) -> str:
+        """Completion with retry + circuit breaker."""
+        if self._circuit.is_open():
+            raise RuntimeError("Circuit breaker open: provider unavailable")
+
+        last_exc: Exception | None = None
+        for attempt in range(self._retry.max_retries):
             try:
-                result = await fn()
-                self._failures = 0
+                result = await self._complete(messages, params)
+                self._circuit.record_success()
                 return result
-            except Exception as e:
-                last_err = e
-                self._failures += 1
-                self._last_failure = time.time()
-                if i < self._retry.max_retries:
-                    delay = min(
-                        self._retry.base_delay * (2**i) + random.random() * 0.1,
-                        self._retry.max_delay,
-                    )
+            except Exception as exc:
+                last_exc = exc
+                self._circuit.record_failure()
+                if attempt < self._retry.max_retries - 1:
+                    delay = self._retry.base_delay * (2 ** attempt)
+                    logger.warning("Provider error (attempt %d/%d): %s — retrying in %.1fs",
+                                   attempt + 1, self._retry.max_retries, exc, delay)
                     await asyncio.sleep(delay)
-        assert last_err is not None
-        raise last_err
+
+        raise last_exc  # type: ignore[misc]

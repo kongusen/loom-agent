@@ -1,147 +1,155 @@
-"""Gemini LLM provider — uses OpenAI-compatible endpoint."""
+"""Google Gemini provider."""
 
-from __future__ import annotations
+from typing import Any, AsyncIterator
 
-from collections.abc import AsyncGenerator
-
-from ..config import AgentConfig
-from ..types import (
-    CompletionParams,
-    CompletionResult,
-    Message,
-    StreamChunk,
-    TokenUsage,
-    ToolCall,
-    ToolCallDelta,
-    ToolDefinition,
-)
-from .base import BaseLLMProvider
-
-_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
+from .base import CompletionParams, LLMProvider
 
 
-def _msg_to_dict(m: Message) -> dict:
-    d: dict = {"role": m.role, "content": m.content}
-    if hasattr(m, "tool_calls") and m.tool_calls:
-        d["tool_calls"] = [
-            {
-                "id": tc.id,
-                "type": "function",
-                "function": {"name": tc.name, "arguments": tc.arguments},
+class GeminiProvider(LLMProvider):
+    """Google Gemini provider using google-generativeai SDK."""
+
+    def __init__(
+        self,
+        api_key: str,
+        client: Any | None = None,
+    ):
+        self.api_key = api_key
+        self._client = client
+
+    @property
+    def client(self) -> Any:
+        """Lazily construct the Google GenerativeAI client."""
+        if self._client is None:
+            try:
+                import google.generativeai as genai
+            except ImportError as exc:
+                raise ImportError(
+                    "google-generativeai package is required to use GeminiProvider. "
+                    "Install loom-agent with the gemini extra or add google-generativeai manually."
+                ) from exc
+
+            genai.configure(api_key=self.api_key)
+            self._client = genai
+
+        return self._client
+
+    async def _complete(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> str:
+        """Generate a completion through Google Gemini API."""
+        resolved = params or CompletionParams()
+
+        # Convert messages to Gemini format
+        contents = self._convert_messages(messages)
+
+        # Create model
+        model = self.client.GenerativeModel(resolved.model)
+
+        # Generate content
+        response = await model.generate_content_async(
+            contents,
+            generation_config={
+                "temperature": resolved.temperature,
+                "max_output_tokens": resolved.max_tokens,
             }
-            for tc in m.tool_calls
-        ]
-    if hasattr(m, "tool_call_id"):
-        d["tool_call_id"] = m.tool_call_id
-    return d
+        )
 
+        # Extract text from response
+        return self._extract_text(response)
 
-def _tools_to_dicts(tools: list[ToolDefinition]) -> list[dict]:
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": t.name,
-                "description": t.description,
-                "parameters": t.parameters.to_json_schema(),
+    async def stream(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> AsyncIterator[str]:
+        """Stream completion chunks from Google Gemini API."""
+        resolved = params or CompletionParams()
+
+        # Convert messages to Gemini format
+        contents = self._convert_messages(messages)
+
+        # Create model
+        model = self.client.GenerativeModel(resolved.model)
+
+        # Stream content
+        response = await model.generate_content_async(
+            contents,
+            generation_config={
+                "temperature": resolved.temperature,
+                "max_output_tokens": resolved.max_tokens,
             },
-        }
-        for t in tools
-    ]
-
-
-class GeminiProvider(BaseLLMProvider):
-    def __init__(self, config: AgentConfig, **kwargs) -> None:
-        super().__init__(**kwargs)
-        try:
-            from openai import AsyncOpenAI
-        except ImportError:
-            raise ImportError("pip install openai") from None
-        self._client = AsyncOpenAI(
-            api_key=config.api_key,
-            base_url=config.base_url or _GEMINI_BASE,
-        )
-        self._model = config.model or "gemini-2.0-flash"
-
-    async def _do_complete(self, params: CompletionParams) -> CompletionResult:
-        kwargs: dict = {
-            "model": self._model,
-            "messages": [_msg_to_dict(m) for m in params.messages],
-            "temperature": params.temperature,
-            "max_tokens": params.max_tokens,
-        }
-        if params.tools:
-            kwargs["tools"] = _tools_to_dicts(params.tools)
-        resp = await self._client.chat.completions.create(**kwargs)
-        choice = resp.choices[0]
-        tool_calls = []
-        if choice.message.tool_calls:
-            tool_calls = [
-                ToolCall(id=tc.id, name=tc.function.name, arguments=tc.function.arguments)
-                for tc in choice.message.tool_calls
-            ]
-        usage = TokenUsage()
-        if resp.usage:
-            usage = TokenUsage(
-                prompt_tokens=resp.usage.prompt_tokens,
-                completion_tokens=resp.usage.completion_tokens,
-                total_tokens=resp.usage.total_tokens,
-            )
-        reasoning = getattr(choice.message, "reasoning_content", None) or ""
-        return CompletionResult(
-            content=choice.message.content or "",
-            tool_calls=tool_calls,
-            usage=usage,
-            reasoning=reasoning,
+            stream=True
         )
 
-    async def _do_stream(self, params: CompletionParams) -> AsyncGenerator[StreamChunk, None]:
-        kwargs: dict = {
-            "model": self._model,
-            "messages": [_msg_to_dict(m) for m in params.messages],
-            "temperature": params.temperature,
-            "max_tokens": params.max_tokens,
-            "stream": True,
-        }
-        if params.tools:
-            kwargs["tools"] = _tools_to_dicts(params.tools)
-        resp = await self._client.chat.completions.create(**kwargs)
-        tc_buffers: dict[int, dict] = {}
-        async for chunk in resp:
-            if not chunk.choices:
+        async for chunk in response:
+            if chunk.text:
+                yield chunk.text
+
+    def _convert_messages(self, messages: list) -> list[dict[str, Any]]:
+        """Convert generic chat messages to Gemini format.
+
+        Gemini uses a different message format:
+        - role: "user" or "model" (not "assistant")
+        - parts: list of content parts
+        - system messages are handled separately or prepended to first user message
+        """
+        system_parts: list[str] = []
+        converted: list[dict[str, Any]] = []
+
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+
+            # Collect system messages
+            if role == "system":
+                system_parts.append(content)
                 continue
-            delta = chunk.choices[0].delta
-            finish = chunk.choices[0].finish_reason
-            if delta and getattr(delta, "reasoning_content", None):
-                yield StreamChunk(reasoning=delta.reasoning_content)
-            if delta and delta.content:
-                yield StreamChunk(text=delta.content)
-            if delta and delta.tool_calls:
-                for tc in delta.tool_calls:
-                    idx = tc.index
-                    if idx not in tc_buffers:
-                        tc_buffers[idx] = {"id": "", "name": "", "args": ""}
-                    if tc.id:
-                        tc_buffers[idx]["id"] = tc.id
-                    if tc.function and tc.function.name:
-                        tc_buffers[idx]["name"] = tc.function.name
-                    if tc.function and tc.function.arguments:
-                        tc_buffers[idx]["args"] += tc.function.arguments
-                        if tc_buffers[idx]["id"]:
-                            yield StreamChunk(
-                                tool_call_delta=ToolCallDelta(
-                                    tool_call_id=tc_buffers[idx]["id"],
-                                    partial_args=tc.function.arguments,
-                                )
-                            )
-            if finish:
-                for buf in tc_buffers.values():
-                    yield StreamChunk(
-                        tool_call=ToolCall(
-                            id=buf["id"],
-                            name=buf["name"],
-                            arguments=buf["args"],
-                        )
-                    )
-                tc_buffers.clear()
-                yield StreamChunk(finish_reason=finish)
+
+            # Convert role: "assistant" -> "model"
+            gemini_role = "model" if role == "assistant" else "user"
+
+            # Gemini uses "parts" instead of "content"
+            converted.append({
+                "role": gemini_role,
+                "parts": [{"text": content}]
+            })
+
+        # Prepend system messages to first user message if any
+        if system_parts and converted:
+            system_text = "\n\n".join(system_parts)
+            first_msg = converted[0]
+            if first_msg["role"] == "user":
+                # Prepend system context to first user message
+                first_msg["parts"] = [
+                    {"text": f"{system_text}\n\n{first_msg['parts'][0]['text']}"}
+                ]
+            else:
+                # Insert system as first user message
+                converted.insert(0, {
+                    "role": "user",
+                    "parts": [{"text": system_text}]
+                })
+
+        return converted
+
+    def _extract_text(self, response: Any) -> str:
+        """Extract text from Gemini response."""
+        try:
+            # Gemini response has .text attribute
+            if hasattr(response, "text"):
+                return response.text.strip()
+
+            # Fallback: try to get from candidates
+            if hasattr(response, "candidates") and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, "content") and hasattr(candidate.content, "parts"):
+                    parts = candidate.content.parts
+                    text_parts = [part.text for part in parts if hasattr(part, "text")]
+                    return "".join(text_parts).strip()
+
+            return ""
+        except Exception:
+            return ""
+
