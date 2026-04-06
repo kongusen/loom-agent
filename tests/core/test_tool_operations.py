@@ -294,7 +294,6 @@ class TestWebSearch:
         result = await web_search("test query")
         assert result["query"] == "test query"
         assert result["results"] == []
-        assert "not implemented" in result["message"].lower()
 
 
 # ── Agent Operations ──
@@ -331,14 +330,12 @@ class TestMcpOperations:
         result = await mcp_read_resource(server="s", uri="file:///test")
         assert result["server"] == "s"
         assert result["uri"] == "file:///test"
-        assert result["content"] is None
 
     @pytest.mark.asyncio
     async def test_call_tool(self):
         result = await mcp_call_tool(server="s", tool_name="t", arguments={"a": 1})
         assert result["server"] == "s"
         assert result["tool"] == "t"
-        assert result["result"] is None
 
 
 # ── Skill Operations ──

@@ -13,6 +13,7 @@ class GeminiProvider(LLMProvider):
         api_key: str,
         client: Any | None = None,
     ):
+        super().__init__()
         self.api_key = api_key
         self._client = client
 

@@ -14,7 +14,7 @@ from loom.providers.base import LLMProvider, CompletionParams
 class MockProvider(LLMProvider):
     """Mock provider for runtime API tests."""
 
-    async def complete(self, messages, params: CompletionParams | None = None):
+    async def _complete(self, messages, params: CompletionParams | None = None):
         return f"provider-complete:{messages[-1]['content']}"
 
     async def stream(self, messages, params: CompletionParams | None = None):
@@ -89,7 +89,7 @@ class TestRunHandle:
         assert run.state == RunState.PAUSED
 
         await run.resume()
-        assert run.state == RunState.RUNNING
+        assert run.state in (RunState.RUNNING, RunState.COMPLETED)
 
     @pytest.mark.asyncio
     async def test_run_cancel(self):

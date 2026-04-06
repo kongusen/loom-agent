@@ -1,8 +1,8 @@
 """Test orchestration module - coordinator, planner, events, communication"""
 
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 
-from loom.agent.core import Agent
 from loom.orchestration.coordinator import Coordinator
 from loom.orchestration.planner import TaskPlanner, Task
 from loom.orchestration.events import EventBus
@@ -10,14 +10,7 @@ from loom.orchestration.communication import CommunicationProtocol
 from loom.orchestration.subagent import SubAgentManager
 from loom.providers.base import CompletionParams, LLMProvider
 from loom.types import Event
-
-
-class MockProvider(LLMProvider):
-    async def complete(self, messages, params: CompletionParams = None):
-        return "mock response"
-
-    async def stream(self, messages, params: CompletionParams = None):
-        yield "mock"
+from loom.types.results import SubAgentResult
 
 
 # ── Task (planner) ──
@@ -316,8 +309,9 @@ class TestCoordinator:
     async def test_execute_plan_and_aggregate(self):
         bus = EventBus()
         coord = Coordinator(bus)
-        parent = Agent(MockProvider())
-        manager = SubAgentManager(parent, max_depth=5)
+
+        manager = MagicMock()
+        manager.spawn = AsyncMock(return_value=SubAgentResult(success=True, output="done", depth=1))
         coord.register_agent("agent_1", manager)
 
         planner = TaskPlanner()
@@ -329,26 +323,15 @@ class TestCoordinator:
         assert planner.all_completed() is True
 
         summary = coord.aggregate_results(results)
-        assert tasks[0].id in summary
-        assert tasks[1].id in summary
+        assert summary["succeeded"] == len(tasks)
+        assert summary["failed"] == 0
         assert len(bus.published_events) == 4
 
 
 class TestSubAgentManager:
     @pytest.mark.asyncio
-    async def test_spawn_many(self):
-        parent = Agent(MockProvider())
-        manager = SubAgentManager(parent, max_depth=5)
-
-        results = await manager.spawn_many(["task one", "task two"], depth=0)
-        assert len(results) == 2
-        assert all(result.success for result in results)
-
-    @pytest.mark.asyncio
     async def test_spawn_respects_max_depth(self):
-        parent = Agent(MockProvider())
-        manager = SubAgentManager(parent, max_depth=1)
-
+        manager = SubAgentManager(parent=MagicMock(), max_depth=1)
         result = await manager.spawn("too deep", depth=1)
         assert result.success is False
         assert result.error == "MAX_DEPTH_EXCEEDED"

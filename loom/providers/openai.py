@@ -15,6 +15,7 @@ class OpenAIProvider(LLMProvider):
         organization: str | None = None,
         client: Any | None = None,
     ):
+        super().__init__()
         self.api_key = api_key
         self.base_url = base_url
         self.organization = organization

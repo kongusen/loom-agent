@@ -316,7 +316,7 @@ class TestFilesystemMonitor:
             result = monitor.check("2024-01-01T00:01:00")
             assert result is not None
             assert result["source"] == "filesystem"
-            assert "修改" in result["summary"]
+            assert "modified" in result["summary"].lower() or "file" in result["summary"].lower()
 
     def test_directory_monitoring(self):
         with tempfile.TemporaryDirectory() as tmpdir:

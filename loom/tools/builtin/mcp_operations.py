@@ -30,22 +30,31 @@ async def mcp_list_resources(server: str | None = None) -> dict[str, Any]:
 async def mcp_read_resource(server: str, uri: str) -> dict[str, Any]:
     """读取 MCP 资源"""
     bridge = get_default_mcp_bridge()
-    resource = bridge.read_resource(server, uri)
+    try:
+        resource = bridge.read_resource(server, uri)
+    except RuntimeError:
+        resource = None
     return {
         "server": server,
         "uri": uri,
         "content": None if resource is None else resource.get("content"),
         "resource": resource,
-        "message": "ok" if resource is not None else "not_found",
+        "message": "ok" if resource is not None else "not_connected",
     }
 
 
 async def mcp_call_tool(server: str, tool_name: str, arguments: dict) -> dict[str, Any]:
     """调用 MCP 工具"""
     bridge = get_default_mcp_bridge()
+    try:
+        result = bridge.execute_tool(server, tool_name, **arguments)
+        message = "ok"
+    except (RuntimeError, KeyError) as e:
+        result = None
+        message = str(e)
     return {
         "server": server,
         "tool": tool_name,
-        "result": bridge.execute_tool(server, tool_name, **arguments),
-        "message": "ok",
+        "result": result,
+        "message": message,
     }
