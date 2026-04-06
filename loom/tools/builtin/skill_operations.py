@@ -9,12 +9,13 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
 
     Args:
         skill: Skill 名称（支持 /skill 或 skill 格式）
-        args: 可选参数
+        args: 可选参数（字符串或 key=value 格式）
 
     Returns:
         包含 skill 内容和元数据的字典
     """
     from loom.ecosystem.skill import SkillRegistry, SkillLoader
+    import os
 
     # 移除前导斜杠（兼容 /skill 格式）
     skill_name = skill.lstrip('/')
@@ -34,12 +35,37 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
             "available_skills": registry.list_skills()
         }
 
-    # 替换参数占位符
+    # 获取内容（懒加载）
     content = skill_obj.content
+
+    # 环境变量替换（符合 Claude Code 规范）
+    if skill_obj.file_path:
+        skill_dir = os.path.dirname(skill_obj.file_path)
+        content = content.replace('${CLAUDE_SKILL_DIR}', skill_dir)
+
+    # Session ID 替换（简化版本）
+    import uuid
+    session_id = str(uuid.uuid4())[:8]
+    content = content.replace('${CLAUDE_SESSION_ID}', session_id)
+
+    # 参数替换
     if args:
-        # 简单的参数替换：$ARGUMENTS 或 ${ARGUMENTS}
-        content = content.replace('$ARGUMENTS', args)
-        content = content.replace('${ARGUMENTS}', args)
+        # 支持两种格式：
+        # 1. 简单字符串：直接替换 $ARGUMENTS
+        # 2. key=value 格式：替换 ${key}
+        if '=' in args:
+            # 命名参数格式：name=John email=john@example.com
+            arg_dict = {}
+            for pair in args.split():
+                if '=' in pair:
+                    key, value = pair.split('=', 1)
+                    arg_dict[key.strip()] = value.strip()
+                    # 替换 ${key} 格式
+                    content = content.replace(f'${{{key.strip()}}}', value.strip())
+        else:
+            # 简单参数格式：直接替换 $ARGUMENTS
+            content = content.replace('$ARGUMENTS', args)
+            content = content.replace('${ARGUMENTS}', args)
 
     return {
         "success": True,
