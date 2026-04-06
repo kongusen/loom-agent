@@ -1,42 +1,46 @@
-# Loom Docs
+## Loom Wiki
 
-- [首页](Home.md)
-- [总索引](README.md)
+**[Home](Home)**
 
-## 开始使用
+**Getting Started**
+- [Quick Start](01-getting-started/README)
+- [First Agent](01-getting-started/first-agent)
 
-- [快速开始](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.md)
-- [Agent与Run](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/Agent%E4%B8%8ERun.md)
-- [事件审批与产物](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/%E4%BA%8B%E4%BB%B6%E5%AE%A1%E6%89%B9%E4%B8%8E%E4%BA%A7%E7%89%A9.md)
-- [Provider与模型接入](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/Provider%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%8E%A5%E5%85%A5.md)
+**Core Concepts**
+- [Overview](02-core-concepts/README)
+- [Context](02-core-concepts/context)
+- [Memory](02-core-concepts/memory)
+- [Safety & Control](02-core-concepts/safety)
 
-## 架构
+**Runtime**
+- [Overview](03-runtime/README)
+- [Execution Loop](03-runtime/loop)
+- [Heartbeat](03-runtime/heartbeat)
 
-- [总体架构](03-%E6%9E%B6%E6%9E%84%E8%AF%B4%E6%98%8E/%E6%80%BB%E4%BD%93%E6%9E%B6%E6%9E%84.md)
-- [运行时对象模型](03-%E6%9E%B6%E6%9E%84%E8%AF%B4%E6%98%8E/%E8%BF%90%E8%A1%8C%E6%97%B6%E5%AF%B9%E8%B1%A1%E6%A8%A1%E5%9E%8B.md)
-- [上下文与记忆](03-%E6%9E%B6%E6%9E%84%E8%AF%B4%E6%98%8E/%E4%B8%8A%E4%B8%8B%E6%96%87%E4%B8%8E%E8%AE%B0%E5%BF%86.md)
-- [运行时与决策](03-%E6%9E%B6%E6%9E%84%E8%AF%B4%E6%98%8E/%E8%BF%90%E8%A1%8C%E6%97%B6%E4%B8%8E%E5%86%B3%E7%AD%96.md)
-- [工具与多Agent](03-%E6%9E%B6%E6%9E%84%E8%AF%B4%E6%98%8E/%E5%B7%A5%E5%85%B7%E4%B8%8E%E5%A4%9AAgent.md)
-- [生态与安全](03-%E6%9E%B6%E6%9E%84%E8%AF%B4%E6%98%8E/%E7%94%9F%E6%80%81%E4%B8%8E%E5%AE%89%E5%85%A8.md)
+**Multi-Agent**
+- [Overview](04-multi-agent/README)
+- [Task Planning](04-multi-agent/planning)
+- [Coordination](04-multi-agent/coordination)
 
-## 开发
+**Ecosystem**
+- [Overview](05-ecosystem/README)
+- [Skills](05-ecosystem/skills)
+- [Plugins](05-ecosystem/plugins)
+- [MCP](05-ecosystem/mcp)
 
-- [开发者工作流](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/%E5%BC%80%E5%8F%91%E8%80%85%E5%B7%A5%E4%BD%9C%E6%B5%81.md)
-- [扩展开发](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/%E6%89%A9%E5%B1%95%E5%BC%80%E5%8F%91.md)
-- [技能插件与知识源](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/%E6%8A%80%E8%83%BD%E6%8F%92%E4%BB%B6%E4%B8%8E%E7%9F%A5%E8%AF%86%E6%BA%90.md)
-- [运维与排障](04-%E5%BC%80%E5%8F%91%E8%AF%B4%E6%98%8E/%E8%BF%90%E7%BB%B4%E4%B8%8E%E6%8E%92%E9%9A%9C.md)
+**Self-Improvement**
+- [Overview](06-self-improvement/README)
+- [Strategies E1–E4](06-self-improvement/strategies)
 
-## 设计与表达
+**API Reference**
+- [Overview](07-api-reference/README)
+- [Runtime API](07-api-reference/runtime-api)
+- [Providers](07-api-reference/providers)
 
-- [系统公理](01-%E9%A1%B6%E5%B1%82%E8%AE%BE%E8%AE%A1/%E7%B3%BB%E7%BB%9F%E5%85%AC%E7%90%86.md)
-- [设计原则](01-%E9%A1%B6%E5%B1%82%E8%AE%BE%E8%AE%A1/%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99.md)
-- [能力边界](01-%E9%A1%B6%E5%B1%82%E8%AE%BE%E8%AE%A1/%E8%83%BD%E5%8A%9B%E8%BE%B9%E7%95%8C.md)
-- [产品定位](02-%E6%88%98%E7%95%A5%E8%A1%A8%E8%BE%BE/%E4%BA%A7%E5%93%81%E5%AE%9A%E4%BD%8D.md)
-- [应用场景](02-%E6%88%98%E7%95%A5%E8%A1%A8%E8%BE%BE/%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF.md)
-- [实施路线](02-%E6%88%98%E7%95%A5%E8%A1%A8%E8%BE%BE/%E5%AE%9E%E6%96%BD%E8%B7%AF%E7%BA%BF.md)
+**Reference**
+- [Glossary](08-reference/glossary)
+- [Comparison](08-reference/comparison)
 
-## 参考
-
-- [API总览](05-%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99/API%E6%80%BB%E8%A7%88.md)
-- [代码能力矩阵](05-%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99/%E4%BB%A3%E7%A0%81%E8%83%BD%E5%8A%9B%E7%9F%A9%E9%98%B5.md)
-- [术语表](05-%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99/%E6%9C%AF%E8%AF%AD%E8%A1%A8.md)
+---
+- [Architecture](Architecture)
+- [Design Spec](hernss-agent-framework)
