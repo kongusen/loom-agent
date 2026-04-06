@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.7.0"
-description = "Minimal self-organizing multi-agent framework"
+version = "0.7.1"
+description = "Python agent runtime framework — context management, multi-agent orchestration, and self-improvement for autonomous AI agents"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
 license = "Apache-2.0 with Commons Clause"
