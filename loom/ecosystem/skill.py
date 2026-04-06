@@ -14,6 +14,14 @@ from pathlib import Path
 from typing import Callable
 
 
+# Import hooks system
+try:
+    from .hooks import SkillHooks, parse_hooks_from_frontmatter
+except ImportError:
+    SkillHooks = None
+    parse_hooks_from_frontmatter = None
+
+
 def get_effort_token_limit(effort: int | None) -> int:
     """Convert effort level to token limit
 
@@ -58,6 +66,7 @@ class Skill:
     # Advanced features (P1)
     paths: list[str] | None = None  # [src/**, tests/**] - path restrictions
     version: str | None = None  # 1.0.0 - version control
+    hooks: 'SkillHooks | None' = None  # Lifecycle hooks
 
     # Metadata
     source: str = "user"  # user | plugin | bundled
@@ -133,20 +142,63 @@ class SkillLoader:
             return {}, content
 
         # Simple YAML parser for basic key: value and key: [list] syntax
+        # Also supports nested objects with indentation
         frontmatter = {}
-        for line in parts[1].split('\n'):
-            line = line.strip()
-            if not line or line.startswith('#'):
+        lines = parts[1].split('\n')
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            if not stripped or stripped.startswith('#'):
+                i += 1
                 continue
 
-            if ':' not in line:
+            if ':' not in stripped:
+                i += 1
                 continue
 
-            key, value = line.split(':', 1)
+            # Get indentation level
+            indent = len(line) - len(line.lstrip())
+
+            key, value = stripped.split(':', 1)
             key = key.strip()
             value = value.strip()
 
-            # Handle lists: [item1, item2] or comma-separated
+            # Check if this is a nested object (value is empty and next line is indented)
+            if not value and i + 1 < len(lines):
+                next_line = lines[i + 1]
+                next_indent = len(next_line) - len(next_line.lstrip())
+
+                if next_indent > indent:
+                    # Parse nested object
+                    nested = {}
+                    i += 1
+
+                    while i < len(lines):
+                        nested_line = lines[i]
+                        nested_stripped = nested_line.strip()
+                        nested_indent = len(nested_line) - len(nested_line.lstrip())
+
+                        if nested_indent <= indent:
+                            # Back to parent level
+                            break
+
+                        if not nested_stripped or nested_stripped.startswith('#'):
+                            i += 1
+                            continue
+
+                        if ':' in nested_stripped:
+                            nested_key, nested_value = nested_stripped.split(':', 1)
+                            nested[nested_key.strip()] = nested_value.strip()
+
+                        i += 1
+
+                    frontmatter[key] = nested
+                    continue
+
+            # Handle lists: [item1, item2]
             if value.startswith('[') and value.endswith(']'):
                 items = value[1:-1].split(',')
                 frontmatter[key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
@@ -160,6 +212,8 @@ class SkillLoader:
             else:
                 frontmatter[key] = value.strip('"').strip("'")
 
+            i += 1
+
         body = parts[2]
         return frontmatter, body
 
@@ -171,6 +225,11 @@ class SkillLoader:
 
         name = frontmatter.get('name', path.stem)
         description = frontmatter.get('description', '')
+
+        # Parse hooks if available
+        hooks = None
+        if parse_hooks_from_frontmatter:
+            hooks = parse_hooks_from_frontmatter(frontmatter)
 
         return Skill(
             name=name,
@@ -187,6 +246,7 @@ class SkillLoader:
             context=frontmatter.get('context', 'inline'),
             paths=frontmatter.get('paths'),
             version=frontmatter.get('version'),
+            hooks=hooks,
             # Metadata
             source='user',
             file_path=str(path),

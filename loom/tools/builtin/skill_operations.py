@@ -15,6 +15,8 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
         包含 skill 内容和元数据的字典
     """
     from loom.ecosystem.skill import SkillRegistry, SkillLoader
+    from loom.ecosystem.hooks import HookExecutor
+    from loom.ecosystem.shell_exec import execute_inline_shell, has_inline_shell_commands
     import os
 
     # 移除前导斜杠（兼容 /skill 格式）
@@ -35,56 +37,88 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
             "available_skills": registry.list_skills()
         }
 
-    # 获取内容（懒加载）
-    content = skill_obj.content
+    try:
+        # Execute onLoad hook
+        if skill_obj.hooks:
+            await HookExecutor.execute_on_load(skill_obj.hooks, skill_name)
 
-    # 环境变量替换（符合 Claude Code 规范）
-    if skill_obj.file_path:
-        skill_dir = os.path.dirname(skill_obj.file_path)
-        content = content.replace('${CLAUDE_SKILL_DIR}', skill_dir)
+        # Execute onInvoke hook
+        if skill_obj.hooks:
+            await HookExecutor.execute_on_invoke(skill_obj.hooks, skill_name, args)
 
-    # Session ID 替换（简化版本）
-    import uuid
-    session_id = str(uuid.uuid4())[:8]
-    content = content.replace('${CLAUDE_SESSION_ID}', session_id)
+        # 获取内容（懒加载）
+        content = skill_obj.content
 
-    # 参数替换
-    if args:
-        # 支持两种格式：
-        # 1. 简单字符串：直接替换 $ARGUMENTS
-        # 2. key=value 格式：替换 ${key}
-        if '=' in args:
-            # 命名参数格式：name=John email=john@example.com
-            arg_dict = {}
-            for pair in args.split():
-                if '=' in pair:
-                    key, value = pair.split('=', 1)
-                    arg_dict[key.strip()] = value.strip()
-                    # 替换 ${key} 格式
-                    content = content.replace(f'${{{key.strip()}}}', value.strip())
-        else:
-            # 简单参数格式：直接替换 $ARGUMENTS
-            content = content.replace('$ARGUMENTS', args)
-            content = content.replace('${ARGUMENTS}', args)
+        # 环境变量替换（符合 Claude Code 规范）
+        if skill_obj.file_path:
+            skill_dir = os.path.dirname(skill_obj.file_path)
+            content = content.replace('${CLAUDE_SKILL_DIR}', skill_dir)
 
-    return {
-        "success": True,
-        "skill": skill_name,
-        "args": args,
-        "content": content,
-        "description": skill_obj.description,
-        "allowed_tools": skill_obj.allowed_tools,
-        "model": skill_obj.model,
-        "user_invocable": skill_obj.user_invocable,
-        "source": skill_obj.source,
-        # Agent framework features
-        "effort": skill_obj.effort,
-        "effort_token_limit": _get_effort_token_limit(skill_obj.effort),
-        "agent": skill_obj.agent,
-        "context": skill_obj.context,
-        "paths": skill_obj.paths,
-        "version": skill_obj.version,
-    }
+        # Session ID 替换（简化版本）
+        import uuid
+        session_id = str(uuid.uuid4())[:8]
+        content = content.replace('${CLAUDE_SESSION_ID}', session_id)
+
+        # 参数替换
+        if args:
+            # 支持两种格式：
+            # 1. 简单字符串：直接替换 $ARGUMENTS
+            # 2. key=value 格式：替换 ${key}
+            if '=' in args:
+                # 命名参数格式：name=John email=john@example.com
+                arg_dict = {}
+                for pair in args.split():
+                    if '=' in pair:
+                        key, value = pair.split('=', 1)
+                        arg_dict[key.strip()] = value.strip()
+                        # 替换 ${key} 格式
+                        content = content.replace(f'${{{key.strip()}}}', value.strip())
+            else:
+                # 简单参数格式：直接替换 $ARGUMENTS
+                content = content.replace('$ARGUMENTS', args)
+                content = content.replace('${ARGUMENTS}', args)
+
+        # Shell 内联执行（如果包含 !`command`）
+        if has_inline_shell_commands(content):
+            content = await execute_inline_shell(content)
+
+        result = {
+            "success": True,
+            "skill": skill_name,
+            "args": args,
+            "content": content,
+            "description": skill_obj.description,
+            "allowed_tools": skill_obj.allowed_tools,
+            "model": skill_obj.model,
+            "user_invocable": skill_obj.user_invocable,
+            "source": skill_obj.source,
+            # Agent framework features
+            "effort": skill_obj.effort,
+            "effort_token_limit": _get_effort_token_limit(skill_obj.effort),
+            "agent": skill_obj.agent,
+            "context": skill_obj.context,
+            "paths": skill_obj.paths,
+            "version": skill_obj.version,
+            "has_hooks": skill_obj.hooks is not None,
+        }
+
+        # Execute onComplete hook
+        if skill_obj.hooks:
+            await HookExecutor.execute_on_complete(skill_obj.hooks, skill_name, result)
+
+        return result
+
+    except Exception as e:
+        # Execute onError hook
+        if skill_obj.hooks:
+            await HookExecutor.execute_on_error(skill_obj.hooks, skill_name, e)
+
+        return {
+            "success": False,
+            "skill": skill_name,
+            "args": args,
+            "error": str(e),
+        }
 
 
 def _get_effort_token_limit(effort: int | None) -> int:
