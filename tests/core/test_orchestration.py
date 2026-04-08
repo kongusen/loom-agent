@@ -1,17 +1,17 @@
 """Test orchestration module - coordinator, planner, events, communication"""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-from loom.orchestration.coordinator import Coordinator
-from loom.orchestration.planner import TaskPlanner, Task
-from loom.orchestration.events import EventBus
+import pytest
+
 from loom.orchestration.communication import CommunicationProtocol
+from loom.orchestration.coordinator import Coordinator
+from loom.orchestration.events import EventBus
+from loom.orchestration.planner import Task, TaskPlanner
 from loom.orchestration.subagent import SubAgentManager
-from loom.providers.base import CompletionParams, LLMProvider
 from loom.types import Event
 from loom.types.results import SubAgentResult
-
 
 # ── Task (planner) ──
 
@@ -189,7 +189,8 @@ class TestOrchestrationEventBus:
         bus = EventBus()
         received = []
 
-        callback = lambda e: received.append(e)
+        def callback(e):
+            return received.append(e)
         bus.subscribe("task", callback)
         bus.unsubscribe("task", callback)
 
@@ -310,8 +311,14 @@ class TestCoordinator:
         bus = EventBus()
         coord = Coordinator(bus)
 
-        manager = MagicMock()
-        manager.spawn = AsyncMock(return_value=SubAgentResult(success=True, output="done", depth=1))
+        class StubManager:
+            async def spawn(self, goal, depth=0, inherit_context=True):
+                _ = goal
+                _ = depth
+                _ = inherit_context
+                return SubAgentResult(success=True, output="done", depth=1)
+
+        manager = StubManager()
         coord.register_agent("agent_1", manager)
 
         planner = TaskPlanner()
@@ -335,3 +342,56 @@ class TestSubAgentManager:
         result = await manager.spawn("too deep", depth=1)
         assert result.success is False
         assert result.error == "MAX_DEPTH_EXCEEDED"
+
+    @pytest.mark.asyncio
+    async def test_spawn_returns_child_output(self):
+        class Parent:
+            async def run(self, goal):
+                _ = goal
+                return SimpleNamespace(output="completed")
+
+        parent = Parent()
+        manager = SubAgentManager(parent=parent, max_depth=3)
+
+        result = await manager.spawn("do work", depth=0)
+
+        assert result.success is True
+        assert result.output == "completed"
+        assert result.depth == 1
+        assert manager.children == [parent]
+
+    @pytest.mark.asyncio
+    async def test_spawn_captures_child_exception(self):
+        class Parent:
+            async def run(self, goal):
+                _ = goal
+                raise RuntimeError("boom")
+
+        parent = Parent()
+        manager = SubAgentManager(parent=parent, max_depth=3)
+
+        result = await manager.spawn("do work", depth=0)
+
+        assert result.success is False
+        assert result.error == "boom"
+        assert result.output == "boom"
+
+    @pytest.mark.asyncio
+    async def test_spawn_many_runs_goals_sequentially(self):
+        class Parent:
+            def __init__(self):
+                self.calls: list[str] = []
+
+            async def run(self, goal):
+                self.calls.append(goal)
+                if goal == "task 1":
+                    return SimpleNamespace(output="first")
+                return SimpleNamespace(output="second")
+
+        parent = Parent()
+        manager = SubAgentManager(parent=parent, max_depth=3)
+
+        results = await manager.spawn_many(["task 1", "task 2"], depth=0)
+
+        assert [result.output for result in results] == ["first", "second"]
+        assert parent.calls == ["task 1", "task 2"]

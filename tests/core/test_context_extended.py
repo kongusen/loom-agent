@@ -1,14 +1,12 @@
 """Test context extended modules - compression, renewal, event_aggregator, dashboard"""
 
-import pytest
 
 from loom.context.compression import ContextCompressor
-from loom.context.renewal import ContextRenewer
-from loom.context.event_aggregator import EventAggregator
 from loom.context.dashboard import DashboardManager
+from loom.context.event_aggregator import EventAggregator
 from loom.context.partitions import ContextPartitions
-from loom.types import Message, Dashboard
-
+from loom.context.renewal import ContextRenewer
+from loom.types import Dashboard, Message
 
 # ── ContextCompressor ──
 

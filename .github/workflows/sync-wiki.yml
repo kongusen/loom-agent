@@ -4,143 +4,80 @@ on:
   push:
     branches:
       - main
+      - master
     paths:
-      - 'wiki/**'
-      - '.github/workflows/sync-wiki.yml'
-  workflow_dispatch:  # 允许手动触发
-    inputs:
-      force_sync:
-        description: '强制同步（清理旧文件）'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
+      - "wiki/**"
+      - ".github/workflows/sync-wiki.yml"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
 
+concurrency:
+  group: sync-wiki-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   sync-wiki:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - name: Checkout main repo
         uses: actions/checkout@v4
         with:
           path: main_repo
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout wiki repo
         id: checkout_wiki
         uses: actions/checkout@v4
         continue-on-error: true
         with:
-          repository: kongusen/loom-agent.wiki
+          repository: ${{ github.repository }}.wiki
           path: wiki_repo
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Create wiki repo if not exists
+      - name: Fail when wiki repo is missing
         if: steps.checkout_wiki.outcome == 'failure'
         run: |
-          echo "⚠️ Wiki 仓库不存在，需要手动初始化"
-          echo "请访问 https://github.com/kongusen/loom-agent/wiki"
-          echo "点击 'Add a new page' 创建第一个页面"
-          echo "然后重新运行此 workflow"
+          echo "Wiki repository is not initialized yet."
+          echo "Open https://github.com/${{ github.repository }}/wiki and create the first page."
           exit 1
 
-      - name: List source Wiki files
+      - name: Configure git identity
+        working-directory: wiki_repo
         run: |
-          echo "📄 源 Wiki 文件列表:"
-          find main_repo/wiki -type f -name "*.md" | sort
-          echo ""
-          echo "📊 文件统计:"
-          echo "总文件数: $(find main_repo/wiki -type f -name "*.md" | wc -l)"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
 
-      - name: Clean and sync Wiki files
+      - name: Mirror wiki content
         id: sync_files
         run: |
+          rsync -av --delete --exclude='.git/' main_repo/wiki/ wiki_repo/
           cd wiki_repo
-          
-          # 配置 Git
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          # 记录同步前的状态
-          echo "📋 同步前的文件:"
-          ls -la *.md 2>/dev/null || echo "Wiki 目录为空"
-          
-          # 强制同步模式：清理所有旧文件
-          if [ "${{ github.event.inputs.force_sync }}" == "true" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "🔄 强制同步模式：清理所有旧文件"
-            # 删除所有 .md 文件（保留 .git 目录）
-            find . -maxdepth 1 -name "*.md" -type f -delete
-            echo "✅ 已清理旧文件"
-          fi
-          
-          # 复制所有 Wiki 文件（包括子目录）
-          echo "📥 复制 Wiki 文件..."
-          cp -r ../main_repo/wiki/* .
-          
-          # 确保所有文件都被添加（包括新文件和删除的文件）
-          git add -A .
-          
-          # 列出同步后的文件
-          echo ""
-          echo "📄 同步后的文件:"
-          ls -la *.md 2>/dev/null || echo "没有找到 .md 文件"
-          
-          # 检查是否有更改
-          if git diff --cached --quiet && git diff --quiet; then
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "📝 没有检测到更改"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
           else
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "✅ 检测到更改"
-            
-            # 显示更改摘要
-            echo ""
-            echo "📊 更改摘要:"
-            git diff --cached --stat || true
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Commit and push
+      - name: Commit and push wiki changes
         if: steps.sync_files.outputs.has_changes == 'true'
+        working-directory: wiki_repo
         run: |
-          cd wiki_repo
-          
-          # 获取更改的文件列表
-          CHANGED_FILES=$(git diff --cached --name-only | tr '\n' ' ' || echo "")
-          
-          # 提交更改
-          git commit -m "docs: sync Wiki from main repo
+          default_branch="$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')"
+          git commit -m "docs(wiki): sync from ${GITHUB_SHA}"
+          git push origin HEAD:"${default_branch:-main}"
 
-          自动从主仓库同步 Wiki 文档
-          
-          Commit: ${{ github.sha }}
-          Author: ${{ github.actor }}
-          Workflow: ${{ github.workflow }}
-          Run ID: ${{ github.run_id }}
-          
-          更改的文件: ${CHANGED_FILES}
-          
-          🤖 由 GitHub Actions 自动生成"
-          
-          # 推送更改
-          git push origin HEAD:main || git push origin HEAD:master
-          
-          echo "✅ Wiki 已成功推送到远程仓库"
-
-      - name: Summary
+      - name: Write summary
         run: |
-          if [ "${{ steps.sync_files.outputs.has_changes }}" == "true" ]; then
-            echo "✅ Wiki 同步成功！"
-            echo "🌐 访问: https://github.com/kongusen/loom-agent/wiki"
-            echo ""
-            echo "📊 同步统计:"
-            echo "- 源文件数: $(find main_repo/wiki -type f -name "*.md" | wc -l)"
-            echo "- 目标文件数: $(find wiki_repo -maxdepth 1 -type f -name "*.md" | wc -l)"
-          else
-            echo "ℹ️ Wiki 已是最新状态，无需同步"
-          fi
+          {
+            echo "## Wiki Sync"
+            echo
+            echo "- Source files: $(find main_repo/wiki -type f | wc -l | tr -d ' ')"
+            echo "- Synced changes: ${{ steps.sync_files.outputs.has_changes }}"
+          } >> "$GITHUB_STEP_SUMMARY"

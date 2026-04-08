@@ -9,10 +9,10 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..capabilities.registry import Capability, CapabilityRegistry
-from ..ecosystem.skill import SkillRegistry, SkillLoader
-from ..ecosystem.plugin import PluginLoader, Plugin
 from ..ecosystem.mcp import MCPBridge, MCPServerConfig, MCPTransportType
+from ..ecosystem.plugin import Plugin, PluginLoader
+from ..ecosystem.skill import SkillLoader, SkillRegistry
+from .activation import Capability, CapabilityRegistry
 
 
 @dataclass

@@ -1,55 +1,73 @@
 # Your First Agent
 
-## 1. Create a runtime
+## 1. Create An Agent
 
 ```python
-from loom.api import AgentRuntime, AgentProfile
-from loom.providers import AnthropicProvider
+from loom import AgentConfig, ModelRef, create_agent
 
-runtime = AgentRuntime(
-    profile=AgentProfile.from_preset("default"),
-    provider=AnthropicProvider(api_key="..."),
+agent = create_agent(
+    AgentConfig(
+        model=ModelRef.anthropic("claude-sonnet-4"),
+        instructions="Analyze repositories and summarize what matters.",
+    )
 )
 ```
 
-## 2. Start a session and task
+## 2. Run It Once
 
 ```python
-session = runtime.create_session()
-task = session.create_task(
-    goal="Analyze the README and summarize key features",
-    context={"repo": "loom-agent"},
+result = await agent.run("Analyze the README and summarize key features")
+
+print(result.state)   # RunState.COMPLETED
+print(result.output)  # model output
+```
+
+## 3. Use A Session For Continuity
+
+```python
+from loom import RunContext, SessionConfig
+
+session = agent.session(SessionConfig(id="demo"))
+
+first = await session.run("List three important features")
+second = await session.run(
+    "Summarize the previous answer in one sentence",
+    context=RunContext(inputs={"previous_answer": first.output}),
 )
-run = task.start()
 ```
 
-## 3. Wait for results
+## 4. Stream Events
 
 ```python
-result = await run.wait()
-print(result.state)    # RunState.COMPLETED
-print(result.output)   # agent's answer
-```
+run = session.start("Inspect the project layout")
 
-## 4. Stream events in real time
-
-```python
-run = task.start()
 async for event in run.events():
     print(event.type, event.payload)
-    if event.type == "run.completed":
-        break
+
+result = await run.wait()
 ```
 
-## 5. Cancel or pause
+## 5. Attach Knowledge
 
 ```python
-await run.pause()
-await run.resume()
-await run.cancel()
+from loom import KnowledgeQuery, RunContext
+
+knowledge = agent.resolve_knowledge(
+    KnowledgeQuery(
+        text="What are the deployment rules?",
+        goal="Summarize deployment policy",
+        top_k=3,
+    )
+)
+
+result = await agent.run(
+    "Summarize deployment policy",
+    context=RunContext(knowledge=knowledge),
+)
 ```
 
 ## Next
 
-- [Core Concepts](../02-core-concepts/README.md) — understand what's happening inside
-- [API Reference](../07-api-reference/README.md) — full method signatures
+- [API Reference](../07-api-reference/README.md)
+- [Core Concepts](../02-core-concepts/README.md)
+- [Architecture](../Architecture.md)

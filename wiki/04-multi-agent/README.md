@@ -1,27 +1,44 @@
 # Multi-Agent Orchestration
 
-Loom supports spawning and coordinating multiple agents to tackle complex tasks in parallel.
+Loom includes orchestration modules for planning and coordination, but these sit below the main public `Agent` API.
 
-## How It Works
+Use this section when you are extending Loom or building advanced orchestration flows on top of the runtime.
 
+## Position In The Stack
+
+```text
+AgentConfig -> Agent -> Session/Run
+                     -> orchestration modules when advanced coordination is needed
 ```
+
+## Core Pieces
+
+```text
 Coordinator
     │
-    ├── TaskPlanner  (dependency graph)
+    ├── TaskPlanner
     │
-    └── SubAgentManager × N
-            │
-            └── spawn(goal, depth+1)
+    └── SubAgentManager / worker managers
 ```
+
+## What This Section Covers
+
+- `TaskPlanner`: break one goal into dependent tasks
+- `Coordinator`: execute a plan with timeout and aggregation
+- `SubAgentManager`: spawn bounded child work
+
+## Hard Constraints
+
+- `d_max`: maximum recursion depth
+- `rho`: each child flow still manages its own context pressure
 
 ## Pages
 
 - [Task Planning](planning.md)
 - [Coordination](coordination.md)
 
-## Hard Constraints
+## Code
 
-- `d_max`: maximum recursion depth — sub-agents cannot spawn indefinitely
-- `ρ = 1.0`: each sub-agent manages its own context pressure independently
-
-**Code:** `loom/orchestration/`
+- `loom/orchestration/planner.py`
+- `loom/orchestration/coordinator.py`
+- `loom/orchestration/subagent.py`

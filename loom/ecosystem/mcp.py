@@ -8,6 +8,7 @@ MCP 特性：
 5. 作用域隔离（plugin:name:server）
 """
 
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -56,8 +57,8 @@ class MCPServer:
 
     # Runtime state
     connected: bool = False
-    tools: list[dict] = None
-    resources: list[dict] = None
+    tools: list[dict] | None = None
+    resources: list[dict] | None = None
 
     def __post_init__(self):
         if self.tools is None:
@@ -128,7 +129,12 @@ class MCPBridge:
 
     def _connect_stdio(self, server: "MCPServer") -> None:
         """Launch stdio MCP subprocess and fetch tools/resources via JSON-RPC."""
-        import subprocess, json, os
+        import json
+        import os
+        import subprocess
+
+        if not server.config.command:
+            raise ValueError(f"MCP server {server.name} has no command configured")
 
         cmd = [server.config.command] + (server.config.args or [])
         env = {**os.environ, **(server.config.env or {})}
@@ -141,16 +147,28 @@ class MCPBridge:
             if proc.poll() is not None:
                 raise RuntimeError("MCP subprocess has exited")
             msg = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
+            # Type guard: ensure stdin is not None
+            if proc.stdin is None:
+                raise RuntimeError("MCP subprocess stdin is None")
             proc.stdin.write((json.dumps(msg) + "\n").encode())
             proc.stdin.flush()
             # readline with timeout via select
             import select
+            # Type guard: ensure stdout is not None
+            if proc.stdout is None:
+                raise RuntimeError("MCP subprocess stdout is None")
             ready, _, _ = select.select([proc.stdout], [], [], self._RPC_TIMEOUT)
             if not ready:
                 proc.kill()
                 raise TimeoutError(f"MCP server timed out on {method}")
             raw = proc.stdout.readline()
-            return json.loads(raw).get("result", {})
+            result = json.loads(raw)
+            # Type guard: ensure result is dict
+            if isinstance(result, dict):
+                result_data = result.get("result", {})
+                if isinstance(result_data, dict):
+                    return result_data
+            return {}
 
         server.tools = rpc("tools/list").get("tools", [])
         server.resources = rpc("resources/list").get("resources", [])
@@ -164,12 +182,18 @@ class MCPBridge:
         server = self.servers.get(server_name)
         if not server or not server.connected:
             return []
+        # Type guard: ensure tools is not None
+        if server.tools is None:
+            return []
         return [dict(tool) for tool in server.tools]
 
     def list_resources(self, server_name: str) -> list[dict]:
         """List resources from MCP server."""
         server = self.servers.get(server_name)
         if not server or not server.connected:
+            return []
+        # Type guard: ensure resources is not None
+        if server.resources is None:
             return []
         return [dict(resource) for resource in server.resources]
 
@@ -179,6 +203,9 @@ class MCPBridge:
         if not server or not server.connected:
             raise RuntimeError(f"Server {server_name} not connected")
 
+        # Type guard: ensure resources is not None
+        if server.resources is None:
+            return None
         for resource in server.resources:
             if resource.get("uri") == uri:
                 return dict(resource)
@@ -193,7 +220,8 @@ class MCPBridge:
         # Try real stdio execution
         procs = getattr(self, "_stdio_procs", {})
         if server_name in procs:
-            import json, select
+            import json
+            import select
             proc = procs[server_name]
             # Reconnect if process has died
             if proc.poll() is not None:
@@ -227,6 +255,9 @@ class MCPBridge:
                 return configured(**kwargs)
             return configured
 
+        # Type guard: ensure tools is not None
+        if server.tools is None:
+            raise RuntimeError(f"Server {server_name} has no tools")
         for tool in server.tools:
             if tool.get("name") == tool_name:
                 return {"tool": tool_name, "arguments": kwargs, "server": server_name}
@@ -242,7 +273,6 @@ class MCPBridge:
         self._instructions_cache[server_name] = instructions
 
 
-import threading
 _DEFAULT_BRIDGE: MCPBridge | None = None
 _DEFAULT_BRIDGE_LOCK = threading.Lock()
 

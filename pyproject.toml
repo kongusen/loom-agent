@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.7.1"
+version = "0.7.2"
 description = "Python agent runtime framework — context management, multi-agent orchestration, and self-improvement for autonomous AI agents"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
@@ -50,6 +50,8 @@ ruff = "^0.3.0"
 mypy = "^1.8.0"
 pytest-cov = "^7.0.0"
 openai = "^1.10.0"
+psutil = "^7.2.2"
+types-pyyaml = "^6.0.12.20250915"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

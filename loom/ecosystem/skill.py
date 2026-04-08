@@ -9,17 +9,20 @@ Skill 特性：
 6. Agent 框架特性：effort, agent, context, paths
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
-
+from typing import TYPE_CHECKING, Any
 
 # Import hooks system
-try:
+if TYPE_CHECKING:
     from .hooks import SkillHooks, parse_hooks_from_frontmatter
-except ImportError:
-    SkillHooks = None
-    parse_hooks_from_frontmatter = None
+else:
+    try:
+        from .hooks import SkillHooks, parse_hooks_from_frontmatter
+    except ImportError:
+        SkillHooks = None  # type: ignore
+        parse_hooks_from_frontmatter = None  # type: ignore
 
 
 @dataclass
@@ -180,7 +183,7 @@ class SkillLoader:
 
         # Simple YAML parser for basic key: value and key: [list] syntax
         # Also supports nested objects with indentation
-        frontmatter = {}
+        frontmatter: dict[str, Any] = {}
         lines = parts[1].split('\n')
         i = 0
 
@@ -210,7 +213,7 @@ class SkillLoader:
 
                 if next_indent > indent:
                     # Parse nested object
-                    nested = {}
+                    nested: dict[str, Any] = {}
                     i += 1
 
                     while i < len(lines):
@@ -239,7 +242,7 @@ class SkillLoader:
 
                                 if deeper_indent > nested_indent:
                                     # Parse deeper nested object
-                                    deeper_nested = {}
+                                    deeper_nested: dict[str, Any] = {}
                                     i += 1
 
                                     while i < len(lines):
@@ -325,7 +328,7 @@ class SkillLoader:
 
         # Parse hooks if available
         hooks = None
-        if parse_hooks_from_frontmatter:
+        if parse_hooks_from_frontmatter is not None:
             hooks = parse_hooks_from_frontmatter(frontmatter)
 
         # Parse shell config if available
@@ -376,5 +379,5 @@ class SkillLoader:
             # Register lazy loader
             registry.register_lazy(
                 skill_name,
-                lambda p=skill_file: SkillLoader.load_from_file(p)
+                lambda p=skill_file: SkillLoader.load_from_file(p)  # type: ignore[misc]
             )

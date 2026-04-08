@@ -1,8 +1,8 @@
 """Tool 接口标准化 - fail-closed 原则"""
 
 from abc import ABC, abstractmethod
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -33,11 +33,21 @@ class Tool(ABC):
         pass
 
     def validate_input(self, input_data: dict) -> tuple[bool, str]:
-        """细粒度输入校验"""
+        """细粒度输入校验
+
+        Args:
+            input_data: 输入数据（预留参数，子类可重写进行校验）
+        """
+        _ = input_data  # 预留参数，子类可重写
         return True, ""
 
     def check_permissions(self, context: dict) -> tuple[bool, str]:
-        """权限检查"""
+        """权限检查
+
+        Args:
+            context: 上下文信息（预留参数，子类可重写进行权限检查）
+        """
+        _ = context  # 预留参数，子类可重写
         if not self.metadata.requires_permission:
             return True, ""
         return True, ""  # 默认允许，交给通用权限系统

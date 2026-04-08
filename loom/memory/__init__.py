@@ -1,10 +1,10 @@
 """Memory system"""
 
-from .session import SessionMemory
 from .persistent import PersistentMemory
+from .semantic import MemoryEntry, SemanticMemory
+from .session import SessionMemory
+from .store import InMemoryStore, MemoryStore
 from .working import WorkingMemory
-from .semantic import SemanticMemory, MemoryEntry
-from .store import MemoryStore, InMemoryStore
 
 __all__ = [
     "SessionMemory",

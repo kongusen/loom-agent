@@ -1,11 +1,10 @@
 """Test more builtin tools"""
 
-import pytest
-from loom.tools.builtin.tools_mcp import MCP_LIST_TOOL, MCP_READ_TOOL, MCP_CALL_TOOL
-from loom.tools.builtin.tools_notebook_skill_lsp import (
+from loom.tools.builtin.mcp_tool import MCP_CALL_TOOL, MCP_LIST_TOOL, MCP_READ_TOOL
+from loom.tools.builtin.notebook_skill_lsp_tool import (
+    LSP_DIAGNOSTICS_TOOL,
     NOTEBOOK_EDIT_TOOL,
     SKILL_TOOL,
-    LSP_DIAGNOSTICS_TOOL,
 )
 from loom.tools.schema import Tool
 

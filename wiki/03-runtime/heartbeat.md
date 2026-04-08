@@ -1,38 +1,55 @@
 # Heartbeat (H_b)
 
-H_b is an independent background thread that runs **parallel to L***. It solves the "waiting blind spot" — when the agent is blocked waiting for a shell command, network call, or sub-agent, H_b keeps sensing the world.
+Heartbeat is Loom's background sensing layer. It runs alongside the main execution loop and watches the environment for changes that may matter to the agent.
 
-## What H_b Monitors
+## Public Entry Point
 
-| Source | Class | Detects |
-|---|---|---|
-| Filesystem | `FilesystemMonitor` | File hash changes |
-| Process | `ProcessMonitor` | Process exit |
-| Resources | `ResourceMonitor` | CPU/memory/disk thresholds |
-| Event bus | `MFEventsMonitor` | Topic subscriptions |
-
-## Urgency Classification
-
-H_b classifies each event by `delta_H` entropy:
-
-| Urgency | Effect on C_working |
-|---|---|
-| `low` | Added to `pending_events` |
-| `medium` | Added to `pending_events` |
-| `high` | Added to `active_risks`, sets `interrupt_requested = True` |
-| `critical` | Same as high, immediate interrupt |
-
-## Usage
+Application developers configure heartbeat through `HeartbeatConfig` on `AgentConfig`:
 
 ```python
-from loom.runtime.heartbeat import Heartbeat
-from loom.runtime.monitors import FilesystemMonitor
+from loom import (
+    AgentConfig,
+    ModelRef,
+    create_agent,
+)
+from loom.config import HeartbeatConfig, ResourceThresholds, WatchConfig
 
-hb = Heartbeat(interval=5.0)
-hb.add_source(FilesystemMonitor(paths=["./src"], delta_h=0.3))
-hb.start(event_callback=lambda event, urgency: ...)
-# ... agent runs ...
-hb.stop()
+agent = create_agent(
+    AgentConfig(
+        model=ModelRef.anthropic("claude-sonnet-4"),
+        heartbeat=HeartbeatConfig(
+            watch_sources=[
+                WatchConfig.resource(
+                    thresholds=ResourceThresholds(memory_pct=90.0),
+                )
+            ],
+        ),
+    )
+)
 ```
 
-**Code:** `loom/runtime/heartbeat.py`, `loom/runtime/monitors.py`
+You normally do not instantiate `Heartbeat` directly from application code.
+
+## What Heartbeat Monitors
+
+| Source | Public config | Detects |
+|---|---|---|
+| Filesystem | `WatchConfig.filesystem(...)` | file changes |
+| Process | `WatchConfig.process(...)` | process exit / PID changes |
+| Resources | `WatchConfig.resource(...)` | CPU, memory, disk thresholds |
+| Event bus | `WatchConfig.mf_events(...)` | event-topic activity |
+
+## Urgency
+
+Heartbeat events are classified by urgency and then projected into runtime state.
+
+| Urgency | Effect |
+|---|---|
+| `low` | queued for later handling |
+| `high` | can request interruption |
+| `critical` | strongest interrupt signal |
+
+## Internal Code
+
+- `loom/runtime/heartbeat.py`
+- `loom/runtime/monitors.py`

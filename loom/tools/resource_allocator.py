@@ -3,8 +3,8 @@
 根据 Q11 实验结果实现动态资源分配
 """
 
-from typing import Literal
 from dataclasses import dataclass
+from typing import Literal
 
 EffortLevel = Literal["low", "medium", "high"]
 

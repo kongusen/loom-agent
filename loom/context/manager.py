@@ -3,11 +3,11 @@
 核心主张：C 是 Agent 的唯一感知界面。管理 C 就是管理 Agent 的认知。
 """
 
-from .partitions import ContextPartitions
-from .dashboard import DashboardManager
-from .compression import ContextCompressor
-from .renewal import ContextRenewer
 from ..utils import count_messages_tokens
+from .compression import ContextCompressor
+from .dashboard import DashboardManager
+from .partitions import ContextPartitions
+from .renewal import ContextRenewer
 
 
 class ContextManager:

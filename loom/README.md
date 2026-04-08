@@ -1,44 +1,50 @@
-# Loom 0.7.1
+# Loom Package Layout
 
-hernss Agent Framework Implementation
-
-## Architecture
-
-Based on axiom system: **A = ⟨C, M, L*, H_b, S, Ψ⟩**
-
-- **C**: Context - Five-partition structure
-- **M**: Memory - (M_s, M_f, M_w)
-- **L***: Loop - (Reason → Act → Observe → Δ)*
-- **H_b**: Heartbeat - Independent perception layer
-- **S**: Skill - Progressive capability system
-- **Ψ**: Harness - Runtime with veto power
-
-## Installation
-
-```bash
-pip install -e .
-```
-
-## Quick Start
+Loom exposes one public API centered on `Agent`.
 
 ```python
-from loom import Agent
-from loom.providers import AnthropicProvider
+from loom import AgentConfig, ModelRef, create_agent
 
-provider = AnthropicProvider(api_key="your-key")
-agent = Agent(provider)
+agent = create_agent(
+    AgentConfig(
+        model=ModelRef.anthropic("claude-sonnet-4"),
+        instructions="You are a coding assistant",
+    )
+)
 
-result = await agent.run("Your goal here")
+result = await agent.run("Inspect this repository")
+print(result.output)
 ```
 
-## Directory Structure
+## Import Layers
 
-- `agent/` - Agent core (A = Model ∘ Ψ)
-- `context/` - Context management (C)
-- `execution/` - Execution loop (L*, H_b)
-- `memory/` - Memory system (M)
-- `tools/` - Tool system
-- `capabilities/` - Skill system (S)
-- `orchestration/` - Multi-agent coordination
-- `safety/` - Security and constraints
-- `providers/` - LLM providers
+Use the package in two layers:
+
+- `loom`: the primary application-facing entry point
+- `loom.config` and `loom.runtime`: advanced configuration and runtime objects
+
+Typical application imports stay small:
+
+```python
+from loom import AgentConfig, ModelRef, SessionConfig, RunContext, create_agent, tool
+```
+
+When you need richer configuration, import it explicitly from submodules:
+
+```python
+from loom.config import PolicyConfig, MemoryConfig, RuntimeConfig, HeartbeatConfig
+from loom.runtime import Session, Run, RunResult
+```
+
+## Package Structure
+
+- `agent.py` - public Agent API
+- `config.py` - stable public configuration DSL
+- `runtime/` - sessions, runs, engine, loop, heartbeat
+- `context/` - context partitions, compression, renewal
+- `memory/` - session, semantic, persistent memory
+- `tools/` - registry, execution, governance
+- `safety/` - permissions, hooks, veto authority
+- `orchestration/` - planning and multi-agent coordination
+- `ecosystem/` - skills, plugins, MCP integration
+- `providers/` - model provider implementations

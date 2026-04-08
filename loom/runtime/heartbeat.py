@@ -1,10 +1,11 @@
 """H_b heartbeat - 独立感知层，与 L* 并行运行"""
 
-from dataclasses import dataclass, field
-from typing import Callable, Any
-from datetime import datetime
 import threading
 import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -33,8 +34,13 @@ class Heartbeat:
     def __init__(self, config: HeartbeatConfig):
         self.config = config
         self.running = False
-        self.thread = None
+        self.thread: threading.Thread | None = None
         self.event_callback: Callable | None = None
+        # Monitor caches with type annotations
+        self._fs_monitors: dict[str, Any] = {}
+        self._proc_monitors: dict[str, Any] = {}
+        self._res_monitors: dict[str, Any] = {}
+        self._mf_monitors: dict[str, Any] = {}
 
     def start(self, event_callback: Callable):
         """启动心跳线程"""
@@ -66,45 +72,44 @@ class Heartbeat:
 
     def _check_source(self, source: WatchSource, timestamp: str) -> dict | None:
         """检查单个监控源"""
-        from .monitors import FilesystemMonitor, ProcessMonitor, ResourceMonitor, MFEventsMonitor
+        from .monitors import FilesystemMonitor, MFEventsMonitor, ProcessMonitor, ResourceMonitor
 
         if source.type == "filesystem":
-            if not hasattr(self, '_fs_monitors'):
-                self._fs_monitors = {}
             key = str(source.config)
             if key not in self._fs_monitors:
                 self._fs_monitors[key] = FilesystemMonitor(
                     source.config.get("paths", []),
                     source.config.get("method", "hash")
                 )
-            return self._fs_monitors[key].check(timestamp)
+            result = self._fs_monitors[key].check(timestamp)
+            return result if isinstance(result, dict) or result is None else None
 
         elif source.type == "process":
-            if not hasattr(self, '_proc_monitors'):
-                self._proc_monitors = {}
             key = str(source.config)
             if key not in self._proc_monitors:
-                self._proc_monitors[key] = ProcessMonitor(source.config.get("pid_file"))
-            return self._proc_monitors[key].check(timestamp)
+                self._proc_monitors[key] = ProcessMonitor(
+                    source.config.get("pid_file"),
+                    source.config.get("watch_pids", []),
+                )
+            result = self._proc_monitors[key].check(timestamp)
+            return result if isinstance(result, dict) or result is None else None
 
         elif source.type == "resource":
-            if not hasattr(self, '_res_monitors'):
-                self._res_monitors = {}
             key = str(source.config)
             if key not in self._res_monitors:
                 self._res_monitors[key] = ResourceMonitor(source.config.get("thresholds", {}))
-            return self._res_monitors[key].check(timestamp)
+            result = self._res_monitors[key].check(timestamp)
+            return result if isinstance(result, dict) or result is None else None
 
         elif source.type == "mf_events":
-            if not hasattr(self, '_mf_monitors'):
-                self._mf_monitors = {}
             key = str(source.config)
             if key not in self._mf_monitors:
                 self._mf_monitors[key] = MFEventsMonitor(
                     source.config.get("topics", []),
                     event_bus=source.config.get("event_bus"),
                 )
-            return self._mf_monitors[key].check(timestamp)
+            result = self._mf_monitors[key].check(timestamp)
+            return result if isinstance(result, dict) or result is None else None
 
         return None
 

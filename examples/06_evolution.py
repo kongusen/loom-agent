@@ -12,10 +12,10 @@ Run:
 """
 
 from loom.evolution import (
-    ToolLearningStrategy,
-    PolicyOptimizationStrategy,
-    ConstraintHardeningStrategy,
     AmoebaSplitStrategy,
+    ConstraintHardeningStrategy,
+    PolicyOptimizationStrategy,
+    ToolLearningStrategy,
 )
 
 

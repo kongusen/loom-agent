@@ -1,14 +1,14 @@
 """Evolution system"""
 
 from .engine import EvolutionEngine
-from .strategies import (
-    EvolutionStrategy,
-    ToolLearningStrategy,
-    PolicyOptimizationStrategy,
-    ConstraintHardeningStrategy,
-    AmoebaSplitStrategy,
-)
 from .feedback import FeedbackLoop
+from .strategies import (
+    AmoebaSplitStrategy,
+    ConstraintHardeningStrategy,
+    EvolutionStrategy,
+    PolicyOptimizationStrategy,
+    ToolLearningStrategy,
+)
 
 __all__ = [
     "EvolutionEngine",

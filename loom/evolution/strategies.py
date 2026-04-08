@@ -39,7 +39,7 @@ class EvolutionStrategy(ABC):
         if not isinstance(state, dict):
             state = {}
         state[key] = value
-        setattr(agent, "evolution_state", state)
+        agent.evolution_state = state
         setattr(agent, key, value)
         return value
 
@@ -53,7 +53,7 @@ class ToolLearningStrategy(EvolutionStrategy):
 
     def apply(self, agent):
         feedback = self._feedback_entries(agent)
-        per_tool: dict[str, dict[str, float | int | str | None]] = {}
+        per_tool: dict[str, dict[str, int | float | str | None]] = {}
 
         for item in feedback:
             tool_name = item.get("tool") or item.get("tool_name") or item.get("name")
@@ -71,29 +71,57 @@ class ToolLearningStrategy(EvolutionStrategy):
                     "last_outcome": None,
                 },
             )
-            stats["calls"] += 1
+            # Type-safe increment
+            calls = stats["calls"]
+            if isinstance(calls, int):
+                stats["calls"] = calls + 1
 
             score = self._score(item)
             if score is not None:
-                stats["score_total"] += score
-                stats["score_count"] += 1
+                score_total = stats["score_total"]
+                score_count = stats["score_count"]
+                if isinstance(score_total, int | float) and isinstance(score_count, int):
+                    stats["score_total"] = score_total + score
+                    stats["score_count"] = score_count + 1
 
             success = self._is_success(item, score)
             if success:
-                stats["successes"] += 1
+                successes = stats["successes"]
+                if isinstance(successes, int):
+                    stats["successes"] = successes + 1
                 stats["last_outcome"] = "success"
             else:
-                stats["failures"] += 1
+                failures = stats["failures"]
+                if isinstance(failures, int):
+                    stats["failures"] = failures + 1
                 stats["last_outcome"] = "failure"
 
-        tool_stats: dict[str, dict[str, float | int | str | None]] = {}
+        tool_stats: dict[str, dict[str, int | float | str | None]] = {}
         for tool_name, raw in per_tool.items():
-            calls = int(raw["calls"])
-            successes = int(raw["successes"])
-            failures = int(raw["failures"])
-            score_count = int(raw["score_count"])
-            avg_score = raw["score_total"] / score_count if score_count else None
-            success_rate = successes / calls if calls else 0.0
+            calls_val = raw["calls"]
+            successes_val = raw["successes"]
+            failures_val = raw["failures"]
+            score_count_val = raw["score_count"]
+            score_total_val = raw["score_total"]
+
+            # Type guards for safe conversion
+            if not isinstance(calls_val, int):
+                calls_val = 0
+            if not isinstance(successes_val, int):
+                successes_val = 0
+            if not isinstance(failures_val, int):
+                failures_val = 0
+            if not isinstance(score_count_val, int):
+                score_count_val = 0
+            if not isinstance(score_total_val, int | float):
+                score_total_val = 0.0
+
+            calls = calls_val
+            successes = successes_val
+            failures = failures_val
+            score_count = score_count_val
+            avg_score = score_total_val / score_count if score_count > 0 else None
+            success_rate = successes / calls if calls > 0 else 0.0
             tool_stats[tool_name] = {
                 "calls": calls,
                 "successes": successes,
@@ -108,18 +136,21 @@ class ToolLearningStrategy(EvolutionStrategy):
             for tool_name, stats in sorted(
                 tool_stats.items(),
                 key=lambda item: (
-                    item[1]["success_rate"],
-                    item[1]["avg_score"] if item[1]["avg_score"] is not None else -1.0,
-                    item[1]["calls"],
+                    item[1]["success_rate"] if isinstance(item[1]["success_rate"], int | float) else 0.0,
+                    item[1]["avg_score"] if isinstance(item[1]["avg_score"], int | float) else -1.0,
+                    item[1]["calls"] if isinstance(item[1]["calls"], int) else 0,
                 ),
                 reverse=True,
             )
-            if stats["calls"] >= self.min_examples and stats["success_rate"] >= self.success_threshold
+            if isinstance(stats["calls"], int) and stats["calls"] >= self.min_examples
+            and isinstance(stats["success_rate"], int | float) and stats["success_rate"] >= self.success_threshold
         ]
         discouraged_tools = [
             tool_name
             for tool_name, stats in tool_stats.items()
-            if stats["calls"] >= self.min_examples and stats["failures"] > stats["successes"]
+            if isinstance(stats["calls"], int) and stats["calls"] >= self.min_examples
+            and isinstance(stats["failures"], int) and isinstance(stats["successes"], int)
+            and stats["failures"] > stats["successes"]
         ]
 
         learned = {
@@ -132,7 +163,7 @@ class ToolLearningStrategy(EvolutionStrategy):
 
     def _score(self, item: dict) -> float | None:
         score = item.get("score")
-        if isinstance(score, (int, float)):
+        if isinstance(score, int | float):
             return float(score)
         return None
 
@@ -269,7 +300,8 @@ class ConstraintHardeningStrategy(EvolutionStrategy):
 
         # Audit: mark stale constraints (no hit in last `stale_after` entries)
         cutoff = max(0, len(feedback) - self.stale_after)
-        active, stale = {}, {}
+        active: dict[str, dict] = {}
+        stale: dict[str, dict] = {}
         for key, c in existing.items():
             (stale if c["last_seen"] < cutoff and c["hits"] > 0 else active)[key] = c
 

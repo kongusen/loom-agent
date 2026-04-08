@@ -5,8 +5,9 @@ fail-closed 设计原则：忘了声明就按最严格处理
 - isConcurrencySafe 默认 false → 串行执行，避免竞争
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass

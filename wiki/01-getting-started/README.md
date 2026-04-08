@@ -6,43 +6,60 @@ Get a Loom agent running in under 5 minutes.
 
 ```bash
 pip install loom-agent
-# or with uv
-uv add loom-agent
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Minimal Example
 
 ```python
 import asyncio
-from loom.api import AgentRuntime, AgentProfile
-from loom.providers import AnthropicProvider
+from loom import AgentConfig, ModelRef, create_agent
+
 
 async def main():
-    runtime = AgentRuntime(
-        profile=AgentProfile.from_preset("default"),
-        provider=AnthropicProvider(api_key="sk-ant-..."),
+    agent = create_agent(
+        AgentConfig(
+            model=ModelRef.anthropic("claude-sonnet-4"),
+            instructions="You are a concise assistant.",
+        )
     )
-    session = runtime.create_session()
-    task = session.create_task("List the files in the current directory")
-    run = task.start()
-    result = await run.wait()
+
+    result = await agent.run("List the main capabilities of Loom")
     print(result.output)
+
 
 asyncio.run(main())
 ```
 
+## What To Learn First
+
+1. `AgentConfig` is the only top-level config object.
+2. `Agent` is the only top-level runtime object.
+3. Use `agent.run()` for one-off executions.
+4. Use `agent.session(SessionConfig(...))` when the application needs continuity.
+5. Use `RunContext` to pass structured runtime inputs and resolved knowledge.
+
+## Import Rule
+
+- Start from `from loom import ...` for the main application path.
+- Move to `from loom.config import ...` when you need advanced configuration objects.
+- Move to `from loom.runtime import ...` when you need runtime states or run/session handles directly.
+
 ## Learning Path
 
-1. [First Agent](first-agent.md) — build and run your first agent
-2. [Core Concepts](../02-core-concepts/README.md) — understand how Loom works
-3. [API Reference](../07-api-reference/README.md) — full API docs
+1. [First Agent](first-agent.md)
+2. [API Reference](../07-api-reference/README.md)
+3. [Core Concepts](../02-core-concepts/README.md)
+4. [Architecture](../Architecture.md)
 
-## Supported Providers
+## Providers
 
-| Provider | Class | Notes |
-|---|---|---|
-| Anthropic | `AnthropicProvider` | Claude models |
-| OpenAI | `OpenAIProvider` | GPT models, compatible APIs |
-| Google | `GeminiProvider` | Gemini models |
+Use `ModelRef` to select a provider-backed model:
 
-All providers include built-in retry and circuit breaker.
+- `ModelRef.anthropic(...)`
+- `ModelRef.openai(...)`
+- `ModelRef.gemini(...)`
+- `ModelRef.qwen(...)`
+- `ModelRef.ollama(...)`
+
+Provider implementations still live under `loom/providers/`, but the public API entry point is `AgentConfig(model=ModelRef(...))`, not direct provider construction.

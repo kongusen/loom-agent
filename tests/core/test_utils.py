@@ -1,7 +1,6 @@
 """Test utils"""
 
-import pytest
-from loom.utils import LoomError, ContextOverflowError, MaxDepthError
+from loom.utils import ContextOverflowError, LoomError, MaxDepthError
 
 
 class TestUtils:

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+
 @dataclass
 class VetoLog:
     """Veto 日志"""

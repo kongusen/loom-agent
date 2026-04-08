@@ -13,6 +13,7 @@ Run:
 """
 
 import asyncio
+
 from loom.tools.builtin.skill_operations import skill_discover, skill_invoke
 
 
@@ -47,7 +48,7 @@ async def main():
         print(f"Description: {result['description']}")
         print(f"Allowed tools: {result['allowed_tools']}")
         print(f"Content length: {len(result['content'])} chars")
-        print(f"\nFirst 200 chars of content:")
+        print("\nFirst 200 chars of content:")
         print(result['content'][:200] + "...")
     else:
         print(f"Invocation failed: {result.get('error', 'Unknown error')}")

@@ -1,7 +1,7 @@
 """Skill 工具 - 完整实现"""
 
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 
 async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
@@ -14,10 +14,10 @@ async def skill_invoke(skill: str, args: str = "") -> dict[str, Any]:
     Returns:
         包含 skill 内容和元数据的字典
     """
-    from loom.ecosystem.skill import SkillRegistry, SkillLoader
+    import os
+
     from loom.ecosystem.hooks import HookExecutor
     from loom.ecosystem.shell_exec import execute_inline_shell, has_inline_shell_commands
-    import os
 
     # 移除前导斜杠（兼容 /skill 格式）
     skill_name = skill.lstrip('/')
@@ -134,7 +134,7 @@ async def skill_discover() -> dict[str, Any]:
     Returns:
         包含所有可用 skills 的列表
     """
-    from loom.ecosystem.skill import SkillRegistry, SkillLoader, estimate_skill_tokens
+    from loom.ecosystem.skill import estimate_skill_tokens
 
     # 获取或创建全局注册表
     registry = _get_or_create_registry()
@@ -178,7 +178,7 @@ def _get_or_create_registry():
     global _global_registry
 
     if _global_registry is None:
-        from loom.ecosystem.skill import SkillRegistry, SkillLoader
+        from loom.ecosystem.skill import SkillLoader, SkillRegistry
 
         _global_registry = SkillRegistry()
 

@@ -1,8 +1,10 @@
 """Anthropic Claude provider."""
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
-from .base import CompletionParams, LLMProvider
+from ..types import ToolCall
+from .base import CompletionParams, CompletionResponse, LLMProvider, TokenUsage
 
 
 class AnthropicProvider(LLMProvider):
@@ -43,10 +45,28 @@ class AnthropicProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> str:
+        response = await self._complete_response(messages, params)
+        return response.content
+
+    async def _complete_response(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> CompletionResponse:
         """Generate a completion through Anthropic messages API."""
         request = self._build_request(messages, params)
         response = await self.client.messages.create(**request)
-        return self._extract_text_blocks(getattr(response, "content", []))
+        usage = getattr(response, "usage", None)
+        content_blocks = getattr(response, "content", [])
+        return CompletionResponse(
+            content=self._extract_text_blocks(content_blocks),
+            tool_calls=self._extract_tool_calls(content_blocks),
+            usage=TokenUsage(
+                input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                output_tokens=getattr(usage, "output_tokens", 0) or 0,
+            ) if usage is not None else None,
+            raw=response,
+        )
 
     async def stream(
         self,
@@ -81,21 +101,87 @@ class AnthropicProvider(LLMProvider):
         }
         if system:
             request["system"] = system
+        if resolved.tools:
+            request["tools"] = [
+                {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "input_schema": tool.get("parameters", {"type": "object", "properties": {}, "required": []}),
+                }
+                for tool in resolved.tools
+            ]
+            request["tool_choice"] = {"type": resolved.tool_choice} if resolved.tool_choice else {"type": "auto"}
         return request
 
-    def _convert_messages(self, messages: list) -> tuple[str | None, list[dict[str, str]]]:
-        """Convert generic chat messages to Anthropic format."""
+    def _convert_messages(self, messages: list) -> tuple[str | None, list[dict]]:
+        """Convert generic chat messages to Anthropic format with multimodal support."""
         system_parts: list[str] = []
-        converted: list[dict[str, str]] = []
+        converted: list[dict] = []
 
         for message in messages:
             role = message.get("role", "user")
             content = message.get("content", "")
+            tool_calls = message.get("tool_calls", [])
+
             if role == "system":
-                system_parts.append(content)
+                # System messages must be text only
+                if isinstance(content, list):
+                    # Extract text from content blocks
+                    text_parts = []
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif hasattr(block, "type") and block.type == "text":
+                            text_parts.append(getattr(block, "text", ""))
+                    system_parts.append("".join(text_parts))
+                else:
+                    system_parts.append(content)
                 continue
 
-            converted.append({"role": role, "content": content})
+            if role == "assistant" and tool_calls:
+                content_blocks: list[dict[str, Any]] = []
+                if isinstance(content, str) and content:
+                    content_blocks.append({"type": "text", "text": content})
+                elif isinstance(content, list):
+                    content_blocks.extend(self._convert_content_blocks(content))
+
+                content_blocks.extend(
+                    {
+                        "type": "tool_use",
+                        "id": tool_call["id"],
+                        "name": tool_call["name"],
+                        "input": tool_call.get("arguments", {}),
+                    }
+                    for tool_call in tool_calls
+                )
+                converted.append({"role": "assistant", "content": content_blocks})
+                continue
+
+            if role == "tool":
+                converted.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": message.get("tool_call_id"),
+                                "content": content if isinstance(content, str) else str(content),
+                            }
+                        ],
+                    }
+                )
+                continue
+
+            # Convert content to Anthropic format
+            if isinstance(content, str):
+                # Simple text content (backward compatible)
+                converted.append({"role": role, "content": content})
+            elif isinstance(content, list):
+                # Multimodal content with ContentBlocks
+                converted.append({"role": role, "content": self._convert_content_blocks(content)})
+            else:
+                # Fallback to string conversion
+                converted.append({"role": role, "content": str(content)})
 
         system = "\n\n".join(part for part in system_parts if part).strip() or None
         return system, converted
@@ -115,3 +201,50 @@ class AnthropicProvider(LLMProvider):
                     parts.append(text)
 
         return "".join(parts).strip()
+
+    def _extract_tool_calls(self, blocks: list[Any]) -> list[ToolCall]:
+        tool_calls: list[ToolCall] = []
+        for block in blocks:
+            if isinstance(block, dict):
+                if block.get("type") == "tool_use":
+                    tool_calls.append(
+                        ToolCall(
+                            id=block.get("id", ""),
+                            name=block.get("name", ""),
+                            arguments=block.get("input", {}) if isinstance(block.get("input", {}), dict) else {},
+                        )
+                    )
+                continue
+
+            if getattr(block, "type", None) == "tool_use":
+                arguments = getattr(block, "input", {})
+                tool_calls.append(
+                    ToolCall(
+                        id=getattr(block, "id", ""),
+                        name=getattr(block, "name", ""),
+                        arguments=arguments if isinstance(arguments, dict) else {},
+                    )
+                )
+        return tool_calls
+
+    def _convert_content_blocks(self, content: list[Any]) -> list[dict[str, Any]]:
+        content_blocks: list[dict[str, Any]] = []
+        for block in content:
+            if isinstance(block, dict):
+                block_type = block.get("type")
+                if block_type == "text":
+                    content_blocks.append({"type": "text", "text": block.get("text", "")})
+                elif block_type == "image":
+                    content_blocks.append({"type": "image", "source": block.get("source", {})})
+                elif block_type == "document":
+                    content_blocks.append({"type": "document", "source": block.get("source", {})})
+                continue
+
+            if hasattr(block, "type"):
+                if block.type == "text":
+                    content_blocks.append({"type": "text", "text": getattr(block, "text", "")})
+                elif block.type == "image":
+                    content_blocks.append({"type": "image", "source": getattr(block, "source", {})})
+                elif block.type == "document":
+                    content_blocks.append({"type": "document", "source": getattr(block, "source", {})})
+        return content_blocks

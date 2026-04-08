@@ -1,9 +1,8 @@
 """Test context components"""
 
-import pytest
+from loom.context.compression import ContextCompressor
 from loom.context.manager import ContextManager
 from loom.context.partitions import ContextPartitions
-from loom.context.compression import ContextCompressor
 
 
 class TestContextManager:

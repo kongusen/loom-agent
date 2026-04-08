@@ -10,9 +10,10 @@
 关键原则：每轮只触发一种压缩，按优先级递增；Reactive 由 API 错误触发
 """
 
-from ..types import Message
 import math
 from collections.abc import Iterable
+
+from ..types import Message
 
 
 class ContextCompressor:
@@ -45,10 +46,15 @@ class ContextCompressor:
         """Snip Compact: 裁剪过长片段"""
         result = []
         for msg in messages:
-            if len(msg.content) > max_length:
-                snipped = msg.content[:max_length] + f"\n[...snipped {len(msg.content) - max_length} chars]"
-                result.append(Message(role=msg.role, content=snipped))
+            # Type guard: handle both str and list content
+            if isinstance(msg.content, str):
+                if len(msg.content) > max_length:
+                    snipped = msg.content[:max_length] + f"\n[...snipped {len(msg.content) - max_length} chars]"
+                    result.append(Message(role=msg.role, content=snipped))
+                else:
+                    result.append(msg)
             else:
+                # For list content, keep as-is (multimodal content)
                 result.append(msg)
         return result
 
@@ -60,6 +66,11 @@ class ContextCompressor:
 
         for msg in messages:
             if msg.role != "tool":
+                result.append(msg)
+                continue
+
+            # Type guard: only process string content for tool messages
+            if not isinstance(msg.content, str):
                 result.append(msg)
                 continue
 
@@ -103,7 +114,13 @@ class ContextCompressor:
         return result
 
     def context_collapse(self, messages: list[Message], goal: str) -> list[Message]:
-        """Context Collapse: 折叠不活跃区域，保护 system 消息"""
+        """Context Collapse: 折叠不活跃区域，保护 system 消息
+
+        Args:
+            messages: 消息列表
+            goal: 任务目标（预留参数，未来用于智能折叠决策）
+        """
+        _ = goal  # 预留参数，未来用于基于目标的智能折叠
         min_len = self.collapse_keep_first + self.collapse_keep_last + 1
         if len(messages) < min_len:
             return messages
@@ -133,7 +150,9 @@ class ContextCompressor:
     def _score_message(self, msg: Message, goal: str, index: int, total: int) -> float:
         """score(h) = K(h) · rel(h,goal) · e^(-λ·age(h))"""
         K = 1.0  # 不可压缩核
-        rel = self._relevance(msg.content, goal)
+        # Type guard: handle both str and list content
+        content_str = msg.content if isinstance(msg.content, str) else ""
+        rel = self._relevance(content_str, goal)
         age = (total - index) / total
         lambda_decay = 0.5
         return K * rel * math.exp(-lambda_decay * age)
@@ -153,7 +172,13 @@ class ContextCompressor:
             return Message(role="system", content="[no middle messages]")
         parts = []
         for msg in messages:
-            content = (msg.content or "").strip()
+            # Type guard: only process string content
+            if isinstance(msg.content, str):
+                content = msg.content.strip()
+            else:
+                # For list content, skip or use placeholder
+                content = "[multimodal content]"
+
             if not content:
                 continue
             # first sentence or first 120 chars

@@ -24,4 +24,15 @@
 
 **CrewAI** — role-based crews. Easy to get started, but limited control over what the model sees and when.
 
-**Loom** — runtime-first. The framework manages context pressure, background sensing, and safety boundaries so the model can focus on reasoning. The Harness is the stage; the model is the actor.
+**Loom** — agent API first. Application developers assemble one `AgentConfig`, run one `Agent`, and get structured sessions, runtime inputs, safety, heartbeat, and context control underneath that single public surface.
+
+## Public API Positioning
+
+Compared with other frameworks, Loom tries to keep the public contract narrower:
+
+- one main assembly object: `AgentConfig`
+- one main execution object: `Agent`
+- one stateful continuity object: `Session`
+- one run-scoped input object: `RunContext`
+
+Everything else remains available, but advanced objects are intentionally pushed into `loom.config` and `loom.runtime` instead of competing with the top-level application path.

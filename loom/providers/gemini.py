@@ -1,8 +1,10 @@
 """Google Gemini provider."""
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
-from .base import CompletionParams, LLMProvider
+from ..types import ToolCall
+from .base import CompletionParams, CompletionResponse, LLMProvider
 
 
 class GeminiProvider(LLMProvider):
@@ -39,6 +41,14 @@ class GeminiProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> str:
+        response = await self._complete_response(messages, params)
+        return response.content
+
+    async def _complete_response(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> CompletionResponse:
         """Generate a completion through Google Gemini API."""
         resolved = params or CompletionParams()
 
@@ -49,16 +59,25 @@ class GeminiProvider(LLMProvider):
         model = self.client.GenerativeModel(resolved.model)
 
         # Generate content
-        response = await model.generate_content_async(
-            contents,
-            generation_config={
+        request: dict[str, Any] = {
+            "contents": contents,
+            "generation_config": {
                 "temperature": resolved.temperature,
                 "max_output_tokens": resolved.max_tokens,
-            }
-        )
+            },
+        }
+        if resolved.tools:
+            request["tools"] = self._build_tools(resolved.tools)
+            if tool_config := self._build_tool_config(resolved.tool_choice):
+                request["tool_config"] = tool_config
 
-        # Extract text from response
-        return self._extract_text(response)
+        response = await model.generate_content_async(**request)
+
+        return CompletionResponse(
+            content=self._extract_text(response),
+            tool_calls=self._extract_tool_calls(response),
+            raw=response,
+        )
 
     async def stream(
         self,
@@ -75,25 +94,31 @@ class GeminiProvider(LLMProvider):
         model = self.client.GenerativeModel(resolved.model)
 
         # Stream content
-        response = await model.generate_content_async(
-            contents,
-            generation_config={
+        request: dict[str, Any] = {
+            "contents": contents,
+            "generation_config": {
                 "temperature": resolved.temperature,
                 "max_output_tokens": resolved.max_tokens,
             },
-            stream=True
-        )
+            "stream": True,
+        }
+        if resolved.tools:
+            request["tools"] = self._build_tools(resolved.tools)
+            if tool_config := self._build_tool_config(resolved.tool_choice):
+                request["tool_config"] = tool_config
+
+        response = await model.generate_content_async(**request)
 
         async for chunk in response:
             if chunk.text:
                 yield chunk.text
 
     def _convert_messages(self, messages: list) -> list[dict[str, Any]]:
-        """Convert generic chat messages to Gemini format.
+        """Convert generic chat messages to Gemini format with multimodal support.
 
         Gemini uses a different message format:
         - role: "user" or "model" (not "assistant")
-        - parts: list of content parts
+        - parts: list of content parts (text, inline_data for images)
         - system messages are handled separately or prepended to first user message
         """
         system_parts: list[str] = []
@@ -102,19 +127,60 @@ class GeminiProvider(LLMProvider):
         for message in messages:
             role = message.get("role", "user")
             content = message.get("content", "")
+            tool_calls = message.get("tool_calls", [])
 
             # Collect system messages
             if role == "system":
-                system_parts.append(content)
+                if isinstance(content, list):
+                    # Extract text from content blocks
+                    text_parts = []
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif hasattr(block, "type") and block.type == "text":
+                            text_parts.append(getattr(block, "text", ""))
+                    system_parts.append("".join(text_parts))
+                else:
+                    system_parts.append(content)
+                continue
+
+            if role == "assistant" and tool_calls:
+                parts = self._to_gemini_parts(content)
+                parts.extend(
+                    {
+                        "function_call": {
+                            "name": tool_call["name"],
+                            "args": tool_call.get("arguments", {}),
+                        }
+                    }
+                    for tool_call in tool_calls
+                )
+                converted.append({"role": "model", "parts": parts})
+                continue
+
+            if role == "tool":
+                converted.append(
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "function_response": {
+                                    "name": message.get("name") or message.get("tool_call_id") or "tool",
+                                    "response": {"content": content if isinstance(content, str) else str(content)},
+                                }
+                            }
+                        ],
+                    }
+                )
                 continue
 
             # Convert role: "assistant" -> "model"
             gemini_role = "model" if role == "assistant" else "user"
 
-            # Gemini uses "parts" instead of "content"
+            # Convert content to Gemini parts format
             converted.append({
                 "role": gemini_role,
-                "parts": [{"text": content}]
+                "parts": self._to_gemini_parts(content),
             })
 
         # Prepend system messages to first user message if any
@@ -140,7 +206,9 @@ class GeminiProvider(LLMProvider):
         try:
             # Gemini response has .text attribute
             if hasattr(response, "text"):
-                return response.text.strip()
+                text = response.text
+                if isinstance(text, str):
+                    return text.strip()
 
             # Fallback: try to get from candidates
             if hasattr(response, "candidates") and response.candidates:
@@ -154,3 +222,97 @@ class GeminiProvider(LLMProvider):
         except Exception:
             return ""
 
+    def _extract_tool_calls(self, response: Any) -> list[ToolCall]:
+        tool_calls: list[ToolCall] = []
+        for part in self._iter_parts(response):
+            function_call = self._get_field(part, "function_call")
+            if not function_call:
+                continue
+            name = self._get_field(function_call, "name", "")
+            arguments = self._get_field(function_call, "args", {}) or {}
+            tool_calls.append(
+                ToolCall(
+                    id=f"{name}_{len(tool_calls) + 1}",
+                    name=name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                )
+            )
+        return tool_calls
+
+    def _iter_parts(self, response: Any) -> list[Any]:
+        candidates = getattr(response, "candidates", None)
+        if not candidates:
+            return []
+        candidate = candidates[0]
+        content = getattr(candidate, "content", None)
+        if content is None:
+            return []
+        return list(getattr(content, "parts", []) or [])
+
+    def _get_field(self, value: Any, field: str, default: Any = None) -> Any:
+        if isinstance(value, dict):
+            return value.get(field, default)
+        return getattr(value, field, default)
+
+    def _to_gemini_parts(self, content: Any) -> list[dict[str, Any]]:
+        if isinstance(content, str):
+            return [{"text": content}] if content else []
+        if isinstance(content, list):
+            parts: list[dict[str, Any]] = []
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get("type")
+                    if block_type == "text":
+                        parts.append({"text": block.get("text", "")})
+                    elif block_type == "image":
+                        source = block.get("source", {})
+                        if source.get("type") == "base64":
+                            parts.append({
+                                "inline_data": {
+                                    "mime_type": source.get("media_type", "image/png"),
+                                    "data": source.get("data", ""),
+                                }
+                            })
+                elif hasattr(block, "type"):
+                    if block.type == "text":
+                        parts.append({"text": getattr(block, "text", "")})
+                    elif block.type == "image":
+                        source = getattr(block, "source", {})
+                        if source.get("type") == "base64":
+                            parts.append({
+                                "inline_data": {
+                                    "mime_type": source.get("media_type", "image/png"),
+                                    "data": source.get("data", ""),
+                                }
+                            })
+            return parts
+        return [{"text": str(content)}]
+
+    def _build_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "function_declarations": [
+                    {
+                        "name": tool["name"],
+                        "description": tool.get("description", ""),
+                        "parameters": tool.get(
+                            "parameters",
+                            {"type": "object", "properties": {}, "required": []},
+                        ),
+                    }
+                ]
+            }
+            for tool in tools
+        ]
+
+    def _build_tool_config(self, tool_choice: str | None) -> dict[str, Any] | None:
+        if tool_choice is None:
+            return {"function_calling_config": {"mode": "AUTO"}}
+        normalized = tool_choice.lower()
+        if normalized == "none":
+            mode = "NONE"
+        elif normalized in {"required", "any"}:
+            mode = "ANY"
+        else:
+            mode = "AUTO"
+        return {"function_calling_config": {"mode": mode}}

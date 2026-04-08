@@ -6,13 +6,13 @@ from pathlib import Path
 import pytest
 
 from loom.ecosystem.integration import EcosystemManager
-from loom.ecosystem.plugin import PluginLoader
 from loom.ecosystem.mcp import (
     MCPBridge,
     MCPServerConfig,
     MCPTransportType,
     get_default_mcp_bridge,
 )
+from loom.ecosystem.plugin import PluginLoader
 from loom.tools.builtin.mcp_operations import (
     mcp_call_tool,
     mcp_list_resources,

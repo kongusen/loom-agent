@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from typing import Any
-import os
 
 
 async def read_file(file_path: str, offset: int = 1, limit: int | None = None) -> dict[str, Any]:
@@ -12,7 +11,7 @@ async def read_file(file_path: str, offset: int = 1, limit: int | None = None) -
     if not path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         lines = f.readlines()
 
     total_lines = len(lines)
@@ -49,7 +48,7 @@ async def edit_file(file_path: str, old_string: str, new_string: str, replace_al
     if not path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         content = f.read()
 
     if old_string not in content:
@@ -104,7 +103,7 @@ async def grep_files(pattern: str, path: str = ".", glob_pattern: str = "*") -> 
         if not Path(file).is_file():
             continue
         try:
-            with open(file, 'r', encoding='utf-8') as f:
+            with open(file, encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
                     if regex.search(line):
                         matches.append({
@@ -114,7 +113,7 @@ async def grep_files(pattern: str, path: str = ".", glob_pattern: str = "*") -> 
                         })
                         if len(matches) >= 100:
                             break
-        except:
+        except Exception:
             continue
 
     return {

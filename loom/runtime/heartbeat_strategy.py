@@ -3,8 +3,9 @@
 根据 Q7 实验结果实现 by_phase 和 by_volatility 策略
 """
 
-from typing import Literal
 from enum import Enum
+from typing import Literal
+
 
 class Phase(Enum):
     """执行阶段"""

@@ -1,21 +1,20 @@
 """Sub-Agent management with recursion termination guarantee."""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
+from copy import deepcopy
+from typing import Any
 
 from ..types import SubAgentResult
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class SubAgentManager:
     """Manage Sub-Agent spawning and lifecycle."""
 
-    def __init__(self, parent: Agent, max_depth: int = 5):
+    def __init__(self, parent: Any, max_depth: int = 5):
         self.parent = parent
         self.max_depth = max_depth
-        self.children: list[Agent] = []
+        self.children: list[Any] = []
 
     async def spawn(self, goal: str, depth: int, inherit_context: bool = True) -> SubAgentResult:
         """Spawn a sub-agent with recursion check."""
@@ -28,18 +27,20 @@ class SubAgentManager:
             )
 
         child = self._create_child(depth, inherit_context=inherit_context)
+        child_depth = depth + 1
         try:
             result = await child.run(goal)
+            output = result.output if hasattr(result, "output") else str(result)
             return SubAgentResult(
                 success=True,
-                output=result,
-                depth=child.depth,
+                output=output,
+                depth=child_depth,
             )
         except Exception as exc:
             return SubAgentResult(
                 success=False,
                 output=str(exc),
-                depth=child.depth,
+                depth=child_depth,
                 error=str(exc),
             )
 
@@ -57,17 +58,17 @@ class SubAgentManager:
             )
         return results
 
-    def _create_child(self, depth: int, inherit_context: bool) -> Agent:
+    def _create_child(self, depth: int, inherit_context: bool) -> Any:
         """Create a child agent and optionally inherit selected context."""
-        child = Agent(
-            provider=self.parent.provider,
-            runtime_config=self.parent.runtime.config,
-        )
-        child.depth = depth + 1
+        from ..agent import Agent
 
-        if inherit_context:
-            child.context.current_goal = self.parent.context.current_goal
-            child.context.partitions.system = self.parent.context.partitions.system
+        if isinstance(self.parent, Agent):
+            child = Agent(config=deepcopy(self.parent.config))
+        else:
+            child = self.parent
+
+        _ = inherit_context
+        _ = depth
 
         self.children.append(child)
         return child

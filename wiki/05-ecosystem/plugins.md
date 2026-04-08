@@ -2,6 +2,8 @@
 
 Plugins bundle MCP servers and hooks into a single installable unit.
 
+Plugins extend an existing agent/runtime setup. They are part of Loom's ecosystem layer, not a separate public runtime API.
+
 ## Plugin Structure
 
 ```

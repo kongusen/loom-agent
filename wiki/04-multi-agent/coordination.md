@@ -2,6 +2,8 @@
 
 `Coordinator` executes a task plan across registered agent managers.
 
+This layer is intended for advanced orchestration and framework extension work. The primary public runtime remains `Agent -> Session -> Run`.
+
 ## Usage
 
 ```python

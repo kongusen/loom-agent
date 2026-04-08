@@ -9,8 +9,9 @@ Run:
 """
 
 import asyncio
-from loom.tools.builtin.skill_operations import skill_invoke, skill_discover
+
 from loom.ecosystem.skill import estimate_skill_tokens
+from loom.tools.builtin.skill_operations import skill_discover, skill_invoke
 
 
 async def main():
@@ -39,7 +40,7 @@ async def main():
     result = await skill_invoke("custom-shell")
 
     if result["success"]:
-        print(f"✅ Skill executed successfully")
+        print("✅ Skill executed successfully")
         print(f"   Has shell config: {result.get('has_shell_config', False)}")
         print(f"   Effort: {result['effort']}/5")
         print(f"   Token limit: {result['effort_token_limit']:,}")
@@ -68,7 +69,6 @@ async def main():
     print("\n3. Testing Token Estimation (Frontmatter vs Full)")
     print("-" * 50)
 
-    from loom.ecosystem.skill import SkillRegistry, SkillLoader
 
     # Get registry
     from loom.tools.builtin.skill_operations import _get_or_create_registry

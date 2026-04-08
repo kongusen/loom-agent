@@ -4,7 +4,8 @@
 """
 
 from dataclasses import dataclass, field
-from ..types import Message, Dashboard
+
+from ..types import Dashboard, Message
 
 
 @dataclass

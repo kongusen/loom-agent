@@ -3,8 +3,11 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import AsyncIterator
+from typing import Any
+
+from ..types import ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +18,8 @@ class CompletionParams:
     model: str = "claude-3-5-sonnet-20241022"
     max_tokens: int = 4096
     temperature: float = 1.0
+    tools: list[dict[str, Any]] = field(default_factory=list)
+    tool_choice: str | None = None
 
 
 @dataclass
@@ -26,6 +31,16 @@ class TokenUsage:
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
+
+
+@dataclass
+class CompletionResponse:
+    """Structured completion payload."""
+
+    content: str = ""
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    usage: TokenUsage | None = None
+    raw: Any | None = None
 
 
 @dataclass
@@ -77,9 +92,17 @@ class LLMProvider(ABC):
     async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
         """Provider-specific completion (no retry logic)."""
 
+    async def _complete_response(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> CompletionResponse:
+        """Provider-specific structured completion (defaults to text-only)."""
+        return CompletionResponse(content=await self._complete(messages, params))
+
     @abstractmethod
-    async def stream(self, messages: list, params: CompletionParams | None = None) -> AsyncIterator[str]:
-        """Streaming completion."""
+    def stream(self, messages: list, params: CompletionParams | None = None) -> AsyncIterator[str]:
+        """Streaming completion (async generator)."""
 
     async def complete(self, messages: list, params: CompletionParams | None = None) -> str:
         """Completion with retry + circuit breaker."""
@@ -90,6 +113,32 @@ class LLMProvider(ABC):
         for attempt in range(self._retry.max_retries):
             try:
                 result = await self._complete(messages, params)
+                self._circuit.record_success()
+                return result
+            except Exception as exc:
+                last_exc = exc
+                self._circuit.record_failure()
+                if attempt < self._retry.max_retries - 1:
+                    delay = self._retry.base_delay * (2 ** attempt)
+                    logger.warning("Provider error (attempt %d/%d): %s — retrying in %.1fs",
+                                   attempt + 1, self._retry.max_retries, exc, delay)
+                    await asyncio.sleep(delay)
+
+        raise last_exc  # type: ignore[misc]
+
+    async def complete_response(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> CompletionResponse:
+        """Structured completion with retry + circuit breaker."""
+        if self._circuit.is_open():
+            raise RuntimeError("Circuit breaker open: provider unavailable")
+
+        last_exc: Exception | None = None
+        for attempt in range(self._retry.max_retries):
+            try:
+                result = await self._complete_response(messages, params)
                 self._circuit.record_success()
                 return result
             except Exception as exc:

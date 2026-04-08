@@ -1,19 +1,22 @@
 """Test runtime module - L* loop, H_b heartbeat, monitors"""
 
-import pytest
-import time
-import threading
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from loom.context.dashboard import DashboardManager
-from loom.orchestration.events import Event as OrchestrationEvent, EventBus as OrchestrationEventBus
-from loom.runtime.loop import AgentLoop, LoopConfig
+from loom.orchestration.events import EventBus as OrchestrationEventBus
 from loom.runtime.heartbeat import Heartbeat, HeartbeatConfig, WatchSource
-from loom.runtime.monitors import FilesystemMonitor, ProcessMonitor, ResourceMonitor, MFEventsMonitor
-from loom.types import LoopState, Dashboard
-
+from loom.runtime.loop import AgentLoop, LoopConfig
+from loom.runtime.monitors import (
+    FilesystemMonitor,
+    MFEventsMonitor,
+    ProcessMonitor,
+    ResourceMonitor,
+)
+from loom.types import Event as OrchestrationEvent
+from loom.types import LoopState
 
 # ── LoopConfig ──
 
@@ -100,7 +103,7 @@ class TestAgentLoop:
             mock_renewer.renew.side_effect = mock_renew_fn
             MockRenewer.return_value = mock_renewer
 
-            result = loop.run("goal", ctx,
+            loop.run("goal", ctx,
                               lambda g, c: c,
                               lambda c: "effect",
                               lambda e, c: c,

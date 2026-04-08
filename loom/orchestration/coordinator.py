@@ -1,23 +1,24 @@
 """Agent coordinator"""
 
 import asyncio
-from .events import EventBus
+
+from ..types import CoordinationEvent, SubAgentResult
+from .events import CoordinationEventBus
 from .planner import TaskPlanner
 from .subagent import SubAgentManager
-from ..types import Event, SubAgentResult
 
 
 class Coordinator:
     """Coordinate multiple agents"""
-    
-    def __init__(self, event_bus: EventBus):
+
+    def __init__(self, event_bus: CoordinationEventBus):
         self.event_bus = event_bus
         self.agents: dict[str, SubAgentManager] = {}
-    
+
     def register_agent(self, agent_id: str, manager: SubAgentManager):
         """Register an agent"""
         self.agents[agent_id] = manager
-    
+
     def unregister_agent(self, agent_id: str):
         """Unregister an agent"""
         self.agents.pop(agent_id, None)
@@ -52,7 +53,7 @@ class Coordinator:
                         manager.spawn(task.goal, depth=depth, inherit_context=inherit_context),
                         timeout=task_timeout,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     result = SubAgentResult(success=False, output="", depth=depth, error="timeout")
                 except Exception as exc:
                     result = SubAgentResult(success=False, output="", depth=depth, error=str(exc))
@@ -91,7 +92,7 @@ class Coordinator:
             payload["success"] = result.success
 
         self.event_bus.publish(
-            Event(
+            CoordinationEvent(
                 id=f"{topic}:{task.id}",
                 sender=agent_id,
                 topic=topic,

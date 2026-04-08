@@ -34,12 +34,25 @@
 
 **API Reference**
 - [Overview](07-api-reference/README)
-- [Runtime API](07-api-reference/runtime-api)
+- [Agent API](07-api-reference/agent-api)
+- [Configuration](07-api-reference/configuration)
 - [Providers](07-api-reference/providers)
 
 **Reference**
 - [Glossary](08-reference/glossary)
 - [Comparison](08-reference/comparison)
+
+**Cookbook**
+- [Overview](09-cookbook/README)
+- [Single-Turn Assistant](09-cookbook/single-turn-assistant)
+- [Session Workflow](09-cookbook/session-workflow)
+- [Knowledge-Backed Answers](09-cookbook/knowledge-backed-answers)
+- [Guardrailed Tool Agent](09-cookbook/guardrailed-tool-agent)
+- [Monitoring Agent](09-cookbook/monitoring-agent)
+- [Repo Copilot](09-cookbook/repo-copilot)
+- [Internal Docs QA](09-cookbook/internal-docs-qa)
+- [Ops Agent](09-cookbook/ops-agent)
+- [Approval Workflow](09-cookbook/approval-workflow)
 
 ---
 - [Architecture](Architecture)

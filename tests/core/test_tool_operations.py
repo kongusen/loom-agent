@@ -1,24 +1,32 @@
 """Test tool operations - file, shell, task, web, agent, notebook, mcp, skill"""
 
-import pytest
-import tempfile
 import json
+import tempfile
 from pathlib import Path
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
+import pytest
+
+from loom.ecosystem.skill import Skill, SkillRegistry
+from loom.tools.builtin.agent_operations import ask_user, spawn_agent
 from loom.tools.builtin.file_operations import (
-    read_file, write_file, edit_file, glob_files, grep_files,
+    edit_file,
+    glob_files,
+    grep_files,
+    read_file,
+    write_file,
 )
+from loom.tools.builtin.mcp_operations import mcp_call_tool, mcp_list_resources, mcp_read_resource
+from loom.tools.builtin.notebook_operations import notebook_edit
 from loom.tools.builtin.shell_operations import bash
+from loom.tools.builtin.skill_operations import skill_discover, skill_invoke
 from loom.tools.builtin.task_operations import (
-    task_create, task_update, task_list, task_get, _tasks, Task,
+    task_create,
+    task_get,
+    task_list,
+    task_update,
 )
 from loom.tools.builtin.web_operations import web_search
-from loom.tools.builtin.agent_operations import spawn_agent, ask_user
-from loom.tools.builtin.mcp_operations import mcp_list_resources, mcp_read_resource, mcp_call_tool
-from loom.tools.builtin.skill_operations import skill_invoke, skill_discover
-from loom.tools.builtin.notebook_operations import notebook_edit
-
 
 # ── File Operations ──
 
@@ -343,15 +351,46 @@ class TestMcpOperations:
 class TestSkillOperations:
     @pytest.mark.asyncio
     async def test_skill_invoke(self):
-        result = await skill_invoke("python_expert", args="debug this")
+        registry = SkillRegistry()
+        registry.register(
+            Skill(
+                name="python_expert",
+                description="Help with Python debugging",
+                content="Debug guide for $ARGUMENTS",
+                allowed_tools=["Read"],
+            )
+        )
+
+        with patch("loom.tools.builtin.skill_operations._get_or_create_registry", return_value=registry):
+            result = await skill_invoke("python_expert", args="debug this")
+
+        assert result["success"] is True
         assert result["skill"] == "python_expert"
         assert result["args"] == "debug this"
-        assert result["result"] is None
+        assert result["content"] == "Debug guide for debug this"
+        assert result["allowed_tools"] == ["Read"]
 
     @pytest.mark.asyncio
     async def test_skill_discover(self):
-        result = await skill_discover()
-        assert result["skills"] == []
+        registry = SkillRegistry()
+        registry.register(
+            Skill(
+                name="python_expert",
+                description="Help with Python debugging",
+                content="Debug guide",
+                when_to_use="debugging",
+                allowed_tools=["Read"],
+            )
+        )
+
+        with patch("loom.tools.builtin.skill_operations._get_or_create_registry", return_value=registry):
+            result = await skill_discover()
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert len(result["skills"]) == 1
+        assert result["skills"][0]["name"] == "python_expert"
+        assert result["skills"][0]["allowed_tools"] == ["Read"]
 
 
 # ── Notebook Operations ──

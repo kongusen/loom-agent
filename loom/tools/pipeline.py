@@ -1,7 +1,9 @@
 """14 步工具治理 Pipeline"""
 
-from typing import Any, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
+
 from .base import Tool
 
 
@@ -11,7 +13,7 @@ class ToolExecutionContext:
     tool: Tool
     input_data: dict
     user_context: dict
-    hooks: dict[str, list[Callable]] = None
+    hooks: dict[str, list[Callable]] | None = None
 
 
 class ToolPipeline:
@@ -42,7 +44,7 @@ class ToolPipeline:
             return {"error": f"Input validation failed: {msg}"}
 
         # ⑤ Speculative Classifier（预判风险）
-        risk = self._classify_risk(tool, ctx.input_data)
+        self._classify_risk(tool, ctx.input_data)
 
         # ⑥ PreToolUse hooks
         for hook in self.pre_hooks:
@@ -82,11 +84,24 @@ class ToolPipeline:
             return {"error": str(e)}
 
     def _validate_schema(self, data: dict, schema: dict) -> bool:
-        """Schema 校验"""
+        """Schema 校验
+
+        Args:
+            data: 数据（预留参数）
+            schema: Schema 定义（预留参数）
+        """
+        _ = data  # 预留参数，未来用于数据校验
+        _ = schema  # 预留参数，未来用于 schema 校验
         return True  # 简化实现
 
     def _classify_risk(self, tool: Tool, input_data: dict) -> str:
-        """风险分类"""
+        """风险分类
+
+        Args:
+            tool: 工具实例
+            input_data: 输入数据（预留参数）
+        """
+        _ = input_data  # 预留参数，未来用于基于输入的风险评估
         if tool.metadata.is_destructive:
             return "high"
         return "low"

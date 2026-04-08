@@ -1,11 +1,11 @@
 """Event types for multi-agent communication"""
 
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 
 
 @dataclass
-class Event:
+class CoordinationEvent:
     """Event definition - V(e) = ΔH"""
     id: str
     sender: str
@@ -32,3 +32,7 @@ class HeartbeatEvent:
     def __post_init__(self):
         if self.timestamp == 0.0:
             self.timestamp = time.time()
+
+
+# Backward-compatible alias for multi-agent communication events.
+Event = CoordinationEvent

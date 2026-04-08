@@ -37,5 +37,10 @@ class HybridUrgencyClassifier:
         return None
 
     def _ml_classify(self, event: dict) -> UrgencyLevel:
-        """分类器兜底"""
+        """分类器兜底
+
+        Args:
+            event: 事件数据（预留参数，未来用于 ML 分类）
+        """
+        _ = event  # 预留参数，未来用于机器学习分类
         return "high"

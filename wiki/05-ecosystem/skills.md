@@ -2,6 +2,8 @@
 
 Skills are the progressive disclosure mechanism for tools. Only skills matching the current task are loaded into `C_skill` — keeping the context window lean.
 
+Skills are part of Loom's extension layer. They complement the public `Agent` API; they are not a separate top-level runtime surface.
+
 ## How Skills Work
 
 ```

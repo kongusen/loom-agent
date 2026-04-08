@@ -2,6 +2,8 @@
 
 Loom connects to external tool servers via the [Model Context Protocol](https://modelcontextprotocol.io) over stdio JSON-RPC.
 
+MCP is an extension surface underneath the public `Agent` API. Most application developers should treat it as infrastructure attached to an agent, not as the top-level runtime abstraction itself.
+
 ## Connecting a Server
 
 ```python

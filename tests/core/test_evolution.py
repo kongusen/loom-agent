@@ -1,17 +1,15 @@
 """Test evolution module - engine, strategies, feedback"""
 
-import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from loom.evolution.engine import EvolutionEngine
+from loom.evolution.feedback import FeedbackLoop
 from loom.evolution.strategies import (
     EvolutionStrategy,
-    ToolLearningStrategy,
     PolicyOptimizationStrategy,
+    ToolLearningStrategy,
 )
-from loom.evolution.feedback import FeedbackLoop
-
 
 # ── EvolutionEngine ──
 

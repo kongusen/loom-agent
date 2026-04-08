@@ -1,9 +1,8 @@
 """Test memory components"""
 
-import pytest
-from loom.memory.working import WorkingMemory
 from loom.memory.semantic import MemoryEntry, SemanticMemory
 from loom.memory.session import SessionMemory
+from loom.memory.working import WorkingMemory
 
 
 class TestWorkingMemory:

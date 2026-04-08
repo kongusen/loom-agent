@@ -1,8 +1,8 @@
 """Safety system"""
 
-from .permissions import Permission, PermissionManager
 from .constraints import ConstraintValidator
 from .hooks import HookManager
+from .permissions import Permission, PermissionManager
 from .veto import VetoAuthority
 
 __all__ = [

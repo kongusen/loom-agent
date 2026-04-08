@@ -1,11 +1,19 @@
 """其他辅助工具"""
 
-from typing import Any
 import asyncio
+from typing import Any
 
 
 async def task_output(task_id: str, block: bool = True, timeout: int = 30000) -> dict[str, Any]:
-    """获取任务输出"""
+    """获取任务输出
+
+    Args:
+        task_id: 任务 ID
+        block: 是否阻塞等待（预留参数）
+        timeout: 超时时间（预留参数）
+    """
+    _ = block  # 预留参数，未来用于阻塞等待
+    _ = timeout  # 预留参数，未来用于超时控制
     return {"task_id": task_id, "output": "", "status": "completed"}
 
 

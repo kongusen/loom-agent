@@ -4,17 +4,23 @@ on:
   push:
     tags:
       - "v*.*.*"
-      - "v*.*.*-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  POETRY_VERSION: "1.8.5"
 
 jobs:
-  build-and-publish:
-    name: Build & Publish to PyPI
+  build:
+    name: Build Distribution
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    environment:
-      name: pypi
-      url: https://pypi.org/p/loom-agent
+    timeout-minutes: 10
+    if: ${{ !contains(github.ref_name, '-') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -25,17 +31,39 @@ jobs:
           python-version: "3.11"
 
       - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
 
-      - name: Install dependencies
-        run: poetry install --no-interaction
-
-      - name: Build Package
+      - name: Build package
         run: poetry build
 
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ !contains(github.ref_name, '-') }}
+    environment:
+      name: pypi
+      url: https://pypi.org/p/loom-agent
+
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+
       - name: Publish to PyPI
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-        run: poetry publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: dist/

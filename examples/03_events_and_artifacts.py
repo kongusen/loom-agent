@@ -1,27 +1,25 @@
-"""03 - Events and Artifacts
-
-Subscribe to the event stream and inspect artifacts produced by a run.
-
-Run:
-    python examples/03_events_and_artifacts.py
-"""
+"""03 - Events and Artifacts."""
 
 import asyncio
-from loom.api import AgentRuntime, AgentProfile
+
+from loom import AgentConfig, ModelRef, SessionConfig, create_agent
 
 
 async def main():
-    runtime = AgentRuntime(profile=AgentProfile.from_preset("default"))
-    session = runtime.create_session()
-    task = session.create_task("Analyze the structure of a Python project")
-    run = task.start()
-
-    result = await run.wait()
+    agent = create_agent(
+        AgentConfig(
+            model=ModelRef.anthropic("claude-sonnet-4"),
+            instructions="You are a repository analyst.",
+        )
+    )
+    run = agent.session(SessionConfig(id="events-demo")).start("Analyze the structure of a Python project")
 
     # Events
     print("=== Events ===")
     async for event in run.events():
         print(f"  [{event.type}] {event.payload}")
+
+    result = await run.wait()
 
     # Artifacts
     print("\n=== Artifacts ===")

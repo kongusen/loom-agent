@@ -1,51 +1,40 @@
 # Execution Loop (L*)
 
-L* is the agent's main execution engine. It runs until the goal is reached, context is full, or the Harness intervenes.
+L* is Loom's internal execution loop. It is the engine behind `Agent.run()`, `Session.run()`, and `Run.wait()`.
 
-## The Four Phases
+## Phases
 
-```
-┌─────────────────────────────────────────────┐
-│  L* = (Reason → Act → Observe → Δ)*        │
-└─────────────────────────────────────────────┘
+```text
+L* = (Reason -> Act -> Observe -> Delta)*
 ```
 
 | Phase | What happens |
 |---|---|
-| **Reason** | Model reads context, updates plan, decides next action |
-| **Act** | Tool calls execute; H_b continues sensing in parallel |
-| **Observe** | Results enter context; ρ is recalculated |
-| **Δ (Delta)** | Model decides: continue / goal_reached / renew / decompose / harness |
+| `Reason` | build messages, call the model, interpret next step |
+| `Act` | execute tool calls and safety checks |
+| `Observe` | feed results back into runtime context |
+| `Delta` | decide whether to continue, renew, or finish |
 
-## State Machine
+## Public Mapping
 
-```
-PENDING → RUNNING → COMPLETED
-                 ↘ PAUSED → RUNNING
-                 ↘ FAILED
-                 ↘ CANCELLED
-```
+| Public API | Internal loop effect |
+|---|---|
+| `agent.run(...)` | starts one L* execution |
+| `session.run(...)` | starts one L* execution with session reuse |
+| `run.events()` | streams runtime events emitted during L* |
+| `RunResult` | materialized output after L* exits |
 
-## Δ Decisions
+## Related Config
 
-| Decision | Trigger | Effect |
-|---|---|---|
-| `continue` | More steps needed | Next L* iteration |
-| `goal_reached` | Task complete | Emit `run.completed` |
-| `renew` | ρ ≥ 1.0 | Snapshot → compress → rebuild context |
-| `decompose` | Task too large | Spawn sub-agents via `SubAgentManager` |
-| `harness` | Safety violation | VetoAuthority blocks the action |
+L* behavior is controlled indirectly through:
 
-## Configuration
+- `RuntimeConfig.limits`
+- `RuntimeConfig.features`
+- `GenerationConfig`
+- `HeartbeatConfig`
+- `SafetyRule`
 
-```python
-from loom.runtime.loop import LoopConfig
+## Internal Code
 
-config = LoopConfig(
-    max_steps=50,
-    timeout=300.0,
-    renewal_threshold=0.95,
-)
-```
-
-**Code:** `loom/runtime/loop.py`
+- `loom/runtime/loop.py`
+- `loom/runtime/engine.py`

@@ -1,7 +1,8 @@
 """场景库 Σ - 工具分类管理"""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
+
 from .base import Tool
 
 

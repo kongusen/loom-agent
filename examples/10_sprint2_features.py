@@ -9,6 +9,7 @@ Run:
 """
 
 import asyncio
+
 from loom.tools.builtin.skill_operations import skill_invoke
 
 
@@ -22,7 +23,7 @@ async def main():
     result = await skill_invoke("system-info")
 
     if result["success"]:
-        print(f"✅ Skill executed successfully")
+        print("✅ Skill executed successfully")
         print(f"   Has hooks: {result.get('has_hooks', False)}")
         print(f"   Effort: {result['effort']}/5")
         print(f"   Token limit: {result['effort_token_limit']:,}")

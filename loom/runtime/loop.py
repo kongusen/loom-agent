@@ -1,9 +1,11 @@
 """L* main execution loop - (Reason → Act → Observe → Δ)*"""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Any
-from ..types import LoopState, Dashboard
+from typing import Any
+
 from ..context import ContextPartitions
+from ..types import LoopState
 
 
 @dataclass

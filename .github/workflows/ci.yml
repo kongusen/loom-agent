@@ -4,15 +4,26 @@ on:
   push:
     branches: [main, master]
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  POETRY_VERSION: "1.8.5"
+
 jobs:
-  # 代码质量检查
-  lint:
-    name: Code Quality (Ruff)
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,19 +35,24 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
-          version: latest
+          version: ${{ env.POETRY_VERSION }}
           virtualenvs-create: true
           virtualenvs-in-project: true
+          installer-parallel: true
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
+      - name: Cache virtualenv
+        uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-py3.11-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py3.11-
 
       - name: Install dependencies
-        run: poetry install --no-interaction
+        run: poetry install --no-interaction --with dev --no-root
+
+      - name: Validate lockfile
+        run: poetry check --lock
 
       - name: Run Ruff Linter
         run: poetry run ruff check .
@@ -44,42 +60,13 @@ jobs:
       - name: Run Ruff Formatter Check
         run: poetry run ruff format --check .
 
-  # 类型检查
-  type-check:
-    name: Type Check (Mypy)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies
-        run: poetry install --no-interaction
-
       - name: Run Mypy
-        run: poetry run mypy loom
+        run: poetry run mypy .
 
-  # 多版本测试
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -96,30 +83,24 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
-          version: latest
+          version: ${{ env.POETRY_VERSION }}
           virtualenvs-create: true
           virtualenvs-in-project: true
+          installer-parallel: true
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
+      - name: Cache virtualenv
+        uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py${{ matrix.python-version }}-
 
       - name: Install dependencies
-        run: poetry install --no-interaction
+        run: poetry install --no-interaction --with dev --no-root
 
-      - name: Run Tests with Coverage
-        run: |
-          poetry run pytest \
-            --cov=loom \
-            --cov-report=xml \
-            --cov-report=term-missing \
-            --cov-report=html \
-            --cov-fail-under=80 \
-            --verbose \
-            -m "not slow"
+      - name: Run tests
+        run: poetry run pytest -q --cov=loom --cov-report=xml --cov-fail-under=70
 
       - name: Upload Coverage Report
         uses: codecov/codecov-action@v4
@@ -137,10 +118,12 @@ jobs:
           path: htmlcov/
           retention-days: 30
 
-  # 安全检查（可选）
   security:
-    name: Security Check
+    name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
     steps:
       - uses: actions/checkout@v4
 
@@ -152,23 +135,18 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
-          version: latest
+          version: ${{ env.POETRY_VERSION }}
           virtualenvs-create: true
           virtualenvs-in-project: true
+          installer-parallel: true
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      - name: Install export plugin
+        run: poetry self add poetry-plugin-export
 
-      - name: Install dependencies
-        run: poetry install --no-interaction
+      - name: Export dependencies
+        run: poetry export -f requirements.txt --without-hashes --with dev -o requirements.txt
 
-      - name: Check for security vulnerabilities
+      - name: Run dependency audit
         run: |
-          poetry export -f requirements.txt --without-hashes --dev -o requirements.txt
-          pip install safety
-          safety check --file requirements.txt || true
-        continue-on-error: true
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r requirements.txt

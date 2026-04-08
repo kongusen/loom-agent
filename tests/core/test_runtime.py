@@ -1,6 +1,5 @@
 """Test runtime components"""
 
-import pytest
 from loom.runtime.heartbeat import Heartbeat, HeartbeatConfig, WatchSource
 
 

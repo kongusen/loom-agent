@@ -1,7 +1,8 @@
 """外部知识检索治理链 - RAG as Evidence"""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass
@@ -94,10 +95,7 @@ class KnowledgePipeline:
         data = source(question) if callable(source) else source
 
         if isinstance(data, dict):
-            if "chunks" in data:
-                data = data["chunks"]
-            else:
-                data = [data]
+            data = data.get("chunks", [data])
 
         if not isinstance(data, list):
             return []
@@ -135,7 +133,13 @@ class KnowledgePipeline:
         """Aggregate overall relevance score."""
         if not chunks:
             return 0.0
-        return sum(chunk.get("score", 0.0) for chunk in chunks) / len(chunks)
+        # Type guard: ensure score is float
+        total = 0.0
+        for chunk in chunks:
+            score = chunk.get("score", 0.0)
+            if isinstance(score, int | float):
+                total += float(score)
+        return total / len(chunks)
 
     def _similarity(self, left: str, right: str) -> float:
         """Compute similarity between two texts
@@ -223,7 +227,7 @@ class KnowledgePipeline:
             return 0.0
 
         # Dot product
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
 
         # Magnitudes
         mag1 = sum(a * a for a in vec1) ** 0.5
@@ -236,7 +240,9 @@ class KnowledgePipeline:
         cosine = dot_product / (mag1 * mag2)
 
         # Normalize to [0, 1] range (cosine is in [-1, 1])
-        return (cosine + 1) / 2
+        # Type guard: ensure result is float
+        result = (cosine + 1) / 2
+        return float(result)
 
     def _lexical_similarity(self, left: str, right: str) -> float:
         """Compute lexical similarity by token overlap (fallback)

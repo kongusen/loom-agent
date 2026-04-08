@@ -1,8 +1,9 @@
 """Skill hooks system - lifecycle management"""
 
-from dataclasses import dataclass, field
-from typing import Callable, Any
 import asyncio
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass

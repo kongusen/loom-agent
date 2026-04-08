@@ -1,14 +1,13 @@
 """Test safety module - constraints, veto, hooks, permissions"""
 
-import pytest
-from unittest.mock import MagicMock
 
 from loom.safety.constraints import ConstraintValidator
+from loom.safety.hooks import HookDecision, HookOutcome
+from loom.safety.hooks import HookManager as SafetyHookManager
+from loom.safety.permissions import PermissionManager as SafetyPermissionManager
+from loom.safety.permissions import PermissionMode
 from loom.safety.veto import VetoAuthority
-from loom.safety.hooks import HookManager as SafetyHookManager, HookDecision, HookOutcome
-from loom.safety.permissions import PermissionMode, Permission as SafetyPermission, PermissionManager as SafetyPermissionManager
 from loom.types import ToolCall
-
 
 # ── ConstraintValidator ──
 
@@ -19,7 +18,8 @@ class TestConstraintValidator:
 
     def test_add_constraint(self):
         cv = ConstraintValidator()
-        constraint = lambda tc: True
+        def constraint(tc):
+            return True
         cv.add_constraint("tool_1", constraint)
         assert "tool_1" in cv.constraints
         assert len(cv.constraints["tool_1"]) == 1

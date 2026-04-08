@@ -1,18 +1,19 @@
-"""04 - Multi-Task Session
-
-Run multiple tasks in a single session, passing context between them.
-
-Run:
-    python examples/04_multi_task_session.py
-"""
+"""04 - Multi-Run Session."""
 
 import asyncio
-from loom.api import AgentRuntime, AgentProfile, RunState
+
+from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent
+from loom.runtime import RunState
 
 
 async def main():
-    runtime = AgentRuntime(profile=AgentProfile.from_preset("default"))
-    session = runtime.create_session()
+    agent = create_agent(
+        AgentConfig(
+            model=ModelRef.anthropic("claude-sonnet-4"),
+            instructions="You are a thoughtful API design assistant.",
+        )
+    )
+    session = agent.session(SessionConfig(id="multi-run-demo"))
 
     goals = [
         "List three key features of a good API",
@@ -22,15 +23,14 @@ async def main():
 
     results = []
     for goal in goals:
-        context = {"previous_results": results} if results else {}
-        task = session.create_task(goal, context=context)
-        result = await task.start().wait()
-        results.append(result.summary)
+        context = RunContext(inputs={"previous_results": results}) if results else None
+        result = await session.run(goal, context=context)
+        results.append(result.output)
         status = "✓" if result.state == RunState.COMPLETED else "✗"
         print(f"{status} {goal[:50]}")
-        print(f"  → {result.summary}\n")
+        print(f"  → {result.output}\n")
 
-    print(f"Session tasks: {len(session.list_tasks())}")
+    print(f"Session runs: {len(session.list_runs())}")
 
 
 asyncio.run(main())

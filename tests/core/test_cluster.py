@@ -1,14 +1,13 @@
 """Test cluster module - fork, event_bus, shared_memory"""
 
-import pytest
-import json
 import tempfile
 from pathlib import Path
 
-from loom.cluster.fork import AgentFork, SubAgentConfig
-from loom.cluster.event_bus import EventBus, Event
-from loom.cluster.shared_memory import SharedMemory
+import pytest
 
+from loom.experimental.cluster.event_bus import Event, EventBus
+from loom.experimental.cluster.fork import AgentFork, SubAgentConfig
+from loom.experimental.cluster.shared_memory import SharedMemory
 
 # ── SubAgentConfig ──
 
@@ -180,7 +179,7 @@ class TestClusterEventBus:
     def test_creates_directory(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             new_path = Path(tmpdir) / "new" / "sub" / "dir"
-            bus = EventBus(new_path)
+            EventBus(new_path)
             assert new_path.exists()
 
 

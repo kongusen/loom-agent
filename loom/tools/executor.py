@@ -4,8 +4,8 @@
 """
 
 from ..types import ToolCall, ToolResult
-from .registry import ToolRegistry
 from .governance import ToolGovernance
+from .registry import ToolRegistry
 
 
 class ToolExecutor:

@@ -1,10 +1,11 @@
 """H_b 监控源实现"""
 
-import os
 import hashlib
-import psutil
+import os
 from pathlib import Path
 from typing import Any
+
+import psutil
 
 
 class FilesystemMonitor:
@@ -71,10 +72,15 @@ class FilesystemMonitor:
 class ProcessMonitor:
     """进程状态监控"""
 
-    def __init__(self, pid_file: str | None = None, delta_h: float = 0.8):
+    def __init__(
+        self,
+        pid_file: str | None = None,
+        watch_pids: list[int] | None = None,
+        delta_h: float = 0.8,
+    ):
         self.pid_file = pid_file
         self.delta_h = delta_h
-        self.tracked_pids: set[int] = set()
+        self.tracked_pids: set[int] = set(watch_pids or [])
 
     def check(self, timestamp: str) -> dict | None:
         """检查进程状态"""
@@ -82,17 +88,19 @@ class ProcessMonitor:
             try:
                 pid = int(Path(self.pid_file).read_text().strip())
                 self.tracked_pids.add(pid)
-                if not psutil.pid_exists(pid):
-                    return {
-                        "event_id": f"evt_proc_{timestamp.replace(':', '')}",
-                        "source": "process",
-                        "summary": f"进程 {pid} 已退出",
-                        "delta_H": self.delta_h,
-                        "observed_at": timestamp,
-                        "pid": pid,
-                    }
             except (OSError, ValueError):
                 pass
+
+        for pid in sorted(self.tracked_pids):
+            if not psutil.pid_exists(pid):
+                return {
+                    "event_id": f"evt_proc_{timestamp.replace(':', '')}",
+                    "source": "process",
+                    "summary": f"进程 {pid} 已退出",
+                    "delta_H": self.delta_h,
+                    "observed_at": timestamp,
+                    "pid": pid,
+                }
 
         return None
 
@@ -103,17 +111,34 @@ class ResourceMonitor:
     def __init__(
         self,
         thresholds: dict[str, float],
+        delta_h_cpu: float = 0.8,
         delta_h_memory: float = 0.9,
         delta_h_disk: float = 0.85,
     ):
         self.thresholds = thresholds
+        self.delta_h_cpu = delta_h_cpu
         self.delta_h_memory = delta_h_memory
         self.delta_h_disk = delta_h_disk
 
     def check(self, timestamp: str) -> dict | None:
-        if "memory_pct" in self.thresholds:
+        cpu_threshold = self.thresholds.get("cpu_pct", self.thresholds.get("cpu"))
+        if cpu_threshold is not None:
+            cpu = psutil.cpu_percent(interval=None)
+            if cpu > cpu_threshold:
+                return {
+                    "event_id": f"evt_cpu_{timestamp.replace(':', '')}",
+                    "source": "resource",
+                    "summary": f"CPU 使用率 {cpu:.1f}% 超过阈值",
+                    "delta_H": self.delta_h_cpu,
+                    "observed_at": timestamp,
+                    "resource": "cpu",
+                    "value": cpu,
+                }
+
+        memory_threshold = self.thresholds.get("memory_pct", self.thresholds.get("memory"))
+        if memory_threshold is not None:
             mem = psutil.virtual_memory()
-            if mem.percent > self.thresholds["memory_pct"]:
+            if mem.percent > memory_threshold:
                 return {
                     "event_id": f"evt_mem_{timestamp.replace(':', '')}",
                     "source": "resource",
@@ -124,9 +149,10 @@ class ResourceMonitor:
                     "value": mem.percent,
                 }
 
-        if "disk_pct" in self.thresholds:
+        disk_threshold = self.thresholds.get("disk_pct", self.thresholds.get("disk"))
+        if disk_threshold is not None:
             disk = psutil.disk_usage("/")
-            if disk.percent > self.thresholds["disk_pct"]:
+            if disk.percent > disk_threshold:
                 return {
                     "event_id": f"evt_disk_{timestamp.replace(':', '')}",
                     "source": "resource",

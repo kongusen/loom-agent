@@ -1,8 +1,9 @@
 """Tool governance pipeline with fine-grained parameter-level control"""
 
-from dataclasses import dataclass, field
-from typing import Any, Callable
 import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
 
 from .schema import ToolDefinition
 
@@ -27,7 +28,7 @@ class ParameterConstraint:
 
         elif self.constraint_type == "range":
             min_val, max_val = self.constraint_value
-            if not isinstance(value, (int, float)):
+            if not isinstance(value, int | float):
                 return False, f"{self.parameter_name} must be numeric for range validation"
             if not (min_val <= value <= max_val):
                 msg = self.error_message or f"{self.parameter_name} must be between {min_val} and {max_val}"

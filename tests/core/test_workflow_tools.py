@@ -1,12 +1,11 @@
 """Test workflow and config tools"""
 
-import pytest
-from loom.tools.builtin.tools_workflow_config import (
-    ENTER_PLAN_TOOL,
-    EXIT_PLAN_TOOL,
-    ENTER_WORKTREE_TOOL,
+from loom.tools.builtin.workflow_config_tool import (
     CONFIG_GET_TOOL,
     CONFIG_SET_TOOL,
+    ENTER_PLAN_TOOL,
+    ENTER_WORKTREE_TOOL,
+    EXIT_PLAN_TOOL,
 )
 from loom.tools.schema import Tool
 

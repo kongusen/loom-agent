@@ -2,6 +2,8 @@
 
 `TaskPlanner` breaks a goal into a dependency-ordered task graph.
 
+This is an advanced orchestration primitive, not the primary public application entry point. Most application developers should start with `Agent.run()` or `Session.run()`.
+
 ## Usage
 
 ```python

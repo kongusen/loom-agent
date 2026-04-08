@@ -4,7 +4,7 @@
 """
 
 from dataclasses import dataclass
-from typing import List
+
 
 @dataclass
 class EvolutionMetrics:
@@ -18,7 +18,7 @@ class EvolutionDashboard:
     """演化指标面板"""
 
     def __init__(self):
-        self.history: List[EvolutionMetrics] = []
+        self.history: list[EvolutionMetrics] = []
 
     def record(self, metrics: EvolutionMetrics):
         """记录指标"""

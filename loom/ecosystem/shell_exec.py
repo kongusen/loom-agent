@@ -1,7 +1,8 @@
 """Shell inline execution for skills"""
 
-import re
 import asyncio
+import re
+from contextlib import suppress
 from typing import Any
 
 
@@ -89,8 +90,11 @@ async def execute_bash_command(command: str, shell_config: Any = None) -> str:
                 process.communicate(),
                 timeout=timeout
             )
-        except asyncio.TimeoutError:
-            process.kill()
+        except TimeoutError:
+            with suppress(ProcessLookupError):
+                process.kill()
+            with suppress(Exception):
+                await process.wait()
             return f"[Error: Command timed out after {timeout}s]"
 
         if process.returncode == 0:

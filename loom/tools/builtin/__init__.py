@@ -1,6 +1,6 @@
 """Builtin tools - 使用正确的 schema"""
 
-from .tools_registry import BUILTIN_TOOLS, register_all_tools
+from .builtin_tools import BUILTIN_TOOLS, register_all_tools
 from .registry import get_registry
 
 

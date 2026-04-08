@@ -16,10 +16,10 @@ Renewal 流程：
 
 from copy import deepcopy
 
-from .partitions import ContextPartitions
-from .compression import ContextCompressor
 from ..memory import PersistentMemory
 from ..types import Dashboard, EventSurface, KnowledgeSurface
+from .compression import ContextCompressor
+from .partitions import ContextPartitions
 
 
 class ContextRenewer:

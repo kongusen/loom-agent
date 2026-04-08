@@ -3,13 +3,14 @@
 根据 Q9 实验结果实现高频事件压缩
 """
 
-from typing import List, Dict, Any
 from collections import defaultdict
+from typing import Any
+
 
 class EventAggregator:
     """聚合高频事件，降低 token 占用"""
 
-    def aggregate(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def aggregate(self, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """将高频事件聚合为摘要
 
         实验结果: 事件数从 100 降至 10，token 从 5000 降至 800

@@ -3,12 +3,13 @@
 根据 Q13 实验结果实现证据包压缩
 """
 
-from typing import List, Dict, Any
+from typing import Any
+
 
 class ConflictPriorityStrategy:
     """冲突优先证据包"""
 
-    def compress(self, evidence_packs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def compress(self, evidence_packs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """压缩证据包
 
         实验结果: tokens 2800, 引用准确率 0.92, 质量 0.90
@@ -37,6 +38,6 @@ class ConflictPriorityStrategy:
 
         return priority
 
-    def _detect_conflicts(self, packs: List[Dict[str, Any]]) -> set:
+    def _detect_conflicts(self, packs: list[dict[str, Any]]) -> set:
         """检测冲突的证据包"""
         return {p.get("id") for p in packs if p.get("has_conflict")}

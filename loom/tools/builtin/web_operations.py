@@ -1,6 +1,7 @@
 """Web 操作工具 - 真实实现"""
 
 from typing import Any
+
 import httpx
 
 
@@ -9,11 +10,12 @@ async def web_fetch(url: str, prompt: str = "") -> dict[str, Any]:
 
     Args:
         url: URL to fetch
-        prompt: Optional prompt (not used, for compatibility)
+        prompt: 可选提示（预留参数，用于兼容性）
 
     Returns:
         Dictionary with url, content, status_code
     """
+    _ = prompt  # 预留参数，用于兼容性
     try:
         # Validate URL
         if not url.startswith(("http://", "https://")):
@@ -154,9 +156,22 @@ def _extract_text_from_html(html: str) -> str:
                 self.current_tag = None
 
             def handle_starttag(self, tag, attrs):
+                """处理开始标签
+
+                Args:
+                    tag: 标签名
+                    attrs: 属性列表（预留参数）
+                """
+                _ = attrs  # 预留参数，未来可用于提取属性
                 self.current_tag = tag
 
             def handle_endtag(self, tag):
+                """处理结束标签
+
+                Args:
+                    tag: 标签名（预留参数）
+                """
+                _ = tag  # 预留参数，未来可用于标签匹配
                 self.current_tag = None
 
             def handle_data(self, data):
