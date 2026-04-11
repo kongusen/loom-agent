@@ -1,7 +1,9 @@
 """Test context extended modules - compression, renewal, event_aggregator, dashboard"""
 
 
-from loom.context.compression import ContextCompressor
+import pytest
+
+from loom.context.compression import CompressionPolicy, ContextCompressor
 from loom.context.dashboard import DashboardManager
 from loom.context.event_aggregator import EventAggregator
 from loom.context.partitions import ContextPartitions
@@ -39,6 +41,21 @@ class TestContextCompressor:
     def test_should_compress_high(self):
         comp = ContextCompressor()
         assert comp.should_compress(1.0) == 'auto'
+
+    def test_supports_custom_compression_policy(self):
+        policy = CompressionPolicy(
+            snip_at=0.6,
+            micro_at=0.7,
+            collapse_at=0.85,
+            auto_compact_at=0.95,
+        )
+        comp = ContextCompressor(policy=policy)
+        assert comp.thresholds["snip"] == 0.6
+        assert comp.should_compress(0.72) == "micro"
+
+    def test_rejects_non_monotonic_compression_policy(self):
+        with pytest.raises(ValueError):
+            CompressionPolicy(snip_at=0.8, micro_at=0.7)
 
     def test_snip_compact_short(self):
         comp = ContextCompressor()
@@ -157,7 +174,7 @@ class TestContextRenewer:
         partitions.working.knowledge_surface.citations = ["doc-1"]
         partitions.history = [Message(role="user", content="test message")]
 
-        result = renewer.renew(partitions, "my goal")
+        result, handoff = renewer.renew(partitions, "my goal")
         assert result is not None
         # System and working should be preserved
         assert result.system == partitions.system
@@ -171,6 +188,10 @@ class TestContextRenewer:
         assert result.working.knowledge_surface.citations == ["doc-1"]
         # History should be compressed
         assert result.history is not None
+        # HandoffArtifact
+        assert handoff.goal == "my goal"
+        assert handoff.sprint == 0
+        assert handoff.open_tasks == ["step1", "step2"]
 
     def test_renew_creates_fresh_working_state(self):
         renewer = ContextRenewer()
@@ -178,11 +199,12 @@ class TestContextRenewer:
         partitions.working.plan = ["step1"]
         partitions.working.event_surface.pending_events = [{"event_id": "e1"}]
 
-        result = renewer.renew(partitions, "goal")
+        result, handoff = renewer.renew(partitions, "goal")
 
         assert result.working is not partitions.working
         result.working.plan.append("step2")
         assert partitions.working.plan == ["step1"]
+        assert handoff.goal == "goal"
 
 
 # ── EventAggregator ──

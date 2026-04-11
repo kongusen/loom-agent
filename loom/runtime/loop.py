@@ -77,7 +77,7 @@ class AgentLoop:
             elif self.state == LoopState.RENEW:
                 from ..context import ContextRenewer
                 renewer = ContextRenewer()
-                context = renewer.renew(context, goal)
+                context, _ = renewer.renew(context, goal)
                 self.state = LoopState.REASON
 
         return {"status": "max_iterations", "context": context}

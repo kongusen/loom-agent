@@ -10,10 +10,12 @@
 """
 
 import logging
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ..context import ContextManager
+from ..context import CompressionPolicy, ContextManager
 from ..memory import InMemoryStore, MemoryStore
 from ..providers.base import CompletionParams, LLMProvider
 from ..runtime.heartbeat import Heartbeat, HeartbeatConfig
@@ -36,6 +38,7 @@ class EngineConfig:
     model: str = "claude-3-5-sonnet-20241022"
     temperature: float = 0.7
     completion_max_tokens: int = 4096
+    compression_policy: CompressionPolicy | None = None
     enable_heartbeat: bool = False
     enable_safety: bool = True
     enable_memory: bool = True
@@ -54,13 +57,18 @@ class AgentEngine:
         self.config = config or EngineConfig()
 
         # Core components
-        self.context_manager = ContextManager(max_tokens=self.config.max_tokens)
+        self.context_manager = ContextManager(
+            max_tokens=self.config.max_tokens,
+            compression_policy=self.config.compression_policy,
+        )
         self.memory_store: MemoryStore = InMemoryStore()
         self.tool_registry = ToolRegistry()
         self.tool_governance = ToolGovernance()
         self.tool_executor = ToolExecutor(self.tool_registry, self.tool_governance)
         self.veto_authority = VetoAuthority() if self.config.enable_safety else None
         self.heartbeat: Heartbeat | None = None
+        self._event_handlers: dict[str, list[Callable[..., None]]] = {}
+        self._event_handlers_lock = threading.RLock()
 
         # Register tools
         if tools:
@@ -363,22 +371,69 @@ class AgentEngine:
         results: list[ToolResult] = []
 
         for call in tool_calls:
+            result: ToolResult | None = None
             # Safety check via veto authority
             if self.veto_authority:
                 vetoed, reason = self.veto_authority.check_tool(call.name, call.arguments)
                 if vetoed:
-                    results.append(ToolResult(
+                    result = ToolResult(
                         tool_call_id=call.id,
                         content=f"Vetoed: {reason}",
                         is_error=True,
-                    ))
+                    )
+                    results.append(result)
+                    self.emit(
+                        "tool_result",
+                        tool_name=call.name,
+                        result=result.content,
+                        success=False,
+                        tool_call_id=call.id,
+                    )
                     continue
 
             # Execute via tool executor (includes governance)
             result = await self.tool_executor.execute(call)
             results.append(result)
+            self.emit(
+                "tool_result",
+                tool_name=call.name,
+                result=result.content,
+                success=not result.is_error,
+                tool_call_id=call.id,
+            )
 
         return results
+
+    def on(self, event_name: str, handler: Callable[..., None]) -> None:
+        """Subscribe handler to runtime events."""
+        with self._event_handlers_lock:
+            self._event_handlers.setdefault(event_name, []).append(handler)
+
+    def off(self, event_name: str, handler: Callable[..., None]) -> None:
+        """Unsubscribe handler from runtime events."""
+        with self._event_handlers_lock:
+            handlers = self._event_handlers.get(event_name)
+            if not handlers:
+                return
+            self._event_handlers[event_name] = [h for h in handlers if h is not handler]
+
+    def emit(self, event_name: str, *args: Any, **kwargs: Any) -> int:
+        """Emit one runtime event to subscribers."""
+        with self._event_handlers_lock:
+            handlers = list(self._event_handlers.get(event_name, []))
+
+        for handler in handlers:
+            try:
+                handler(*args, **kwargs)
+            except Exception as exc:  # pragma: no cover - defensive path
+                logger.error(
+                    "Runtime event handler error: event=%s handler=%r err=%s",
+                    event_name,
+                    handler,
+                    exc,
+                    exc_info=True,
+                )
+        return len(handlers)
 
     async def _decide_next_action(self, messages: list[Message], _goal: str) -> str:
         """Decide next action based on current state"""

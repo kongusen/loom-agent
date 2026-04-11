@@ -15,6 +15,7 @@ from .events import CoordinationEvent, Event, HeartbeatEvent
 from .messages import Message, ToolCall, ToolResult
 from .results import LoopResult, SubAgentResult
 from .state import Dashboard, EventSurface, KnowledgeSurface, LoopState
+from .handoff import HandoffArtifact
 from .validation import ValidationError
 
 __all__ = [
@@ -41,4 +42,5 @@ __all__ = [
     "create_image_block_from_url",
     "create_document_block_from_file",
     "ValidationError",
+    "HandoffArtifact",
 ]

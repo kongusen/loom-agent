@@ -3,13 +3,19 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from loom.evolution.engine import EvolutionEngine
 from loom.evolution.feedback import FeedbackLoop
+from loom.providers.base import CompletionParams, LLMProvider
+from loom.runtime.engine import AgentEngine, EngineConfig
 from loom.evolution.strategies import (
     EvolutionStrategy,
     PolicyOptimizationStrategy,
     ToolLearningStrategy,
 )
+from loom.tools.schema import Tool, ToolDefinition, ToolParameter
+from loom.types import ToolCall
 
 # ── EvolutionEngine ──
 
@@ -57,6 +63,77 @@ class TestEvolutionEngine:
         agent = MagicMock()
         # Should not raise
         engine.evolve(agent)
+
+    def test_has_internal_feedback_loop(self):
+        engine = EvolutionEngine()
+        assert isinstance(engine.feedback_loop, FeedbackLoop)
+
+    def test_subscribe_to_engine_wires_feedback_loop(self):
+        evo_engine = EvolutionEngine()
+        mock_runtime = MagicMock()
+        evo_engine.subscribe_to_engine(mock_runtime)
+        mock_runtime.on.assert_called_once_with(
+            "tool_result", evo_engine.feedback_loop._on_tool_result
+        )
+
+    def test_evolve_injects_feedback_loop_when_missing(self):
+        evo_engine = EvolutionEngine()
+        agent = SimpleNamespace()
+        evo_engine.evolve(agent)
+        assert agent.feedback_loop is evo_engine.feedback_loop
+
+    def test_evolve_preserves_existing_feedback_loop(self):
+        evo_engine = EvolutionEngine()
+        existing = FeedbackLoop()
+        agent = SimpleNamespace(feedback_loop=existing)
+        evo_engine.evolve(agent)
+        assert agent.feedback_loop is existing
+
+    @pytest.mark.asyncio
+    async def test_end_to_end_subscribe_and_evolve(self):
+        """subscribe_to_engine() + evolve() collects real tool results."""
+        class MockProvider(LLMProvider):
+            async def _complete(self, messages, params=None):
+                return "ok"
+
+            def stream(self, messages, params=None):
+                async def _gen():
+                    yield "ok"
+                return _gen()
+
+        async def noop(**_):
+            return "done"
+
+        from loom.tools.schema import Tool, ToolDefinition, ToolParameter
+        from loom.types import ToolCall
+
+        tool = Tool(
+            definition=ToolDefinition(
+                name="Noop",
+                description="No-op tool",
+                parameters=[ToolParameter(name="x", type="string", description="")],
+            ),
+            handler=noop,
+        )
+        runtime = AgentEngine(
+            provider=MockProvider(),
+            config=EngineConfig(enable_heartbeat=False, enable_memory=False),
+            tools=[tool],
+        )
+        evo = EvolutionEngine()
+        evo.subscribe_to_engine(runtime)
+
+        await runtime._execute_tools([ToolCall(id="c1", name="Noop", arguments={"x": "1"})])
+
+        assert len(evo.feedback_loop.feedback) == 1
+        assert evo.feedback_loop.feedback[0]["tool"] == "Noop"
+        assert evo.feedback_loop.feedback[0]["success"] is True
+
+        # evolve() injects feedback automatically - no manual wiring needed
+        agent = SimpleNamespace()
+        evo.register_strategy(ToolLearningStrategy())
+        evo.evolve(agent)
+        assert hasattr(agent, "tool_learning")
 
 
 # ── EvolutionStrategy ──
@@ -177,3 +254,45 @@ class TestFeedbackLoop:
             loop.add_feedback({"index": i})
         result = loop.get_feedback()
         assert [f["index"] for f in result] == list(range(10))
+
+    @pytest.mark.asyncio
+    async def test_feedback_loop_subscribes_to_engine_tool_events(self):
+        class MockProvider(LLMProvider):
+            async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+                return "ok"
+
+            def stream(self, messages: list, params: CompletionParams | None = None):
+                async def _gen():
+                    yield "ok"
+                return _gen()
+
+        async def echo_handler(text: str) -> str:
+            return text
+
+        tool = Tool(
+            definition=ToolDefinition(
+                name="Echo",
+                description="Echo text",
+                parameters=[ToolParameter(name="text", type="string", description="")],
+            ),
+            handler=echo_handler,
+        )
+        engine = AgentEngine(
+            provider=MockProvider(),
+            config=EngineConfig(enable_heartbeat=False, enable_memory=False),
+            tools=[tool],
+        )
+        loop = FeedbackLoop()
+        loop.subscribe_to_engine(engine)
+
+        await engine._execute_tools([ToolCall(id="call_1", name="Echo", arguments={"text": "hello"})])
+
+        assert len(loop.feedback) == 1
+        assert loop.feedback[0]["tool"] == "Echo"
+        assert loop.feedback[0]["type"] == "success"
+        assert loop.feedback[0]["success"] is True
+
+    def test_feedback_loop_subscription_requires_event_source(self):
+        loop = FeedbackLoop()
+        with pytest.raises(TypeError):
+            loop.subscribe_to_engine(object())

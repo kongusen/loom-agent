@@ -1,11 +1,14 @@
 """H_b heartbeat - 独立感知层，与 L* 并行运行"""
 
+import logging
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -131,7 +134,10 @@ class Heartbeat:
             dashboard_manager.ingest_heartbeat_event(event, urgency)
 
         if self.event_callback:
-            self.event_callback(event, urgency)
+            try:
+                self.event_callback(event, urgency)
+            except Exception as exc:  # pragma: no cover - defensive path
+                logger.error("Heartbeat callback error: %s", exc, exc_info=True)
 
         return event
 

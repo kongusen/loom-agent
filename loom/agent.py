@@ -5,8 +5,10 @@ from __future__ import annotations
 import inspect
 import logging
 import os
+import threading
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .config import (
@@ -42,7 +44,8 @@ from .config import (
     WatchConfig,
     WatchKind,
 )
-from .providers.base import LLMProvider
+from .context import CompressionPolicy
+from .providers.base import CompletionParams, LLMProvider
 from .runtime import RunContext, RunEvent, RunResult, Session, SessionConfig
 from .runtime.engine import AgentEngine, EngineConfig
 from .runtime.heartbeat import Heartbeat, WatchSource
@@ -62,9 +65,13 @@ class Agent:
 
     config: AgentConfig
     _sessions: dict[str, Session] = field(default_factory=dict, init=False, repr=False)
+    _sessions_lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
+    _session_ttl_hours: float = field(default=24.0, init=False, repr=False)
     _compiled_tools: list[Tool] = field(default_factory=list, init=False, repr=False)
     _provider: LLMProvider | None = field(default=None, init=False, repr=False)
     _provider_resolved: bool = field(default=False, init=False, repr=False)
+    _provider_from_resolver: bool = field(default=False, init=False, repr=False)
+    _provider_validated: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         config = _normalize_config(self.config, AgentConfig, "config")
@@ -83,6 +90,7 @@ class Agent:
         )
         self.config = config
         self._compiled_tools = [_compile_tool_spec(tool) for tool in declared_tools]
+        self._session_ttl_hours = _resolve_session_ttl_hours(config.runtime)
 
     def resolve_knowledge(self, query: KnowledgeQuery) -> KnowledgeBundle:
         """Resolve configured knowledge sources for one retrieval request."""
@@ -122,16 +130,48 @@ class Agent:
         if not isinstance(config, SessionConfig):
             raise TypeError(f"session config must be SessionConfig, got {type(config).__name__}")
 
-        if config.id is not None and config.id in self._sessions:
-            session = self._sessions[config.id]
-            metadata = config.to_metadata()
-            if metadata:
-                session.metadata.update(metadata)
-            return session
+        self._evict_old_sessions()
+        with self._sessions_lock:
+            if config.id is not None and config.id in self._sessions:
+                session = self._sessions[config.id]
+                metadata = config.to_metadata()
+                if metadata:
+                    session.metadata.update(metadata)
+                return session
 
-        session = Session(self, config=config)
-        self._sessions[session.id] = session
+            session = Session(self, config=config)
+            self._sessions[session.id] = session
         return session
+
+    def _evict_old_sessions(self, ttl_hours: float | None = None) -> int:
+        """Evict sessions older than TTL to prevent unbounded growth."""
+        hours = ttl_hours if ttl_hours is not None else self._session_ttl_hours
+        if hours <= 0:
+            return 0
+
+        cutoff = datetime.now() - timedelta(hours=hours)
+        evicted = 0
+
+        with self._sessions_lock:
+            expired_ids = [
+                session_id
+                for session_id, session in self._sessions.items()
+                if session.created_at < cutoff
+            ]
+            for session_id in expired_ids:
+                session = self._sessions.pop(session_id, None)
+                if session is None:
+                    continue
+                session.expire()
+                evicted += 1
+
+        if evicted:
+            logger.debug(
+                "Evicted %s expired session(s) older than %.2f hours",
+                evicted,
+                hours,
+            )
+        return evicted
 
     async def _execute(
         self,
@@ -143,6 +183,8 @@ class Agent:
         engine: AgentEngine | None = None,
     ) -> dict[str, Any]:
         provider = self._get_provider()
+        if provider is not None and not await self._ensure_provider_ready(provider):
+            provider = None
         if provider is None:
             fallback = self.config.runtime.features.fallback if self.config.runtime else RuntimeFallback()
             if fallback.mode == RuntimeFallbackMode.ERROR:
@@ -198,6 +240,7 @@ class Agent:
                 model=self.config.model.name,
                 temperature=self.config.generation.temperature,
                 completion_max_tokens=self.config.generation.max_output_tokens or 4096,
+                compression_policy=_resolve_compression_policy(self.config.runtime),
                 enable_heartbeat=self.config.heartbeat is not None,
                 enable_safety=self.config.runtime.features.enable_safety if self.config.runtime else True,
                 enable_memory=bool(self.config.memory and self.config.memory.enabled),
@@ -294,7 +337,38 @@ class Agent:
         if not self._provider_resolved:
             self._provider = _resolve_provider(self.config.model)
             self._provider_resolved = True
+            self._provider_from_resolver = self._provider is not None
+            self._provider_validated = False
         return self._provider
+
+    async def _ensure_provider_ready(self, provider: LLMProvider) -> bool:
+        if not self._provider_from_resolver:
+            return True
+        if self._provider_validated:
+            return True
+        if not _is_provider_health_check_enabled(self.config.runtime):
+            self._provider_validated = True
+            return True
+
+        try:
+            await provider.complete_response(
+                [{"role": "user", "content": "ping"}],
+                CompletionParams(
+                    model=self.config.model.name,
+                    max_tokens=1,
+                    temperature=0.0,
+                ),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Provider health check failed for %s: %s",
+                self.config.model.identifier,
+                exc,
+            )
+            return False
+
+        self._provider_validated = True
+        return True
 
     def _local_output(self, prompt: str, context: RunContext | None) -> str:
         if context is not None:
@@ -488,6 +562,76 @@ def _normalize_runtime_config(value: RuntimeConfig | None) -> RuntimeConfig | No
         features=_normalize_runtime_features(runtime.features),
         extensions=_normalize_mapping(runtime.extensions, "runtime.extensions"),
     )
+
+
+def _resolve_session_ttl_hours(runtime: RuntimeConfig | None) -> float:
+    if runtime is None:
+        return 24.0
+
+    raw_value = runtime.extensions.get("session_ttl_hours")
+    if raw_value is None:
+        return 24.0
+
+    try:
+        ttl_hours = float(raw_value)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid runtime.extensions.session_ttl_hours=%r, falling back to 24 hours",
+            raw_value,
+        )
+        return 24.0
+
+    if ttl_hours <= 0:
+        logger.warning(
+            "Non-positive runtime.extensions.session_ttl_hours=%r, falling back to 24 hours",
+            raw_value,
+        )
+        return 24.0
+    return ttl_hours
+
+
+def _is_provider_health_check_enabled(runtime: RuntimeConfig | None) -> bool:
+    if runtime is None:
+        return True
+
+    raw_value = runtime.extensions.get("provider_health_check", True)
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, str):
+        return raw_value.strip().lower() not in {"0", "false", "off", "no"}
+    return bool(raw_value)
+
+
+def _resolve_compression_policy(runtime: RuntimeConfig | None) -> CompressionPolicy | None:
+    if runtime is None:
+        return None
+
+    raw_value = runtime.extensions.get("compression_policy")
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, CompressionPolicy):
+        return raw_value
+    if not isinstance(raw_value, dict):
+        logger.warning(
+            "Invalid runtime.extensions.compression_policy=%r, expected dict",
+            raw_value,
+        )
+        return None
+
+    try:
+        return CompressionPolicy(
+            snip_at=float(raw_value.get("snip_at", 0.7)),
+            micro_at=float(raw_value.get("micro_at", 0.8)),
+            collapse_at=float(raw_value.get("collapse_at", 0.9)),
+            auto_compact_at=float(raw_value.get("auto_compact_at", 0.95)),
+        )
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Invalid runtime.extensions.compression_policy=%r (%s), using defaults",
+            raw_value,
+            exc,
+        )
+        return None
 
 
 def _normalize_generation_config(value: GenerationConfig) -> GenerationConfig:

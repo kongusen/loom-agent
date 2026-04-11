@@ -4,6 +4,7 @@
 """
 
 from ..types import ToolCall, ToolResult
+from ..utils.errors import ToolExecutionError, ToolNotFoundError, ToolPermissionError
 from .governance import ToolGovernance
 from .registry import ToolRegistry
 
@@ -20,9 +21,10 @@ class ToolExecutor:
         tool = self.registry.get(tool_call.name)
 
         if not tool:
+            error = ToolNotFoundError(f"Tool not found: {tool_call.name}")
             return ToolResult(
                 tool_call_id=tool_call.id,
-                content=f"Tool not found: {tool_call.name}",
+                content=str(error),
                 is_error=True
             )
 
@@ -33,9 +35,10 @@ class ToolExecutor:
             tool_call.arguments,
         )
         if not ok:
+            error = ToolPermissionError(f"Permission denied: {reason}")
             return ToolResult(
                 tool_call_id=tool_call.id,
-                content=f"Permission denied: {reason}",
+                content=str(error),
                 is_error=True
             )
 
@@ -58,8 +61,9 @@ class ToolExecutor:
                 is_error=False
             )
         except Exception as e:
+            error = ToolExecutionError(f"Error: {str(e)}")
             return ToolResult(
                 tool_call_id=tool_call.id,
-                content=f"Error: {str(e)}",
+                content=str(error),
                 is_error=True
             )

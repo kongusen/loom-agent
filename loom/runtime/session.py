@@ -324,8 +324,13 @@ class Session:
 
     async def close(self) -> None:
         """Close the session and release run references."""
+        self.expire()
+
+    def expire(self) -> None:
+        """Immediately release resources so the agent can evict old sessions."""
         self._closed = True
         self._runs.clear()
+        self._engine = None
 
     async def _execute(
         self,

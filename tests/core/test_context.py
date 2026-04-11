@@ -1,5 +1,7 @@
 """Test context components"""
 
+import threading
+
 from loom.context.compression import ContextCompressor
 from loom.context.manager import ContextManager
 from loom.context.partitions import ContextPartitions
@@ -19,6 +21,23 @@ class TestContextManager:
         """Test should_renew logic"""
         cm = ContextManager(max_tokens=100)
         assert isinstance(cm.should_renew(), bool)
+
+    def test_context_lock_is_reentrant(self):
+        """Context manager lock should be reentrant to avoid nested deadlocks."""
+        cm = ContextManager(max_tokens=100)
+        completed = threading.Event()
+
+        def _worker() -> None:
+            with cm._lock:
+                cm.should_renew()
+                cm.should_compress()
+            completed.set()
+
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+        thread.join(timeout=1.0)
+
+        assert completed.is_set()
 
 
 class TestContextPartitions:

@@ -1,5 +1,6 @@
 """Tests for stateful sessions in the public Agent API."""
 
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -57,3 +58,28 @@ def test_session_reuse_merges_metadata():
 
     assert first is second
     assert second.metadata == {"tenant": "acme", "plan": "pro"}
+
+
+def test_session_ttl_evicts_expired_session():
+    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+
+    stale = agent.session(SessionConfig(id="stale"))
+    stale.created_at = datetime.now() - timedelta(hours=30)
+
+    evicted = agent._evict_old_sessions()
+
+    assert evicted == 1
+    assert stale._closed is True
+    assert "stale" not in agent._sessions
+
+
+def test_session_rebuilds_after_ttl_eviction():
+    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+
+    first = agent.session(SessionConfig(id="demo"))
+    first.created_at = datetime.now() - timedelta(hours=30)
+
+    second = agent.session(SessionConfig(id="demo"))
+
+    assert second is not first
+    assert second.id == "demo"

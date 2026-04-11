@@ -18,6 +18,7 @@ from copy import deepcopy
 
 from ..memory import PersistentMemory
 from ..types import Dashboard, EventSurface, KnowledgeSurface
+from ..types.handoff import HandoffArtifact
 from .compression import ContextCompressor
 from .partitions import ContextPartitions
 
@@ -29,7 +30,12 @@ class ContextRenewer:
         self.compressor = ContextCompressor()
         self.persistent = PersistentMemory()
 
-    def renew(self, partitions: ContextPartitions, goal: str) -> ContextPartitions:
+    def renew(
+        self,
+        partitions: ContextPartitions,
+        goal: str,
+        sprint: int = 0,
+    ) -> tuple[ContextPartitions, HandoffArtifact]:
         """Renew context by compressing and rebuilding"""
         # 1. Snapshot dashboard
         working_state = {
@@ -86,7 +92,24 @@ class ContextRenewer:
         new_partitions.skill = list(partitions.skill)  # 保留
         new_partitions.history = list(compressed_history)  # 压缩后
 
-        return new_partitions
+        # 7. Construct HandoffArtifact from snapshot data
+        handoff = HandoffArtifact(
+            goal=goal,
+            sprint=sprint,
+            progress_summary=(
+                working_state.get('goal_progress', '')
+                or working_state.get('scratchpad', '')
+            ),
+            produced_artifacts={},
+            open_tasks=list(plan_state.get('plan', [])),
+            context_snapshot={
+                'rho': working_state.get('rho', 0.0),
+                'error_count': working_state.get('error_count', 0),
+                'depth': working_state.get('depth', 0),
+            },
+        )
+
+        return new_partitions, handoff
 
     def _restore_dashboard(
         self,

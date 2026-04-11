@@ -1,5 +1,6 @@
 """Anthropic Claude provider."""
 
+import threading
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -10,21 +11,33 @@ from .base import CompletionParams, CompletionResponse, LLMProvider, TokenUsage
 class AnthropicProvider(LLMProvider):
     """Anthropic messages API provider."""
 
+    _shared_clients: dict[tuple[str, str | None], Any] = {}
+    _pool_lock = threading.RLock()
+
     def __init__(
         self,
         api_key: str,
         base_url: str | None = None,
         client: Any | None = None,
+        use_client_pool: bool = True,
     ):
         super().__init__()
         self.api_key = api_key
         self.base_url = base_url
         self._client = client
+        self._use_client_pool = use_client_pool
 
     @property
     def client(self) -> Any:
         """Lazily construct the Anthropic async client."""
         if self._client is None:
+            if self._use_client_pool:
+                with self._pool_lock:
+                    pooled = self._shared_clients.get(self._pool_key())
+                if pooled is not None:
+                    self._client = pooled
+                    return self._client
+
             try:
                 from anthropic import AsyncAnthropic
             except ImportError as exc:
@@ -37,8 +50,19 @@ class AnthropicProvider(LLMProvider):
                 api_key=self.api_key,
                 base_url=self.base_url,
             )
+            if self._use_client_pool:
+                with self._pool_lock:
+                    self._shared_clients[self._pool_key()] = self._client
 
         return self._client
+
+    def _pool_key(self) -> tuple[str, str | None]:
+        return (self.api_key, self.base_url)
+
+    @classmethod
+    def clear_client_pool(cls) -> None:
+        with cls._pool_lock:
+            cls._shared_clients.clear()
 
     async def _complete(
         self,

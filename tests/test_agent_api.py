@@ -695,3 +695,120 @@ async def test_agent_run_executes_tool_call_round_trip():
     assert result.output == "The answer is 5."
     assert any(event.type == "tools.requested" for event in result.events)
     assert any(event.type == "tools.executed" for event in result.events)
+
+
+@pytest.mark.asyncio
+async def test_provider_health_check_failure_triggers_fallback_error():
+    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+
+    class MockProvider(LLMProvider):
+        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+            return ""
+
+        async def _complete_response(
+            self,
+            messages: list,
+            params: CompletionParams | None = None,
+        ) -> CompletionResponse:
+            if params is not None and params.max_tokens == 1:
+                raise RuntimeError("provider ping failed")
+            return CompletionResponse(content="ok")
+
+        def stream(self, messages: list, params: CompletionParams | None = None):
+            async def _gen():
+                yield "ok"
+            return _gen()
+
+    with patch("loom.agent._resolve_provider", return_value=MockProvider()):
+        agent = create_agent(
+            AgentConfig(
+                model=ModelRef.openai("gpt-test"),
+                runtime=RuntimeConfig(
+                    features=RuntimeFeatures(
+                        fallback=RuntimeFallback(mode=RuntimeFallbackMode.ERROR),
+                    ),
+                ),
+            )
+        )
+        result = await agent.run("check health")
+
+    assert result.state == RunState.FAILED
+    assert any(event.type == "run.failed.provider_unavailable" for event in result.events)
+
+
+@pytest.mark.asyncio
+async def test_provider_health_check_can_be_disabled_via_runtime_extensions():
+    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+
+    class MockProvider(LLMProvider):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+            return ""
+
+        async def _complete_response(
+            self,
+            messages: list,
+            params: CompletionParams | None = None,
+        ) -> CompletionResponse:
+            self.calls += 1
+            return CompletionResponse(content="provider smoke test ok")
+
+        def stream(self, messages: list, params: CompletionParams | None = None):
+            async def _gen():
+                yield "provider smoke test ok"
+            return _gen()
+
+    provider = MockProvider()
+    with patch("loom.agent._resolve_provider", return_value=provider):
+        agent = create_agent(
+            AgentConfig(
+                model=ModelRef.openai("gpt-test"),
+                runtime=RuntimeConfig(
+                    extensions={"provider_health_check": False},
+                ),
+            )
+        )
+        result = await agent.run("check health toggle")
+
+    assert result.state == RunState.COMPLETED
+    assert provider.calls == 1
+
+
+def test_runtime_compression_policy_is_propagated_to_engine():
+    from loom.providers.base import CompletionParams, LLMProvider
+
+    class MockProvider(LLMProvider):
+        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+            return "ok"
+
+        def stream(self, messages: list, params: CompletionParams | None = None):
+            async def _gen():
+                yield "ok"
+            return _gen()
+
+    agent = create_agent(
+        AgentConfig(
+            model=ModelRef.openai("gpt-test"),
+            runtime=RuntimeConfig(
+                extensions={
+                    "compression_policy": {
+                        "snip_at": 0.61,
+                        "micro_at": 0.72,
+                        "collapse_at": 0.86,
+                        "auto_compact_at": 0.97,
+                    }
+                },
+            ),
+        )
+    )
+
+    engine = agent._build_engine(MockProvider())
+
+    policy = engine.context_manager.compressor.policy
+    assert policy.snip_at == 0.61
+    assert policy.micro_at == 0.72
+    assert policy.collapse_at == 0.86
+    assert policy.auto_compact_at == 0.97

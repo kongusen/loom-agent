@@ -1,5 +1,6 @@
 """Google Gemini provider."""
 
+import threading
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -10,19 +11,31 @@ from .base import CompletionParams, CompletionResponse, LLMProvider
 class GeminiProvider(LLMProvider):
     """Google Gemini provider using google-generativeai SDK."""
 
+    _shared_clients: dict[tuple[str], Any] = {}
+    _pool_lock = threading.RLock()
+
     def __init__(
         self,
         api_key: str,
         client: Any | None = None,
+        use_client_pool: bool = True,
     ):
         super().__init__()
         self.api_key = api_key
         self._client = client
+        self._use_client_pool = use_client_pool
 
     @property
     def client(self) -> Any:
         """Lazily construct the Google GenerativeAI client."""
         if self._client is None:
+            if self._use_client_pool:
+                with self._pool_lock:
+                    pooled = self._shared_clients.get(self._pool_key())
+                if pooled is not None:
+                    self._client = pooled
+                    return self._client
+
             try:
                 import google.generativeai as genai
             except ImportError as exc:
@@ -33,8 +46,19 @@ class GeminiProvider(LLMProvider):
 
             genai.configure(api_key=self.api_key)
             self._client = genai
+            if self._use_client_pool:
+                with self._pool_lock:
+                    self._shared_clients[self._pool_key()] = self._client
 
         return self._client
+
+    def _pool_key(self) -> tuple[str]:
+        return (self.api_key,)
+
+    @classmethod
+    def clear_client_pool(cls) -> None:
+        with cls._pool_lock:
+            cls._shared_clients.clear()
 
     async def _complete(
         self,

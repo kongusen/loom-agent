@@ -8,6 +8,16 @@ from typing import Any
 from .schema import ToolDefinition
 
 
+@dataclass(slots=True)
+class ConstraintViolation:
+    """Structured parameter-constraint violation details."""
+
+    constraint_type: str
+    parameter: str
+    message: str
+    value: Any
+
+
 @dataclass
 class ParameterConstraint:
     """Parameter-level constraint for fine-grained control"""
@@ -57,6 +67,18 @@ class ParameterConstraint:
 
         return True, ""
 
+    def violation(self, value: Any) -> ConstraintViolation | None:
+        """Return a structured violation object when validation fails."""
+        ok, reason = self.validate(value)
+        if ok:
+            return None
+        return ConstraintViolation(
+            constraint_type=self.constraint_type,
+            parameter=self.parameter_name,
+            message=reason,
+            value=value,
+        )
+
 
 @dataclass
 class ToolPolicy:
@@ -100,6 +122,7 @@ class ToolGovernance:
         self.config = config or GovernanceConfig()
         self.call_counts: dict[str, int] = {}
         self.runtime_context = runtime_context  # Dashboard, Agent state, etc.
+        self._last_parameter_violations: list[ConstraintViolation] = []
 
     def check_permission(
         self,
@@ -108,6 +131,7 @@ class ToolGovernance:
         arguments: dict[str, Any] | None = None,
     ) -> tuple[bool, str]:
         """Check if tool execution is allowed with fine-grained parameter validation"""
+        self._last_parameter_violations = []
         if not self.config.enable_permission_check:
             return True, ""
 
@@ -177,17 +201,31 @@ class ToolGovernance:
         arguments: dict[str, Any]
     ) -> tuple[bool, str]:
         """Validate parameters against constraints"""
+        violations: list[ConstraintViolation] = []
         for constraint in tool_policy.parameter_constraints:
             param_name = constraint.parameter_name
             if param_name not in arguments:
                 continue  # Skip if parameter not provided
 
             value = arguments[param_name]
-            ok, reason = constraint.validate(value)
-            if not ok:
-                return False, f"{tool_name}: {reason}"
+            violation = constraint.violation(value)
+            if violation is not None:
+                violations.append(violation)
+
+        self._last_parameter_violations = violations
+        if violations:
+            first = violations[0]
+            return (
+                False,
+                f"{tool_name}: {first.message} "
+                f"[parameter={first.parameter}, constraint={first.constraint_type}, value={first.value!r}]",
+            )
 
         return True, ""
+
+    def get_last_parameter_violations(self) -> list[ConstraintViolation]:
+        """Return structured violations from the last permission check."""
+        return list(self._last_parameter_violations)
 
     def check_rate_limit(self, tool_name: str) -> tuple[bool, str]:
         """Check rate limit with tool-specific overrides"""

@@ -3,7 +3,12 @@
 import pytest
 
 from loom.tools.executor import ToolExecutor
-from loom.tools.governance import GovernanceConfig, ToolGovernance
+from loom.tools.governance import (
+    GovernanceConfig,
+    ParameterConstraint,
+    ToolGovernance,
+    ToolPolicy,
+)
 from loom.tools.registry import ToolRegistry
 from loom.tools.schema import Tool, ToolDefinition
 from loom.types import ToolCall
@@ -76,6 +81,35 @@ class TestToolGovernance:
         gov.record_call("Read")
         gov.record_call("Read")
         assert gov.call_counts["Read"] == 2
+
+    def test_parameter_violation_is_structured(self):
+        gov = ToolGovernance(
+            GovernanceConfig(
+                tool_policies={
+                    "Write": ToolPolicy(
+                        tool_name="Write",
+                        parameter_constraints=[
+                            ParameterConstraint(
+                                parameter_name="path",
+                                constraint_type="regex",
+                                constraint_value=r"^/safe/",
+                                error_message="path must stay under /safe",
+                            )
+                        ],
+                    )
+                }
+            )
+        )
+
+        ok, reason = gov.check_permission("Write", arguments={"path": "/tmp/file.txt"})
+
+        assert ok is False
+        assert "parameter=path" in reason
+        violations = gov.get_last_parameter_violations()
+        assert len(violations) == 1
+        assert violations[0].parameter == "path"
+        assert violations[0].constraint_type == "regex"
+        assert violations[0].value == "/tmp/file.txt"
 
 
 class TestToolExecutor:

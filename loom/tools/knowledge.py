@@ -1,8 +1,14 @@
 """外部知识检索治理链 - RAG as Evidence"""
 
+import logging
+import threading
+from collections import OrderedDict
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,6 +35,8 @@ class KnowledgePipeline:
         rerank_retrieval_weight: float = 0.7,
         rerank_goal_weight: float = 0.3,
         embedding_cache_max: int = 1000,
+        source_cache_max: int = 256,
+        max_workers: int | None = None,
     ):
         self.sources: dict[str, Any] = {}
         self.embedding_fn = embedding_fn
@@ -36,6 +44,10 @@ class KnowledgePipeline:
         self.rerank_goal_weight = rerank_goal_weight
         self._embedding_cache: dict[str, list[float]] = {}
         self._embedding_cache_max = embedding_cache_max
+        self._source_cache: OrderedDict[tuple[str, str], list[dict[str, Any]]] = OrderedDict()
+        self._source_cache_max = source_cache_max
+        self._source_cache_lock = threading.RLock()
+        self._max_workers = max_workers
 
     def register_source(self, source_id: str, source: Any) -> None:
         """Register a knowledge source."""
@@ -57,8 +69,8 @@ class KnowledgePipeline:
     def _retrieve_candidates(self, question: str) -> list[dict]:
         """召回候选片段"""
         candidates: list[dict] = []
-        for source_id, source in self.sources.items():
-            for chunk in self._load_chunks(source_id, source, question):
+        for source_id, chunks in self._gather_source_chunks(question):
+            for chunk in chunks:
                 content = chunk.get("content", "")
                 score = self._similarity(question, content)
                 if score <= 0:
@@ -74,6 +86,51 @@ class KnowledgePipeline:
             reverse=True,
         )
         return candidates
+
+    def _gather_source_chunks(self, question: str) -> list[tuple[str, list[dict[str, Any]]]]:
+        if not self.sources:
+            return []
+        if len(self.sources) == 1:
+            source_id, source = next(iter(self.sources.items()))
+            return [(source_id, self._load_chunks_cached(source_id, source, question))]
+
+        workers = self._max_workers or min(8, len(self.sources))
+        ordered_sources = list(self.sources.items())
+        collected: dict[str, list[dict[str, Any]]] = {}
+
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+            futures = {
+                executor.submit(self._load_chunks_cached, source_id, source, question): source_id
+                for source_id, source in ordered_sources
+            }
+            for future in as_completed(futures):
+                source_id = futures[future]
+                try:
+                    collected[source_id] = future.result()
+                except Exception as exc:  # pragma: no cover - defensive path
+                    logger.warning("Knowledge source '%s' retrieval failed: %s", source_id, exc)
+                    collected[source_id] = []
+
+        return [(source_id, collected.get(source_id, [])) for source_id, _ in ordered_sources]
+
+    def _load_chunks_cached(self, source_id: str, source: Any, question: str) -> list[dict]:
+        key = (source_id, question)
+        if self._source_cache_max > 0:
+            with self._source_cache_lock:
+                cached = self._source_cache.get(key)
+                if cached is not None:
+                    self._source_cache.move_to_end(key)
+                    return [dict(item) for item in cached]
+
+        loaded = self._load_chunks(source_id, source, question)
+
+        if self._source_cache_max > 0:
+            with self._source_cache_lock:
+                self._source_cache[key] = [dict(item) for item in loaded]
+                self._source_cache.move_to_end(key)
+                while len(self._source_cache) > self._source_cache_max:
+                    self._source_cache.popitem(last=False)
+        return loaded
 
     def _rerank(self, candidates: list[dict], goal: str) -> list[dict]:
         """重排序"""

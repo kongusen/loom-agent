@@ -9,8 +9,10 @@ from loom.providers import (
     CompletionParams,
     CompletionResponse,
     GeminiProvider,
+    LLMProvider,
     OpenAIProvider,
 )
+from loom.utils import ProviderUnavailableError, RateLimitError
 
 
 class TestProviders:
@@ -414,3 +416,58 @@ class TestProviders:
         assert isinstance(result, CompletionResponse)
         assert result.tool_calls[0].name == "search_docs"
         assert result.tool_calls[0].arguments == {"query": "loom"}
+
+    @pytest.mark.asyncio
+    async def test_provider_base_maps_429_to_rate_limit_error(self):
+        class FlakyProvider(LLMProvider):
+            async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+                raise RuntimeError("429 rate limit exceeded")
+
+            def stream(self, messages: list, params: CompletionParams | None = None):
+                async def _gen():
+                    yield ""
+                return _gen()
+
+        provider = FlakyProvider()
+        with pytest.raises(RateLimitError):
+            await provider.complete([{"role": "user", "content": "hello"}])
+
+    @pytest.mark.asyncio
+    async def test_provider_base_uses_provider_unavailable_error_when_circuit_open(self):
+        class DownProvider(LLMProvider):
+            async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+                raise RuntimeError("network down")
+
+            def stream(self, messages: list, params: CompletionParams | None = None):
+                async def _gen():
+                    yield ""
+                return _gen()
+
+        provider = DownProvider()
+        provider._retry.max_retries = 1
+        provider._retry.circuit_open_after = 1
+
+        with pytest.raises(ProviderUnavailableError):
+            await provider.complete([{"role": "user", "content": "hello"}])
+        with pytest.raises(ProviderUnavailableError):
+            await provider.complete([{"role": "user", "content": "hello again"}])
+
+    def test_openai_provider_client_pool_reused_across_instances(self):
+        pooled_client = object()
+        OpenAIProvider.clear_client_pool()
+        OpenAIProvider._shared_clients[("shared-key", None, None)] = pooled_client
+        try:
+            provider = OpenAIProvider(api_key="shared-key")
+            assert provider.client is pooled_client
+        finally:
+            OpenAIProvider.clear_client_pool()
+
+    def test_anthropic_provider_client_pool_reused_across_instances(self):
+        pooled_client = object()
+        AnthropicProvider.clear_client_pool()
+        AnthropicProvider._shared_clients[("shared-key", None)] = pooled_client
+        try:
+            provider = AnthropicProvider(api_key="shared-key")
+            assert provider.client is pooled_client
+        finally:
+            AnthropicProvider.clear_client_pool()

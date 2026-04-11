@@ -92,11 +92,11 @@ class TestAgentLoop:
 
         renew_call_count = {"n": 0}
 
-        def mock_renew_fn(context, goal):
+        def mock_renew_fn(context, goal, sprint=0):
             renew_call_count["n"] += 1
             # After first renew, reset rho so delta can be reached
             context.working.rho = 0.3
-            return context
+            return context, None  # renew() now returns (partitions, handoff)
 
         with patch("loom.context.ContextRenewer") as MockRenewer:
             mock_renewer = MagicMock()
@@ -156,7 +156,7 @@ class TestAgentLoop:
 
         with patch("loom.context.ContextRenewer") as MockRenewer:
             mock_renewer = MagicMock()
-            mock_renewer.renew.return_value = ctx
+            mock_renewer.renew.return_value = (ctx, None)  # renew() returns (partitions, handoff)
             MockRenewer.return_value = mock_renewer
 
             result = loop.run("goal", ctx,
@@ -255,6 +255,28 @@ class TestHeartbeat:
             if events:
                 event, urgency = events[0]
                 assert event["source"] == "filesystem"
+
+    def test_callback_exception_isolated(self):
+        hb = Heartbeat(HeartbeatConfig())
+        dm = DashboardManager()
+
+        def _raise_callback(_event, _urgency):
+            raise RuntimeError("boom")
+
+        hb.event_callback = _raise_callback
+        event = {
+            "event_id": "evt_hb_err",
+            "summary": "file changed",
+            "observed_at": "2024-01-01T00:00:02",
+            "delta_H": 0.7,
+        }
+
+        with patch("loom.runtime.heartbeat.logger") as mock_logger:
+            returned = hb.process_event(event, "high", dashboard_manager=dm)
+
+        assert returned["urgency"] == "high"
+        assert dm.dashboard.last_hb_ts == "2024-01-01T00:00:02"
+        mock_logger.error.assert_called_once()
 
     def test_check_source_resource(self):
         """Test resource monitor source check"""

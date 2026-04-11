@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..types import ToolCall
+from ..utils.errors import ProviderError, ProviderUnavailableError, RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class LLMProvider(ABC):
     async def complete(self, messages: list, params: CompletionParams | None = None) -> str:
         """Completion with retry + circuit breaker."""
         if self._circuit.is_open():
-            raise RuntimeError("Circuit breaker open: provider unavailable")
+            raise ProviderUnavailableError("Circuit breaker open: provider unavailable")
 
         last_exc: Exception | None = None
         for attempt in range(self._retry.max_retries):
@@ -124,7 +125,9 @@ class LLMProvider(ABC):
                                    attempt + 1, self._retry.max_retries, exc, delay)
                     await asyncio.sleep(delay)
 
-        raise last_exc  # type: ignore[misc]
+        if last_exc is None:
+            raise ProviderUnavailableError("Provider completion failed with no exception details")
+        raise self._normalize_provider_exception(last_exc)
 
     async def complete_response(
         self,
@@ -133,7 +136,7 @@ class LLMProvider(ABC):
     ) -> CompletionResponse:
         """Structured completion with retry + circuit breaker."""
         if self._circuit.is_open():
-            raise RuntimeError("Circuit breaker open: provider unavailable")
+            raise ProviderUnavailableError("Circuit breaker open: provider unavailable")
 
         last_exc: Exception | None = None
         for attempt in range(self._retry.max_retries):
@@ -150,4 +153,16 @@ class LLMProvider(ABC):
                                    attempt + 1, self._retry.max_retries, exc, delay)
                     await asyncio.sleep(delay)
 
-        raise last_exc  # type: ignore[misc]
+        if last_exc is None:
+            raise ProviderUnavailableError("Provider completion failed with no exception details")
+        raise self._normalize_provider_exception(last_exc)
+
+    def _normalize_provider_exception(self, exc: Exception) -> ProviderError:
+        if isinstance(exc, ProviderError):
+            return exc
+
+        message = str(exc)
+        lowered = message.lower()
+        if "rate limit" in lowered or "429" in lowered:
+            return RateLimitError(message)
+        return ProviderUnavailableError(message)

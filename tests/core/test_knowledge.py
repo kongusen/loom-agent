@@ -1,5 +1,7 @@
 """Test knowledge pipeline."""
 
+from collections import Counter
+
 from loom.tools.knowledge import KnowledgePipeline
 
 
@@ -67,3 +69,39 @@ class TestKnowledgePipeline:
         assert pack.chunks == []
         assert pack.citations == []
         assert pack.relevance_score == 0.0
+
+    def test_source_cache_reuses_previous_query_result(self):
+        """Same source+query should hit LRU cache instead of reloading."""
+        calls = Counter()
+
+        def source(question: str):
+            calls[question] += 1
+            return [{"title": "Dynamic", "content": f"Answer about {question}"}]
+
+        pipeline = KnowledgePipeline(source_cache_max=8)
+        pipeline.register_source("dynamic", source)
+
+        first = pipeline.retrieve("question", "answer")
+        second = pipeline.retrieve("question", "answer")
+
+        assert first.chunks[0]["title"] == "Dynamic"
+        assert second.chunks[0]["title"] == "Dynamic"
+        assert calls["question"] == 1
+
+    def test_source_cache_evicts_old_entries(self):
+        """LRU cache should evict least-recently used source query."""
+        calls = Counter()
+
+        def source(question: str):
+            calls[question] += 1
+            return [{"title": question, "content": f"content {question}"}]
+
+        pipeline = KnowledgePipeline(source_cache_max=1)
+        pipeline.register_source("dynamic", source)
+
+        pipeline.retrieve("q1", "goal")
+        pipeline.retrieve("q2", "goal")
+        pipeline.retrieve("q1", "goal")
+
+        assert calls["q1"] == 2
+        assert calls["q2"] == 1

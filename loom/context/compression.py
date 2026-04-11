@@ -12,19 +12,54 @@
 
 import math
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from ..types import Message
+
+
+@dataclass(slots=True)
+class CompressionPolicy:
+    """Threshold policy for context compression stages."""
+
+    snip_at: float = 0.7
+    micro_at: float = 0.8
+    collapse_at: float = 0.9
+    auto_compact_at: float = 0.95
+
+    def __post_init__(self) -> None:
+        values = [
+            self.snip_at,
+            self.micro_at,
+            self.collapse_at,
+            self.auto_compact_at,
+        ]
+        if any(value < 0 or value > 1 for value in values):
+            raise ValueError("Compression thresholds must be in [0, 1]")
+        if not (
+            self.snip_at <= self.micro_at <= self.collapse_at <= self.auto_compact_at
+        ):
+            raise ValueError(
+                "Compression thresholds must be monotonic: "
+                "snip_at <= micro_at <= collapse_at <= auto_compact_at"
+            )
 
 
 class ContextCompressor:
     """Context compression with four-level strategy"""
 
-    def __init__(self, micro_max_chars: int = 240, collapse_keep_first: int = 3, collapse_keep_last: int = 5):
+    def __init__(
+        self,
+        micro_max_chars: int = 240,
+        collapse_keep_first: int = 3,
+        collapse_keep_last: int = 5,
+        policy: CompressionPolicy | None = None,
+    ):
+        self.policy = policy or CompressionPolicy()
         self.thresholds = {
-            'snip': 0.7,
-            'micro': 0.8,
-            'collapse': 0.9,
-            'auto': 0.95
+            'snip': self.policy.snip_at,
+            'micro': self.policy.micro_at,
+            'collapse': self.policy.collapse_at,
+            'auto': self.policy.auto_compact_at,
         }
         self.micro_max_chars = micro_max_chars
         self.collapse_keep_first = collapse_keep_first
@@ -32,13 +67,13 @@ class ContextCompressor:
 
     def should_compress(self, rho: float) -> str | None:
         """Determine which compression to trigger"""
-        if rho >= self.thresholds['auto']:
+        if rho >= self.policy.auto_compact_at:
             return 'auto'
-        elif rho >= self.thresholds['collapse']:
+        elif rho >= self.policy.collapse_at:
             return 'collapse'
-        elif rho >= self.thresholds['micro']:
+        elif rho >= self.policy.micro_at:
             return 'micro'
-        elif rho >= self.thresholds['snip']:
+        elif rho >= self.policy.snip_at:
             return 'snip'
         return None
 

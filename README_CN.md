@@ -19,7 +19,7 @@
 
 ---
 
-Loom 现在只有一套公开 API：`Agent`。你用它来定义模型、工具、策略和运行约束，再通过 `run()`、`stream()`、`session()` 构建上层应用。
+Loom 只有一套公开 API：`Agent`。你用它来定义模型、工具、策略和运行约束，再通过 `run()`、`stream()`、`session()` 构建上层应用。
 
 ## 快速开始
 
@@ -143,6 +143,119 @@ result = await run.wait()
 artifacts = await run.artifacts()
 ```
 
+---
+
+## Harness — 长任务 Agent 编排
+
+Loom 实现了面向长任务、质量可控的 **Harness 模式**，三个机制协同工作：
+
+### 1 · 上下文重置 + 结构化交接（Context Reset + Handoff）
+
+每当上下文压力 ρ 到达续写阈值，`ContextRenewer` 执行完整的上下文重置，并产出一份 `HandoffArtifact` —— 一个结构化交接文档，用于在下一个 sprint 冷启动时保留完整的情境感知。
+
+```python
+from loom.types import HandoffArtifact
+
+# HandoffArtifact 由 ContextManager.renew() 自动生成
+# 通过 context_manager.last_handoff 获取
+handoff = context_manager.last_handoff
+
+print(handoff.goal)             # 原始目标，永不压缩
+print(handoff.sprint)           # 这是第几次续写
+print(handoff.progress_summary) # 已完成内容摘要
+print(handoff.open_tasks)       # 剩余计划步骤
+
+# 注入到下一个 sprint 的 system prompt
+system_msg = handoff.to_system_prompt()
+```
+
+与普通上下文压缩不同，`HandoffArtifact` 显式分离了"已完成什么"、"还剩什么"和"永远不变的目标"，确保 Agent 在上下文重置后不会迷失方向。
+
+### 2 · Generator–Evaluator 迭代环（GAN 风格）
+
+`GeneratorEvaluatorLoop` 将生成与评判分离，消除自我表扬偏差（self-praise bias）。Evaluator 先协商出可验证的成功标准（`SprintContract`），再在每轮中评分 Generator 的产出。循环持续到 `PASS` 或耗尽 `max_sprints`。
+
+```python
+from loom.orchestration import GeneratorEvaluatorLoop, SprintContract
+
+loop = GeneratorEvaluatorLoop(
+    generator=gen_manager,
+    evaluator=eval_manager,
+    event_bus=bus,  # 可选 — 发布 sprint.passed / sprint.failed 事件
+)
+
+results = await loop.run("构建用户认证 REST API", max_sprints=5)
+
+for r in results:
+    print(f"Sprint {r.sprint}: {'PASS' if r.passed else 'FAIL'}")
+    print(f"  标准: {r.contract.criteria}")
+    print(f"  评语: {r.critique}")
+```
+
+每个 `SprintResult` 包含：
+- `contract` — 本轮前协商的 `SprintContract`（含评判标准）
+- `output` — Generator 的输出
+- `critique` — Evaluator 的评语（FAIL 时带入下一轮 prompt）
+- `passed` — 本轮是否通过
+
+### 3 · Sprint Contract — 协商成功标准
+
+每轮 sprint 开始前，Evaluator 生成明确、可验证的通过条件。这使 Generator 无法钻评估的空子，质量门槛可被检查和审计。
+
+```python
+from loom.orchestration import SprintContract
+
+contract = SprintContract(
+    sprint=1,
+    goal="构建用户认证 REST API",
+    criteria=[
+        "POST /register 返回 201 和用户 ID",
+        "POST /login 成功时返回签名 JWT",
+        "错误凭证返回 401 而非 500",
+    ],
+    eval_tools=["pytest", "httpx"],
+)
+```
+
+### AgentHarness — 统一入口
+
+`AgentHarness` 将三个机制串联成一次调用：可选的 Planner 将 brief 扩写为详细 spec，随后 Generator–Evaluator 循环迭代精化输出。
+
+```python
+from loom.orchestration import AgentHarness, HarnessResult
+
+harness = AgentHarness(
+    generator=gen_manager,
+    evaluator=eval_manager,   # 省略则退化为单轮模式
+    planner=plan_manager,     # 省略则跳过 spec 扩写
+    max_sprints=5,
+    event_bus=bus,
+)
+
+result: HarnessResult = await harness.run(
+    "构建一个支持流式输出的 CSV 转 JSON CLI 工具"
+)
+
+print(result.spec)      # planner 扩写后的 spec
+print(result.output)    # 最终 Generator 输出
+print(result.passed)    # Evaluator 是否认可
+print(result.sprints)   # 总共跑了几轮
+print(result.critique)  # 最后一轮 Evaluator 评语
+```
+
+**HarnessResult 字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `spec` | `str` | planner 扩写后的规格，无 planner 时等于原始 brief |
+| `output` | `str` | 最终 Generator 输出 |
+| `passed` | `bool` | 最后一轮是否通过 Evaluator |
+| `sprints` | `int` | 总执行轮数 |
+| `critique` | `str` | 最后一轮 Evaluator 评语 |
+| `sprint_results` | `list[SprintResult]` | 完整的逐轮历史 |
+
+---
+
 ## 扩展配置能力
 
 Loom 保留了可扩展的配置入口，统一通过配置对象挂在 `Agent` API 上：
@@ -210,26 +323,46 @@ agent = create_agent(
 ## 模块结构
 
 ```text
-loom/agent.py        ← 公开 Agent API
-loom/runtime/        ← session、run、loop、heartbeat、engine
-loom/context/        ← 上下文分区、压缩、续写、dashboard
-loom/memory/         ← session / working / semantic / persistent memory
-loom/tools/          ← 工具注册、执行、治理
-loom/orchestration/  ← 规划与多 agent 协作
-loom/safety/         ← 权限、hooks、veto
-loom/ecosystem/      ← skill、plugin、MCP 集成
-loom/evolution/      ← 自演化策略
-loom/providers/      ← Anthropic、OpenAI、Gemini、Qwen、Ollama
+loom/agent.py           ← 公开 Agent API
+loom/runtime/           ← session、run、loop (Reason→Act→Observe→Δ)、heartbeat
+loom/context/           ← 上下文分区、压缩、续写 + HandoffArtifact 生成
+loom/memory/            ← session / working / semantic / persistent memory
+loom/tools/             ← 工具注册、执行、治理
+loom/orchestration/     ← 规划、多 Agent 协作、
+│                         GeneratorEvaluatorLoop、AgentHarness、SprintContract
+loom/safety/            ← 权限、hooks、veto
+loom/ecosystem/         ← skill、plugin、MCP 集成
+loom/evolution/         ← 自演化策略
+loom/providers/         ← Anthropic、OpenAI、Gemini、Qwen、Ollama
+loom/types/             ← 核心类型，含 HandoffArtifact、SprintContract
 ```
 
-## Loom 的特点
+## 能力全景
 
-- 结构化的 Reason → Act → Observe → Δ 执行环
-- 上下文压力管理与续写
-- 后台 heartbeat 感知
-- 工具治理与 veto 安全边界
-- Session 级 run / event / artifact
-- Skill / Plugin / MCP 扩展能力
+| 能力类别 | Loom 提供的机制 |
+|---------|----------------|
+| **执行环** | 结构化 Reason → Act → Observe → Δ，状态自动转换 |
+| **上下文管理** | 五分区上下文，压力分级压缩（snip / micro / collapse / auto），ρ ≥ 1.0 强制续写 |
+| **结构化交接** | `HandoffArtifact` 跨续写携带目标、进度、待办任务和快照 |
+| **质量迭代** | `GeneratorEvaluatorLoop` 以协商好的 `SprintContract` 标准驱动 GAN 风格迭代 |
+| **Harness** | `AgentHarness` 将 Planner → Generator ⇌ Evaluator 封装为一次 `await harness.run(brief)` |
+| **多 Agent** | `SubAgentManager`、`Coordinator`、`TaskPlanner` 支持并行和串行任务图 |
+| **事件总线** | `CoordinationEventBus` 熵门控发布，支持 sprint 事件、主题订阅 |
+| **安全边界** | Veto 权限、工具钩子、`safety_rules` |
+| **Heartbeat** | 后台文件系统、资源、MF 事件监控，带紧迫度分类 |
+| **知识证据** | 证据包、语义检索、跨续写的 citation 追踪 |
+| **Session** | 作用域状态、事件流、产物收集 |
+| **Provider** | Anthropic、OpenAI、Gemini、Qwen、Ollama，支持共享连接池 |
+| **生态扩展** | Skill、Plugin、MCP Server 桥接 |
+
+## 运行时可靠性
+
+- 分层错误体系，便于分类处理失败场景：
+  - `ProviderError` → `ProviderUnavailableError` / `RateLimitError`
+  - `ToolError` → `ToolNotFoundError` / `ToolPermissionError` / `ToolExecutionError`
+  - `ContextError` → `ContextOverflowError`
+- Runtime Engine 发出 `tool_result` 事件，evolution 通过 `FeedbackLoop.subscribe_to_engine(...)` 订阅，实现解耦的可靠性反馈。
+- OpenAI、Anthropic、Gemini Provider 支持共享客户端池，在高并发下复用 SDK client。
 
 ## License
 

@@ -145,6 +145,119 @@ result = await run.wait()
 artifacts = await run.artifacts()
 ```
 
+---
+
+## Harness — Long-Running Agent Orchestration
+
+Loom implements the **Harness pattern** for long-running, quality-controlled agent tasks. Three mechanisms work together:
+
+### 1 · Context Reset with Structured Handoff
+
+Every time the context pressure (ρ) reaches the renewal threshold, `ContextRenewer` performs a full context reset and produces a `HandoffArtifact` — a structured document that cold-starts the next sprint with full situational awareness.
+
+```python
+from loom.types import HandoffArtifact
+
+# HandoffArtifact is produced automatically by ContextManager.renew()
+# and is accessible via context_manager.last_handoff
+handoff = context_manager.last_handoff
+
+print(handoff.goal)            # original goal, never compressed
+print(handoff.sprint)          # which renewal this is
+print(handoff.progress_summary)
+print(handoff.open_tasks)      # remaining plan steps carried forward
+
+# Inject into the next sprint's system prompt
+system_msg = handoff.to_system_prompt()
+```
+
+Unlike plain context compression, `HandoffArtifact` explicitly separates what was accomplished, what still needs to be done, and the goal that never changes — so the agent never loses its bearings after a context reset.
+
+### 2 · Generator–Evaluator Loop (GAN-style)
+
+`GeneratorEvaluatorLoop` separates generation from judgment to eliminate self-praise bias. The Evaluator first negotiates verifiable success criteria (`SprintContract`), then scores the Generator's output in each round. The loop continues until `PASS` or `max_sprints` is exhausted.
+
+```python
+from loom.orchestration import GeneratorEvaluatorLoop, SprintContract
+
+loop = GeneratorEvaluatorLoop(
+    generator=gen_manager,
+    evaluator=eval_manager,
+    event_bus=bus,          # optional — publishes sprint.passed / sprint.failed
+)
+
+results = await loop.run("Build a REST API for user authentication", max_sprints=5)
+
+for r in results:
+    print(f"Sprint {r.sprint}: {'PASS' if r.passed else 'FAIL'}")
+    print(f"  Criteria: {r.contract.criteria}")
+    print(f"  Critique: {r.critique}")
+```
+
+Each `SprintResult` carries:
+- `contract` — the `SprintContract` with criteria agreed before this sprint
+- `output` — what the Generator produced
+- `critique` — the Evaluator's judgment (fed into the next sprint's prompt on FAIL)
+- `passed` — whether this sprint cleared the bar
+
+### 3 · Sprint Contract — Negotiated Success Criteria
+
+Before each sprint, the Evaluator generates explicit, verifiable criteria. This prevents the Generator from gaming the evaluation, and makes quality gates inspectable and auditable.
+
+```python
+from loom.orchestration import SprintContract
+
+contract = SprintContract(
+    sprint=1,
+    goal="Build a REST API for user auth",
+    criteria=[
+        "POST /register returns 201 with a user ID",
+        "POST /login returns a signed JWT on success",
+        "Invalid credentials return 401, not 500",
+    ],
+    eval_tools=["pytest", "httpx"],
+)
+```
+
+### AgentHarness — One-Stop Entry Point
+
+`AgentHarness` wires all three mechanisms into a single call: an optional Planner expands the brief into a spec, then the Generator–Evaluator loop refines the output.
+
+```python
+from loom.orchestration import AgentHarness, HarnessResult
+
+harness = AgentHarness(
+    generator=gen_manager,
+    evaluator=eval_manager,   # omit for single-shot mode
+    planner=plan_manager,     # omit to skip spec expansion
+    max_sprints=5,
+    event_bus=bus,
+)
+
+result: HarnessResult = await harness.run(
+    "Build a CLI tool that converts CSV to JSON with streaming support"
+)
+
+print(result.spec)          # planner-expanded specification
+print(result.output)        # final generator output
+print(result.passed)        # did the evaluator approve?
+print(result.sprints)       # how many rounds were needed
+print(result.critique)      # last evaluator feedback
+```
+
+**HarnessResult fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `spec` | `str` | Planner-expanded brief, or original brief if no planner |
+| `output` | `str` | Final Generator output |
+| `passed` | `bool` | True if Evaluator approved the last sprint |
+| `sprints` | `int` | Total sprints executed |
+| `critique` | `str` | Last Evaluator feedback |
+| `sprint_results` | `list[SprintResult]` | Full per-sprint history |
+
+---
+
 ## Extensible Configuration
 
 Loom keeps configuration extensible through stable config objects on the public API:
@@ -214,26 +327,46 @@ agent = create_agent(
 ## Architecture
 
 ```text
-loom/agent.py        ← Public agent API
-loom/runtime/        ← Sessions, runs, loop, heartbeat, engine
-loom/context/        ← Context partitions, compression, renewal, dashboard
-loom/memory/         ← Session, working, semantic, persistent memory
-loom/tools/          ← Tool registry, executor, governance pipeline
-loom/orchestration/  ← Task planning and multi-agent coordination
-loom/safety/         ← Permissions, hooks, veto authority
-loom/ecosystem/      ← Skills, plugins, MCP bridge, activation
-loom/evolution/      ← Self-improvement strategies
-loom/providers/      ← Anthropic, OpenAI, Gemini, Qwen, Ollama
+loom/agent.py           ← Public agent API
+loom/runtime/           ← Sessions, runs, loop (Reason→Act→Observe→Δ), heartbeat
+loom/context/           ← Context partitions, compression, renewal + HandoffArtifact
+loom/memory/            ← Session, working, semantic, persistent memory
+loom/tools/             ← Tool registry, executor, governance pipeline
+loom/orchestration/     ← Task planning, multi-agent coordination,
+│                         GeneratorEvaluatorLoop, AgentHarness, SprintContract
+loom/safety/            ← Permissions, hooks, veto authority
+loom/ecosystem/         ← Skills, plugins, MCP bridge, activation
+loom/evolution/         ← Self-improvement strategies
+loom/providers/         ← Anthropic, OpenAI, Gemini, Qwen, Ollama
+loom/types/             ← Core types incl. HandoffArtifact, SprintContract
 ```
 
-## Why Loom
+## Capabilities
 
-- Structured Reason → Act → Observe → Δ execution loop
-- Context pressure management and renewal
-- Background heartbeat sensing
-- Tool governance and veto-based safety boundaries
-- Session-scoped runs, events, and artifacts
-- Extensible skills, plugins, and MCP integrations
+| Category | What Loom provides |
+|----------|--------------------|
+| **Execution loop** | Structured Reason → Act → Observe → Δ with automatic state transitions |
+| **Context management** | Five-partition context, pressure-based compression (snip / micro / collapse / auto), forced renewal at ρ ≥ 1.0 |
+| **Structured handoff** | `HandoffArtifact` carries goal, progress, open tasks, and context snapshot across context resets |
+| **Quality iteration** | `GeneratorEvaluatorLoop` runs GAN-style sprints with negotiated `SprintContract` criteria |
+| **Harness** | `AgentHarness` wires Planner → Generator ⇌ Evaluator into one `await harness.run(brief)` call |
+| **Multi-agent** | `SubAgentManager`, `Coordinator`, `TaskPlanner` for parallel and sequential task graphs |
+| **Event bus** | `CoordinationEventBus` with entropy-gated publish, sprint events, topic subscriptions |
+| **Safety** | Veto authority, permission guards, pre/post tool hooks, `safety_rules` |
+| **Heartbeat** | Background filesystem, resource, and MF-events monitoring with urgency classification |
+| **Knowledge** | Evidence packs, semantic retrieval, citation tracking across context resets |
+| **Sessions** | Scoped state, streaming events, artifact collection |
+| **Providers** | Anthropic, OpenAI, Gemini, Qwen, Ollama with shared client pooling |
+| **Ecosystem** | Skills, plugins, MCP server bridge |
+
+## Runtime Reliability
+
+- Hierarchical errors make failures easier to classify and handle:
+  - `ProviderError` → `ProviderUnavailableError` / `RateLimitError`
+  - `ToolError` → `ToolNotFoundError` / `ToolPermissionError` / `ToolExecutionError`
+  - `ContextError` → `ContextOverflowError`
+- Runtime engine emits `tool_result` events; evolution feedback subscribes via `FeedbackLoop.subscribe_to_engine(...)` for decoupled reliability tracking.
+- OpenAI, Anthropic, and Gemini providers support shared client pooling to reuse SDK clients under concurrent load.
 
 ## License
 

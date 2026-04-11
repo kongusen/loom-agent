@@ -1,6 +1,6 @@
 """Context management system"""
 
-from .compression import ContextCompressor
+from .compression import CompressionPolicy, ContextCompressor
 from .dashboard import DashboardManager
 from .manager import ContextManager
 from .partitions import ContextPartitions
@@ -11,5 +11,6 @@ __all__ = [
     "ContextPartitions",
     "DashboardManager",
     "ContextCompressor",
+    "CompressionPolicy",
     "ContextRenewer",
 ]

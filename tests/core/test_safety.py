@@ -61,6 +61,33 @@ class TestConstraintValidator:
         ok, msg = cv.validate(tc)
         assert ok is True
 
+    def test_validate_with_details_returns_structured_violation(self):
+        cv = ConstraintValidator()
+        cv.add_constraint("tool_1", lambda tc: (False, "path is forbidden"))
+        tc = ToolCall(id="1", name="tool_1", arguments={"path": "/tmp"})
+
+        result = cv.validate_with_details(tc)
+
+        assert result.ok is False
+        assert result.message == "path is forbidden"
+        assert len(result.violations) == 1
+        assert result.violations[0].tool == "tool_1"
+        assert result.violations[0].arguments["path"] == "/tmp"
+
+    def test_validate_with_details_handles_constraint_exception(self):
+        cv = ConstraintValidator()
+
+        def _boom(_tc):
+            raise RuntimeError("unexpected validator crash")
+
+        cv.add_constraint("tool_1", _boom)
+        tc = ToolCall(id="1", name="tool_1", arguments={})
+
+        result = cv.validate_with_details(tc)
+
+        assert result.ok is False
+        assert "Constraint exception" in result.message
+
 
 # ── VetoAuthority ──
 
