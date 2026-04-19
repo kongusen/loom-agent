@@ -17,6 +17,15 @@ from .results import LoopResult, SubAgentResult
 from .state import Dashboard, EventSurface, KnowledgeSurface, LoopState
 from .handoff import HandoffArtifact
 from .validation import ValidationError
+from .stream import (
+    DoneEvent,
+    ErrorEvent,
+    StreamEvent,
+    TextDelta,
+    ThinkingDelta,
+    ToolCallEvent,
+    ToolResultEvent,
+)
 
 __all__ = [
     "Message",
@@ -43,4 +52,12 @@ __all__ = [
     "create_document_block_from_file",
     "ValidationError",
     "HandoffArtifact",
+    # streaming events
+    "StreamEvent",
+    "ThinkingDelta",
+    "TextDelta",
+    "ToolCallEvent",
+    "ToolResultEvent",
+    "DoneEvent",
+    "ErrorEvent",
 ]

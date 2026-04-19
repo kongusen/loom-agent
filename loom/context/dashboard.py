@@ -4,6 +4,9 @@ import threading
 from typing import Any
 
 from ..types import Dashboard as DashboardType
+from .event_aggregator import EventAggregator
+
+_PENDING_EVENTS_AGGREGATE_THRESHOLD = 10
 
 
 class DashboardManager:
@@ -16,6 +19,7 @@ class DashboardManager:
     ):
         self.dashboard = dashboard or DashboardType()
         self._lock = lock or threading.RLock()
+        self._aggregator = EventAggregator()
 
     def bind(self, dashboard: DashboardType) -> DashboardType:
         """Bind manager to a live working dashboard."""
@@ -49,7 +53,7 @@ class DashboardManager:
             self.dashboard.scratchpad = scratchpad
 
     def add_pending_event(self, event: dict):
-        """Add event to pending_events"""
+        """Add event to pending_events, aggregating when the list grows large."""
         with self._lock:
             event_id = event.get("event_id")
             if event_id and any(
@@ -58,6 +62,10 @@ class DashboardManager:
             ):
                 return
             self.dashboard.event_surface.pending_events.append(event)
+            if len(self.dashboard.event_surface.pending_events) >= _PENDING_EVENTS_AGGREGATE_THRESHOLD:
+                self.dashboard.event_surface.pending_events = self._aggregator.aggregate(
+                    self.dashboard.event_surface.pending_events
+                )
 
     def acknowledge_event(self, event_id: str, decision: dict):
         """Acknowledge event and move to recent_event_decisions"""

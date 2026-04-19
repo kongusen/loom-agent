@@ -59,15 +59,29 @@ class SubAgentManager:
         return results
 
     def _create_child(self, depth: int, inherit_context: bool) -> Any:
-        """Create a child agent and optionally inherit selected context."""
+        """Create a child agent and optionally inherit selected context.
+
+        When *inherit_context* is True the child receives a deep copy of the
+        parent's full config (instructions, knowledge, model, tools).
+        When False the child starts with a minimal config: same model/tools/
+        generation settings but no inherited instructions or knowledge sources,
+        giving it a blank working context.
+        """
         from ..agent import Agent
 
         if isinstance(self.parent, Agent):
-            child = Agent(config=deepcopy(self.parent.config))
+            if inherit_context:
+                child = Agent(config=deepcopy(self.parent.config))
+            else:
+                from dataclasses import replace
+                child = Agent(config=replace(
+                    self.parent.config,
+                    instructions="",
+                    knowledge=[],
+                ))
         else:
             child = self.parent
 
-        _ = inherit_context
         _ = depth
 
         self.children.append(child)

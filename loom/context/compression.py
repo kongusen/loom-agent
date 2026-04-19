@@ -153,9 +153,8 @@ class ContextCompressor:
 
         Args:
             messages: 消息列表
-            goal: 任务目标（预留参数，未来用于智能折叠决策）
+            goal: 任务目标，嵌入折叠摘要中以帮助 LLM 维持方向感
         """
-        _ = goal  # 预留参数，未来用于基于目标的智能折叠
         min_len = self.collapse_keep_first + self.collapse_keep_last + 1
         if len(messages) < min_len:
             return messages
@@ -170,7 +169,7 @@ class ContextCompressor:
         tail = non_system[-self.collapse_keep_last:]
         middle = non_system[self.collapse_keep_first:-self.collapse_keep_last]
 
-        collapsed = system_msgs + head + [self._summarize_middle(middle)] + tail
+        collapsed = system_msgs + head + [self._summarize_middle(middle, goal=goal)] + tail
         return collapsed
 
     def auto_compact(self, messages: list[Message], goal: str) -> list[Message]:
@@ -201,7 +200,7 @@ class ContextCompressor:
         overlap = len(goal_words & content_words)
         return min(1.0, overlap / len(goal_words))
 
-    def _summarize_middle(self, messages: list[Message]) -> Message:
+    def _summarize_middle(self, messages: list[Message], goal: str = "") -> Message:
         """Extractive summary: keep first sentence of each message, truncated."""
         if not messages:
             return Message(role="system", content="[no middle messages]")
@@ -220,7 +219,8 @@ class ContextCompressor:
             end = min(content.find(". ") + 1 if ". " in content else len(content), 120)
             parts.append(f"[{msg.role}] {content[:end]}")
         summary = " | ".join(parts) if parts else f"[{len(messages)} messages]"
-        return Message(role="system", content=f"[collapsed {len(messages)} messages: {summary}]")
+        goal_hint = f" (goal: {goal})" if goal else ""
+        return Message(role="system", content=f"[collapsed {len(messages)} messages{goal_hint}: {summary}]")
 
     def _cached_tool_message(self, msg: Message, cached_from: str) -> Message:
         """Replace duplicate tool output with a cache reference."""

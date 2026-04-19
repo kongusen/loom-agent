@@ -335,3 +335,125 @@ class TestSafetyPermissionManager:
         assert decision.allowed is False
         assert decision.requires_approval is True
         assert decision.matched_permission is not None
+
+# ── Engine integration: hook → permission → veto pipeline ──
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+
+class TestEngineHookPermissionPipeline:
+    """Tests for the hook→permission→veto safety pipeline in AgentEngine."""
+
+    def _make_engine(self, provider=None):
+        from loom.runtime.engine import AgentEngine, EngineConfig
+        mock_provider = provider or MagicMock()
+        return AgentEngine(
+            provider=mock_provider,
+            config=EngineConfig(enable_safety=True),
+        )
+
+    def _make_tool_call(self, name="test_tool", call_id="c1"):
+        return ToolCall(id=call_id, name=name, arguments={})
+
+    def test_hook_manager_always_created(self):
+        engine = self._make_engine()
+        from loom.safety.hooks import HookManager
+        assert isinstance(engine.hook_manager, HookManager)
+
+    def test_permission_manager_none_by_default(self):
+        engine = self._make_engine()
+        assert engine.permission_manager is None
+
+    def test_permission_manager_injectable(self):
+        from loom.runtime.engine import AgentEngine, EngineConfig
+        from loom.safety.permissions import PermissionManager, PermissionMode
+        pm = PermissionManager(mode=PermissionMode.AUTO)
+        engine = AgentEngine(
+            provider=MagicMock(),
+            config=EngineConfig(),
+            permission_manager=pm,
+        )
+        assert engine.permission_manager is pm
+
+    @pytest.mark.asyncio
+    async def test_hook_deny_blocks_execution(self):
+        engine = self._make_engine()
+        engine.hook_manager.register(
+            "before_tool_call",
+            lambda ctx: (HookDecision.DENY, "blocked by test"),
+        )
+        call = self._make_tool_call()
+        results = await engine._execute_tools([call])
+        assert len(results) == 1
+        assert results[0].is_error
+        assert "Hook denied" in results[0].content
+
+    @pytest.mark.asyncio
+    async def test_hook_allow_proceeds(self):
+        engine = self._make_engine()
+        engine.hook_manager.register(
+            "before_tool_call",
+            lambda ctx: HookDecision.ALLOW,
+        )
+        # Tool not registered → executor returns error, but hook itself allowed
+        call = self._make_tool_call()
+        results = await engine._execute_tools([call])
+        assert len(results) == 1
+        # Error comes from missing tool, not from hook denial
+        assert "Hook denied" not in results[0].content
+
+    @pytest.mark.asyncio
+    async def test_permission_deny_blocks_execution(self):
+        from loom.safety.permissions import PermissionManager, PermissionMode
+        engine = self._make_engine()
+        pm = PermissionManager(mode=PermissionMode.DEFAULT)
+        pm.revoke("test_tool", "execute", note="not allowed")
+        engine.permission_manager = pm
+
+        call = self._make_tool_call()
+        results = await engine._execute_tools([call])
+        assert len(results) == 1
+        assert results[0].is_error
+        assert "Permission denied" in results[0].content
+
+    @pytest.mark.asyncio
+    async def test_veto_still_works_after_hooks(self):
+        from loom.safety.veto import VetoRule
+        engine = self._make_engine()
+        engine.veto_authority.add_rule(
+            VetoRule(
+                name="block_all",
+                predicate=lambda name, args: True,
+                reason="vetoed by test",
+            )
+        )
+        call = self._make_tool_call()
+        results = await engine._execute_tools([call])
+        assert len(results) == 1
+        assert results[0].is_error
+        assert "Vetoed" in results[0].content
+
+    @pytest.mark.asyncio
+    async def test_hook_deny_takes_priority_over_permission_and_veto(self):
+        from loom.safety.permissions import PermissionManager, PermissionMode
+        from loom.safety.veto import VetoRule
+        engine = self._make_engine()
+        # All three layers would deny — hook fires first
+        engine.hook_manager.register(
+            "before_tool_call",
+            lambda ctx: (HookDecision.DENY, "hook blocked"),
+        )
+        pm = PermissionManager(mode=PermissionMode.DEFAULT)
+        pm.revoke("test_tool", "execute")
+        engine.permission_manager = pm
+        engine.veto_authority.add_rule(
+            VetoRule(name="block", predicate=lambda n, a: True, reason="vetoed")
+        )
+        call = self._make_tool_call()
+        results = await engine._execute_tools([call])
+        assert "Hook denied" in results[0].content
+
+    def test_current_iteration_tracked(self):
+        engine = self._make_engine()
+        assert engine._current_iteration == 0

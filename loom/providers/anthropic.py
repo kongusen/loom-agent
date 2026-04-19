@@ -1,7 +1,8 @@
 """Anthropic Claude provider."""
 
+import inspect
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from ..types import ToolCall
@@ -92,6 +93,82 @@ class AnthropicProvider(LLMProvider):
             raw=response,
         )
 
+    async def complete_streaming(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+        on_token: Any | None = None,
+    ) -> CompletionResponse:
+        """Stream tokens via *on_token* and return the complete response.
+
+        Anthropic's streaming API delivers text deltas and tool_use blocks as
+        separate content_block events.  We accumulate both in a single pass
+        so no second API call is needed.
+        """
+        import json as _json
+        request = self._build_request(messages, params)
+        stream = await self.client.messages.create(**request, stream=True)
+
+        text_parts: list[str] = []
+        # tool_use blocks accumulated by index
+        tool_blocks: dict[int, dict] = {}
+        current_block_idx: int | None = None
+
+        async for event in stream:
+            event_type = getattr(event, "type", "")
+
+            if event_type == "content_block_start":
+                block = getattr(event, "content_block", None)
+                idx = getattr(event, "index", 0)
+                if block and getattr(block, "type", "") == "tool_use":
+                    tool_blocks[idx] = {
+                        "id": getattr(block, "id", ""),
+                        "name": getattr(block, "name", ""),
+                        "input_json": "",
+                    }
+                    current_block_idx = idx
+                else:
+                    current_block_idx = None
+
+            elif event_type == "content_block_delta":
+                delta = getattr(event, "delta", None)
+                if delta is None:
+                    continue
+                delta_type = getattr(delta, "type", "")
+
+                if delta_type == "text_delta":
+                    text = getattr(delta, "text", "")
+                    if text:
+                        text_parts.append(text)
+                        if on_token is not None:
+                            result = on_token(text)
+                            if inspect.isawaitable(result):
+                                await result
+
+                elif delta_type == "input_json_delta" and current_block_idx is not None:
+                    partial = getattr(delta, "partial_json", "")
+                    if partial and current_block_idx in tool_blocks:
+                        tool_blocks[current_block_idx]["input_json"] += partial
+
+        # Parse accumulated tool use blocks
+        tool_calls: list[ToolCall] = []
+        for idx in sorted(tool_blocks.keys()):
+            tb = tool_blocks[idx]
+            try:
+                arguments = _json.loads(tb["input_json"] or "{}")
+            except _json.JSONDecodeError:
+                arguments = {}
+            tool_calls.append(ToolCall(
+                id=tb["id"],
+                name=tb["name"],
+                arguments=arguments if isinstance(arguments, dict) else {},
+            ))
+
+        return CompletionResponse(
+            content="".join(text_parts),
+            tool_calls=tool_calls,
+        )
+
     async def stream(
         self,
         messages: list,
@@ -108,6 +185,78 @@ class AnthropicProvider(LLMProvider):
                 text = getattr(delta, "text", "") if delta is not None else ""
                 if text:
                     yield text
+
+    async def stream_events(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> AsyncGenerator["Any", None]:
+        """Yield typed StreamEvents from Anthropic's SSE stream (Mode B).
+
+        Emits:
+        - ``ThinkingDelta`` for each extended-thinking token
+        - ``TextDelta`` for each assistant text token
+        - ``ToolCallEvent`` once per tool block (after args fully assembled)
+        """
+        import json as _json
+
+        from ..types.stream import TextDelta, ThinkingDelta, ToolCallEvent
+
+        request = self._build_request(messages, params)
+        stream = await self.client.messages.create(**request, stream=True)
+
+        # tool_use blocks accumulated by content-block index
+        tool_blocks: dict[int, dict] = {}
+        current_block_idx: int | None = None
+
+        async for event in stream:
+            etype = getattr(event, "type", "")
+
+            if etype == "content_block_start":
+                block = getattr(event, "content_block", None)
+                idx = getattr(event, "index", 0)
+                current_block_idx = idx
+                if block and getattr(block, "type", "") == "tool_use":
+                    tool_blocks[idx] = {
+                        "id": getattr(block, "id", ""),
+                        "name": getattr(block, "name", ""),
+                        "input_json": "",
+                    }
+
+            elif etype == "content_block_delta":
+                delta = getattr(event, "delta", None)
+                if delta is None:
+                    continue
+                dtype = getattr(delta, "type", "")
+
+                if dtype == "text_delta":
+                    text = getattr(delta, "text", "")
+                    if text:
+                        yield TextDelta(delta=text)
+
+                elif dtype == "thinking_delta":
+                    thinking = getattr(delta, "thinking", "")
+                    if thinking:
+                        yield ThinkingDelta(delta=thinking)
+
+                elif dtype == "input_json_delta" and current_block_idx is not None:
+                    partial = getattr(delta, "partial_json", "")
+                    if partial and current_block_idx in tool_blocks:
+                        tool_blocks[current_block_idx]["input_json"] += partial
+
+            elif etype == "content_block_stop":
+                # Emit ToolCallEvent once the block is fully assembled
+                if current_block_idx is not None and current_block_idx in tool_blocks:
+                    tb = tool_blocks[current_block_idx]
+                    try:
+                        arguments = _json.loads(tb["input_json"] or "{}")
+                    except _json.JSONDecodeError:
+                        arguments = {}
+                    yield ToolCallEvent(
+                        id=tb["id"],
+                        name=tb["name"],
+                        arguments=arguments if isinstance(arguments, dict) else {},
+                    )
 
     def _build_request(
         self,

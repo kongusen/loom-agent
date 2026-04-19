@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any  # noqa: F401 – Any used in run_streaming annotation
 from uuid import uuid4
 
 from ..config import (
@@ -192,7 +192,22 @@ class Run:
         )
 
         try:
-            payload = await self.session._execute(self.prompt, self.context, run_id=self.id)
+            # Build an async token callback that emits run.token events
+            stream_output: bool = bool(
+                self.session.agent.config.generation.extensions.get("stream", False)
+                if self.session.agent.config.generation
+                else False
+            )
+
+            async def _on_token(text: str) -> None:
+                await self._publish_event("run.token", {"text": text})
+
+            payload = await self.session._execute(
+                self.prompt,
+                self.context,
+                run_id=self.id,
+                token_callback=_on_token if stream_output else None,
+            )
             status = payload.get("status", "success")
             self.output = str(payload.get("output", ""))
 
@@ -314,6 +329,49 @@ class Session:
         async for event in self.start(prompt, context=context).events():
             yield event
 
+    async def run_streaming(
+        self,
+        prompt: str,
+        context: RunContext | None = None,
+    ) -> AsyncIterator[Any]:
+        """Stream typed Mode B events directly (no RunEvent wrapper).
+
+        Yields ``StreamEvent`` instances — ``TextDelta``, ``ThinkingDelta``,
+        ``ToolCallEvent``, ``ToolResultEvent``, ``DoneEvent``, ``ErrorEvent``.
+        """
+        from ..types.stream import ErrorEvent
+
+        if self._engine is None:
+            provider = self.agent._get_provider()
+            if provider is not None:
+                self._engine = self.agent._build_engine(provider)
+
+        if self._engine is None:
+            yield ErrorEvent(message="Provider unavailable")
+            return
+
+        context = _normalize_run_context(context)
+        merged_context = context.to_payload()
+        if self.agent.config.knowledge:
+            merged_context.setdefault(
+                "knowledge_sources",
+                [source.to_context_payload() for source in self.agent.config.knowledge],
+            )
+
+        session_id = (
+            self.id
+            if (self.agent.config.memory and self.agent.config.memory.enabled)
+            else None
+        )
+
+        async for event in self._engine.execute_streaming(
+            goal=prompt,
+            instructions=self.agent.config.instructions,
+            context=merged_context,
+            session_id=session_id,
+        ):
+            yield event
+
     def get_run(self, run_id: str) -> Run | None:
         """Look up a previously created run."""
         return self._runs.get(run_id)
@@ -338,6 +396,7 @@ class Session:
         context: RunContext | None = None,
         *,
         run_id: str,
+        token_callback: "Any | None" = None,
     ) -> dict[str, Any]:
         if self._engine is None:
             provider = self.agent._get_provider()
@@ -350,6 +409,7 @@ class Session:
             session_id=self.id,
             run_id=run_id,
             engine=self._engine,
+            token_callback=token_callback,
         )
 
 

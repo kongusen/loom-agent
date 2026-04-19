@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.7.4] - 2026-04-19
+
+### 🌊 Mode B 全程流式输出（typed StreamEvent pipeline）
+
+**新增 `loom.types.stream` — 6 种类型化流事件**
+- `ThinkingDelta` — 模型扩展推理 token（Claude extended thinking / Qwen3 / DeepSeek-R1）
+- `TextDelta` — 助手正文 token（打字机效果）
+- `ToolCallEvent` — LLM 决定调用工具（args 完整组装后一次性发出）
+- `ToolResultEvent` — 工具执行完成
+- `DoneEvent` — Agent 循环结束（含最终输出与迭代次数）
+- `ErrorEvent` — 执行中断错误
+
+**Provider 层：全面实现 `stream_events()` 真流式**
+- `AnthropicProvider`：Anthropic SSE stream → ThinkingDelta / TextDelta / ToolCallEvent
+- `OpenAIProvider`：OpenAI chat SSE → TextDelta + 流结束后 ToolCallEvent（支持多 tool call 并发）
+- `QwenProvider`：继承 OpenAI；`enable_thinking=True` 时 `reasoning_content` → ThinkingDelta
+- `DeepSeekProvider`：继承 OpenAI；`expose_reasoning=True` 时 → ThinkingDelta
+- `MiniMaxProvider`：继承 OpenAI；`expose_reasoning=True` 时 → ThinkingDelta（MiniMax-M1）
+- `GeminiProvider`：`generate_content_async(stream=True)` → TextDelta / ToolCallEvent
+- `OllamaProvider`：自动继承 OpenAI 实现
+
+**Engine / Session / Agent 层**
+- `AgentEngine.execute_streaming()` — 异步生成器版 L* 循环，每个 token/动作都 yield 一个 StreamEvent
+- `Session.run_streaming()` — Session 级直通接口，绕过 RunEvent 包装层
+- `Agent.run_streaming()` — 公开 API，前端一行接入
+
+**用法示例**
+```python
+async for event in agent.run_streaming("研究量子计算最新进展"):
+    if event.type == "text_delta":
+        print(event.delta, end="", flush=True)
+    elif event.type == "tool_call":
+        print(f"\n[→ {event.name}({event.arguments})]")
+    elif event.type == "tool_result":
+        print(f"[← {event.name}: {event.content[:80]}]")
+    elif event.type == "done":
+        print(f"\n完成，共 {event.iterations} 轮迭代")
+```
+
+---
+
+## [0.7.3] - 2026-04-15
+
+### 🔧 系统机制全面接入（audit-driven wiring）
+
+- `EcosystemManager` 接入 Agent + Engine（MCP 工具自动注册、系统提示注入）
+- `EvolutionEngine` 自动订阅 engine `tool_result` 事件
+- `Coordinator` 在 Agent 上暴露，自动注册 `SubAgentManager`
+- `EventAggregator` 接入 `DashboardManager`（pending_events ≥ 10 自动压缩）
+- `SemanticMemory` 接入 AgentEngine（`enable_memory=True` 时创建；tool 结果写入，goal 注入时召回）
+- `WorkingMemory` 接入 AgentEngine（dashboard 绑定到 `partitions.working`）
+- `PluginLoader.apply_to_agent()` 间隙修复：Agent 新增持久 `hook_manager` 属性，跨 engine 重建保留
+
 ## [0.7.1] - 2026-04-07
 
 ### 🌏 国内模型与本地部署支持

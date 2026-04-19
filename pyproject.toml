@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.7.3"
+version = "0.7.4"
 description = "Python agent runtime framework — context management, multi-agent orchestration, and self-improvement for autonomous AI agents"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"

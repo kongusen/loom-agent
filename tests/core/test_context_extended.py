@@ -340,3 +340,40 @@ class TestDashboardManager:
         assert state["active_risks"] == 1
         assert state["active_questions"] == 1
         assert state["error_count"] == 1
+
+
+# ── EventAggregator → DashboardManager integration ──
+
+class TestEventAggregatorDashboardIntegration:
+    """EventAggregator is called automatically when pending_events reaches threshold."""
+
+    def test_aggregator_created_on_dashboard_manager(self):
+        from loom.context.dashboard import DashboardManager
+        from loom.context.event_aggregator import EventAggregator
+        dm = DashboardManager()
+        assert isinstance(dm._aggregator, EventAggregator)
+
+    def test_aggregation_fires_at_threshold(self):
+        from loom.context.dashboard import DashboardManager, _PENDING_EVENTS_AGGREGATE_THRESHOLD
+        dm = DashboardManager()
+        for i in range(_PENDING_EVENTS_AGGREGATE_THRESHOLD + 1):
+            dm.add_pending_event({"type": "tool_call", "event_id": str(i), "observed_at": ""})
+        pending = dm.dashboard.event_surface.pending_events
+        assert len(pending) < _PENDING_EVENTS_AGGREGATE_THRESHOLD
+
+    def test_aggregated_entry_has_count(self):
+        from loom.context.dashboard import DashboardManager, _PENDING_EVENTS_AGGREGATE_THRESHOLD
+        dm = DashboardManager()
+        for i in range(_PENDING_EVENTS_AGGREGATE_THRESHOLD + 1):
+            dm.add_pending_event({"type": "heartbeat", "event_id": str(i), "observed_at": ""})
+        summaries = [e for e in dm.dashboard.event_surface.pending_events if "count" in e]
+        assert summaries, "Expected at least one aggregated summary"
+        assert summaries[0]["count"] >= 4
+
+    def test_below_threshold_not_aggregated(self):
+        from loom.context.dashboard import DashboardManager, _PENDING_EVENTS_AGGREGATE_THRESHOLD
+        dm = DashboardManager()
+        count = _PENDING_EVENTS_AGGREGATE_THRESHOLD - 1
+        for i in range(count):
+            dm.add_pending_event({"type": "x", "event_id": str(i), "observed_at": ""})
+        assert len(dm.dashboard.event_surface.pending_events) == count

@@ -3,9 +3,12 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..types.stream import StreamEvent
 
 from ..types import ToolCall
 from ..utils.errors import ProviderError, ProviderUnavailableError, RateLimitError
@@ -21,6 +24,7 @@ class CompletionParams:
     temperature: float = 1.0
     tools: list[dict[str, Any]] = field(default_factory=list)
     tool_choice: str | None = None
+    extensions: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -104,6 +108,55 @@ class LLMProvider(ABC):
     @abstractmethod
     def stream(self, messages: list, params: CompletionParams | None = None) -> AsyncIterator[str]:
         """Streaming completion (async generator)."""
+
+    async def complete_streaming(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+        on_token: "Any | None" = None,
+    ) -> CompletionResponse:
+        """Stream tokens via *on_token* callback and return the complete response.
+
+        The default implementation calls ``complete_response`` once and fires
+        *on_token* with the full content, so every provider works correctly
+        even without a streaming override.  Providers that support real
+        token-by-token streaming (OpenAI family) override this method to
+        accumulate text *and* tool-call deltas in a single API call.
+
+        Args:
+            messages: Conversation messages.
+            params: Completion parameters.
+            on_token: Async or sync callable ``(text: str) -> None`` invoked
+                for each token chunk.  May be ``None``.
+        """
+        import asyncio
+        import inspect
+        response = await self._complete_response(messages, params)
+        if on_token is not None and response.content:
+            result = on_token(response.content)
+            if inspect.isawaitable(result):
+                await result
+        return response
+
+    async def stream_events(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> AsyncGenerator["StreamEvent", None]:
+        """Yield typed StreamEvents (Mode B streaming).
+
+        The default implementation performs a single batch completion and
+        emits one ``TextDelta`` for the full response text plus one
+        ``ToolCallEvent`` per tool call.  Providers that support real
+        token-by-token streaming should override this method.
+        """
+        from ..types.stream import TextDelta, ToolCallEvent
+
+        response = await self._complete_response(messages, params)
+        if response.content:
+            yield TextDelta(delta=response.content)
+        for tc in response.tool_calls:
+            yield ToolCallEvent(id=tc.id, name=tc.name, arguments=tc.arguments)
 
     async def complete(self, messages: list, params: CompletionParams | None = None) -> str:
         """Completion with retry + circuit breaker."""

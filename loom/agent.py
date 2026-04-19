@@ -72,6 +72,11 @@ class Agent:
     _provider_resolved: bool = field(default=False, init=False, repr=False)
     _provider_from_resolver: bool = field(default=False, init=False, repr=False)
     _provider_validated: bool = field(default=False, init=False, repr=False)
+    _ecosystem: Any = field(default=None, init=False, repr=False)
+    _evolution_engine: Any = field(default=None, init=False, repr=False)
+    _coordinator: Any = field(default=None, init=False, repr=False)
+    _last_engine: Any = field(default=None, init=False, repr=False)
+    _hook_manager: Any = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         config = _normalize_config(self.config, AgentConfig, "config")
@@ -91,6 +96,69 @@ class Agent:
         self.config = config
         self._compiled_tools = [_compile_tool_spec(tool) for tool in declared_tools]
         self._session_ttl_hours = _resolve_session_ttl_hours(config.runtime)
+
+    @property
+    def ecosystem(self) -> Any:
+        """Lazily created EcosystemManager for plugins, skills, and MCP servers."""
+        if self._ecosystem is None:
+            from .ecosystem.integration import EcosystemManager
+            self._ecosystem = EcosystemManager()
+        return self._ecosystem
+
+    @property
+    def mcp_bridge(self) -> Any:
+        """MCPBridge exposed directly for convenient MCP server registration."""
+        return self.ecosystem.mcp_bridge
+
+    @property
+    def evolution(self) -> Any:
+        """Lazily created EvolutionEngine for tracking execution feedback."""
+        if self._evolution_engine is None:
+            from .evolution.engine import EvolutionEngine
+            self._evolution_engine = EvolutionEngine()
+        return self._evolution_engine
+
+    @property
+    def working_memory(self) -> Any:
+        """WorkingMemory scratchpad from the most recently built engine.
+
+        Provides a dict-based scratchpad (``set_scratch`` / ``get_scratch``)
+        and a live binding to the current execution dashboard.  Returns None
+        when no engine has been constructed yet for this agent.
+        """
+        # Access via the _last_engine attribute set by _build_engine
+        engine = getattr(self, "_last_engine", None)
+        if engine is not None:
+            return engine.working_memory
+        return None
+
+    @property
+    def hook_manager(self) -> Any:
+        """Agent-level HookManager — persists across engine rebuilds.
+
+        Hooks registered here survive session boundaries and are merged into
+        every engine created by ``_build_engine()``.  This is the correct
+        target for ``PluginLoader.apply_to_agent()`` and any external code
+        that wants to attach hooks without holding a reference to the engine.
+        """
+        if self._hook_manager is None:
+            from .safety.hooks import HookManager
+            self._hook_manager = HookManager()
+        return self._hook_manager
+
+    @property
+    def coordinator(self) -> Any:
+        """Lazily created Coordinator for multi-agent task orchestration."""
+        if self._coordinator is None:
+            from .orchestration.coordinator import Coordinator
+            from .orchestration.events import CoordinationEventBus
+            from .orchestration.subagent import SubAgentManager
+            self._coordinator = Coordinator(CoordinationEventBus())
+            self._coordinator.register_agent(
+                str(id(self)),
+                SubAgentManager(parent=self),
+            )
+        return self._coordinator
 
     def resolve_knowledge(self, query: KnowledgeQuery) -> KnowledgeBundle:
         """Resolve configured knowledge sources for one retrieval request."""
@@ -118,6 +186,33 @@ class Agent:
     ) -> AsyncIterator[RunEvent]:
         """Stream events for a one-off run."""
         async for event in self.session().stream(prompt, context=context):
+            yield event
+
+    async def run_streaming(
+        self,
+        prompt: str,
+        context: RunContext | None = None,
+    ) -> AsyncIterator[Any]:
+        """Stream typed Mode B events for a one-off run.
+
+        Yields ``StreamEvent`` instances so frontends can render each phase
+        of the agent loop as it happens::
+
+            async for event in agent.run_streaming("summarise latest news"):
+                if event.type == "text_delta":
+                    print(event.delta, end="", flush=True)
+                elif event.type == "tool_call":
+                    print(f"\\n[→ {event.name}]")
+                elif event.type == "tool_result":
+                    print(f"[← {event.name}: {event.content[:80]}]")
+                elif event.type == "done":
+                    print(f"\\n\\nDone in {event.iterations} steps.")
+
+        Yields:
+            ``ThinkingDelta``, ``TextDelta``, ``ToolCallEvent``,
+            ``ToolResultEvent``, ``DoneEvent``, or ``ErrorEvent``.
+        """
+        async for event in self.session().run_streaming(prompt, context=context):
             yield event
 
     def session(
@@ -181,6 +276,7 @@ class Agent:
         session_id: str | None,
         run_id: str,
         engine: AgentEngine | None = None,
+        token_callback: Any | None = None,
     ) -> dict[str, Any]:
         provider = self._get_provider()
         if provider is not None and not await self._ensure_provider_ready(provider):
@@ -227,6 +323,7 @@ class Agent:
             instructions=self.config.instructions,
             context=merged_context,
             session_id=session_id if self.config.memory and self.config.memory.enabled else None,
+            token_callback=token_callback,
         )
 
     def _build_engine(self, provider: LLMProvider) -> AgentEngine:
@@ -244,6 +341,8 @@ class Agent:
                 enable_heartbeat=self.config.heartbeat is not None,
                 enable_safety=self.config.runtime.features.enable_safety if self.config.runtime else True,
                 enable_memory=bool(self.config.memory and self.config.memory.enabled),
+                extensions=dict(self.config.generation.extensions),
+                stream_output=bool(self.config.generation.extensions.get("stream", False)),
             ),
             tools=[self._convert_tool_to_schema(tool) for tool in self._compiled_tools],
         )
@@ -251,6 +350,10 @@ class Agent:
         self._configure_governance(engine)
         self._configure_heartbeat(engine)
         self._configure_safety(engine)
+        self._configure_hooks(engine)
+        self._configure_ecosystem(engine)
+        self._configure_evolution(engine)
+        self._last_engine = engine
         return engine
 
     def _configure_governance(self, engine: AgentEngine) -> None:
@@ -297,6 +400,52 @@ class Agent:
                     reason=rule.reason,
                 )
             )
+
+    def _configure_hooks(self, engine: AgentEngine) -> None:
+        """Wire hooks into the engine's HookManager.
+
+        Two sources are merged in order:
+        1. ``SafetyEvaluator`` callbacks declared in the agent policy config.
+        2. Hooks previously registered on ``agent.hook_manager`` (the persistent
+           agent-level HookManager used by PluginLoader and external callers).
+        """
+        policy = self.config.policy or PolicyConfig()
+        for evaluator in getattr(policy, "evaluators", []) or []:
+            if callable(getattr(evaluator, "evaluate", None)):
+                engine.hook_manager.register("before_tool_call", evaluator.evaluate)
+
+        # Merge agent-level hooks (registered via agent.hook_manager or PluginLoader)
+        if self._hook_manager is not None:
+            for event, handlers in self._hook_manager.hooks.items():
+                for handler in handlers:
+                    engine.hook_manager.register(event, handler)
+
+    def _configure_ecosystem(self, engine: AgentEngine) -> None:
+        """Wire the EcosystemManager into the engine if one has been initialised.
+
+        Only activates when ``agent.ecosystem`` has been touched (lazy-created)
+        or when the agent's mcp_bridge has servers registered.  MCP server
+        instructions are injected into the system prompt inside
+        ``engine.execute()``, and connected server tools are registered in
+        the ToolRegistry at engine construction time via
+        ``engine._register_mcp_tools()``.
+        """
+        if self._ecosystem is None:
+            return
+        engine.ecosystem_manager = self._ecosystem
+        engine._register_mcp_tools(self._ecosystem)
+
+    def _configure_evolution(self, engine: AgentEngine) -> None:
+        """Subscribe the EvolutionEngine to the AgentEngine's event bus.
+
+        Once subscribed, every ``tool_result`` event emitted by the engine
+        is automatically collected into the FeedbackLoop, so evolution
+        strategies receive real execution data when ``agent.evolution.evolve()``
+        is called.
+        """
+        if self._evolution_engine is None:
+            return
+        self._evolution_engine.subscribe_to_engine(engine)
 
     def _convert_tool_to_schema(self, tool: Tool) -> ToolSchema:
         from .tools.schema import Tool as ToolSchema
@@ -479,7 +628,32 @@ def _resolve_provider(model: ModelRef) -> LLMProvider | None:
                 raise ValueError(f"{model.api_key_env or 'DASHSCOPE_API_KEY'} not set")
             from .providers.qwen import QwenProvider
 
-            return QwenProvider(api_key=api_key)
+            return QwenProvider(
+                api_key=api_key,
+                **({"base_url": model.api_base} if model.api_base else {}),
+            )
+
+        if provider_name == "deepseek":
+            api_key = os.getenv(model.api_key_env or "DEEPSEEK_API_KEY")
+            if not api_key:
+                raise ValueError(f"{model.api_key_env or 'DEEPSEEK_API_KEY'} not set")
+            from .providers.deepseek import DeepSeekProvider
+
+            return DeepSeekProvider(
+                api_key=api_key,
+                **({"base_url": model.api_base} if model.api_base else {}),
+            )
+
+        if provider_name == "minimax":
+            api_key = os.getenv(model.api_key_env or "MINIMAX_API_KEY")
+            if not api_key:
+                raise ValueError(f"{model.api_key_env or 'MINIMAX_API_KEY'} not set")
+            from .providers.minimax import MiniMaxProvider
+
+            return MiniMaxProvider(
+                api_key=api_key,
+                **({"base_url": model.api_base} if model.api_base else {}),
+            )
 
         if provider_name == "ollama":
             from .providers.ollama import OllamaProvider

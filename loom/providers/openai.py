@@ -1,12 +1,14 @@
 """OpenAI provider."""
 
+import asyncio
+import inspect
 import json
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from ..types import ToolCall
-from .base import CompletionParams, CompletionResponse, LLMProvider, TokenUsage
+from .base import CompletionParams, CompletionResponse, LLMProvider, TokenUsage  # noqa: F401 (re-exported)
 
 
 class OpenAIProvider(LLMProvider):
@@ -14,6 +16,11 @@ class OpenAIProvider(LLMProvider):
 
     _shared_clients: dict[tuple[str, str | None, str | None], Any] = {}
     _pool_lock = threading.RLock()
+
+    # Subclasses set this to the extensions key that enables thinking tokens
+    # (e.g. "enable_thinking" for Qwen, "expose_reasoning" for DeepSeek/MiniMax).
+    # When set and truthy, ``reasoning_content`` deltas are emitted as ThinkingDelta.
+    _reasoning_ext_key: str | None = None
 
     def __init__(
         self,
@@ -98,6 +105,77 @@ class OpenAIProvider(LLMProvider):
             raw=response,
         )
 
+    async def complete_streaming(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+        on_token: Any | None = None,
+    ) -> CompletionResponse:
+        """Single streaming API call: yield tokens via *on_token*, accumulate
+        tool-call deltas, return the complete ``CompletionResponse``."""
+        request = self._build_request(messages, params)
+        stream = await self.client.chat.completions.create(**request, stream=True)
+
+        text_parts: list[str] = []
+        # tool_deltas: index → {"id", "name", "arguments"}
+        tool_deltas: dict[int, dict[str, str]] = {}
+
+        async for chunk in stream:
+            choices = getattr(chunk, "choices", [])
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            if delta is None:
+                continue
+
+            # --- text content ---
+            content = getattr(delta, "content", None)
+            if content:
+                text_parts.append(content)
+                if on_token is not None:
+                    result = on_token(content)
+                    if inspect.isawaitable(result):
+                        await result
+
+            # --- tool call deltas ---
+            tc_deltas = getattr(delta, "tool_calls", None)
+            if tc_deltas:
+                for tc in tc_deltas:
+                    idx = getattr(tc, "index", 0)
+                    slot = tool_deltas.setdefault(idx, {"id": "", "name": "", "arguments": ""})
+                    if getattr(tc, "id", None):
+                        slot["id"] += tc.id
+                    fn = getattr(tc, "function", None)
+                    if fn:
+                        slot["name"] += getattr(fn, "name", "") or ""
+                        slot["arguments"] += getattr(fn, "arguments", "") or ""
+
+        tool_calls = self._parse_tool_deltas(tool_deltas)
+        usage = getattr(chunk, "usage", None) if "chunk" in dir() else None  # type: ignore[possibly-undefined]
+        return CompletionResponse(
+            content="".join(text_parts),
+            tool_calls=tool_calls,
+            usage=TokenUsage(
+                input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+                output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+            ) if usage is not None else None,
+        )
+
+    def _parse_tool_deltas(self, tool_deltas: dict[int, dict[str, str]]) -> list[ToolCall]:
+        tool_calls: list[ToolCall] = []
+        for idx in sorted(tool_deltas.keys()):
+            td = tool_deltas[idx]
+            try:
+                arguments = json.loads(td["arguments"] or "{}")
+            except json.JSONDecodeError:
+                arguments = {}
+            tool_calls.append(ToolCall(
+                id=td["id"],
+                name=td["name"],
+                arguments=arguments if isinstance(arguments, dict) else {},
+            ))
+        return tool_calls
+
     async def stream(
         self,
         messages: list,
@@ -128,6 +206,87 @@ class OpenAIProvider(LLMProvider):
                     yield text
             else:
                 yield content
+
+    async def stream_events(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> AsyncGenerator[Any, None]:
+        """Yield typed StreamEvents from the OpenAI chat-completions SSE stream.
+
+        Emits:
+        - ``ThinkingDelta`` for ``reasoning_content`` tokens (when
+          ``_reasoning_ext_key`` is set and truthy in extensions)
+        - ``TextDelta`` for regular content tokens
+        - ``ToolCallEvent`` for each tool call (assembled after stream ends)
+        """
+        from ..types.stream import TextDelta, ThinkingDelta, ToolCallEvent
+
+        request = self._build_request(messages, params)
+        ext = (params.extensions if params is not None else None) or {}
+        expose_thinking = bool(
+            self._reasoning_ext_key and ext.get(self._reasoning_ext_key)
+        )
+
+        stream = await self.client.chat.completions.create(**request, stream=True)
+        # tool_deltas: index → {"id", "name", "arguments"}
+        tool_deltas: dict[int, dict[str, str]] = {}
+
+        async for chunk in stream:
+            choices = getattr(chunk, "choices", [])
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            if delta is None:
+                continue
+
+            # Thinking tokens (Qwen3 / DeepSeek-R1 / MiniMax-M1)
+            if expose_thinking:
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    yield ThinkingDelta(delta=reasoning)
+                    continue
+
+            # Regular text
+            content = getattr(delta, "content", None)
+            if content:
+                if isinstance(content, list):
+                    text = "".join(
+                        p.get("text", "") if isinstance(p, dict) else getattr(p, "text", "")
+                        for p in content
+                    )
+                    if text:
+                        yield TextDelta(delta=text)
+                else:
+                    yield TextDelta(delta=content)
+
+            # Accumulate tool-call deltas
+            tc_deltas = getattr(delta, "tool_calls", None)
+            if tc_deltas:
+                for tc in tc_deltas:
+                    idx = getattr(tc, "index", 0)
+                    slot = tool_deltas.setdefault(
+                        idx, {"id": "", "name": "", "arguments": ""}
+                    )
+                    if getattr(tc, "id", None):
+                        slot["id"] += tc.id
+                    fn = getattr(tc, "function", None)
+                    if fn:
+                        slot["name"] += getattr(fn, "name", "") or ""
+                        slot["arguments"] += getattr(fn, "arguments", "") or ""
+
+        # Emit assembled tool calls after stream ends
+        for idx in sorted(tool_deltas.keys()):
+            td = tool_deltas[idx]
+            try:
+                arguments = json.loads(td["arguments"] or "{}")
+            except json.JSONDecodeError:
+                arguments = {}
+            yield ToolCallEvent(
+                id=td["id"],
+                name=td["name"],
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
 
     def _build_request(
         self,

@@ -190,3 +190,127 @@ class TestMCPOperations:
         assert listed["resources"][0]["uri"] == "file:///docs"
         assert read["content"] == "docs body"
         assert called["result"] == {"hits": ["loom"]}
+
+
+# ── Agent integration: M3/M4/M5 ──
+
+from unittest.mock import MagicMock
+from loom.agent import Agent
+from loom.config import AgentConfig, ModelRef
+
+
+def _make_agent(**kwargs):
+    return Agent(config=AgentConfig(
+        model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+        **kwargs,
+    ))
+
+
+class TestAgentEcosystemIntegration:
+    """M3: EcosystemManager and MCPBridge wired into Agent + Engine."""
+
+    def test_ecosystem_property_lazy(self):
+        agent = _make_agent()
+        assert agent._ecosystem is None
+        eco = agent.ecosystem
+        assert eco is not None
+        assert eco is agent.ecosystem  # singleton
+
+    def test_mcp_bridge_delegates_to_ecosystem(self):
+        agent = _make_agent()
+        assert agent.mcp_bridge is agent.ecosystem.mcp_bridge
+
+    def test_configure_ecosystem_noop_when_untouched(self):
+        agent = _make_agent()
+        engine = agent._build_engine(MagicMock())
+        # ecosystem was never accessed → engine must not have it
+        assert engine.ecosystem_manager is None
+
+    def test_configure_ecosystem_wires_when_touched(self):
+        agent = _make_agent()
+        _ = agent.ecosystem  # touch to initialise
+        engine = agent._build_engine(MagicMock())
+        assert engine.ecosystem_manager is agent._ecosystem
+
+    def test_mcp_instructions_registered_in_engine(self):
+        agent = _make_agent()
+        agent.ecosystem.mcp_bridge.register_server(
+            "myserver",
+            MCPServerConfig(instructions="Use myserver for queries."),
+        )
+        engine = agent._build_engine(MagicMock())
+        # instructions will be injected in execute(); check bridge is wired
+        assert engine.ecosystem_manager is agent._ecosystem
+
+    def test_mcp_tools_registered_in_tool_registry(self):
+        agent = _make_agent()
+        # Register a mock connected server with tools
+        bridge = agent.ecosystem.mcp_bridge
+        bridge.register_server(
+            "myserver",
+            MCPServerConfig(
+                mock_tools=[{
+                    "name": "search",
+                    "description": "Search tool",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string", "description": "Query"}},
+                        "required": ["query"],
+                    },
+                }],
+            ),
+        )
+        bridge.connect("myserver")
+        engine = agent._build_engine(MagicMock())
+        tool_names = [t.definition.name for t in engine.tool_registry.list()]
+        assert any("search" in n for n in tool_names)
+
+
+class TestAgentEvolutionIntegration:
+    """M4: EvolutionEngine auto-subscribed in _build_engine."""
+
+    def test_evolution_property_lazy(self):
+        agent = _make_agent()
+        assert agent._evolution_engine is None
+        from loom.evolution.engine import EvolutionEngine
+        evo = agent.evolution
+        assert isinstance(evo, EvolutionEngine)
+        assert evo is agent.evolution  # singleton
+
+    def test_configure_evolution_noop_when_untouched(self):
+        agent = _make_agent()
+        engine = agent._build_engine(MagicMock())
+        handlers = engine._event_handlers.get("tool_result", [])
+        assert len(handlers) == 0
+
+    def test_configure_evolution_subscribes_when_touched(self):
+        agent = _make_agent()
+        _ = agent.evolution  # touch to initialise
+        engine = agent._build_engine(MagicMock())
+        handlers = engine._event_handlers.get("tool_result", [])
+        assert len(handlers) == 1
+
+
+class TestAgentCoordinatorIntegration:
+    """M5: Coordinator exposed on Agent."""
+
+    def test_coordinator_property_lazy(self):
+        agent = _make_agent()
+        assert agent._coordinator is None
+        from loom.orchestration.coordinator import Coordinator
+        coord = agent.coordinator
+        assert isinstance(coord, Coordinator)
+        assert coord is agent.coordinator  # singleton
+
+    def test_coordinator_registers_self(self):
+        agent = _make_agent()
+        coord = agent.coordinator
+        assert str(id(agent)) in coord.agents
+
+    def test_coordinator_has_subagent_manager(self):
+        from loom.orchestration.subagent import SubAgentManager
+        agent = _make_agent()
+        coord = agent.coordinator
+        mgr = coord.agents[str(id(agent))]
+        assert isinstance(mgr, SubAgentManager)
+        assert mgr.parent is agent

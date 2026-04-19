@@ -259,12 +259,52 @@ class ModelRef:
         cls,
         name: str,
         *,
+        api_base: str | None = None,
         api_key_env: str | None = None,
         extensions: dict[str, Any] | None = None,
     ) -> ModelRef:
         return cls(
             provider="qwen",
             name=name,
+            api_base=api_base,
+            api_key_env=api_key_env,
+            extensions=dict(extensions or {}),
+        )
+
+    @classmethod
+    def deepseek(
+        cls,
+        name: str = "deepseek-chat",
+        *,
+        api_base: str | None = None,
+        api_key_env: str | None = None,
+        extensions: dict[str, Any] | None = None,
+    ) -> ModelRef:
+        """DeepSeek provider.  Use ``deepseek-chat`` for tool calling and
+        ``deepseek-reasoner`` for chain-of-thought reasoning (R1)."""
+        return cls(
+            provider="deepseek",
+            name=name,
+            api_base=api_base,
+            api_key_env=api_key_env,
+            extensions=dict(extensions or {}),
+        )
+
+    @classmethod
+    def minimax(
+        cls,
+        name: str = "MiniMax-Text-01",
+        *,
+        api_base: str | None = None,
+        api_key_env: str | None = None,
+        extensions: dict[str, Any] | None = None,
+    ) -> ModelRef:
+        """MiniMax provider.  Supports ``MiniMax-Text-01``, ``MiniMax-M1``
+        (thinking), and ``abab6.5s-chat``."""
+        return cls(
+            provider="minimax",
+            name=name,
+            api_base=api_base,
             api_key_env=api_key_env,
             extensions=dict(extensions or {}),
         )

@@ -1,7 +1,7 @@
 """Google Gemini provider."""
 
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from ..types import ToolCall
@@ -136,6 +136,53 @@ class GeminiProvider(LLMProvider):
         async for chunk in response:
             if chunk.text:
                 yield chunk.text
+
+    async def stream_events(
+        self,
+        messages: list,
+        params: CompletionParams | None = None,
+    ) -> AsyncGenerator[Any, None]:
+        """Yield typed StreamEvents from the Gemini generate_content_async stream.
+
+        Emits ``TextDelta`` for each text chunk and ``ToolCallEvent`` for
+        any function_call parts encountered during streaming.
+        """
+        from ..types.stream import TextDelta, ToolCallEvent
+
+        resolved = params or CompletionParams()
+        contents = self._convert_messages(messages)
+        model = self.client.GenerativeModel(resolved.model)
+
+        request: dict[str, Any] = {
+            "contents": contents,
+            "generation_config": {
+                "temperature": resolved.temperature,
+                "max_output_tokens": resolved.max_tokens,
+            },
+            "stream": True,
+        }
+        if resolved.tools:
+            request["tools"] = self._build_tools(resolved.tools)
+            if tool_config := self._build_tool_config(resolved.tool_choice):
+                request["tool_config"] = tool_config
+
+        response = await model.generate_content_async(**request)
+
+        seen_tool_ids: set[str] = set()
+        async for chunk in response:
+            # Text delta
+            try:
+                text = chunk.text
+                if text:
+                    yield TextDelta(delta=text)
+            except Exception:
+                pass
+
+            # Tool calls (function_call parts in candidates)
+            for tc in self._extract_tool_calls(chunk):
+                if tc.id not in seen_tool_ids:
+                    seen_tool_ids.add(tc.id)
+                    yield ToolCallEvent(id=tc.id, name=tc.name, arguments=tc.arguments)
 
     def _convert_messages(self, messages: list) -> list[dict[str, Any]]:
         """Convert generic chat messages to Gemini format with multimodal support.
