@@ -44,6 +44,7 @@ class ContextRenewer:
             'goal_progress': partitions.working.goal_progress,
             'error_count': partitions.working.error_count,
             'depth': partitions.working.depth,
+            'last_signal_ts': partitions.working.last_signal_ts,
             'last_hb_ts': partitions.working.last_hb_ts,
             'interrupt_requested': partitions.working.interrupt_requested,
             'scratchpad': partitions.working.scratchpad,
@@ -96,7 +97,7 @@ class ContextRenewer:
         handoff = HandoffArtifact(
             goal=goal,
             sprint=sprint,
-            progress_summary=(
+            progress_summary=str(
                 working_state.get('goal_progress', '')
                 or working_state.get('scratchpad', '')
             ),
@@ -125,6 +126,7 @@ class ContextRenewer:
             goal_progress=working_state.get('goal_progress', ''),
             error_count=working_state.get('error_count', 0),
             depth=working_state.get('depth', 0),
+            last_signal_ts=working_state.get('last_signal_ts', ''),
             last_hb_ts=working_state.get('last_hb_ts', ''),
             interrupt_requested=working_state.get('interrupt_requested', False),
             plan=deepcopy(plan_state.get('plan', [])),

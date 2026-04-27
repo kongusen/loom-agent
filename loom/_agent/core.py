@@ -1,0 +1,682 @@
+"""Core public Agent implementation."""
+
+from __future__ import annotations
+
+import logging
+import threading
+from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta
+from typing import Any, cast
+
+from ..config import (
+    AgentConfig,
+    GenerationConfig,
+    HeartbeatConfig,
+    KnowledgeBundle,
+    KnowledgeEvidence,
+    KnowledgeQuery,
+    KnowledgeSource,
+    MemoryConfig,
+    ModelRef,
+    PolicyConfig,
+    RuntimeConfig,
+    RuntimeFallback,
+    RuntimeFallbackMode,
+    SafetyRule,
+    Toolset,
+    ToolSpec,
+)
+from ..providers.base import LLMProvider
+from ..runtime import RunContext, RunEvent, RunResult, Session, SessionConfig, SessionStore
+from ..runtime.capability import CapabilitySource, activate_capabilities
+from ..runtime.engine import AgentEngine
+from ..runtime.feedback import FeedbackEvent
+from ..runtime.signals import (
+    AttentionPolicy,
+    RuntimeSignal,
+    RuntimeSignalAdapter,
+    SignalDecision,
+    adapt_signal,
+    coerce_signal,
+)
+from ..runtime.task import RuntimeTask
+from ..tools.base import Tool
+from .engine_builder import EngineBuilderMixin
+from .knowledge import _build_knowledge_bundle
+from .normalization import (
+    _normalize_capability_specs,
+    _normalize_config,
+    _normalize_generation_config,
+    _normalize_heartbeat_config,
+    _normalize_knowledge_sources,
+    _normalize_memory_config,
+    _normalize_model_ref,
+    _normalize_policy_config,
+    _normalize_runtime_config,
+    _normalize_safety_rules,
+    _normalize_tool_specs,
+    _resolve_session_ttl_hours,
+)
+from .providers import ProviderMixin
+from .tools import _compile_tool_spec
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(init=False)
+class Agent(EngineBuilderMixin, ProviderMixin):
+    """Loom's single public agent API."""
+
+    config: AgentConfig
+    _sessions: dict[str, Session] = field(default_factory=dict, init=False, repr=False)
+    _sessions_lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
+    _session_ttl_hours: float = field(default=24.0, init=False, repr=False)
+    _compiled_tools: list[Tool] = field(default_factory=list, init=False, repr=False)
+    _provider: LLMProvider | None = field(default=None, init=False, repr=False)
+    _provider_resolved: bool = field(default=False, init=False, repr=False)
+    _provider_from_resolver: bool = field(default=False, init=False, repr=False)
+    _provider_validated: bool = field(default=False, init=False, repr=False)
+    _ecosystem: Any = field(default=None, init=False, repr=False)
+    _evolution_engine: Any = field(default=None, init=False, repr=False)
+    _coordinator: Any = field(default=None, init=False, repr=False)
+    _last_engine: Any = field(default=None, init=False, repr=False)
+    _hook_manager: Any = field(default=None, init=False, repr=False)
+    _event_handlers: dict[str, list[Callable[..., None]]] = field(default_factory=dict, init=False, repr=False)
+    _event_handlers_lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
+    _session_store: SessionStore | None = field(default=None, init=False, repr=False)
+    _pending_signals: list[RuntimeSignal] = field(default_factory=list, init=False, repr=False)
+    _pending_signals_lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
+
+    def __init__(
+        self,
+        config: AgentConfig | None = None,
+        *,
+        model: ModelRef | str | None = None,
+        instructions: str = "",
+        generation: GenerationConfig | None = None,
+        tools: list[ToolSpec | Toolset] | Toolset | None = None,
+        capabilities: list[Any] | Any | None = None,
+        policy: PolicyConfig | None = None,
+        memory: MemoryConfig | bool | None = None,
+        heartbeat: HeartbeatConfig | None = None,
+        runtime: RuntimeConfig | None = None,
+        safety_rules: list[SafetyRule] | None = None,
+        knowledge: list[KnowledgeSource] | None = None,
+        session_store: SessionStore | None = None,
+    ) -> None:
+        """Create an Agent from either a full config or the primary user API.
+
+        Preferred:
+            ``Agent(model=ModelRef.openai("gpt-5.1"), instructions="...")``
+
+        Compatibility:
+            ``Agent(config=AgentConfig(...))``
+        """
+        if config is not None:
+            explicit_fields = {
+                "model": model,
+                "generation": generation,
+                "tools": tools,
+                "capabilities": capabilities,
+                "policy": policy,
+                "memory": memory,
+                "heartbeat": heartbeat,
+                "runtime": runtime,
+                "safety_rules": safety_rules,
+                "knowledge": knowledge,
+            }
+            provided = [name for name, value in explicit_fields.items() if value is not None]
+            if instructions:
+                provided.append("instructions")
+            if provided:
+                raise TypeError(
+                    "Agent() accepts either config=AgentConfig(...) or direct keyword fields, "
+                    f"not both; got {', '.join(provided)}"
+                )
+            self.config = config
+        else:
+            if model is None:
+                raise TypeError("Agent() missing required argument: 'model'")
+            self.config = AgentConfig(
+                model=_coerce_model_ref(model),
+                instructions=instructions,
+                generation=generation or GenerationConfig(),
+                tools=_coerce_tool_entries(tools),
+                capabilities=_coerce_capability_entries(capabilities),
+                policy=policy,
+                memory=_coerce_memory_config(memory),
+                heartbeat=heartbeat,
+                runtime=runtime,
+                safety_rules=list(safety_rules) if safety_rules is not None else None,
+                knowledge=list(knowledge or []),
+            )
+
+        self._sessions = {}
+        self._sessions_lock = threading.RLock()
+        self._session_ttl_hours = 24.0
+        self._compiled_tools = []
+        self._provider = None
+        self._provider_resolved = False
+        self._provider_from_resolver = False
+        self._provider_validated = False
+        self._ecosystem = None
+        self._evolution_engine = None
+        self._coordinator = None
+        self._last_engine = None
+        self._hook_manager = None
+        self._event_handlers = {}
+        self._event_handlers_lock = threading.RLock()
+        self._session_store = session_store
+        self._pending_signals = []
+        self._pending_signals_lock = threading.RLock()
+        self.__post_init__()
+
+    @classmethod
+    def from_config(cls, config: AgentConfig) -> Agent:
+        """Create an Agent from a reusable config/spec object."""
+        return cls(config=config)
+
+    from_spec = from_config
+
+    def __post_init__(self) -> None:
+        config = _normalize_config(self.config, AgentConfig, "config")
+        declared_tools = _normalize_tool_specs(config.tools)
+        capabilities = _normalize_capability_specs(config.capabilities)
+        capability_tools: list[ToolSpec] = []
+        for capability in capabilities:
+            capability_tools.extend(capability.to_tools())
+        capability_tool_entries: list[ToolSpec | Toolset] = list(capability_tools)
+        declared_tools = [*declared_tools, *_normalize_tool_specs(capability_tool_entries)]
+        normalized_tools: list[ToolSpec | Toolset] = list(declared_tools)
+        config = replace(
+            config,
+            model=_normalize_model_ref(config.model),
+            tools=normalized_tools,
+            capabilities=capabilities,
+            policy=_normalize_policy_config(config.policy),
+            memory=_normalize_memory_config(config.memory),
+            heartbeat=_normalize_heartbeat_config(config.heartbeat),
+            generation=_normalize_generation_config(config.generation),
+            runtime=_normalize_runtime_config(config.runtime),
+            knowledge=_normalize_knowledge_sources(config.knowledge),
+            safety_rules=_normalize_safety_rules(config.safety_rules),
+        )
+        self.config = config
+        self._activate_configured_capabilities(capabilities)
+        self._compiled_tools = [_compile_tool_spec(tool) for tool in declared_tools]
+        self._session_ttl_hours = _resolve_session_ttl_hours(config.runtime)
+
+    @property
+    def ecosystem(self) -> Any:
+        """Lazily created EcosystemManager for plugins, skills, and MCP servers."""
+        if self._ecosystem is None:
+            from ..ecosystem.integration import EcosystemManager
+            self._ecosystem = EcosystemManager()
+        return self._ecosystem
+
+    def _activate_configured_capabilities(self, capabilities: list[Any]) -> None:
+        """Activate explicit MCP/skill capabilities into the agent ecosystem."""
+        if not any(
+            capability.source in {CapabilitySource.MCP, CapabilitySource.SKILL}
+            for capability in capabilities
+        ):
+            return
+        activate_capabilities(capabilities, self.ecosystem)
+
+    @property
+    def mcp_bridge(self) -> Any:
+        """MCPBridge exposed directly for convenient MCP server registration."""
+        return self.ecosystem.mcp_bridge
+
+    @property
+    def evolution(self) -> Any:
+        """Lazily created EvolutionEngine for tracking execution feedback."""
+        if self._evolution_engine is None:
+            from ..evolution.engine import EvolutionEngine
+            self._evolution_engine = EvolutionEngine()
+        return self._evolution_engine
+
+    @property
+    def working_memory(self) -> Any:
+        """WorkingMemory scratchpad from the most recently built engine.
+
+        Provides a dict-based scratchpad (``set_scratch`` / ``get_scratch``)
+        and a live binding to the current execution dashboard.  Returns None
+        when no engine has been constructed yet for this agent.
+        """
+        # Access via the _last_engine attribute set by _build_engine
+        engine = getattr(self, "_last_engine", None)
+        if engine is not None:
+            return engine.working_memory
+        return None
+
+    @property
+    def hook_manager(self) -> Any:
+        """Agent-level HookManager — persists across engine rebuilds.
+
+        Hooks registered here survive session boundaries and are merged into
+        every engine created by ``_build_engine()``.  This is the correct
+        target for ``PluginLoader.apply_to_agent()`` and any external code
+        that wants to attach hooks without holding a reference to the engine.
+        """
+        if self._hook_manager is None:
+            from ..safety.hooks import HookManager
+            self._hook_manager = HookManager()
+        return self._hook_manager
+
+    @property
+    def coordinator(self) -> Any:
+        """Lazily created Coordinator for multi-agent task orchestration."""
+        if self._coordinator is None:
+            from ..orchestration.coordinator import Coordinator
+            from ..orchestration.events import CoordinationEventBus
+            from ..orchestration.subagent import SubAgentManager
+            self._coordinator = Coordinator(CoordinationEventBus())
+            self._coordinator.register_agent(
+                str(id(self)),
+                SubAgentManager(parent=self),
+            )
+        return self._coordinator
+
+    def resolve_knowledge(self, query: KnowledgeQuery) -> KnowledgeBundle:
+        """Resolve configured knowledge sources for one retrieval request."""
+        if not isinstance(query, KnowledgeQuery):
+            raise TypeError(f"query must be KnowledgeQuery, got {type(query).__name__}")
+        evidence: list[KnowledgeEvidence] = []
+        for source in self.config.knowledge:
+            resolved = source.resolve(query)
+            if resolved.items or resolved.citations:
+                evidence.append(resolved)
+        return _build_knowledge_bundle(query, evidence)
+
+    async def run(
+        self,
+        prompt: str | RuntimeTask,
+        context: RunContext | None = None,
+    ) -> RunResult:
+        """Execute a one-off run."""
+        return await self.session().run(prompt, context=context)
+
+    async def stream(
+        self,
+        prompt: str | RuntimeTask,
+        context: RunContext | None = None,
+    ) -> AsyncIterator[RunEvent]:
+        """Stream events for a one-off run."""
+        async for event in self.session().stream(prompt, context=context):
+            yield event
+
+    async def run_streaming(
+        self,
+        prompt: str | RuntimeTask,
+        context: RunContext | None = None,
+    ) -> AsyncIterator[Any]:
+        """Stream typed Mode B events for a one-off run.
+
+        Yields ``StreamEvent`` instances so frontends can render each phase
+        of the agent loop as it happens::
+
+            async for event in agent.run_streaming("summarise latest news"):
+                if event.type == "text_delta":
+                    print(event.delta, end="", flush=True)
+                elif event.type == "tool_call":
+                    print(f"\\n[→ {event.name}]")
+                elif event.type == "tool_result":
+                    print(f"[← {event.name}: {event.content[:80]}]")
+                elif event.type == "done":
+                    print(f"\\n\\nDone in {event.iterations} steps.")
+
+        Yields:
+            ``ThinkingDelta``, ``TextDelta``, ``ToolCallEvent``,
+            ``ToolResultEvent``, ``DoneEvent``, or ``ErrorEvent``.
+        """
+        async for event in self.session().run_streaming(prompt, context=context):
+            yield event
+
+    async def signal(
+        self,
+        signal: RuntimeSignal | str,
+        *,
+        source: str = "custom",
+        type: str = "event",
+        urgency: str = "normal",
+        payload: dict[str, Any] | None = None,
+        session_id: str | None = None,
+        run_id: str | None = None,
+        dedupe_key: str | None = None,
+    ) -> SignalDecision:
+        """Ingest a runtime signal from any producer."""
+        normalized = coerce_signal(
+            signal,
+            source=source,
+            type=type,
+            urgency=urgency,  # type: ignore[arg-type]
+            payload=payload,
+            session_id=session_id,
+            run_id=run_id,
+            dedupe_key=dedupe_key,
+        )
+        if session_id:
+            return await self.session(SessionConfig(id=session_id)).signal(normalized)
+
+        engine = self._last_engine
+        if engine is not None:
+            return cast("SignalDecision", engine.ingest_signal(normalized))
+
+        with self._pending_signals_lock:
+            self._pending_signals.append(normalized)
+        return AttentionPolicy().decide(normalized)
+
+    async def receive(
+        self,
+        event: Any,
+        *,
+        adapter: RuntimeSignalAdapter | None = None,
+        source: str | None = None,
+        type: str | None = None,
+        urgency: str | None = None,
+        payload: dict[str, Any] | None = None,
+        session_id: str | None = None,
+        run_id: str | None = None,
+        dedupe_key: str | None = None,
+    ) -> SignalDecision:
+        """Receive an external event through an optional signal adapter."""
+        normalized = adapt_signal(
+            event,
+            adapter=adapter,
+            source=source,
+            type=type,
+            urgency=urgency,  # type: ignore[arg-type]
+            payload=payload,
+            session_id=session_id,
+            run_id=run_id,
+            dedupe_key=dedupe_key,
+        )
+        target_session_id = session_id or normalized.session_id
+        return await self.signal(normalized, session_id=target_session_id)
+
+    def on(self, event_name: str, handler: Callable[..., None]) -> None:
+        """Subscribe to user-facing agent runtime events."""
+        if not callable(handler):
+            raise TypeError(f"handler must be callable, got {type(handler).__name__}")
+        with self._event_handlers_lock:
+            self._event_handlers.setdefault(event_name, []).append(handler)
+        runtime_events = {
+            "before_llm",
+            "after_llm",
+            "before_tool",
+            "tool_result",
+            "after_tool",
+            "on_context_compact",
+            "context_renewed",
+            "signal_received",
+            "signal_decided",
+            "signal_dispatched",
+            "*",
+        }
+        if event_name in runtime_events and self._last_engine is not None:
+            self._configure_runtime_events(self._last_engine)
+
+    def off(self, event_name: str, handler: Callable[..., None]) -> None:
+        """Unsubscribe a previously registered runtime event handler."""
+        with self._event_handlers_lock:
+            handlers = self._event_handlers.get(event_name)
+            if not handlers:
+                return
+            self._event_handlers[event_name] = [h for h in handlers if h is not handler]
+
+    def _emit(self, event_name: str, **payload: Any) -> int:
+        with self._event_handlers_lock:
+            handlers = list(self._event_handlers.get(event_name, ()))
+            handlers.extend(self._event_handlers.get("*", ()))
+        for handler in handlers:
+            try:
+                handler(event_name=event_name, **payload)
+            except Exception as exc:
+                logger.warning("Agent event handler failed for %s: %s", event_name, exc)
+        return len(handlers)
+
+    def _attach_pending_signals(self, engine: AgentEngine) -> None:
+        with self._pending_signals_lock:
+            signals = self._pending_signals
+            self._pending_signals = []
+        for signal in signals:
+            engine.ingest_signal(signal)
+
+    def session(
+        self,
+        config: SessionConfig | None = None,
+    ) -> Session:
+        """Get or create a stateful session."""
+        if config is None:
+            return Session(self)
+        if not isinstance(config, SessionConfig):
+            raise TypeError(f"session config must be SessionConfig, got {type(config).__name__}")
+
+        self._evict_old_sessions()
+        with self._sessions_lock:
+            if config.id is not None and config.id in self._sessions:
+                session = self._sessions[config.id]
+                metadata = config.to_metadata()
+                if metadata:
+                    session.metadata.update(metadata)
+                    session._save_store_record()
+                return session
+
+            session = Session(self, config=config)
+            self._sessions[session.id] = session
+        return session
+
+    def _evict_old_sessions(self, ttl_hours: float | None = None) -> int:
+        """Evict sessions older than TTL to prevent unbounded growth."""
+        hours = ttl_hours if ttl_hours is not None else self._session_ttl_hours
+        if hours <= 0:
+            return 0
+
+        cutoff = datetime.now() - timedelta(hours=hours)
+        evicted = 0
+
+        with self._sessions_lock:
+            expired_ids = [
+                session_id
+                for session_id, session in self._sessions.items()
+                if session.created_at < cutoff
+            ]
+            for session_id in expired_ids:
+                session = self._sessions.pop(session_id, None)
+                if session is None:
+                    continue
+                session.expire()
+                evicted += 1
+
+        if evicted:
+            logger.debug(
+                "Evicted %s expired session(s) older than %.2f hours",
+                evicted,
+                hours,
+            )
+        return evicted
+
+    async def _execute(
+        self,
+        prompt: str,
+        context: RunContext | None = None,
+        *,
+        session_id: str | None,
+        run_id: str,
+        engine: AgentEngine | None = None,
+        token_callback: Any | None = None,
+        history: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        self._emit(
+            "before_run",
+            run_id=run_id,
+            session_id=session_id,
+            prompt=prompt,
+            context=context,
+        )
+        result: dict[str, Any]
+        provider = self._get_provider()
+        try:
+            if provider is not None and not await self._ensure_provider_ready(provider):
+                provider = None
+            if provider is None:
+                fallback = self.config.runtime.features.fallback if self.config.runtime else RuntimeFallback()
+                if fallback.mode == RuntimeFallbackMode.ERROR:
+                    result = {
+                        "status": "provider_unavailable",
+                        "output": "",
+                        "events": [
+                            {
+                                "type": "run.failed.provider_unavailable",
+                                "run_id": run_id,
+                            }
+                        ],
+                        "artifacts": [],
+                    }
+                else:
+                    result = {
+                        "status": "success",
+                        "output": self._local_output(prompt, context),
+                        "events": [
+                            {
+                                "type": "run.fallback",
+                                "mode": "local_summary",
+                                "run_id": run_id,
+                            }
+                        ],
+                        "artifacts": [],
+                    }
+                self._emit(
+                    "after_run",
+                    run_id=run_id,
+                    session_id=session_id,
+                    prompt=prompt,
+                    result=result,
+                )
+                self._record_runtime_feedback(
+                    "after_run",
+                    run_id=run_id,
+                    session_id=session_id,
+                    prompt=prompt,
+                    result=result,
+                    success=result.get("status") == "success",
+                )
+                return result
+
+            if engine is None:
+                engine = self._build_engine(provider)
+
+            merged_context = context.to_payload() if context is not None else {}
+            if self.config.knowledge:
+                merged_context.setdefault(
+                    "knowledge_sources",
+                    [source.to_context_payload() for source in self.config.knowledge],
+                )
+
+            result = await engine.execute(
+                goal=prompt,
+                instructions=self.config.instructions,
+                context=merged_context,
+                session_id=session_id if self.config.memory and self.config.memory.enabled else None,
+                token_callback=token_callback,
+                history=history,
+            )
+        except Exception as exc:
+            self._emit(
+                "run_error",
+                run_id=run_id,
+                session_id=session_id,
+                prompt=prompt,
+                error=exc,
+            )
+            self._record_runtime_feedback(
+                "run_error",
+                run_id=run_id,
+                session_id=session_id,
+                prompt=prompt,
+                error=exc,
+                success=False,
+            )
+            raise
+
+        self._emit(
+            "after_run",
+            run_id=run_id,
+            session_id=session_id,
+            prompt=prompt,
+            result=result,
+        )
+        self._record_runtime_feedback(
+            "after_run",
+            run_id=run_id,
+            session_id=session_id,
+            prompt=prompt,
+            result=result,
+            success=result.get("status") == "success",
+        )
+        return result
+
+    def _record_runtime_feedback(
+        self,
+        event_type: str,
+        *,
+        run_id: str | None,
+        session_id: str | None,
+        success: bool | None,
+        **payload: Any,
+    ) -> None:
+        policy = self.config.runtime.feedback if self.config.runtime else None
+        record = getattr(policy, "record", None)
+        if not callable(record):
+            return
+        record(
+            FeedbackEvent(
+                type=event_type,
+                payload=payload,
+                run_id=run_id,
+                session_id=session_id,
+                success=success,
+            )
+        )
+
+
+def _coerce_model_ref(model: ModelRef | str) -> ModelRef:
+    if isinstance(model, ModelRef):
+        return model
+    if not isinstance(model, str):
+        raise TypeError(f"model must be ModelRef or provider:model string, got {type(model).__name__}")
+
+    provider, separator, name = model.partition(":")
+    if not separator or not provider or not name:
+        raise ValueError("model string must use 'provider:model-name' format")
+    return ModelRef(provider=provider, name=name)
+
+
+def _coerce_tool_entries(
+    tools: list[ToolSpec | Toolset] | Toolset | None,
+) -> list[ToolSpec | Toolset]:
+    if tools is None:
+        return []
+    if isinstance(tools, Toolset):
+        return [tools]
+    if not isinstance(tools, list):
+        raise TypeError(f"tools must be list[ToolSpec | Toolset] or Toolset, got {type(tools).__name__}")
+    return list(tools)
+
+
+def _coerce_capability_entries(capabilities: list[Any] | Any | None) -> list[Any]:
+    if capabilities is None:
+        return []
+    if isinstance(capabilities, list):
+        return list(capabilities)
+    return [capabilities]
+
+
+def _coerce_memory_config(memory: MemoryConfig | bool | None) -> MemoryConfig | None:
+    if isinstance(memory, MemoryConfig) or memory is None:
+        return memory
+    if isinstance(memory, bool):
+        return MemoryConfig(enabled=memory) if memory else None
+    raise TypeError(f"memory must be MemoryConfig, bool, or None, got {type(memory).__name__}")

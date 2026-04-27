@@ -1,106 +1,117 @@
 # Loom Architecture
 
-Version: 0.7.2 | Updated: 2026-04-08
+Version: 0.8.0 | Updated: 2026-04-27
 
 ## Overview
 
-Loom now exposes one public API centered on `Agent`, while keeping the internal runtime split across context, memory, tools, safety, heartbeat, orchestration, and providers.
+Loom exposes a Python Agent SDK centered on `Agent`, while keeping the runtime split across context, memory, tools, safety, heartbeat, orchestration, providers, and ecosystem adapters.
 
-The key architectural rule is:
+The architectural rule is:
 
-- public API first
-- internal runtime second
+- SDK kernel first
+- product adapters outside the kernel
+- runtime mechanisms as composable policies
 
-Application developers should reason about Loom as `AgentConfig -> Agent -> Session -> Run`. The deeper runtime decomposition exists to support that contract, not to replace it as a second public abstraction.
-
-The internal conceptual model is still:
+Application developers should reason about Loom as:
 
 ```text
-A = ⟨C, M, L*, H_b, S, Ψ⟩
+Agent + Runtime + Capability
+    -> Run / Session
+    -> RuntimeTask / RuntimeSignal
+```
+
+Gateway, cron, heartbeat, webhook, and app-specific inputs are not separate kernel concepts. They normalize into `RuntimeSignal`.
+
+## Conceptual Model
+
+```text
+A = <C, M, L*, H_b, S, Psi, P>
 ```
 
 | Symbol | Meaning | Module |
 |---|---|---|
-| `C` | Context management | `loom/context/` |
-| `M` | Memory layers | `loom/memory/` |
-| `L*` | Execution loop | `loom/runtime/loop.py` |
-| `H_b` | Heartbeat sensing | `loom/runtime/heartbeat.py` |
-| `S` | Skills, tools, plugins, MCP | `loom/tools/`, `loom/ecosystem/` |
-| `Ψ` | Safety boundaries and veto | `loom/safety/` |
+| `C` | Context protocol, partitions, compaction, renewal | `loom/context/`, `loom/runtime/context.py` |
+| `M` | Memory and session restore | `loom/memory/`, `loom/runtime/session_restore.py` |
+| `L*` | Execution loop | `loom/runtime/engine.py`, `loom/runtime/loop.py` |
+| `H_b` | Heartbeat sensing that emits runtime signals | `loom/runtime/heartbeat.py`, `loom/runtime/signals.py` |
+| `S` | Skills, tools, MCP, capabilities | `loom/tools/`, `loom/ecosystem/`, `loom/runtime/capability.py` |
+| `Psi` | Safety boundaries and veto | `loom/safety/`, `loom/runtime/governance.py` |
+| `P` | Runtime policies: attention, harness, quality, delegation, feedback | `loom/runtime/` |
 
 ## Public Layer Map
 
 ```text
 loom/__init__.py
-    └── loom/agent.py
-            ├── Agent
-            ├── create_agent()
-            └── tool()
+    ├── Agent
+    ├── Model / Generation / Runtime / Memory
+    ├── Capability
+    ├── RuntimeTask / RuntimeSignal / SignalAdapter
+    ├── SessionConfig / RunContext
+    └── compatibility exports: AgentConfig, ModelRef, GenerationConfig, create_agent
 
 loom/config.py
-    ├── AgentConfig
-    ├── ModelRef
-    ├── GenerationConfig
-    ├── PolicyConfig / ToolPolicy
-    ├── MemoryConfig
-    ├── HeartbeatConfig
-    ├── RuntimeConfig
-    ├── KnowledgeQuery / KnowledgeBundle
-    └── SafetyRule
+    └── public config facade and 0.8 compatibility aliases
 
-loom/runtime/session.py
-    ├── SessionConfig
-    ├── Session
-    ├── RunContext
-    ├── Run
-    └── RunResult
+loom/runtime/
+    ├── sessions, runs, events, stores
+    ├── signals and attention
+    ├── context / continuity
+    ├── harness / quality / delegation
+    ├── capability / governance
+    ├── feedback / skill injection / session restore
+    └── engine and loop internals
 ```
-
-Import layering is intentional:
-
-- `loom`: narrow primary application surface
-- `loom.config`: stable configuration vocabulary
-- `loom.runtime`: runtime lifecycle objects
 
 ## Runtime Flow
 
 ```text
-AgentConfig
-    -> Agent
-        -> Session
-            -> Run
-                -> AgentEngine
-                    -> ContextManager
-                    -> ToolGovernance / ToolExecutor
-                    -> VetoAuthority
-                    -> Heartbeat
-                    -> Provider
+Agent(...)
+    -> compiles tools + capabilities
+    -> builds Runtime policies
+    -> Session
+        -> Run
+            -> AgentEngine
+                -> ContextProtocol
+                -> Provider request
+                -> Tool governance
+                -> Tool execution
+                -> Feedback events
+                -> SessionStore persistence
+```
+
+External input flow:
+
+```text
+gateway / cron / heartbeat / webhook / app callback
+    -> SignalAdapter
+    -> RuntimeSignal
+    -> AttentionPolicy
+    -> C_working dashboard
+    -> optional Agent run
 ```
 
 ## Public Contracts
 
 ### Agent Assembly
 
-`AgentConfig` is the only top-level public assembly object.
+`Agent` is the primary public assembly and execution object.
 
-Key stable config domains:
+Key constructor domains:
 
 - `model`: provider-backed model reference
-- `generation`: model generation controls
-- `tools`: declared `ToolSpec` list
-- `knowledge`: declarative knowledge sources
-- `policy`: governance and context
-- `memory`: session memory settings
-- `heartbeat`: watch sources and interrupt policy
-- `runtime`: limits, features, fallback behavior
-- `safety_rules`: declarative veto rules
+- `instructions`: stable behavior instructions
+- `tools`: explicit function tools
+- `capabilities`: files, web, shell, MCP, skills, custom sources
+- `generation`: generation controls
+- `runtime`: runtime policy profile or custom composition
+- `session_store`: optional durable session persistence
 
 ### Runtime Objects
 
 The supported public execution path is:
 
 ```text
-AgentConfig -> Agent -> Session -> Run
+Agent -> Session -> Run
 ```
 
 `RunContext` is the structured runtime input object. It carries:
@@ -109,63 +120,82 @@ AgentConfig -> Agent -> Session -> Run
 - `knowledge`: one aggregated `KnowledgeBundle`
 - `extensions`: future-compatible extra fields
 
-### Knowledge Contract
+`RuntimeTask` is the structured task object. It carries:
 
-Knowledge is now expressed through a stable request/result pair:
+- `goal`
+- `input`
+- `criteria`
+- metadata/extensions
 
-```text
-KnowledgeQuery -> Agent.resolve_knowledge(...) -> KnowledgeBundle -> RunContext
-```
+`RuntimeSignal` is the normalized external input object. It carries:
 
-This stabilizes the public retrieval contract even though the execution engine has not yet been deeply rewired around retrieval internals.
+- `source`
+- `type`
+- `urgency`
+- `summary`
+- `payload`
+- dedupe and metadata fields
 
-## Internal Execution Boundary
+## Runtime Policies
 
-The public API is adapted into the internal engine here:
+| Policy | Responsibility |
+|---|---|
+| `AttentionPolicy` | Decide whether a signal is observed, queued, or interrupts |
+| `ContextProtocol` | Render, measure, compact, renew, and snapshot context |
+| `ContinuityPolicy` | Preserve task continuity after compaction/reset |
+| `Harness` | Select single-run, generator/evaluator, or other long-task strategy |
+| `QualityGate` | Own acceptance criteria and PASS/FAIL parsing |
+| `DelegationPolicy` | Bound subtask and sub-agent dispatch |
+| `GovernancePolicy` | Decide tool permission, veto, rate limit, read-only/destructive checks |
+| `FeedbackPolicy` | Normalize runtime outcomes for dashboards or evolution |
+| `SessionRestorePolicy` | Decide what persisted state returns to context |
+| `SkillInjectionPolicy` | Decide which skill content enters runtime context |
 
-- `loom/agent.py`: public config normalization and engine assembly
-- `loom/runtime/engine.py`: execution engine and provider calls
-- `loom/runtime/session.py`: session/run lifecycle
+## Compatibility Boundary
 
-This split matters because it lets Loom evolve internals without reopening the public API contract every time.
+`AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain exported through `0.8.x`. They are compatibility and advanced configuration paths, not the recommended starting point for new docs or examples.
 
-## Architecture Reading Rule
-
-When this page describes context, loop, heartbeat, safety, or orchestration internals, treat them as implementation layers underneath the public `Agent` API.
-
-They explain how Loom works, not a second developer-facing API that applications should assemble directly.
+`loom.compat.v0` is the explicit legacy namespace and is scheduled for removal in `0.9.0`.
 
 ## Module Reference
 
 ### `loom/agent.py`
 
-- normalizes public config objects
-- compiles public tool declarations into engine tools
-- adapts policy, heartbeat, safety, runtime, and knowledge into engine inputs
+- exposes `Agent`, `create_agent()`, and `tool()`
+- normalizes public constructor inputs
+- compiles capabilities and tools into the engine path
+- adapts runtime policies into engine inputs
 
 ### `loom/config.py`
 
-- defines all public stable config and evidence objects
-- holds the developer-facing API schema
+- public config facade
+- `Model`, `Generation`, `Runtime`, `Memory`
+- compatibility aliases for `ModelRef`, `GenerationConfig`, `RuntimeConfig`, `AgentConfig`
 
 ### `loom/runtime/`
 
 - `session.py`: `Session`, `Run`, `RunContext`, `RunResult`
-- `engine.py`: `AgentEngine`, provider orchestration
-- `loop.py`: reason/act/observe/delta loop
-- `heartbeat.py`: watch-source driven sensing
+- `signals.py`: `RuntimeSignal`, `SignalAdapter`
+- `capability.py`: `Capability`, registry, runtime provider bridge
+- `governance.py`: runtime governance policy
+- `context.py`: runtime context protocol
+- `continuity.py`: handoff and continuation policy
+- `quality.py`: quality contracts and PASS/FAIL evaluation
+- `delegation.py`: delegation boundary
+- `feedback.py`: runtime feedback events
+- `engine.py`: provider orchestration and tool loop
 
 ### `loom/tools/`
 
-- registry, execution, governance, builtin tools
+Registry, execution, built-in tools, and low-level governance integration.
 
-### `loom/safety/`
+### `loom/ecosystem/`
 
-- veto authority, permission hooks, constraints
+Skills, plugins, MCP bridge, and activation helpers.
 
 ### `loom/providers/`
 
-- provider implementations and low-level completion params
+Request-native provider adapters for Anthropic, OpenAI, Gemini, Qwen, Ollama, and compatible providers.
 
 ## Historical Note
 
@@ -176,5 +206,6 @@ Older documents may still refer to:
 - `SessionHandle`
 - `TaskHandle`
 - `RunHandle`
+- `AgentConfig -> create_agent()` as the main path
 
-Treat those as historical design material, not the current public API.
+Treat those as historical design material. The `0.8.x` public application path is `Agent + Model + Runtime/Capability + Session/RunContext`.

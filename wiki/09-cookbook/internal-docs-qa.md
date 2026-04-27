@@ -13,35 +13,34 @@ Use this pattern when the app answers questions over internal policies, docs, or
 
 ```python
 from loom import (
-    AgentConfig,
+    Agent,
     KnowledgeDocument,
     KnowledgeQuery,
     KnowledgeSource,
-    ModelRef,
+    Model,
     RunContext,
-    create_agent,
+    Runtime,
 )
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="Answer internal documentation questions from the supplied evidence.",
-        knowledge=[
-            KnowledgeSource.inline(
-                "handbook",
-                [
-                    KnowledgeDocument(
-                        title="On-call Policy",
-                        content="Primary on-call engineers must acknowledge incidents within 10 minutes.",
-                    ),
-                    KnowledgeDocument(
-                        title="Deploy Policy",
-                        content="Production deploys require approval from the release owner.",
-                    ),
-                ],
-            )
-        ],
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="Answer internal documentation questions from the supplied evidence.",
+    knowledge=[
+        KnowledgeSource.inline(
+            "handbook",
+            [
+                KnowledgeDocument(
+                    title="On-call Policy",
+                    content="Primary on-call engineers must acknowledge incidents within 10 minutes.",
+                ),
+                KnowledgeDocument(
+                    title="Deploy Policy",
+                    content="Production deploys require approval from the release owner.",
+                ),
+            ],
+        )
+    ],
+    runtime=Runtime.sdk(),
 )
 
 knowledge = agent.resolve_knowledge(
@@ -63,13 +62,13 @@ result = await agent.run(
 
 ## Design Rule
 
-Keep “what to retrieve” separate from “how to answer”.
+Keep what to retrieve separate from how to answer.
 
 That makes the app easier to inspect:
 
 - retrieval is visible in `KnowledgeQuery`
 - evidence is visible in `KnowledgeBundle`
-- response behavior is still controlled by the agent instructions
+- response behavior is controlled by the agent instructions and runtime profile
 
 ## Good Defaults
 

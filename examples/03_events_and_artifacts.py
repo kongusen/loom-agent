@@ -2,15 +2,13 @@
 
 import asyncio
 
-from loom import AgentConfig, ModelRef, SessionConfig, create_agent
+from loom import Agent, Model, SessionConfig
 
 
 async def main():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a repository analyst.",
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a repository analyst.",
     )
     run = agent.session(SessionConfig(id="events-demo")).start("Analyze the structure of a Python project")
 

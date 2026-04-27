@@ -82,6 +82,24 @@ class TestToolGovernance:
         gov.record_call("Read")
         assert gov.call_counts["Read"] == 2
 
+    def test_rate_limit_uses_sliding_minute_window(self):
+        now = 1000.0
+        gov = ToolGovernance(
+            GovernanceConfig(max_calls_per_minute=1),
+            clock=lambda: now,
+        )
+
+        gov.record_call("Read")
+        ok, reason = gov.check_rate_limit("Read")
+        assert ok is False
+        assert "1/1" in reason
+
+        now = 1061.0
+        ok, reason = gov.check_rate_limit("Read")
+        assert ok is True
+        assert reason == ""
+        assert gov.call_counts["Read"] == 0
+
     def test_parameter_violation_is_structured(self):
         gov = ToolGovernance(
             GovernanceConfig(

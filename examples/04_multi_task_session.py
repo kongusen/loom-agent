@@ -2,16 +2,14 @@
 
 import asyncio
 
-from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent
+from loom import Agent, Model, RunContext, SessionConfig
 from loom.runtime import RunState
 
 
 async def main():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a thoughtful API design assistant.",
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a thoughtful API design assistant.",
     )
     session = agent.session(SessionConfig(id="multi-run-demo"))
 

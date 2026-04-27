@@ -6,7 +6,15 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from ..types import ToolCall
-from .base import CompletionParams, CompletionResponse, LLMProvider, TokenUsage
+from .base import (
+    CompletionParams,
+    CompletionRequest,
+    CompletionResponse,
+    LLMProvider,
+    TokenUsage,
+    normalize_tool_call,
+    parse_tool_arguments,
+)
 
 
 class AnthropicProvider(LLMProvider):
@@ -70,7 +78,7 @@ class AnthropicProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> str:
-        response = await self._complete_response(messages, params)
+        response = await self._complete_request(CompletionRequest.create(messages, params))
         return response.content
 
     async def _complete_response(
@@ -78,9 +86,15 @@ class AnthropicProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> CompletionResponse:
+        return await self._complete_request(CompletionRequest.create(messages, params))
+
+    async def _complete_request(
+        self,
+        request: CompletionRequest,
+    ) -> CompletionResponse:
         """Generate a completion through Anthropic messages API."""
-        request = self._build_request(messages, params)
-        response = await self.client.messages.create(**request)
+        payload = self._build_request(request.messages, request.params)
+        response = await self.client.messages.create(**payload)
         usage = getattr(response, "usage", None)
         content_blocks = getattr(response, "content", [])
         return CompletionResponse(
@@ -99,15 +113,24 @@ class AnthropicProvider(LLMProvider):
         params: CompletionParams | None = None,
         on_token: Any | None = None,
     ) -> CompletionResponse:
+        return await self._complete_request_streaming(
+            CompletionRequest.create(messages, params),
+            on_token,
+        )
+
+    async def _complete_request_streaming(
+        self,
+        request: CompletionRequest,
+        on_token: Any | None = None,
+    ) -> CompletionResponse:
         """Stream tokens via *on_token* and return the complete response.
 
         Anthropic's streaming API delivers text deltas and tool_use blocks as
         separate content_block events.  We accumulate both in a single pass
         so no second API call is needed.
         """
-        import json as _json
-        request = self._build_request(messages, params)
-        stream = await self.client.messages.create(**request, stream=True)
+        payload = self._build_request(request.messages, request.params)
+        stream = await self.client.messages.create(**payload, stream=True)
 
         text_parts: list[str] = []
         # tool_use blocks accumulated by index
@@ -154,15 +177,13 @@ class AnthropicProvider(LLMProvider):
         tool_calls: list[ToolCall] = []
         for idx in sorted(tool_blocks.keys()):
             tb = tool_blocks[idx]
-            try:
-                arguments = _json.loads(tb["input_json"] or "{}")
-            except _json.JSONDecodeError:
-                arguments = {}
-            tool_calls.append(ToolCall(
-                id=tb["id"],
+            tool_call = normalize_tool_call(
+                call_id=tb["id"],
                 name=tb["name"],
-                arguments=arguments if isinstance(arguments, dict) else {},
-            ))
+                arguments=parse_tool_arguments(tb["input_json"]),
+            )
+            if tool_call is not None:
+                tool_calls.append(tool_call)
 
         return CompletionResponse(
             content="".join(text_parts),
@@ -191,6 +212,13 @@ class AnthropicProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> AsyncGenerator["Any", None]:
+        async for event in self._stream_request_events(CompletionRequest.create(messages, params)):
+            yield event
+
+    async def _stream_request_events(
+        self,
+        request: CompletionRequest,
+    ) -> AsyncGenerator["Any", None]:
         """Yield typed StreamEvents from Anthropic's SSE stream (Mode B).
 
         Emits:
@@ -198,12 +226,10 @@ class AnthropicProvider(LLMProvider):
         - ``TextDelta`` for each assistant text token
         - ``ToolCallEvent`` once per tool block (after args fully assembled)
         """
-        import json as _json
-
         from ..types.stream import TextDelta, ThinkingDelta, ToolCallEvent
 
-        request = self._build_request(messages, params)
-        stream = await self.client.messages.create(**request, stream=True)
+        payload = self._build_request(request.messages, request.params)
+        stream = await self.client.messages.create(**payload, stream=True)
 
         # tool_use blocks accumulated by content-block index
         tool_blocks: dict[int, dict] = {}
@@ -248,15 +274,17 @@ class AnthropicProvider(LLMProvider):
                 # Emit ToolCallEvent once the block is fully assembled
                 if current_block_idx is not None and current_block_idx in tool_blocks:
                     tb = tool_blocks[current_block_idx]
-                    try:
-                        arguments = _json.loads(tb["input_json"] or "{}")
-                    except _json.JSONDecodeError:
-                        arguments = {}
-                    yield ToolCallEvent(
-                        id=tb["id"],
+                    tool_call = normalize_tool_call(
+                        call_id=tb["id"],
                         name=tb["name"],
-                        arguments=arguments if isinstance(arguments, dict) else {},
+                        arguments=parse_tool_arguments(tb["input_json"]),
                     )
+                    if tool_call is not None:
+                        yield ToolCallEvent(
+                            id=tool_call.id,
+                            name=tool_call.name,
+                            arguments=tool_call.arguments,
+                        )
 
     def _build_request(
         self,
@@ -274,14 +302,15 @@ class AnthropicProvider(LLMProvider):
         }
         if system:
             request["system"] = system
-        if resolved.tools:
+        tools = resolved.tool_dicts()
+        if tools:
             request["tools"] = [
                 {
                     "name": tool["name"],
                     "description": tool.get("description", ""),
                     "input_schema": tool.get("parameters", {"type": "object", "properties": {}, "required": []}),
                 }
-                for tool in resolved.tools
+                for tool in tools
             ]
             request["tool_choice"] = {"type": resolved.tool_choice} if resolved.tool_choice else {"type": "auto"}
         return request
@@ -380,24 +409,23 @@ class AnthropicProvider(LLMProvider):
         for block in blocks:
             if isinstance(block, dict):
                 if block.get("type") == "tool_use":
-                    tool_calls.append(
-                        ToolCall(
-                            id=block.get("id", ""),
-                            name=block.get("name", ""),
-                            arguments=block.get("input", {}) if isinstance(block.get("input", {}), dict) else {},
-                        )
+                    tool_call = normalize_tool_call(
+                        call_id=block.get("id", ""),
+                        name=block.get("name", ""),
+                        arguments=block.get("input", {}),
                     )
+                    if tool_call is not None:
+                        tool_calls.append(tool_call)
                 continue
 
             if getattr(block, "type", None) == "tool_use":
-                arguments = getattr(block, "input", {})
-                tool_calls.append(
-                    ToolCall(
-                        id=getattr(block, "id", ""),
-                        name=getattr(block, "name", ""),
-                        arguments=arguments if isinstance(arguments, dict) else {},
-                    )
+                tool_call = normalize_tool_call(
+                    call_id=getattr(block, "id", ""),
+                    name=getattr(block, "name", ""),
+                    arguments=getattr(block, "input", {}),
                 )
+                if tool_call is not None:
+                    tool_calls.append(tool_call)
         return tool_calls
 
     def _convert_content_blocks(self, content: list[Any]) -> list[dict[str, Any]]:

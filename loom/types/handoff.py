@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -19,7 +19,7 @@ class HandoffArtifact:
     produced_artifacts: dict[str, str]         # {name: description} of outputs created
     open_tasks: list[str]                      # remaining plan steps
     context_snapshot: dict                     # key dashboard fields at renew time
-    handoff_ts: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    handoff_ts: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_system_prompt(self) -> str:
         """Render as Markdown system message for cold-starting the next sprint."""

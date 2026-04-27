@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ..runtime.quality import RuntimeQualityGate
     from .events import CoordinationEventBus
     from .subagent import SubAgentManager
 
@@ -49,12 +50,14 @@ class AgentHarness:
         planner: SubAgentManager | None = None,
         max_sprints: int = 5,
         event_bus: CoordinationEventBus | None = None,
+        quality_gate: RuntimeQualityGate | None = None,
     ):
         self.generator = generator
         self.evaluator = evaluator
         self.planner = planner
         self.max_sprints = max_sprints
         self.event_bus = event_bus
+        self.quality_gate = quality_gate
 
     async def run(self, brief: str) -> HarnessResult:
         """Execute the full Planner→Generator⇌Evaluator pipeline."""
@@ -63,7 +66,7 @@ class AgentHarness:
         spec = await self._plan(brief)
 
         # Phase 2a: no evaluator — single generator run
-        if self.evaluator is None:
+        if self.evaluator is None and self.quality_gate is None:
             gen_result = await self.generator.spawn(spec, depth=0)
             output = gen_result.output if gen_result.success else f"[error] {gen_result.error}"
             return HarnessResult(
@@ -80,6 +83,7 @@ class AgentHarness:
             generator=self.generator,
             evaluator=self.evaluator,
             event_bus=self.event_bus,
+            quality_gate=self.quality_gate,
         )
         sprint_results = await loop.run(spec, max_sprints=self.max_sprints)
 
@@ -105,5 +109,5 @@ class AgentHarness:
         )
         result = await self.planner.spawn(plan_prompt, depth=0)
         if result.success and result.output:
-            return result.output
+            return str(result.output)
         return brief  # fall back to original brief on planner failure

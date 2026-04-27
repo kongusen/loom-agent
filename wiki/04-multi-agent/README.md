@@ -7,8 +7,8 @@ Use this section when you are extending Loom or building advanced orchestration 
 ## Position In The Stack
 
 ```text
-AgentConfig -> Agent -> Session/Run
-                     -> orchestration modules when advanced coordination is needed
+Agent + Runtime + Capability -> Session/Run
+                              -> orchestration modules when advanced coordination is needed
 ```
 
 ## Core Pieces

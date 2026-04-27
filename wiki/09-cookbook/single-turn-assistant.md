@@ -12,13 +12,12 @@ Use this pattern when each request is independent and you do not need cross-run 
 ## Shape
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent
+from loom import Agent, Model, Runtime
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="You are a concise product assistant.",
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="You are a concise product assistant.",
+    runtime=Runtime.sdk(),
 )
 
 result = await agent.run("Summarize the release notes")
@@ -33,9 +32,10 @@ print(result.output)
 
 ## What To Add Next
 
-- add `GenerationConfig` when output style matters
+- add `Generation` when output style matters
 - move to `Session` when later runs must remember earlier ones
 - add `KnowledgeQuery` when answers must be grounded in explicit evidence
+- add `Capability` when the agent needs files, web, shell, MCP, or skills
 
 ## Runnable Example
 

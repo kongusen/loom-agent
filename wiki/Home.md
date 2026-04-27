@@ -1,35 +1,36 @@
 # Loom
 
-> Build stateful agents with one public `Agent` API.
+> Build stateful agents with a stable `Agent + Runtime + Capability` SDK.
 
-Loom's public developer contract is centered on four ideas:
+Loom's `0.8.0` public contract is centered on the runtime kernel:
 
-- `AgentConfig` is the only top-level assembly object
-- `Agent` is the only top-level execution object
-- `SessionConfig` and `RunContext` are the only runtime input objects
-- tools, knowledge, policy, memory, heartbeat, runtime, and generation are all stable config objects
+```text
+Agent
+    + Runtime
+    + Capability
+    -> Run / Session
+    -> RuntimeTask / RuntimeSignal
+```
 
-## Import Rule
-
-- Import the main application path from `loom`
-- Import advanced config objects from `loom.config`
-- Import runtime handles and states from `loom.runtime`
-
-In other words, `loom` stays narrow on purpose; extension depth lives in submodules.
+Application developers should start from `Agent(...)`, select a `Model`, choose a `Runtime` profile, and declare tool/MCP/skill access through `Capability`.
 
 ## Quick Start
 
 ```python
 import asyncio
-from loom import AgentConfig, ModelRef, create_agent
+
+from loom import Agent, Capability, Model, Runtime
 
 
 async def main():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a concise coding assistant.",
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a concise coding assistant.",
+        capabilities=[
+            Capability.files(read_only=True),
+            Capability.web(),
+        ],
+        runtime=Runtime.sdk(),
     )
 
     result = await agent.run("Summarize this repository")
@@ -42,46 +43,54 @@ asyncio.run(main())
 ## Public Shape
 
 ```text
-AgentConfig
-    └── Agent
-            ├── run(prompt, context=RunContext(...))
-            ├── stream(prompt, context=RunContext(...))
-            └── session(SessionConfig(...)) -> Session
-                                              └── start/run/stream(...)
+Agent(...)
+    ├── run(prompt_or_task, context=RunContext(...))
+    ├── stream(prompt_or_task, context=RunContext(...))
+    ├── receive(event_or_signal, adapter=SignalAdapter(...))
+    └── session(SessionConfig(...)) -> Session
+                                      ├── start(...)
+                                      ├── run(...)
+                                      ├── stream(...)
+                                      └── receive(...)
 ```
 
-## Stable Config Surface
-
-- `model`: `ModelRef`
-- `generation`: `GenerationConfig`
-- `tools`: `list[ToolSpec]`
-- `knowledge`: `list[KnowledgeSource]`
-- `policy`: `PolicyConfig`
-- `memory`: `MemoryConfig`
-- `heartbeat`: `HeartbeatConfig`
-- `safety_rules`: `list[SafetyRule]`
-- `runtime`: `RuntimeConfig`
-
-## Knowledge Flow
-
-Loom exposes a stable knowledge contract even before retrieval is fully wired into the execution engine:
+## Main Imports
 
 ```python
-from loom import KnowledgeQuery, RunContext
-
-knowledge = agent.resolve_knowledge(
-    KnowledgeQuery(
-        text="What are the deployment rules?",
-        goal="Summarize deployment policy",
-        top_k=3,
-    )
-)
-
-result = await agent.run(
-    "Summarize deployment policy",
-    context=RunContext(knowledge=knowledge),
+from loom import (
+    Agent,
+    Capability,
+    Model,
+    Runtime,
+    RuntimeSignal,
+    RuntimeTask,
+    SessionConfig,
+    SignalAdapter,
+    RunContext,
+    tool,
 )
 ```
+
+Use `from loom.config import ...` only for advanced configuration internals. `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain available through `0.8.x`, but they are no longer the recommended starting point for new applications.
+
+## Runtime Concepts
+
+| Concept | Meaning |
+|---|---|
+| `Agent` | User-side intelligent agent specification |
+| `Runtime` | Execution mechanism composition |
+| `Run` / `Session` | Single execution / multi-run state boundary |
+| `RuntimeTask` | Structured work request |
+| `RuntimeSignal` | External input from gateways, cron, heartbeat, or apps |
+| `AttentionPolicy` | Decides whether a signal is observed, queued, or interrupts |
+| `ContextProtocol` | Context partitioning, rendering, compaction, renewal |
+| `ContinuityPolicy` | Continuation after reset or compaction |
+| `Harness` | Long-task execution strategy |
+| `QualityGate` | Acceptance criteria and PASS/FAIL evaluation |
+| `DelegationPolicy` | Subtask and sub-agent dispatch boundary |
+| `Capability` | Tools, Toolsets, MCP, skills, and future ability sources |
+| `GovernancePolicy` | Permission, veto, rate limit, read-only/destructive checks |
+| `FeedbackPolicy` | Runtime feedback collection and evolution input |
 
 ## Navigation
 
@@ -89,16 +98,20 @@ result = await agent.run(
 |---|---|
 | Get running quickly | [Getting Started](01-getting-started/README.md) |
 | Understand the public API | [API Reference](07-api-reference/README.md) |
-| See all config objects | [Configuration](07-api-reference/configuration.md) |
 | Configure providers and env vars | [Providers](07-api-reference/providers.md) |
-| Understand internal architecture | [Architecture](Architecture.md) |
-| Learn runtime internals | [Runtime](03-runtime/README.md) |
-| Learn orchestration | [Multi-Agent](04-multi-agent/README.md) |
-| Learn extension surfaces | [Ecosystem](05-ecosystem/README.md) |
+| Understand runtime internals | [Runtime](03-runtime/README.md) |
 | Copy app-ready patterns | [Cookbook](09-cookbook/README.md) |
+| Understand architecture | [Architecture](Architecture.md) |
 | Compare against other frameworks | [Comparison](08-reference/comparison.md) |
-| Read the design spec | [hernss-agent-framework.md](hernss-agent-framework.md) |
+| Read historical design material | [hernss-agent-framework.md](hernss-agent-framework.md) |
 
-## Note on Older Runtime Docs
+## Version Policy
 
-If you still see references to `AgentRuntime`, `SessionHandle`, `TaskHandle`, or `RunHandle`, treat them as historical design material rather than the current public API.
+- `0.8.0` is the public API stabilization line for the SDK runtime kernel.
+- `0.8.x` keeps compatibility exports for existing applications.
+- `loom.compat.v0` is the explicit legacy compatibility namespace.
+- `0.9.0` removes the legacy compatibility surface.
+
+## Historical Note
+
+If you see `AgentRuntime`, `SessionHandle`, `TaskHandle`, `RunHandle`, or `create_agent(AgentConfig(...))` presented as the main path, treat that page as older material. The supported `0.8.x` application path is `Agent + Model + Runtime/Capability + Session/RunContext`.

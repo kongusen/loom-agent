@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from ..runtime.delegation import DelegationRequest, DelegationResult
 from ..types import SubAgentResult
 
 
@@ -18,26 +19,39 @@ class SubAgentManager:
 
     async def spawn(self, goal: str, depth: int, inherit_context: bool = True) -> SubAgentResult:
         """Spawn a sub-agent with recursion check."""
+        return (
+            await self.delegate(
+                DelegationRequest(
+                    goal=goal,
+                    depth=depth,
+                    inherit_context=inherit_context,
+                )
+            )
+        ).to_subagent_result()
+
+    async def delegate(self, request: DelegationRequest) -> DelegationResult:
+        """Delegate one request using the runtime delegation protocol."""
+        depth = request.depth
         if depth >= self.max_depth:
-            return SubAgentResult(
+            return DelegationResult(
                 success=False,
                 output="Max depth reached - 能力边界已穷尽",
                 depth=depth,
                 error="MAX_DEPTH_EXCEEDED",
             )
 
-        child = self._create_child(depth, inherit_context=inherit_context)
+        child = self._create_child(depth, inherit_context=request.inherit_context)
         child_depth = depth + 1
         try:
-            result = await child.run(goal)
+            result = await child.run(request.goal)
             output = result.output if hasattr(result, "output") else str(result)
-            return SubAgentResult(
+            return DelegationResult(
                 success=True,
                 output=output,
                 depth=child_depth,
             )
         except Exception as exc:
-            return SubAgentResult(
+            return DelegationResult(
                 success=False,
                 output=str(exc),
                 depth=child_depth,
@@ -51,12 +65,22 @@ class SubAgentManager:
         inherit_context: bool = True,
     ) -> list[SubAgentResult]:
         """Spawn a batch of sub-agents sequentially."""
-        results: list[SubAgentResult] = []
-        for goal in goals:
-            results.append(
-                await self.spawn(goal, depth=depth, inherit_context=inherit_context)
+        requests = [
+            DelegationRequest(
+                goal=goal,
+                depth=depth,
+                inherit_context=inherit_context,
             )
-        return results
+            for goal in goals
+        ]
+        return [result.to_subagent_result() for result in await self.delegate_many(requests)]
+
+    async def delegate_many(
+        self,
+        requests: list[DelegationRequest],
+    ) -> list[DelegationResult]:
+        """Delegate a batch of requests sequentially."""
+        return [await self.delegate(request) for request in requests]
 
     def _create_child(self, depth: int, inherit_context: bool) -> Any:
         """Create a child agent and optionally inherit selected context.

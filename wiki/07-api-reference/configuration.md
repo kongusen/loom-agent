@@ -1,6 +1,14 @@
 # Configuration
 
-This page describes `AgentConfig` and Loom's stable configuration objects.
+This page describes Loom's advanced configuration and compatibility objects.
+
+For new application code, start from:
+
+```python
+from loom import Agent, Capability, Model, Runtime
+```
+
+Use `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` when maintaining existing `0.8.x` applications or when you need the lower-level config object vocabulary directly.
 
 Two rules define the surface:
 
@@ -508,7 +516,9 @@ Use it to:
 
 Do not push core control logic into `extensions`, or the API will drift back toward an opaque dictionary surface.
 
-## 12. Full Configuration Example
+## 12. Full Compatibility Configuration Example
+
+This example shows the lower-level compatibility path for existing applications. New applications should usually prefer `Agent(model=Model..., runtime=Runtime..., capabilities=[...])`.
 
 ```python
 from loom import AgentConfig, ModelRef, create_agent, tool

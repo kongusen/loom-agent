@@ -13,6 +13,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from ..runtime.quality import QualityContract, QualityGate, RuntimeQualityGate
+from ..runtime.task import RuntimeTask
+
 if TYPE_CHECKING:
     from ..types.handoff import HandoffArtifact
     from .events import CoordinationEventBus
@@ -31,6 +34,30 @@ class SprintContract:
     goal: str
     criteria: list[str]      # verifiable pass conditions
     eval_tools: list[str] = field(default_factory=list)   # tools evaluator may use
+
+    @classmethod
+    def from_quality_contract(
+        cls,
+        contract: QualityContract,
+        *,
+        sprint: int,
+    ) -> SprintContract:
+        """Adapt a runtime QualityContract to the legacy sprint contract shape."""
+        return cls(
+            sprint=sprint,
+            goal=contract.goal,
+            criteria=list(contract.criteria),
+            eval_tools=list(contract.eval_tools),
+        )
+
+    def to_quality_contract(self) -> QualityContract:
+        """Adapt this legacy sprint contract to the runtime quality contract."""
+        return QualityContract(
+            goal=self.goal,
+            criteria=list(self.criteria),
+            eval_tools=list(self.eval_tools),
+            metadata={"sprint": self.sprint},
+        )
 
 
 @dataclass
@@ -57,12 +84,18 @@ class GeneratorEvaluatorLoop:
     def __init__(
         self,
         generator: SubAgentManager,
-        evaluator: SubAgentManager,
+        evaluator: SubAgentManager | None = None,
         event_bus: CoordinationEventBus | None = None,
+        quality_gate: RuntimeQualityGate | None = None,
     ):
         self.generator = generator
         self.evaluator = evaluator
         self.event_bus = event_bus
+        self.quality_gate = quality_gate or (
+            QualityGate.evaluator(evaluator) if evaluator is not None else None
+        )
+        if self.quality_gate is None:
+            raise ValueError("GeneratorEvaluatorLoop requires evaluator or quality_gate")
 
     # ── Public API ──────────────────────────────────────────────────────────
 
@@ -74,10 +107,18 @@ class GeneratorEvaluatorLoop:
         """Run the GAN loop, returning all sprint results."""
         results: list[SprintResult] = []
         critique = ""
+        task = RuntimeTask(goal=goal)
+        quality_gate = self.quality_gate
+        if quality_gate is None:
+            raise ValueError("GeneratorEvaluatorLoop requires evaluator or quality_gate")
 
         for sprint_num in range(1, max_sprints + 1):
             # Phase 1: negotiate criteria for this sprint
-            contract = await self._negotiate_contract(goal, sprint_num)
+            quality_contract = await quality_gate.contract_for(task, iteration=sprint_num)
+            contract = SprintContract.from_quality_contract(
+                quality_contract,
+                sprint=sprint_num,
+            )
 
             # Phase 2: generator produces output
             gen_prompt = self._build_gen_prompt(goal, contract, critique)
@@ -85,15 +126,12 @@ class GeneratorEvaluatorLoop:
             output = gen_result.output if gen_result.success else f"[generator error] {gen_result.error}"
 
             # Phase 3: evaluator judges output
-            eval_prompt = self._build_eval_prompt(output, contract)
-            eval_result = await self.evaluator.spawn(eval_prompt, depth=0)
-            passed, critique = self._parse_eval(
-                eval_result.output if eval_result.success else "FAIL\nEvaluator error"
-            )
+            quality_result = await quality_gate.evaluate(output, contract.to_quality_contract())
+            critique = quality_result.critique
 
             sprint_result = SprintResult(
                 sprint=sprint_num,
-                passed=passed,
+                passed=quality_result.passed,
                 output=output,
                 critique=critique,
                 contract=contract,
@@ -103,7 +141,7 @@ class GeneratorEvaluatorLoop:
             # Phase 4: publish event if bus attached
             self._publish_sprint_event(sprint_result)
 
-            if passed:
+            if quality_result.passed:
                 break
 
         return results
@@ -112,18 +150,13 @@ class GeneratorEvaluatorLoop:
 
     async def _negotiate_contract(self, goal: str, sprint: int) -> SprintContract:
         """Ask the evaluator to generate verifiable success criteria."""
-        negotiate_prompt = (
-            f"You are an Evaluator setting success criteria for sprint {sprint}.\n"
-            f"Goal: {goal}\n\n"
-            "List 3-5 concrete, verifiable criteria that the Generator's output "
-            "must satisfy. Respond with one criterion per line, no numbering."
+        if self.quality_gate is None:
+            raise ValueError("GeneratorEvaluatorLoop requires evaluator or quality_gate")
+        contract = await self.quality_gate.contract_for(
+            RuntimeTask(goal=goal),
+            iteration=sprint,
         )
-        result = await self.evaluator.spawn(negotiate_prompt, depth=0)
-        raw = result.output if result.success else ""
-        criteria = [line.strip() for line in raw.splitlines() if line.strip()]
-        if not criteria:
-            criteria = [f"Output addresses the goal: {goal}"]
-        return SprintContract(sprint=sprint, goal=goal, criteria=criteria)
+        return SprintContract.from_quality_contract(contract, sprint=sprint)
 
     def _build_gen_prompt(
         self,
@@ -143,25 +176,15 @@ class GeneratorEvaluatorLoop:
         return prompt
 
     def _build_eval_prompt(self, output: str, contract: SprintContract) -> str:
-        criteria_md = "\n".join(f"- {c}" for c in contract.criteria)
-        return (
-            f"You are an Evaluator. Judge the following output.\n\n"
-            f"**Goal:** {contract.goal}\n\n"
-            f"**Success criteria:**\n{criteria_md}\n\n"
-            f"**Output to evaluate:**\n{output}\n\n"
-            "Respond with PASS or FAIL on the first line, then provide your "
-            "critique or confirmation on subsequent lines."
-        )
+        gate = QualityGate.evaluator(self.evaluator) if self.evaluator is not None else None
+        if gate is None:
+            raise ValueError("GeneratorEvaluatorLoop requires evaluator to build eval prompt")
+        return gate.build_evaluation_prompt(output, contract.to_quality_contract())
 
     def _parse_eval(self, raw: str) -> tuple[bool, str]:
         """Parse evaluator response: first line = PASS/FAIL, rest = critique."""
-        lines = raw.strip().splitlines()
-        if not lines:
-            return False, "No evaluator response"
-        verdict = lines[0].strip().upper()
-        passed = verdict.startswith("PASS")
-        critique = "\n".join(lines[1:]).strip()
-        return passed, critique
+        result = QualityGate.pass_fail().parse(raw)
+        return result.passed, result.critique
 
     def _publish_sprint_event(self, result: SprintResult) -> None:
         """Publish a sprint.passed or sprint.failed event if bus is configured."""

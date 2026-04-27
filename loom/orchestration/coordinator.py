@@ -1,11 +1,12 @@
 """Agent coordinator"""
 
 import asyncio
+from typing import Any
 
+from ..runtime.delegation import DelegationRequest, DelegationResult
 from ..types import CoordinationEvent, SubAgentResult
 from .events import CoordinationEventBus
 from .planner import TaskPlanner
-from .subagent import SubAgentManager
 
 
 class Coordinator:
@@ -13,9 +14,9 @@ class Coordinator:
 
     def __init__(self, event_bus: CoordinationEventBus):
         self.event_bus = event_bus
-        self.agents: dict[str, SubAgentManager] = {}
+        self.agents: dict[str, Any] = {}
 
-    def register_agent(self, agent_id: str, manager: SubAgentManager):
+    def register_agent(self, agent_id: str, manager: Any):
         """Register an agent"""
         self.agents[agent_id] = manager
 
@@ -48,11 +49,15 @@ class Coordinator:
                 self._publish("task.started", agent_id, task)
 
             async def _run_task(task):
+                request = DelegationRequest(
+                    goal=task.goal,
+                    depth=depth,
+                    inherit_context=inherit_context,
+                    timeout=task_timeout,
+                    metadata={"task_id": task.id, "agent_id": agent_id},
+                )
                 try:
-                    result = await asyncio.wait_for(
-                        manager.spawn(task.goal, depth=depth, inherit_context=inherit_context),
-                        timeout=task_timeout,
-                    )
+                    result = (await self._delegate(manager, request)).to_subagent_result()
                 except TimeoutError:
                     result = SubAgentResult(success=False, output="", depth=depth, error="timeout")
                 except Exception as exc:
@@ -65,6 +70,41 @@ class Coordinator:
             results.update(dict(pairs))
 
         return results
+
+    async def _delegate(self, manager: Any, request: DelegationRequest) -> DelegationResult:
+        delegate = getattr(manager, "delegate", None)
+        if callable(delegate):
+            coro = delegate(request)
+            if request.timeout is not None:
+                raw_result = await asyncio.wait_for(coro, timeout=request.timeout)
+            else:
+                raw_result = await coro
+            if isinstance(raw_result, DelegationResult):
+                return raw_result
+            if isinstance(raw_result, SubAgentResult):
+                return DelegationResult.from_subagent_result(raw_result)
+            return DelegationResult(
+                success=True,
+                output=getattr(raw_result, "output", raw_result),
+                depth=request.depth + 1,
+            )
+
+        spawn = getattr(manager, "spawn", None)
+        if not callable(spawn):
+            raise TypeError("Registered agent manager must provide delegate() or spawn()")
+
+        coro = spawn(
+            request.goal,
+            depth=request.depth,
+            inherit_context=request.inherit_context,
+        )
+        if request.timeout is not None:
+            result = await asyncio.wait_for(coro, timeout=request.timeout)
+        else:
+            result = await coro
+        if isinstance(result, DelegationResult):
+            return result
+        return DelegationResult.from_subagent_result(result)
 
     def aggregate_results(self, results: dict[str, SubAgentResult]) -> dict:
         """Aggregate sub-agent outputs into a structured summary."""

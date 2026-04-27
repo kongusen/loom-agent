@@ -13,31 +13,30 @@ Use this pattern when the answer must be grounded in explicit evidence rather th
 
 ```python
 from loom import (
-    AgentConfig,
+    Agent,
     KnowledgeDocument,
     KnowledgeQuery,
     KnowledgeSource,
-    ModelRef,
+    Model,
     RunContext,
-    create_agent,
+    Runtime,
 )
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="Answer only from the supplied knowledge.",
-        knowledge=[
-            KnowledgeSource.inline(
-                "policy-docs",
-                [
-                    KnowledgeDocument(
-                        title="Deployment",
-                        content="Production changes require approval from the release owner.",
-                    )
-                ],
-            )
-        ],
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="Answer only from the supplied knowledge.",
+    knowledge=[
+        KnowledgeSource.inline(
+            "policy-docs",
+            [
+                KnowledgeDocument(
+                    title="Deployment",
+                    content="Production changes require approval from the release owner.",
+                )
+            ],
+        )
+    ],
+    runtime=Runtime.sdk(),
 )
 
 knowledge = agent.resolve_knowledge(
@@ -68,7 +67,9 @@ That makes the knowledge boundary inspectable even before deeper retrieval inter
 
 - use `KnowledgeSource.dynamic(...)` for external retrieval adapters
 - keep citations in the bundle when downstream UX needs evidence display
+- add `Capability.web()` only when the app should actively use web tools
 
 ## Runnable Example
 
 - [examples/00_agent_overview.py](https://github.com/kongusen/loom-agent/blob/main/examples/00_agent_overview.py)
+- [examples/14_internal_docs_qa.py](https://github.com/kongusen/loom-agent/blob/main/examples/14_internal_docs_qa.py)

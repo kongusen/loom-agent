@@ -5,7 +5,13 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from ..types import ToolCall
-from .base import CompletionParams, CompletionResponse, LLMProvider
+from .base import (
+    CompletionParams,
+    CompletionRequest,
+    CompletionResponse,
+    LLMProvider,
+    normalize_tool_call,
+)
 
 
 class GeminiProvider(LLMProvider):
@@ -65,7 +71,7 @@ class GeminiProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> str:
-        response = await self._complete_response(messages, params)
+        response = await self._complete_request(CompletionRequest.create(messages, params))
         return response.content
 
     async def _complete_response(
@@ -73,29 +79,36 @@ class GeminiProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> CompletionResponse:
+        return await self._complete_request(CompletionRequest.create(messages, params))
+
+    async def _complete_request(
+        self,
+        request: CompletionRequest,
+    ) -> CompletionResponse:
         """Generate a completion through Google Gemini API."""
-        resolved = params or CompletionParams()
+        resolved = request.params
 
         # Convert messages to Gemini format
-        contents = self._convert_messages(messages)
+        contents = self._convert_messages(request.messages)
 
         # Create model
         model = self.client.GenerativeModel(resolved.model)
 
         # Generate content
-        request: dict[str, Any] = {
+        payload: dict[str, Any] = {
             "contents": contents,
             "generation_config": {
                 "temperature": resolved.temperature,
                 "max_output_tokens": resolved.max_tokens,
             },
         }
-        if resolved.tools:
-            request["tools"] = self._build_tools(resolved.tools)
+        tools = resolved.tool_dicts()
+        if tools:
+            payload["tools"] = self._build_tools(tools)
             if tool_config := self._build_tool_config(resolved.tool_choice):
-                request["tool_config"] = tool_config
+                payload["tool_config"] = tool_config
 
-        response = await model.generate_content_async(**request)
+        response = await model.generate_content_async(**payload)
 
         return CompletionResponse(
             content=self._extract_text(response),
@@ -118,7 +131,7 @@ class GeminiProvider(LLMProvider):
         model = self.client.GenerativeModel(resolved.model)
 
         # Stream content
-        request: dict[str, Any] = {
+        payload: dict[str, Any] = {
             "contents": contents,
             "generation_config": {
                 "temperature": resolved.temperature,
@@ -126,12 +139,13 @@ class GeminiProvider(LLMProvider):
             },
             "stream": True,
         }
-        if resolved.tools:
-            request["tools"] = self._build_tools(resolved.tools)
+        tools = resolved.tool_dicts()
+        if tools:
+            payload["tools"] = self._build_tools(tools)
             if tool_config := self._build_tool_config(resolved.tool_choice):
-                request["tool_config"] = tool_config
+                payload["tool_config"] = tool_config
 
-        response = await model.generate_content_async(**request)
+        response = await model.generate_content_async(**payload)
 
         async for chunk in response:
             if chunk.text:
@@ -142,6 +156,13 @@ class GeminiProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> AsyncGenerator[Any, None]:
+        async for event in self._stream_request_events(CompletionRequest.create(messages, params)):
+            yield event
+
+    async def _stream_request_events(
+        self,
+        request: CompletionRequest,
+    ) -> AsyncGenerator[Any, None]:
         """Yield typed StreamEvents from the Gemini generate_content_async stream.
 
         Emits ``TextDelta`` for each text chunk and ``ToolCallEvent`` for
@@ -149,11 +170,11 @@ class GeminiProvider(LLMProvider):
         """
         from ..types.stream import TextDelta, ToolCallEvent
 
-        resolved = params or CompletionParams()
-        contents = self._convert_messages(messages)
+        resolved = request.params
+        contents = self._convert_messages(request.messages)
         model = self.client.GenerativeModel(resolved.model)
 
-        request: dict[str, Any] = {
+        payload: dict[str, Any] = {
             "contents": contents,
             "generation_config": {
                 "temperature": resolved.temperature,
@@ -161,12 +182,13 @@ class GeminiProvider(LLMProvider):
             },
             "stream": True,
         }
-        if resolved.tools:
-            request["tools"] = self._build_tools(resolved.tools)
+        tools = resolved.tool_dicts()
+        if tools:
+            payload["tools"] = self._build_tools(tools)
             if tool_config := self._build_tool_config(resolved.tool_choice):
-                request["tool_config"] = tool_config
+                payload["tool_config"] = tool_config
 
-        response = await model.generate_content_async(**request)
+        response = await model.generate_content_async(**payload)
 
         seen_tool_ids: set[str] = set()
         async for chunk in response:
@@ -301,13 +323,13 @@ class GeminiProvider(LLMProvider):
                 continue
             name = self._get_field(function_call, "name", "")
             arguments = self._get_field(function_call, "args", {}) or {}
-            tool_calls.append(
-                ToolCall(
-                    id=f"{name}_{len(tool_calls) + 1}",
-                    name=name,
-                    arguments=arguments if isinstance(arguments, dict) else {},
-                )
+            tool_call = normalize_tool_call(
+                call_id=f"{name}_{len(tool_calls) + 1}",
+                name=name,
+                arguments=arguments,
             )
+            if tool_call is not None:
+                tool_calls.append(tool_call)
         return tool_calls
 
     def _iter_parts(self, response: Any) -> list[Any]:

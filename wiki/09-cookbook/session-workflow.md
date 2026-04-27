@@ -12,13 +12,12 @@ Use this pattern when later runs need continuity from earlier runs.
 ## Shape
 
 ```python
-from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent
+from loom import Agent, Model, RunContext, Runtime, SessionConfig
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="You help users refine API designs across multiple turns.",
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="You help users refine API designs across multiple turns.",
+    runtime=Runtime.sdk(),
 )
 
 session = agent.session(SessionConfig(id="user-123"))
@@ -39,14 +38,10 @@ That split keeps the contract clear:
 - session state is long-lived
 - `RunContext` is request-scoped
 
-## What To Avoid
-
-- putting all transient inputs into session metadata
-- creating a new agent for every follow-up turn when only the session changed
-
 ## What To Add Next
 
-- add `MemoryConfig` when you want explicit memory behavior
+- add `SessionRestorePolicy` when reopening a durable session
+- add `FileSessionStore` when state must survive process restart
 - add `KnowledgeBundle` in `RunContext` when grounding is needed on one run
 
 ## Runnable Example

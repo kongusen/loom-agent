@@ -1,5 +1,90 @@
 # Changelog
 
+## [0.8.0] - 2026-04-27
+
+### SDK Runtime Kernel 稳定线
+
+`0.8.0` 是 Loom 当前 Agent SDK runtime kernel 的公共 API 稳定线。这个版本把框架语言从“Agent 工具集合”收敛为可组合的运行时内核：
+
+- `Agent` / `Runtime` 作为用户侧智能体规格和执行机制组合
+- `Run` / `Session` 作为单次执行和多轮状态边界
+- `RuntimeTask` 作为结构化任务输入
+- `RuntimeSignal` 作为 gateway、cron、heartbeat、webhook 等外部输入的统一信号
+- `AttentionPolicy` 决定 signal 是否进入 agent run
+- `ContextProtocol` / `ContinuityPolicy` 管理上下文分区、压缩、续写和 handoff
+- `Harness` / `QualityGate` 抽象长任务执行、验收和 PASS/FAIL
+- `DelegationPolicy` 抽象子任务和子 agent 派发边界
+- `Capability` 统一 tools、Toolset、MCP、skill 等能力来源
+- `GovernancePolicy` 统一工具权限、veto、rate limit、read-only/destructive 边界
+- `FeedbackPolicy` 记录运行反馈和演化数据
+- `SessionRestorePolicy` 控制 transcript、signal、tool result、runtime state 的恢复范围
+- `SkillInjectionPolicy` 控制 skill 如何按策略进入 runtime context
+- `SignalAdapter` 把外部事件标准化为 `RuntimeSignal`
+
+### 新推荐 API
+
+新应用推荐从 `Agent + Model + Runtime + Capability` 开始：
+
+```python
+from loom import Agent, Capability, Model, Runtime
+
+agent = Agent(
+    model=Model.openai("gpt-5.1"),
+    capabilities=[
+        Capability.files(read_only=True),
+        Capability.web(),
+        Capability.shell(require_approval=True),
+    ],
+    runtime=Runtime.long_running(criteria=["tests stay green"]),
+)
+```
+
+`AgentConfig`、`ModelRef`、`GenerationConfig`、`create_agent()` 仍然导出，定位为高级配置和兼容路径。
+
+### Runtime Signals
+
+- 新增 `SignalAdapter` / `RuntimeSignalAdapter`
+- 新增 `Agent.receive(..., adapter=...)`
+- 新增 `Session.receive(..., adapter=...)`
+- gateway、cron、heartbeat、webhook adapter 只负责标准化外部事件，内核不区分生产者
+- signal 会进入任务仪表盘上下文，由 `AttentionPolicy` 决定 observe / run / interrupt
+
+### Capability 与 Skill
+
+- `Capability.files()`、`Capability.web()`、`Capability.shell()`、`Capability.mcp()`、`Capability.skill()` 成为用户侧能力声明语言
+- Capability tool 统一进入 governance pipeline
+- `Capability.skill(...content...)` 可按 `SkillInjectionPolicy` 注入 runtime context
+- MCP stdio 真实链路已完成最小校准，保留 discovery / marketplace 为后续扩展
+
+### Session Restore
+
+- `FileSessionStore` 持久化 session metadata、run summaries、transcripts、events、artifacts、run context
+- `SessionRestorePolicy.transcript_only()` 支持 chat-like continuity
+- `SessionRestorePolicy.window()` 支持 transcript + runtime state 的有界恢复
+- `SessionRestorePolicy.none()` 允许应用完全接管恢复逻辑
+
+### Provider Tool-Call Hardening
+
+- OpenAI / Anthropic / Gemini request-native tool spec 转换补齐测试
+- tool call round-trip、stream fallback、provider error、rate limit、malformed tool call 恢复路径增加覆盖
+- provider 细节继续限制在 provider 层，不泄漏到 engine contract
+
+### Compatibility Policy
+
+- `0.8.x` 保留 legacy public API compatibility surface
+- `loom.compat.v0` 支持到 `0.8.x`
+- `0.9.0` 计划移除旧兼容层
+- 新文档和示例以 `from loom import Agent, Model, Runtime, Capability` 为主路径
+
+### Validation
+
+- `poetry run ruff check loom tests examples`
+- `poetry run mypy loom`
+- `poetry run pytest -q`
+- 当前回归结果：`540 passed`
+
+---
+
 ## [0.7.4] - 2026-04-19
 
 ### 🌊 Mode B 全程流式输出（typed StreamEvent pipeline）

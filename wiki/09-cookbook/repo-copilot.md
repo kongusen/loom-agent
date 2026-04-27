@@ -6,46 +6,32 @@ Use this pattern when the agent acts as a coding or repository assistant for one
 
 - continuity across follow-up questions
 - repository-specific instructions
-- optional read-only tools
+- read-only file and web capabilities by default
 - optional grounded knowledge from local docs
 
 ## Shape
 
 ```python
-from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent, tool
-from loom.config import PolicyConfig, PolicyContext, ToolAccessPolicy, ToolPolicy
+from loom import Agent, Capability, Model, RunContext, Runtime, SessionConfig
 
-
-@tool(description="Read repository files", read_only=True)
-async def read_file(path: str) -> str:
-    return f"Read: {path}"
-
-
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions=(
-            "You are a repository copilot. "
-            "Prefer concrete, code-aware answers and keep changes scoped."
-        ),
-        tools=[read_file],
-        policy=PolicyConfig(
-            tools=ToolPolicy(
-                access=ToolAccessPolicy(
-                    allow=["read_file"],
-                    read_only_only=True,
-                )
-            ),
-            context=PolicyContext.named("repo"),
-        ),
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions=(
+        "You are a repository copilot. "
+        "Prefer concrete, code-aware answers and keep changes scoped."
+    ),
+    capabilities=[
+        Capability.files(read_only=True),
+        Capability.web(),
+    ],
+    runtime=Runtime.long_running(criteria=["answers are grounded in repository evidence"]),
 )
 
 session = agent.session(SessionConfig(id="repo-user-123"))
 
 first = await session.run("Summarize the current package layout")
 second = await session.run(
-    "Which API seams still look too wide?",
+    "Which API boundaries still look too wide?",
     context=RunContext(inputs={"previous_summary": first.output}),
 )
 ```
@@ -58,12 +44,13 @@ That usually means:
 
 - repository identity belongs in instructions or session metadata
 - current question-specific facts belong in `RunContext`
-- broad permissions belong in `PolicyConfig`
+- broad permissions belong in `Capability`
+- runtime behavior belongs in `Runtime`
 
 ## Good Defaults
 
 - start read-only
-- add write-capable tools only for explicit editing workflows
+- add shell/write-capable capabilities only for explicit editing workflows
 - prefer session continuity over rebuilding the agent each turn
 
 ## Related Patterns

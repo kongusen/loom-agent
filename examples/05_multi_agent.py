@@ -8,7 +8,7 @@ and AutoGen conversations — but with explicit dependency graphs and
 timeout/error handling built in.
 
 This is an advanced orchestration example. It demonstrates internal orchestration
-modules, not the primary public `AgentConfig -> Agent -> Session/Run` path.
+modules, not the primary public `Agent -> Session/Run` path.
 
 Run:
     python examples/05_multi_agent.py

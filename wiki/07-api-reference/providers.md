@@ -4,35 +4,37 @@ This page explains how Loom connects to model providers and how application deve
 
 For application code, the recommended path is:
 
-- select a provider with `ModelRef`
-- provide keys and base URLs through environment variables
+- select a provider with `Model`
+- provide keys and base URLs through environment variables or model constructor fields
+- pass the model into `Agent(...)`
 
-Avoid constructing `AnthropicProvider` or `OpenAIProvider` directly unless you are extending Loom internals.
+Avoid constructing `AnthropicProvider`, `OpenAIProvider`, or other provider classes directly unless you are extending Loom internals.
 
 ## 1. Standard Usage
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent
+from loom import Agent, Model, Runtime
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.openai("gpt-4.1-mini"),
-        instructions="You are a technical assistant.",
-    )
+agent = Agent(
+    model=Model.openai("gpt-5.1"),
+    instructions="You are a technical assistant.",
+    runtime=Runtime.sdk(),
 )
 ```
 
-Loom resolves the provider lazily on first execution based on `ModelRef`.
+Loom resolves the provider lazily on first execution based on `Model`.
 
 ## 2. Supported Providers
 
 | Provider | Constructor | Default API Key Env Var | Base URL |
 |---|---|---|---|
-| Anthropic | `ModelRef.anthropic(name)` | `ANTHROPIC_API_KEY` | `api_base` |
-| OpenAI | `ModelRef.openai(name)` | `OPENAI_API_KEY` | `api_base` or `OPENAI_BASE_URL` |
-| Gemini | `ModelRef.gemini(name)` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | no public base URL field today |
-| Qwen | `ModelRef.qwen(name)` | `DASHSCOPE_API_KEY` | provider default endpoint |
-| Ollama | `ModelRef.ollama(name)` | not required | `api_base` or `OLLAMA_BASE_URL`, default `http://localhost:11434` |
+| Anthropic | `Model.anthropic(name)` | `ANTHROPIC_API_KEY` | `api_base` |
+| OpenAI | `Model.openai(name)` | `OPENAI_API_KEY` | `api_base` or `OPENAI_BASE_URL` |
+| Gemini | `Model.gemini(name)` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | no public base URL field today |
+| Qwen | `Model.qwen(name)` | `DASHSCOPE_API_KEY` | provider default endpoint |
+| Ollama | `Model.ollama(name)` | not required | `api_base` or `OLLAMA_BASE_URL`, default `http://localhost:11434` |
+
+`ModelRef` remains as a compatibility alias for `Model`.
 
 ## 3. OpenAI-Compatible Endpoints
 
@@ -44,13 +46,11 @@ export OPENAI_BASE_URL="https://your-openai-compatible-endpoint/v1"
 ```
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent
+from loom import Agent, Model
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.openai("gpt-4.1-mini"),
-        instructions="You are a platform assistant.",
-    )
+agent = Agent(
+    model=Model.openai("gpt-5.1"),
+    instructions="You are a platform assistant.",
 )
 ```
 
@@ -59,9 +59,9 @@ If you do not want to use the default environment variable names:
 ```python
 import os
 
-from loom import ModelRef
+from loom import Model
 
-model = ModelRef.openai(
+model = Model.openai(
     "my-model",
     api_base=os.getenv("MY_MODEL_BASE_URL"),
     api_key_env="MY_MODEL_API_KEY",
@@ -75,13 +75,13 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 ```python
-model = ModelRef.anthropic("claude-sonnet-4")
+model = Model.anthropic("claude-sonnet-4")
 ```
 
 If you are routing through a private proxy:
 
 ```python
-model = ModelRef.anthropic(
+model = Model.anthropic(
     "claude-sonnet-4",
     api_base="https://your-proxy.example.com",
 )
@@ -100,7 +100,7 @@ export GOOGLE_API_KEY="..."
 ```
 
 ```python
-model = ModelRef.gemini("gemini-2.5-flash")
+model = Model.gemini("gemini-2.5-flash")
 ```
 
 ## 6. Qwen
@@ -110,7 +110,7 @@ export DASHSCOPE_API_KEY="..."
 ```
 
 ```python
-model = ModelRef.qwen("qwen-max")
+model = Model.qwen("qwen-max")
 ```
 
 ## 7. Ollama
@@ -120,19 +120,19 @@ export OLLAMA_BASE_URL="http://localhost:11434"
 ```
 
 ```python
-model = ModelRef.ollama("llama3")
+model = Model.ollama("llama3")
 ```
 
 Or set it explicitly:
 
 ```python
-model = ModelRef.ollama(
+model = Model.ollama(
     "llama3",
     api_base="http://localhost:11434",
 )
 ```
 
-## 8. What Happens When Provider Initialization Fails
+## 8. Fallback Behavior
 
 If provider initialization fails, Loom does not necessarily raise immediately. It falls back according to runtime configuration.
 
@@ -151,6 +151,7 @@ That means:
 If you want strict failure:
 
 ```python
+from loom import Agent, Model
 from loom.config import RuntimeConfig, RuntimeFallback, RuntimeFallbackMode, RuntimeFeatures
 
 runtime = RuntimeConfig(
@@ -158,51 +159,39 @@ runtime = RuntimeConfig(
         fallback=RuntimeFallback(mode=RuntimeFallbackMode.ERROR),
     )
 )
+
+agent = Agent(
+    model=Model.openai("gpt-5.1"),
+    runtime=runtime,
+)
 ```
 
-Then pass it into `AgentConfig(runtime=runtime)`.
-
-## 9. Recommended Environment Variable Patterns
-
-### OpenAI-compatible gateway
-
-```bash
-export OPENAI_API_KEY="..."
-export OPENAI_BASE_URL="https://gateway.example.com/v1"
-```
-
-```python
-model = ModelRef.openai("gpt-4.1-mini")
-```
-
-### Multi-provider switching
+## 9. Multi-Provider Switching
 
 ```python
 import os
 
-from loom import AgentConfig, ModelRef, create_agent
+from loom import Agent, Model
 
 
-def build_model() -> ModelRef:
+def build_model() -> Model:
     provider = os.getenv("LOOM_PROVIDER", "openai").lower()
-    model_name = os.getenv("LOOM_MODEL_NAME", "gpt-4.1-mini")
+    model_name = os.getenv("LOOM_MODEL_NAME", "gpt-5.1")
 
     if provider == "anthropic":
-        return ModelRef.anthropic(model_name)
+        return Model.anthropic(model_name)
     if provider == "gemini":
-        return ModelRef.gemini(model_name)
+        return Model.gemini(model_name)
     if provider == "qwen":
-        return ModelRef.qwen(model_name)
+        return Model.qwen(model_name)
     if provider == "ollama":
-        return ModelRef.ollama(model_name)
-    return ModelRef.openai(model_name)
+        return Model.ollama(model_name)
+    return Model.openai(model_name)
 
 
-agent = create_agent(
-    AgentConfig(
-        model=build_model(),
-        instructions="You are a multi-provider assistant.",
-    )
+agent = Agent(
+    model=build_model(),
+    instructions="You are a multi-provider assistant.",
 )
 ```
 
@@ -222,10 +211,10 @@ If you are extending Loom internals, look at:
 
 Most application developers do not need to depend on these classes directly.
 
-The public best practice remains:
+The public best practice is:
 
 ```text
-ModelRef + AgentConfig + create_agent()
+Model + Agent
 ```
 
 Related example:

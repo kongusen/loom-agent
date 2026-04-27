@@ -1,42 +1,74 @@
 # Runtime
 
-The runtime is the internal execution layer behind the public `Agent` API.
+The runtime is the execution layer behind the public `Agent` SDK.
 
-For application developers, the public path is still:
+For application developers, the public path is:
 
 ```text
-AgentConfig -> Agent -> Session -> Run
+Agent + Runtime + Capability
+    -> Session / Run
+    -> RuntimeTask / RuntimeSignal
 ```
 
 This section explains the internals that power that path.
 
-## Two Parallel Systems
+## Runtime Kernel
 
 ```text
-┌─────────────────────────────────────┐
-│  L* Loop (main execution path)      │
-│  Reason -> Act -> Observe -> Delta  │
-└──────────────────┬──────────────────┘
-                   │ shares context
-┌──────────────────▼──────────────────┐
-│  H_b Heartbeat (background sensing) │
-│  Filesystem · Process · Resources   │
-└─────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│ Agent                                      │
+│  model + instructions + tools/capabilities │
+└──────────────────────┬─────────────────────┘
+                       │
+┌──────────────────────▼─────────────────────┐
+│ Runtime policies                            │
+│ context · continuity · harness · quality    │
+│ delegation · governance · feedback          │
+└──────────────────────┬─────────────────────┘
+                       │
+┌──────────────────────▼─────────────────────┐
+│ Run / Session                               │
+│ L* loop + provider + tools + persistence    │
+└────────────────────────────────────────────┘
 ```
 
-- `L*` drives one run toward completion.
-- `H_b` watches the environment in parallel.
-- `Agent` adapts public config objects into these runtime components.
+External producers do not become separate kernel features:
 
-## Public Runtime Mapping
+```text
+gateway / cron / heartbeat / webhook / app callback
+    -> SignalAdapter
+    -> RuntimeSignal
+    -> AttentionPolicy
+    -> optional Agent run
+```
+
+## Main Runtime Objects
 
 | Public object | Runtime layer behind it |
 |---|---|
 | `Agent.run()` | `AgentEngine.execute(...)` |
+| `Agent.receive()` | signal adapter + session signal queue |
 | `Session` | run lifecycle and engine reuse |
 | `RunContext` | prompt/runtime context payload |
-| `HeartbeatConfig` | runtime heartbeat assembly |
-| `RuntimeConfig` | engine limits, features, fallback |
+| `RuntimeTask` | structured task request |
+| `RuntimeSignal` | normalized external event |
+| `Runtime` | engine limits, features, and policy composition |
+| `Capability` | ability source compiled into governed tools |
+
+## Runtime Policies
+
+| Policy | Responsibility |
+|---|---|
+| `AttentionPolicy` | Decide whether a signal should observe, run, or interrupt |
+| `ContextProtocol` | Context partitioning, render, compact, renew, snapshot |
+| `ContinuityPolicy` | Preserve work across compaction/reset |
+| `Harness` | Long-task execution strategy |
+| `QualityGate` | Acceptance criteria and PASS/FAIL evaluation |
+| `DelegationPolicy` | Subtask and sub-agent dispatch boundary |
+| `GovernancePolicy` | Tool permissions, veto, rate limits, read-only/destructive checks |
+| `FeedbackPolicy` | Runtime feedback for dashboards and evolution |
+| `SessionRestorePolicy` | Restore transcript/runtime state into later runs |
+| `SkillInjectionPolicy` | Inject matching skill content into runtime context |
 
 ## Pages
 
@@ -47,5 +79,8 @@ This section explains the internals that power that path.
 
 - `loom/runtime/engine.py`
 - `loom/runtime/session.py`
-- `loom/runtime/loop.py`
+- `loom/runtime/signals.py`
+- `loom/runtime/capability.py`
+- `loom/runtime/governance.py`
+- `loom/runtime/context.py`
 - `loom/runtime/heartbeat.py`

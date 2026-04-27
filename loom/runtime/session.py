@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any  # noqa: F401 – Any used in run_streaming annotation
+from typing import TYPE_CHECKING, Any, cast  # noqa: F401 – Any used in run_streaming annotation
 from uuid import uuid4
 
 from ..config import (
@@ -17,6 +17,15 @@ from ..config import (
     KnowledgeEvidenceItem,
     KnowledgeQuery,
 )
+from .signals import (
+    AttentionPolicy,
+    RuntimeSignal,
+    RuntimeSignalAdapter,
+    SignalDecision,
+    adapt_signal,
+    coerce_signal,
+)
+from .task import RuntimeTask
 
 if TYPE_CHECKING:
     from ..agent import Agent
@@ -111,11 +120,17 @@ class RunResult:
 class Run:
     """A single execution within a session."""
 
-    def __init__(self, session: Session, prompt: str, context: RunContext | None = None):
+    def __init__(
+        self,
+        session: Session,
+        prompt: str | RuntimeTask,
+        context: RunContext | None = None,
+    ):
         self.session = session
         self.id = generate_id()
-        self.prompt = prompt
-        self.context = _normalize_run_context(context)
+        self.task = RuntimeTask.from_input(prompt)
+        self.prompt = self.task.goal
+        self.context = _context_for_task(self.task, context)
         self.state = RunState.QUEUED
         self.created_at = datetime.now()
         self.updated_at = self.created_at
@@ -160,6 +175,42 @@ class Run:
                 continue
             seen_ids.add(event.id)
             yield event
+
+    async def signal(
+        self,
+        signal: RuntimeSignal | str,
+        *,
+        source: str = "custom",
+        type: str = "event",
+        urgency: str = "normal",
+        payload: dict[str, Any] | None = None,
+        dedupe_key: str | None = None,
+    ) -> SignalDecision:
+        """Ingest a runtime signal associated with this run."""
+        normalized = coerce_signal(
+            signal,
+            source=source,
+            type=type,
+            urgency=urgency,  # type: ignore[arg-type]
+            payload=payload,
+            session_id=self.session.id,
+            run_id=self.id,
+            dedupe_key=dedupe_key,
+        )
+        decision = await self.session.signal(normalized)
+        await self._publish_event(
+            "signal.received",
+            {
+                "signal_id": normalized.id,
+                "source": normalized.source,
+                "type": normalized.type,
+                "summary": normalized.summary,
+                "urgency": normalized.urgency,
+                "decision": decision.action,
+            },
+            visibility="audit",
+        )
+        return decision
 
     async def artifacts(self) -> list[Artifact]:
         """Return artifacts produced by the run."""
@@ -238,16 +289,19 @@ class Run:
 
             if self.state == RunState.COMPLETED:
                 await self._publish_event("run.completed", {"output": self.output})
+                self._save_run_record()
                 return self._build_result()
 
             error = {"message": status}
             await self._publish_event("run.failed", error, visibility="audit")
+            self._save_run_record(error=error)
             return self._build_result(error=error)
         except Exception as exc:
             self.state = RunState.FAILED
             self.updated_at = datetime.now()
             error = {"message": str(exc)}
             await self._publish_event("run.failed", error, visibility="audit")
+            self._save_run_record(error=error)
             return self._build_result(error=error)
 
     async def _publish_event(
@@ -290,6 +344,46 @@ class Run:
             duration_ms=duration_ms,
         )
 
+    def _save_run_record(self, error: dict[str, Any] | None = None) -> None:
+        store = getattr(self.session.agent, "_session_store", None)
+        if store is None:
+            return
+        from .session_store import RunRecord, TranscriptRecord
+
+        store.save_run(
+            RunRecord(
+                id=self.id,
+                session_id=self.session.id,
+                state=self.state.value,
+                output=self.output,
+                error=error,
+                created_at=self.created_at,
+                updated_at=self.updated_at,
+                metadata={"prompt": self.prompt},
+            )
+        )
+        messages = [
+            {"role": "user", "content": self.prompt},
+        ]
+        if self.output:
+            messages.append({"role": "assistant", "content": self.output})
+        store.save_transcript(
+            TranscriptRecord(
+                id=self.id,
+                session_id=self.session.id,
+                prompt=self.prompt,
+                output=self.output,
+                messages=messages,
+                context=self.context.to_payload(),
+                events=[_serialize_run_event(event) for event in self._events],
+                artifacts=[_serialize_artifact(artifact) for artifact in self._artifacts],
+                created_at=self.created_at,
+                updated_at=self.updated_at,
+                metadata={"state": self.state.value},
+            )
+        )
+        self.session._append_transcript_messages(messages)
+
 
 class Session:
     """Stateful interaction scope for an agent."""
@@ -304,11 +398,15 @@ class Session:
         self.id = self.config.id or generate_id()
         self.metadata = self.config.to_metadata()
         self.created_at = datetime.now()
+        self._transcript_messages: list[dict[str, Any]] = []
+        self._load_store_record()
         self._runs: dict[str, Run] = {}
         self._closed = False
         self._engine: Any | None = None
+        self._pending_signals: list[RuntimeSignal] = []
+        self._save_store_record()
 
-    def start(self, prompt: str, context: RunContext | None = None) -> Run:
+    def start(self, prompt: str | RuntimeTask, context: RunContext | None = None) -> Run:
         """Create a new run in this session."""
         if self._closed:
             raise RuntimeError("Session is closed")
@@ -316,13 +414,70 @@ class Session:
         self._runs[run.id] = run
         return run
 
-    async def run(self, prompt: str, context: RunContext | None = None) -> RunResult:
+    async def run(
+        self,
+        prompt: str | RuntimeTask,
+        context: RunContext | None = None,
+    ) -> RunResult:
         """Convenience method to start and await a run."""
         return await self.start(prompt, context=context).wait()
 
+    async def signal(
+        self,
+        signal: RuntimeSignal | str,
+        *,
+        source: str = "custom",
+        type: str = "event",
+        urgency: str = "normal",
+        payload: dict[str, Any] | None = None,
+        run_id: str | None = None,
+        dedupe_key: str | None = None,
+    ) -> SignalDecision:
+        """Ingest a runtime signal associated with this session."""
+        normalized = coerce_signal(
+            signal,
+            source=source,
+            type=type,
+            urgency=urgency,  # type: ignore[arg-type]
+            payload=payload,
+            session_id=self.id,
+            run_id=run_id,
+            dedupe_key=dedupe_key,
+        )
+        if self._engine is not None:
+            return cast("SignalDecision", self._engine.ingest_signal(normalized))
+        self._pending_signals.append(normalized)
+        return AttentionPolicy().decide(normalized)
+
+    async def receive(
+        self,
+        event: Any,
+        *,
+        adapter: RuntimeSignalAdapter | None = None,
+        source: str | None = None,
+        type: str | None = None,
+        urgency: str | None = None,
+        payload: dict[str, Any] | None = None,
+        run_id: str | None = None,
+        dedupe_key: str | None = None,
+    ) -> SignalDecision:
+        """Receive an external event through an optional signal adapter."""
+        normalized = adapt_signal(
+            event,
+            adapter=adapter,
+            source=source,
+            type=type,
+            urgency=urgency,  # type: ignore[arg-type]
+            payload=payload,
+            session_id=self.id,
+            run_id=run_id,
+            dedupe_key=dedupe_key,
+        )
+        return await self.signal(normalized, run_id=run_id)
+
     async def stream(
         self,
-        prompt: str,
+        prompt: str | RuntimeTask,
         context: RunContext | None = None,
     ) -> AsyncIterator[RunEvent]:
         """Convenience method to stream a run."""
@@ -331,7 +486,7 @@ class Session:
 
     async def run_streaming(
         self,
-        prompt: str,
+        prompt: str | RuntimeTask,
         context: RunContext | None = None,
     ) -> AsyncIterator[Any]:
         """Stream typed Mode B events directly (no RunEvent wrapper).
@@ -345,12 +500,19 @@ class Session:
             provider = self.agent._get_provider()
             if provider is not None:
                 self._engine = self.agent._build_engine(provider)
+                self._attach_pending_signals()
+                restored_history = self._transcript_messages
+            else:
+                restored_history = None
+        else:
+            restored_history = None
 
         if self._engine is None:
             yield ErrorEvent(message="Provider unavailable")
             return
 
-        context = _normalize_run_context(context)
+        task = RuntimeTask.from_input(prompt)
+        context = _context_for_task(task, context)
         merged_context = context.to_payload()
         if self.agent.config.knowledge:
             merged_context.setdefault(
@@ -365,10 +527,11 @@ class Session:
         )
 
         async for event in self._engine.execute_streaming(
-            goal=prompt,
+            goal=task.goal,
             instructions=self.agent.config.instructions,
             context=merged_context,
             session_id=session_id,
+            history=restored_history,
         ):
             yield event
 
@@ -390,27 +553,123 @@ class Session:
         self._runs.clear()
         self._engine = None
 
+    def _load_store_record(self) -> None:
+        store = getattr(self.agent, "_session_store", None)
+        if store is None:
+            return
+        record = store.load_session(self.id)
+        if record is not None:
+            self.metadata.update(record.metadata)
+            self.created_at = record.created_at
+        transcripts = sorted(
+            store.list_transcripts(self.id),
+            key=lambda transcript: transcript.created_at,
+        )
+        self._transcript_messages = self._restore_transcripts(transcripts)
+
+    def _save_store_record(self) -> None:
+        store = getattr(self.agent, "_session_store", None)
+        if store is None:
+            return
+        from .session_store import SessionRecord
+
+        store.save_session(
+            SessionRecord(
+                id=self.id,
+                metadata=dict(self.metadata),
+                created_at=self.created_at,
+                updated_at=datetime.now(),
+            )
+        )
+
     async def _execute(
         self,
-        prompt: str,
+        prompt: str | RuntimeTask,
         context: RunContext | None = None,
         *,
         run_id: str,
-        token_callback: "Any | None" = None,
+        token_callback: Any | None = None,
     ) -> dict[str, Any]:
         if self._engine is None:
             provider = self.agent._get_provider()
             if provider is not None:
                 self._engine = self.agent._build_engine(provider)
+                self._attach_pending_signals()
+                restored_history = self._transcript_messages
+            else:
+                restored_history = None
+        else:
+            restored_history = None
 
+        task = RuntimeTask.from_input(prompt)
         return await self.agent._execute(
-            prompt,
-            context=context,
+            task.goal,
+            context=_context_for_task(task, context),
             session_id=self.id,
             run_id=run_id,
             engine=self._engine,
             token_callback=token_callback,
+            history=restored_history,
         )
+
+    def _append_transcript_messages(self, messages: list[dict[str, Any]]) -> None:
+        for message in messages:
+            role = message.get("role")
+            content = message.get("content")
+            if role not in {"system", "user", "assistant"}:
+                continue
+            self._transcript_messages.append(
+                {
+                    "role": str(role),
+                    "content": content if isinstance(content, str) else str(content),
+                }
+            )
+
+    def _restore_transcripts(self, transcripts: list[Any]) -> list[dict[str, Any]]:
+        from .session_restore import SessionRestorePolicy
+
+        runtime = getattr(self.agent.config, "runtime", None)
+        policy = getattr(runtime, "session_restore", None) if runtime is not None else None
+        if policy is None:
+            policy = SessionRestorePolicy.transcript_only()
+        build_history = getattr(policy, "build_history", None)
+        if not callable(build_history):
+            return SessionRestorePolicy.transcript_only().build_history(transcripts)
+        restored = build_history(transcripts)
+        if not isinstance(restored, list):
+            return []
+        return [entry for entry in restored if isinstance(entry, dict)]
+
+    def _attach_pending_signals(self) -> None:
+        if self._engine is None:
+            return
+        signals = self._pending_signals
+        self._pending_signals = []
+        for signal in signals:
+            self._engine.ingest_signal(signal)
+
+
+def _serialize_run_event(event: RunEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "run_id": event.run_id,
+        "type": event.type,
+        "ts": event.ts.isoformat(),
+        "visibility": event.visibility,
+        "payload": event.payload,
+    }
+
+
+def _serialize_artifact(artifact: Artifact) -> dict[str, Any]:
+    return {
+        "id": artifact.id,
+        "run_id": artifact.run_id,
+        "kind": artifact.kind,
+        "title": artifact.title,
+        "uri": artifact.uri,
+        "created_at": artifact.created_at.isoformat(),
+        "metadata": artifact.metadata,
+    }
 
 
 def _normalize_mapping(value: dict[str, Any], field_name: str) -> dict[str, Any]:
@@ -440,6 +699,26 @@ def _normalize_run_context(context: RunContext | None) -> RunContext:
         inputs=_normalize_mapping(context.inputs, "context.inputs"),
         knowledge=_normalize_knowledge_bundle(context.knowledge, "context.knowledge"),
         extensions=_normalize_mapping(context.extensions, "context.extensions"),
+    )
+
+
+def _context_for_task(
+    task: RuntimeTask,
+    context: RunContext | None,
+) -> RunContext:
+    normalized = _normalize_run_context(context)
+    task_payload = task.to_context_payload()
+    if not task_payload:
+        return normalized
+    inputs = dict(task_payload)
+    inputs.update(normalized.inputs)
+    extensions = dict(normalized.extensions)
+    if "task_metadata" in inputs:
+        extensions.setdefault("task_metadata", inputs.pop("task_metadata"))
+    return RunContext(
+        inputs=inputs,
+        knowledge=normalized.knowledge,
+        extensions=extensions,
     )
 
 

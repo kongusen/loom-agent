@@ -354,7 +354,7 @@ class TestEventAggregatorDashboardIntegration:
         assert isinstance(dm._aggregator, EventAggregator)
 
     def test_aggregation_fires_at_threshold(self):
-        from loom.context.dashboard import DashboardManager, _PENDING_EVENTS_AGGREGATE_THRESHOLD
+        from loom.context.dashboard import _PENDING_EVENTS_AGGREGATE_THRESHOLD, DashboardManager
         dm = DashboardManager()
         for i in range(_PENDING_EVENTS_AGGREGATE_THRESHOLD + 1):
             dm.add_pending_event({"type": "tool_call", "event_id": str(i), "observed_at": ""})
@@ -362,7 +362,7 @@ class TestEventAggregatorDashboardIntegration:
         assert len(pending) < _PENDING_EVENTS_AGGREGATE_THRESHOLD
 
     def test_aggregated_entry_has_count(self):
-        from loom.context.dashboard import DashboardManager, _PENDING_EVENTS_AGGREGATE_THRESHOLD
+        from loom.context.dashboard import _PENDING_EVENTS_AGGREGATE_THRESHOLD, DashboardManager
         dm = DashboardManager()
         for i in range(_PENDING_EVENTS_AGGREGATE_THRESHOLD + 1):
             dm.add_pending_event({"type": "heartbeat", "event_id": str(i), "observed_at": ""})
@@ -371,7 +371,7 @@ class TestEventAggregatorDashboardIntegration:
         assert summaries[0]["count"] >= 4
 
     def test_below_threshold_not_aggregated(self):
-        from loom.context.dashboard import DashboardManager, _PENDING_EVENTS_AGGREGATE_THRESHOLD
+        from loom.context.dashboard import _PENDING_EVENTS_AGGREGATE_THRESHOLD, DashboardManager
         dm = DashboardManager()
         count = _PENDING_EVENTS_AGGREGATE_THRESHOLD - 1
         for i in range(count):

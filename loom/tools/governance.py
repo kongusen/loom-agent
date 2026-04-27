@@ -1,6 +1,8 @@
 """Tool governance pipeline with fine-grained parameter-level control"""
 
 import re
+import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -118,9 +120,16 @@ class GovernanceConfig:
 class ToolGovernance:
     """Tool governance pipeline with fine-grained parameter-level control"""
 
-    def __init__(self, config: GovernanceConfig | None = None, runtime_context: Any = None):
+    def __init__(
+        self,
+        config: GovernanceConfig | None = None,
+        runtime_context: Any = None,
+        clock: Callable[[], float] | None = None,
+    ):
         self.config = config or GovernanceConfig()
         self.call_counts: dict[str, int] = {}
+        self._call_timestamps: dict[str, deque[float]] = {}
+        self._clock = clock or time.monotonic
         self.runtime_context = runtime_context  # Dashboard, Agent state, etc.
         self._last_parameter_violations: list[ConstraintViolation] = []
 
@@ -228,18 +237,15 @@ class ToolGovernance:
         return list(self._last_parameter_violations)
 
     def check_rate_limit(self, tool_name: str) -> tuple[bool, str]:
-        """Check rate limit with tool-specific overrides"""
+        """Check a 60-second sliding-window rate limit with tool-specific overrides."""
         if not self.config.enable_rate_limit:
             return True, ""
 
-        # Check tool-specific rate limit first
-        tool_policy = self.config.tool_policies.get(tool_name)
-        if tool_policy and tool_policy.max_calls_per_minute is not None:
-            limit = tool_policy.max_calls_per_minute
-        else:
-            limit = self.config.max_calls_per_minute
+        limit = self._rate_limit_for(tool_name)
+        timestamps = self._active_timestamps(tool_name)
+        count = len(timestamps)
+        self.call_counts[tool_name] = count
 
-        count = self.call_counts.get(tool_name, 0)
         if count >= limit:
             return False, f"Rate limit exceeded for {tool_name} ({count}/{limit} calls)"
 
@@ -247,11 +253,28 @@ class ToolGovernance:
 
     def record_call(self, tool_name: str) -> None:
         """Record a successful tool call."""
-        self.call_counts[tool_name] = self.call_counts.get(tool_name, 0) + 1
+        timestamps = self._active_timestamps(tool_name)
+        timestamps.append(self._clock())
+        self.call_counts[tool_name] = len(timestamps)
 
     def reset_rate_limits(self) -> None:
         """Reset all rate limit counters (call periodically, e.g., every minute)"""
         self.call_counts.clear()
+        self._call_timestamps.clear()
+
+    def _rate_limit_for(self, tool_name: str) -> int:
+        tool_policy = self.config.tool_policies.get(tool_name)
+        if tool_policy and tool_policy.max_calls_per_minute is not None:
+            return tool_policy.max_calls_per_minute
+        return self.config.max_calls_per_minute
+
+    def _active_timestamps(self, tool_name: str) -> deque[float]:
+        now = self._clock()
+        timestamps = self._call_timestamps.setdefault(tool_name, deque())
+        window_start = now - 60.0
+        while timestamps and timestamps[0] <= window_start:
+            timestamps.popleft()
+        return timestamps
 
     def set_context(self, context: str) -> None:
         """Update current execution context"""

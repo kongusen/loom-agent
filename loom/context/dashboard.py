@@ -1,10 +1,13 @@
 """Dashboard - never compressed working state"""
 
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..types import Dashboard as DashboardType
 from .event_aggregator import EventAggregator
+
+if TYPE_CHECKING:
+    from ..runtime.signals import RuntimeSignal, SignalDecision
 
 _PENDING_EVENTS_AGGREGATE_THRESHOLD = 10
 
@@ -113,6 +116,11 @@ class DashboardManager:
         with self._lock:
             self.dashboard.last_hb_ts = timestamp
 
+    def update_signal_timestamp(self, timestamp: str):
+        """Update last runtime signal timestamp."""
+        with self._lock:
+            self.dashboard.last_signal_ts = timestamp
+
     def request_interrupt(self):
         """Request interrupt from heartbeat"""
         with self._lock:
@@ -133,11 +141,46 @@ class DashboardManager:
                 )
                 self.request_interrupt()
 
+    def ingest_signal(
+        self,
+        signal: "RuntimeSignal",
+        decision: "SignalDecision | None" = None,
+    ) -> None:
+        """Project one normalized runtime signal into dashboard state."""
+        event = signal.to_event()
+        with self._lock:
+            observed_at = event.get("observed_at", "")
+            self.update_signal_timestamp(observed_at)
+            if signal.source.startswith("heartbeat"):
+                self.update_heartbeat(observed_at)
+
+            if decision is None or decision.action != "ignore":
+                self.add_pending_event(event)
+
+            if decision is not None:
+                self.dashboard.event_surface.recent_event_decisions.append(
+                    decision.to_event(signal)
+                )
+
+            if signal.urgency in {"high", "critical"} or (
+                decision is not None and decision.action in {"interrupt", "interrupt_now"}
+            ):
+                self.add_active_risk(
+                    {
+                        "event_id": signal.id,
+                        "summary": signal.summary,
+                        "urgency": signal.urgency,
+                        "source": signal.source,
+                    }
+                )
+                self.request_interrupt()
+
     def decision_state(self) -> dict:
         """Expose dashboard state that should influence runtime decisions."""
         with self._lock:
             return {
                 "rho": self.dashboard.rho,
+                "last_signal_ts": self.dashboard.last_signal_ts,
                 "interrupt_requested": self.dashboard.interrupt_requested,
                 "error_count": self.dashboard.error_count,
                 "pending_events": len(self.dashboard.event_surface.pending_events),

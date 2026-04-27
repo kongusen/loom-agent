@@ -101,7 +101,6 @@ class QwenProvider(OpenAIProvider):
         (``delta.reasoning_content``) are yielded first wrapped in
         ``<think>…</think>`` tags, followed by the regular content tokens.
         """
-        from collections.abc import AsyncIterator
         request = self._build_request(messages, params)
         ext = (params.extensions if params is not None else None) or {}
         expose = ext.get("enable_thinking", False)

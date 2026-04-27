@@ -1,15 +1,15 @@
 """Public Agent API examples."""
 
 import asyncio
-import os
 
 from loom import (
-    AgentConfig,
+    Agent,
+    Capability,
     KnowledgeDocument,
     KnowledgeSource,
-    ModelRef,
+    Model,
+    Runtime,
     SessionConfig,
-    create_agent,
     tool,
 )
 
@@ -21,11 +21,9 @@ async def example_basic():
     """最基础的用法 - 无工具"""
     print("\n=== Example 1: Basic Agent ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="你是一个友好的助手",
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="你是一个友好的助手",
     )
 
     result = await agent.run("2+2等于多少？")
@@ -57,12 +55,10 @@ async def example_with_tools():
     """带工具的 agent"""
     print("\n=== Example 2: Agent with Tools ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="你是一个代码助手，可以搜索文档和计算",
-            tools=[search_docs, calculate],
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="你是一个代码助手，可以搜索文档和计算",
+        tools=[search_docs, calculate],
     )
 
     result = await agent.run("搜索关于 asyncio 的文档")
@@ -76,21 +72,19 @@ async def example_with_knowledge():
     """带知识源的 agent"""
     print("\n=== Example 2.5: Agent with Knowledge ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="你是一个熟悉 Loom 的助手",
-            knowledge=[
-                KnowledgeSource.inline(
-                    "loom-docs",
-                    [
-                        KnowledgeDocument(content="Loom 提供 stateful session API。", title="Session"),
-                        KnowledgeDocument(content="Loom 支持 heartbeat 和 safety rule 配置。", title="Safety"),
-                    ],
-                    description="Loom product notes",
-                )
-            ],
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="你是一个熟悉 Loom 的助手",
+        knowledge=[
+            KnowledgeSource.inline(
+                "loom-docs",
+                [
+                    KnowledgeDocument(content="Loom 提供 stateful session API。", title="Session"),
+                    KnowledgeDocument(content="Loom 支持 heartbeat 和 safety rule 配置。", title="Safety"),
+                ],
+                description="Loom product notes",
+            )
+        ],
     )
 
     result = await agent.run("概括 Loom 的能力")
@@ -104,11 +98,9 @@ async def example_streaming():
     """流式输出事件"""
     print("\n=== Example 3: Streaming Events ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="你是一个助手",
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="你是一个助手",
     )
 
     async for event in agent.stream("解释什么是 Python"):
@@ -122,11 +114,9 @@ async def example_session():
     """多轮对话 session"""
     print("\n=== Example 4: Stateful Session ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="你是一个记得上下文的助手",
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="你是一个记得上下文的助手",
     )
 
     # 创建 session
@@ -142,18 +132,18 @@ async def example_session():
 
 
 # ============================================================
-# 示例 5: 显式配置 agent
+# 示例 5: Runtime 和 Capability
 # ============================================================
 async def example_explicit_configuration():
-    """通过完整 AgentConfig 显式组装 agent"""
-    print("\n=== Example 5: Explicit AgentConfig ===")
+    """通过 Runtime 和 Capability 显式组装 agent"""
+    print("\n=== Example 5: Runtime + Capability ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="你是一个增强的助手，可以搜索和计算",
-            tools=[search_docs, calculate],
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="你是一个增强的助手，可以搜索和计算",
+        tools=[search_docs, calculate],
+        capabilities=[Capability.files(read_only=True)],
+        runtime=Runtime.sdk(max_iterations=24),
     )
 
     result = await agent.run("计算 10 * 5")
@@ -167,11 +157,9 @@ async def example_run_control():
     """直接创建 run 并消费事件流"""
     print("\n=== Example 6: Run Control ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="你是一个助手",
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="你是一个助手",
     )
 
     session = agent.session(SessionConfig(id="advanced-session"))
@@ -195,30 +183,10 @@ async def example_providers():
     print("\n=== Example 7: Different Providers ===")
 
     providers = [
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
-                instructions="你是 Claude",
-            )
-        ),
-        create_agent(
-            AgentConfig(
-                model=ModelRef.openai("gpt-4"),
-                instructions="你是 GPT-4",
-            )
-        ),
-        create_agent(
-            AgentConfig(
-                model=ModelRef.gemini("gemini-pro"),
-                instructions="你是 Gemini",
-            )
-        ),
-        create_agent(
-            AgentConfig(
-                model=ModelRef.ollama("llama3"),
-                instructions="你是本地模型",
-            )
-        ),
+        Agent(model=Model.anthropic("claude-sonnet-4"), instructions="你是 Claude"),
+        Agent(model=Model.openai("gpt-4"), instructions="你是 GPT-4"),
+        Agent(model=Model.gemini("gemini-pro"), instructions="你是 Gemini"),
+        Agent(model=Model.ollama("llama3"), instructions="你是本地模型"),
     ]
 
     print(f"Created {len(providers)} agents with different providers")
@@ -229,12 +197,6 @@ async def example_providers():
 # ============================================================
 async def main():
     """运行所有示例"""
-
-    # 检查 API key
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        print("警告: ANTHROPIC_API_KEY 未设置，某些示例可能失败")
-        print("设置方法: export ANTHROPIC_API_KEY=sk-ant-...")
-        return
 
     # 运行示例
     await example_basic()

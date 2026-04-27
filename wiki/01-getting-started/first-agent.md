@@ -3,13 +3,16 @@
 ## 1. Create An Agent
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent
+from loom import Agent, Capability, Model, Runtime
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="Analyze repositories and summarize what matters.",
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="Analyze repositories and summarize what matters.",
+    capabilities=[
+        Capability.files(read_only=True),
+        Capability.web(),
+    ],
+    runtime=Runtime.sdk(),
 )
 ```
 
@@ -36,7 +39,25 @@ second = await session.run(
 )
 ```
 
-## 4. Stream Events
+## 4. Receive External Signals
+
+```python
+from loom import RuntimeSignal
+
+await session.receive(
+    RuntimeSignal.create(
+        "Repository index is stale",
+        source="cron",
+        type="job",
+        urgency="normal",
+        payload={"job_id": "repo-index"},
+    )
+)
+
+result = await session.run("Handle pending runtime signals")
+```
+
+## 5. Stream Events
 
 ```python
 run = session.start("Inspect the project layout")
@@ -47,7 +68,7 @@ async for event in run.events():
 result = await run.wait()
 ```
 
-## 5. Attach Knowledge
+## 6. Attach Knowledge
 
 ```python
 from loom import KnowledgeQuery, RunContext

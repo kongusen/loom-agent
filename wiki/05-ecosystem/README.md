@@ -5,13 +5,13 @@ Loom's ecosystem layer extends what an `Agent` can do after the core runtime is 
 ## Position In The Stack
 
 ```text
-AgentConfig -> Agent
-                ├── tools
-                ├── knowledge
-                └── ecosystem extensions
-                      ├── skills
-                      ├── plugins
-                      └── MCP
+Agent + Runtime + Capability
+    ├── tools
+    ├── knowledge
+    └── ecosystem extensions
+          ├── skills
+          ├── plugins
+          └── MCP
 ```
 
 ## Extension Surfaces
@@ -25,8 +25,8 @@ AgentConfig -> Agent
 ## Notes
 
 - These are extension layers, not replacements for the main public `Agent` API.
-- Application code should still start from `AgentConfig` and `Agent`.
-- Ecosystem features are typically attached through tools, configuration, or runtime assembly.
+- Application code should start from `Agent`, `Runtime`, and `Capability`.
+- Ecosystem features are typically attached through `Capability`, explicit tools, configuration, or runtime assembly.
 
 ## Pages
 

@@ -7,64 +7,52 @@ Use this pattern when the agent should respond to changing system state, not onl
 - service monitoring assistants
 - codebase watchers
 - runtime health agents
-- agents that must combine observation with guarded actions
+- agents that combine observation with guarded actions
 
 ## Shape
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent
-from loom.config import (
-    FilesystemWatchMethod,
-    HeartbeatConfig,
-    ResourceThresholds,
-    SafetyRule,
-    WatchConfig,
+from loom import Agent, Model, Runtime, RuntimeSignal, SessionConfig
+
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="Monitor the system and recommend safe next steps.",
+    runtime=Runtime.long_running(criteria=["recommendations are safe and actionable"]),
 )
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="Monitor the system and recommend safe next steps.",
-        heartbeat=HeartbeatConfig(
-            interval=5.0,
-            watch_sources=[
-                WatchConfig.filesystem(
-                    paths=["./src", "./config"],
-                    method=FilesystemWatchMethod.HASH,
-                ),
-                WatchConfig.resource(
-                    thresholds=ResourceThresholds(cpu_pct=85.0, memory_pct=90.0),
-                ),
-            ],
-        ),
-        safety_rules=[
-            SafetyRule.when_argument_contains_any(
-                name="no_force_restart",
-                tool_name="restart_service",
-                argument="name",
-                values=["database", "auth-service"],
-                reason="Critical services require manual approval.",
-            )
-        ],
+session = agent.session(SessionConfig(id="ops"))
+
+await session.receive(
+    RuntimeSignal.create(
+        "CPU usage exceeded 90%",
+        source="heartbeat",
+        type="alert",
+        urgency="high",
+        payload={"host": "api-1"},
     )
 )
+
+result = await session.run("Assess pending runtime signals")
 ```
 
 ## Design Rule
 
-Heartbeat belongs in configuration, not in the prompt.
+Monitoring enters the runtime as signal input.
 
-That keeps environment sensing stable and inspectable:
+That keeps the kernel simple:
 
-- watch sources live in `HeartbeatConfig`
-- interrupt behavior lives in `HeartbeatInterruptPolicy`
-- action boundaries still live in `SafetyRule`
+- heartbeat adapters emit `RuntimeSignal`
+- gateway and cron adapters emit the same contract
+- `AttentionPolicy` decides whether a signal should cause execution
+- tools and remediation still go through `Capability` and `GovernancePolicy`
 
 ## What To Add Next
 
-- combine with `Session` if monitoring spans multiple user interactions
-- combine with tools when the agent must inspect or remediate
+- combine with `SignalAdapter` for real heartbeat, webhook, or gateway event shapes
+- combine with `Capability.shell(require_approval=True)` when remediation is allowed
+- use `Runtime.supervised(...)` when human review is required
 
 ## Runnable Example
 
 - [examples/12_heartbeat_and_safety.py](https://github.com/kongusen/loom-agent/blob/main/examples/12_heartbeat_and_safety.py)
+- [examples/16_signal_adapters.py](https://github.com/kongusen/loom-agent/blob/main/examples/16_signal_adapters.py)

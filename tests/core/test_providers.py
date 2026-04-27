@@ -7,11 +7,15 @@ import pytest
 from loom.providers import (
     AnthropicProvider,
     CompletionParams,
+    CompletionRequest,
     CompletionResponse,
     GeminiProvider,
     LLMProvider,
     OpenAIProvider,
+    ProviderToolParameter,
+    ProviderToolSpec,
 )
+from loom.types import ToolCall
 from loom.utils import ProviderUnavailableError, RateLimitError
 
 
@@ -23,6 +27,139 @@ class TestProviders:
         params = CompletionParams(temperature=0.7, max_tokens=100)
         assert params.temperature == 0.7
         assert params.max_tokens == 100
+
+    def test_completion_params_exposes_typed_tool_specs(self):
+        tool = ProviderToolSpec(
+            name="search_docs",
+            description="Search docs",
+            parameters=(
+                ProviderToolParameter(
+                    name="query",
+                    type="string",
+                    description="Search query",
+                    required=True,
+                ),
+            ),
+        )
+        params = CompletionParams(tools=[tool])
+
+        assert params.tool_specs() == [tool]
+        assert params.tool_dicts() == [
+            {
+                "name": "search_docs",
+                "description": "Search docs",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query",
+                        }
+                    },
+                    "required": ["query"],
+                },
+            }
+        ]
+
+        round_trip = CompletionParams(tools=params.tool_dicts())
+        assert round_trip.tool_specs() == [tool]
+
+    @pytest.mark.asyncio
+    async def test_request_native_provider_can_skip_legacy_methods(self):
+        from loom.types.stream import TextDelta
+
+        class NativeProvider(LLMProvider):
+            async def _complete_request(self, request: CompletionRequest) -> CompletionResponse:
+                assert request.messages[-1]["content"] == "hello"
+                assert request.params.model == "native-test"
+                return CompletionResponse(content="native response")
+
+        provider = NativeProvider()
+        request = CompletionRequest.create(
+            [{"role": "user", "content": "hello"}],
+            CompletionParams(model="native-test"),
+        )
+
+        response = await provider.complete_request(request)
+        compat_response = await provider.complete_response(
+            [{"role": "user", "content": "hello"}],
+            CompletionParams(model="native-test"),
+        )
+        text = await provider.complete(
+            [{"role": "user", "content": "hello"}],
+            CompletionParams(model="native-test"),
+        )
+        events = [event async for event in provider.stream_request_events(request)]
+
+        assert response.content == "native response"
+        assert compat_response.content == "native response"
+        assert text == "native response"
+        assert any(isinstance(event, TextDelta) and event.delta == "native response" for event in events)
+
+    @pytest.mark.asyncio
+    async def test_complete_request_uses_retry_and_circuit_breaker(self):
+        class NativeProvider(LLMProvider):
+            def __init__(self) -> None:
+                super().__init__()
+                self.calls = 0
+
+            async def _complete_request(self, request: CompletionRequest) -> CompletionResponse:
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("transient failure")
+                return CompletionResponse(content="recovered")
+
+        provider = NativeProvider()
+        provider._retry.max_retries = 2
+        provider._retry.base_delay = 0
+
+        response = await provider.complete_request(
+            CompletionRequest.create([{"role": "user", "content": "hello"}])
+        )
+
+        assert response.content == "recovered"
+        assert provider.calls == 2
+
+    @pytest.mark.asyncio
+    async def test_complete_request_streaming_falls_back_to_request_native_tool_calls(self):
+        class NativeProvider(LLMProvider):
+            async def _complete_request(self, request: CompletionRequest) -> CompletionResponse:
+                return CompletionResponse(
+                    content="fallback text",
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            name="search_docs",
+                            arguments={"query": "loom"},
+                        )
+                    ],
+                )
+
+        tokens: list[str] = []
+        provider = NativeProvider()
+        response = await provider.complete_request_streaming(
+            CompletionRequest.create([{"role": "user", "content": "hello"}]),
+            tokens.append,
+        )
+
+        assert tokens == ["fallback text"]
+        assert response.tool_calls == [
+            ToolCall(id="call_1", name="search_docs", arguments={"query": "loom"})
+        ]
+
+    @pytest.mark.asyncio
+    async def test_complete_request_maps_429_to_rate_limit_error(self):
+        class NativeProvider(LLMProvider):
+            async def _complete_request(self, request: CompletionRequest) -> CompletionResponse:
+                raise RuntimeError("429 rate limit exceeded")
+
+        provider = NativeProvider()
+        provider._retry.max_retries = 1
+
+        with pytest.raises(RateLimitError):
+            await provider.complete_request(
+                CompletionRequest.create([{"role": "user", "content": "hello"}])
+            )
 
     @pytest.mark.asyncio
     async def test_openai_provider_complete(self):
@@ -49,6 +186,13 @@ class TestProviders:
             CompletionParams(model="gpt-test", max_tokens=16, temperature=0.2),
         )
         assert result == "hi there"
+
+    def test_concrete_providers_use_request_native_contract(self):
+        fake_client = SimpleNamespace()
+
+        assert OpenAIProvider(api_key="test", client=fake_client)._uses_request_native_completion()
+        assert AnthropicProvider(api_key="test", client=fake_client)._uses_request_native_completion()
+        assert GeminiProvider(api_key="test", client=fake_client)._uses_request_native_completion()
 
     @pytest.mark.asyncio
     async def test_openai_provider_stream(self):
@@ -161,6 +305,57 @@ class TestProviders:
         assert isinstance(result, CompletionResponse)
         assert result.tool_calls[0].name == "search_docs"
         assert result.tool_calls[0].arguments == {"query": "loom"}
+
+    def test_openai_provider_accepts_typed_tool_specs(self):
+        provider = OpenAIProvider(api_key="test", client=SimpleNamespace())
+        payload = provider._build_request(
+            [{"role": "user", "content": "find loom docs"}],
+            CompletionParams(
+                model="gpt-test",
+                tools=[
+                    ProviderToolSpec(
+                        name="search_docs",
+                        description="Search docs",
+                        parameters=(
+                            ProviderToolParameter(name="query", type="string", required=True),
+                        ),
+                    )
+                ],
+            ),
+        )
+
+        assert payload["tools"] == [
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_docs",
+                    "description": "Search docs",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string"}},
+                        "required": ["query"],
+                    },
+                },
+            }
+        ]
+
+    def test_openai_provider_ignores_nameless_tool_calls_and_recovers_bad_arguments(self):
+        provider = OpenAIProvider(api_key="test", client=SimpleNamespace())
+
+        tool_calls = provider._extract_tool_calls(
+            [
+                SimpleNamespace(
+                    id="call_1",
+                    function=SimpleNamespace(name="search_docs", arguments="{bad json"),
+                ),
+                SimpleNamespace(
+                    id="call_2",
+                    function=SimpleNamespace(name="", arguments='{"query":"loom"}'),
+                ),
+            ]
+        )
+
+        assert tool_calls == [ToolCall(id="call_1", name="search_docs", arguments={})]
 
     def test_openai_provider_missing_dependency(self, monkeypatch):
         """Test OpenAI provider raises a helpful error without SDK."""
@@ -305,6 +500,58 @@ class TestProviders:
         assert result.tool_calls[0].id == "toolu_1"
         assert result.tool_calls[0].arguments == {"query": "loom"}
 
+    def test_anthropic_provider_accepts_typed_tool_specs(self):
+        provider = AnthropicProvider(api_key="test", client=SimpleNamespace())
+        payload = provider._build_request(
+            [{"role": "user", "content": "find loom docs"}],
+            CompletionParams(
+                model="claude-test",
+                tools=[
+                    ProviderToolSpec(
+                        name="search_docs",
+                        description="Search docs",
+                        parameters=(
+                            ProviderToolParameter(name="query", type="string", required=True),
+                        ),
+                    )
+                ],
+            ),
+        )
+
+        assert payload["tools"] == [
+            {
+                "name": "search_docs",
+                "description": "Search docs",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            }
+        ]
+
+    def test_anthropic_provider_ignores_nameless_tool_calls_and_recovers_bad_input(self):
+        provider = AnthropicProvider(api_key="test", client=SimpleNamespace())
+
+        tool_calls = provider._extract_tool_calls(
+            [
+                SimpleNamespace(
+                    type="tool_use",
+                    id="toolu_1",
+                    name="search_docs",
+                    input="not a dict",
+                ),
+                SimpleNamespace(
+                    type="tool_use",
+                    id="toolu_2",
+                    name="",
+                    input={"query": "loom"},
+                ),
+            ]
+        )
+
+        assert tool_calls == [ToolCall(id="toolu_1", name="search_docs", arguments={})]
+
     def test_anthropic_provider_missing_dependency(self, monkeypatch):
         """Test Anthropic provider raises a helpful error without SDK."""
         provider = AnthropicProvider(api_key="test")
@@ -416,6 +663,65 @@ class TestProviders:
         assert isinstance(result, CompletionResponse)
         assert result.tool_calls[0].name == "search_docs"
         assert result.tool_calls[0].arguments == {"query": "loom"}
+
+    def test_gemini_provider_accepts_typed_tool_specs(self):
+        provider = GeminiProvider(api_key="test", client=SimpleNamespace())
+        params = CompletionParams(
+            model="gemini-test",
+            tools=[
+                ProviderToolSpec(
+                    name="search_docs",
+                    description="Search docs",
+                    parameters=(
+                        ProviderToolParameter(name="query", type="string", required=True),
+                    ),
+                )
+            ],
+        )
+
+        assert provider._build_tools(params.tool_dicts()) == [
+            {
+                "function_declarations": [
+                    {
+                        "name": "search_docs",
+                        "description": "Search docs",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"],
+                        },
+                    }
+                ]
+            }
+        ]
+
+    def test_gemini_provider_ignores_nameless_tool_calls_and_recovers_bad_args(self):
+        class FakeFunctionCall:
+            def __init__(self, name, args):
+                self.name = name
+                self.args = args
+
+        class FakePart:
+            def __init__(self, function_call):
+                self.function_call = function_call
+
+        response = SimpleNamespace(
+            candidates=[
+                SimpleNamespace(
+                    content=SimpleNamespace(
+                        parts=[
+                            FakePart(FakeFunctionCall("search_docs", "not a dict")),
+                            FakePart(FakeFunctionCall("", {"query": "loom"})),
+                        ]
+                    )
+                )
+            ]
+        )
+        provider = GeminiProvider(api_key="test", client=SimpleNamespace())
+
+        assert provider._extract_tool_calls(response) == [
+            ToolCall(id="search_docs_1", name="search_docs", arguments={})
+        ]
 
     @pytest.mark.asyncio
     async def test_provider_base_maps_429_to_rate_limit_error(self):

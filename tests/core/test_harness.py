@@ -5,7 +5,6 @@ import pytest
 from loom.orchestration.harness import AgentHarness, HarnessResult
 from loom.types.results import SubAgentResult
 
-
 # ── Stubs ────────────────────────────────────────────────────────────────────
 
 class _StubManager:

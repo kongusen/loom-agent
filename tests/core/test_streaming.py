@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 
 # ── StreamEvent type tests ────────────────────────────────────────────────────
 
@@ -49,13 +49,8 @@ class TestStreamEventTypes:
     def test_exported_from_types(self):
         """Verify re-exports from loom.types."""
         from loom.types import (
-            DoneEvent,
-            ErrorEvent,
             StreamEvent,
             TextDelta,
-            ThinkingDelta,
-            ToolCallEvent,
-            ToolResultEvent,
         )
         assert TextDelta is not None
         assert StreamEvent is not None
@@ -66,8 +61,46 @@ class TestStreamEventTypes:
 
 class TestProviderBaseStreamEvents:
     @pytest.mark.asyncio
+    async def test_completion_request_delegates_to_legacy_provider_methods(self):
+        from loom.providers.base import (
+            CompletionParams,
+            CompletionRequest,
+            CompletionResponse,
+            LLMProvider,
+        )
+
+        class MockProvider(LLMProvider):
+            async def _complete(self, messages, params=None):
+                return "unused"
+
+            async def _complete_response(self, messages, params=None):
+                assert messages == [{"role": "user", "content": "hi"}]
+                assert params is not None
+                assert params.model == "gpt-test"
+                return CompletionResponse(content="ok")
+
+            async def stream(self, messages, params=None):
+                yield "ok"
+
+        provider = MockProvider()
+        request = CompletionRequest.create(
+            [{"role": "user", "content": "hi"}],
+            CompletionParams(model="gpt-test"),
+            metadata={"run_id": "r1"},
+        )
+
+        response = await provider.complete_request(request)
+
+        assert response.content == "ok"
+        assert request.metadata["run_id"] == "r1"
+
+    @pytest.mark.asyncio
     async def test_default_stream_events_yields_text_and_tool_calls(self):
-        from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider, TokenUsage
+        from loom.providers.base import (
+            CompletionParams,
+            CompletionResponse,
+            LLMProvider,
+        )
         from loom.types import ToolCall
         from loom.types.stream import TextDelta, ToolCallEvent
 
@@ -210,6 +243,49 @@ class TestAnthropicProviderStreamEvents:
         assert len(thinking) == 1
         assert thinking[0].delta == "let me think..."
 
+    @pytest.mark.asyncio
+    async def test_malformed_tool_call_stream_is_recovered_and_nameless_call_ignored(self):
+        from loom.providers.anthropic import AnthropicProvider
+        from loom.types.stream import ToolCallEvent
+
+        async def _mock_stream():
+            block = MagicMock()
+            block.type = "tool_use"
+            block.id = "call_1"
+            block.name = "search"
+            yield self._make_event("content_block_start", content_block=block, index=0)
+
+            delta = MagicMock()
+            delta.type = "input_json_delta"
+            delta.partial_json = "{bad json"
+            yield self._make_event("content_block_delta", delta=delta, index=0)
+            yield self._make_event("content_block_stop", index=0)
+
+            nameless_block = MagicMock()
+            nameless_block.type = "tool_use"
+            nameless_block.id = "call_2"
+            nameless_block.name = ""
+            yield self._make_event("content_block_start", content_block=nameless_block, index=1)
+
+            valid_delta = MagicMock()
+            valid_delta.type = "input_json_delta"
+            valid_delta.partial_json = '{"q": "python"}'
+            yield self._make_event("content_block_delta", delta=valid_delta, index=1)
+            yield self._make_event("content_block_stop", index=1)
+
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=_mock_stream())
+        provider = AnthropicProvider(api_key="test", client=mock_client)
+
+        events = []
+        async for ev in provider.stream_events([{"role": "user", "content": "search"}]):
+            events.append(ev)
+
+        tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
+        assert tc_events == [
+            ToolCallEvent(id="call_1", name="search", arguments={})
+        ]
+
 
 # ── OpenAIProvider stream_events ─────────────────────────────────────────────
 
@@ -249,9 +325,9 @@ class TestOpenAIProviderStreamEvents:
 
     @pytest.mark.asyncio
     async def test_tool_call_assembled_after_stream(self):
+
         from loom.providers.openai import OpenAIProvider
         from loom.types.stream import ToolCallEvent
-        import json
 
         def _tc_delta(idx, id=None, name=None, args=None):
             chunk = MagicMock()
@@ -294,11 +370,52 @@ class TestOpenAIProviderStreamEvents:
         assert tc_events[0].arguments == {"q": "python"}
 
     @pytest.mark.asyncio
+    async def test_malformed_tool_call_stream_is_recovered_and_nameless_call_ignored(self):
+
+        from loom.providers.openai import OpenAIProvider
+        from loom.types.stream import ToolCallEvent
+
+        def _tc_delta(idx, id=None, name=None, args=None):
+            chunk = MagicMock()
+            delta = MagicMock()
+            delta.content = None
+            delta.reasoning_content = None
+            tc = MagicMock()
+            tc.index = idx
+            tc.id = id or ""
+            fn = MagicMock()
+            fn.name = name or ""
+            fn.arguments = args or ""
+            tc.function = fn
+            delta.tool_calls = [tc]
+            choice = MagicMock()
+            choice.delta = delta
+            chunk.choices = [choice]
+            return chunk
+
+        async def _mock_stream():
+            yield _tc_delta(0, id="call_1", name="search", args="{bad json")
+            yield _tc_delta(1, id="call_2", name="", args='{"q": "python"}')
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=_mock_stream())
+        provider = OpenAIProvider(api_key="test", client=mock_client)
+
+        events = []
+        async for ev in provider.stream_events([{"role": "user", "content": "search"}]):
+            events.append(ev)
+
+        tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
+        assert tc_events == [
+            ToolCallEvent(id="call_1", name="search", arguments={})
+        ]
+
+    @pytest.mark.asyncio
     async def test_thinking_delta_when_expose_reasoning(self):
+        from loom.providers.base import CompletionParams
         from loom.providers.deepseek import DeepSeekProvider
         from loom.providers.openai import OpenAIProvider
-        from loom.providers.base import CompletionParams
-        from loom.types.stream import ThinkingDelta, TextDelta
+        from loom.types.stream import TextDelta, ThinkingDelta
 
         async def _mock_stream():
             yield self._make_chunk(reasoning="let me think")
@@ -324,7 +441,6 @@ class TestOpenAIProviderStreamEvents:
     @pytest.mark.asyncio
     async def test_reasoning_not_emitted_without_flag(self):
         from loom.providers.openai import OpenAIProvider
-        from loom.providers.base import CompletionParams
         from loom.types.stream import ThinkingDelta
 
         async def _mock_stream():
@@ -405,7 +521,7 @@ class TestGeminiProviderStreamEvents:
 class TestEngineExecuteStreaming:
     def _make_engine(self, stream_events_side_effect=None):
         from loom.runtime.engine import AgentEngine, EngineConfig
-        from loom.types.stream import TextDelta, DoneEvent
+        from loom.types.stream import TextDelta
 
         provider = MagicMock()
 
@@ -436,7 +552,7 @@ class TestEngineExecuteStreaming:
     async def test_tool_call_triggers_tool_result(self):
         from loom.runtime.engine import AgentEngine, EngineConfig
         from loom.tools.schema import Tool, ToolDefinition
-        from loom.types.stream import TextDelta, ToolCallEvent, ToolResultEvent, DoneEvent
+        from loom.types.stream import TextDelta, ToolCallEvent, ToolResultEvent
 
         call_count = [0]
 
@@ -454,7 +570,6 @@ class TestEngineExecuteStreaming:
         provider.complete_response = AsyncMock()
         provider.complete_streaming = AsyncMock()
 
-        from loom.tools.schema import Tool, ToolDefinition
 
         async def greet_handler(name: str = "") -> str:
             return f"Hello, {name}!"

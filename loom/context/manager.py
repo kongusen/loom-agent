@@ -4,13 +4,17 @@
 """
 
 import threading
+from typing import TYPE_CHECKING, Any
 
+from ..types.handoff import HandoffArtifact
 from ..utils import count_messages_tokens
 from .compression import CompressionPolicy, ContextCompressor
 from .dashboard import DashboardManager
 from .partitions import ContextPartitions
-from ..types.handoff import HandoffArtifact
 from .renewal import ContextRenewer
+
+if TYPE_CHECKING:
+    from ..runtime.signals import RuntimeSignal, SignalDecision
 
 
 class ContextManager:
@@ -20,6 +24,7 @@ class ContextManager:
         self,
         max_tokens: int = 200000,
         compression_policy: CompressionPolicy | None = None,
+        continuity_policy: Any | None = None,
     ):
         self.max_tokens = max_tokens
         self._lock = threading.RLock()
@@ -27,6 +32,7 @@ class ContextManager:
         self.dashboard = DashboardManager(self.partitions.working, lock=self._lock)
         self.compressor = ContextCompressor(policy=compression_policy)
         self.renewer = ContextRenewer()
+        self.continuity_policy = continuity_policy
         self.current_goal = ""
         self._last_handoff: HandoffArtifact | None = None
         self._sprint: int = 0
@@ -52,9 +58,18 @@ class ContextManager:
         """Renew context while keeping dashboard bound to live working state."""
         with self._lock:
             self._sprint += 1
-            self.partitions, self._last_handoff = self.renewer.renew(
-                self.partitions, self.current_goal, sprint=self._sprint
-            )
+            if self.continuity_policy is None:
+                self.partitions, self._last_handoff = self.renewer.renew(
+                    self.partitions, self.current_goal, sprint=self._sprint
+                )
+            else:
+                result = self.continuity_policy.renew(
+                    self.partitions,
+                    self.current_goal,
+                    sprint=self._sprint,
+                )
+                self.partitions = result.context
+                self._last_handoff = result.artifact
             self.dashboard.bind(self.partitions.working)
             self.dashboard.update_rho(self.rho)
 
@@ -82,3 +97,11 @@ class ContextManager:
                 )
 
             self.dashboard.update_rho(self.rho)
+
+    def ingest_signal(
+        self,
+        signal: "RuntimeSignal",
+        decision: "SignalDecision | None" = None,
+    ) -> None:
+        """Ingest a normalized runtime signal into C_working."""
+        self.dashboard.ingest_signal(signal, decision)

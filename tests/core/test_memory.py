@@ -1,5 +1,7 @@
 """Test memory components"""
 
+from unittest.mock import MagicMock
+
 from loom.memory.semantic import MemoryEntry, SemanticMemory
 from loom.memory.session import SessionMemory
 from loom.memory.working import WorkingMemory
@@ -63,13 +65,10 @@ class TestSessionMemory:
 
 # ── SemanticMemory + WorkingMemory engine integration ──
 
-from unittest.mock import MagicMock
-
-
 class TestSemanticMemoryEngineIntegration:
     def test_semantic_memory_created_when_enabled(self):
-        from loom.runtime.engine import AgentEngine, EngineConfig
         from loom.memory.semantic import SemanticMemory
+        from loom.runtime.engine import AgentEngine, EngineConfig
         engine = AgentEngine(provider=MagicMock(), config=EngineConfig(enable_memory=True))
         assert isinstance(engine.semantic_memory, SemanticMemory)
 
@@ -79,8 +78,8 @@ class TestSemanticMemoryEngineIntegration:
         assert engine.semantic_memory is None
 
     def test_inject_recalls_relevant_entry(self):
-        from loom.runtime.engine import AgentEngine, EngineConfig
         from loom.memory.semantic import MemoryEntry
+        from loom.runtime.engine import AgentEngine, EngineConfig
         engine = AgentEngine(provider=MagicMock(), config=EngineConfig(enable_memory=True))
         engine.semantic_memory.add(MemoryEntry(content="Python is a programming language"))
         engine._inject_semantic_memories("What programming language should I use?")
@@ -98,8 +97,8 @@ class TestSemanticMemoryEngineIntegration:
 
 class TestWorkingMemoryEngineIntegration:
     def test_working_memory_always_created(self):
-        from loom.runtime.engine import AgentEngine, EngineConfig
         from loom.memory.working import WorkingMemory
+        from loom.runtime.engine import AgentEngine, EngineConfig
         engine = AgentEngine(provider=MagicMock(), config=EngineConfig())
         assert isinstance(engine.working_memory, WorkingMemory)
 

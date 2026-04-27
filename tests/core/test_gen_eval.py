@@ -1,6 +1,5 @@
 """Tests for GeneratorEvaluatorLoop and SprintContract."""
 
-from types import SimpleNamespace
 
 import pytest
 
@@ -8,10 +7,10 @@ from loom.orchestration.events import CoordinationEventBus
 from loom.orchestration.gen_eval import (
     GeneratorEvaluatorLoop,
     SprintContract,
-    SprintResult,
 )
+from loom.runtime.quality import QualityContract, QualityResult
+from loom.runtime.task import RuntimeTask
 from loom.types.results import SubAgentResult
-
 
 # ── SprintContract ──────────────────────────────────────────────────────────
 
@@ -60,6 +59,30 @@ class _FailingManager:
 
     async def spawn(self, goal: str, depth: int = 0, inherit_context: bool = True) -> SubAgentResult:
         return SubAgentResult(success=False, output="boom", depth=depth + 1, error="boom")
+
+
+class _QualityGate:
+    async def contract_for(
+        self,
+        task: RuntimeTask,
+        *,
+        iteration: int = 1,
+    ) -> QualityContract:
+        return QualityContract(
+            goal=task.goal,
+            criteria=[f"criterion for iteration {iteration}"],
+        )
+
+    async def evaluate(
+        self,
+        output: str,
+        contract: QualityContract,
+    ) -> QualityResult:
+        return QualityResult(
+            passed="good" in output,
+            critique="ok" if "good" in output else "not good",
+            contract=contract,
+        )
 
 
 # ── GeneratorEvaluatorLoop ───────────────────────────────────────────────────
@@ -174,9 +197,23 @@ class TestGeneratorEvaluatorLoop:
         generator = _StubManager(["good output"])
 
         loop = GeneratorEvaluatorLoop(generator=generator, evaluator=evaluator)
-        results = await loop.run("build something", max_sprints=1)
+        await loop.run("build something", max_sprints=1)
 
         # The eval prompt (second evaluator call) should contain the criteria text
         eval_prompt = evaluator.prompts[1]
         assert "must have feature X" in eval_prompt
         assert "must be fast" in eval_prompt
+
+    @pytest.mark.asyncio
+    async def test_loop_can_use_quality_gate_without_evaluator(self):
+        """PASS/FAIL evaluation can be supplied by a runtime quality gate."""
+        generator = _StubManager(["not ready", "good output"])
+
+        loop = GeneratorEvaluatorLoop(generator=generator, quality_gate=_QualityGate())
+        results = await loop.run("goal", max_sprints=3)
+
+        assert len(results) == 2
+        assert results[0].passed is False
+        assert results[0].critique == "not good"
+        assert results[1].passed is True
+        assert results[1].contract.criteria == ["criterion for iteration 2"]

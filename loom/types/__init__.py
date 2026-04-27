@@ -12,11 +12,10 @@ from .content import (
     create_text_block,
 )
 from .events import CoordinationEvent, Event, HeartbeatEvent
+from .handoff import HandoffArtifact
 from .messages import Message, ToolCall, ToolResult
 from .results import LoopResult, SubAgentResult
 from .state import Dashboard, EventSurface, KnowledgeSurface, LoopState
-from .handoff import HandoffArtifact
-from .validation import ValidationError
 from .stream import (
     DoneEvent,
     ErrorEvent,
@@ -26,6 +25,7 @@ from .stream import (
     ToolCallEvent,
     ToolResultEvent,
 )
+from .validation import ValidationError
 
 __all__ = [
     "Message",

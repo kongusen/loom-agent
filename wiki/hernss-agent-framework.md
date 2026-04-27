@@ -4,7 +4,7 @@
 >
 > 核心立场：**Harness 是舞台，不是演员。L\* 完全自主，Ψ 拥有否决权但不替模型做决策。**
 
-> 注：本文是设计规格与历史架构材料。当前 Loom 对外公开 API 已收敛到 `AgentConfig -> Agent -> Session/RunContext`，不要把文中的 `AgentRuntime`、`SessionHandle`、`TaskHandle`、`RunHandle` 当作当前 public API 使用说明。
+> 注：本文是设计规格与历史架构材料。当前 Loom `0.8.x` 对外公开 API 已收敛到 `Agent + Model + Runtime/Capability + Session/RunContext`，不要把文中的 `AgentRuntime`、`SessionHandle`、`TaskHandle`、`RunHandle` 当作当前 public API 使用说明。
 
 ---
 

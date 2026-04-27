@@ -2,9 +2,12 @@
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
+from loom.agent import Agent
+from loom.config import AgentConfig, ModelRef
 from loom.ecosystem.integration import EcosystemManager
 from loom.ecosystem.mcp import (
     MCPBridge,
@@ -193,11 +196,6 @@ class TestMCPOperations:
 
 
 # ── Agent integration: M3/M4/M5 ──
-
-from unittest.mock import MagicMock
-from loom.agent import Agent
-from loom.config import AgentConfig, ModelRef
-
 
 def _make_agent(**kwargs):
     return Agent(config=AgentConfig(

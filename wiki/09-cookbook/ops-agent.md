@@ -4,7 +4,7 @@ Use this pattern when the app watches system state and recommends or performs op
 
 ## What The App Usually Needs
 
-- heartbeat-based observation
+- signal-based observation
 - strong action constraints
 - explicit separation between monitoring and remediation
 - session continuity for incident handling
@@ -12,16 +12,7 @@ Use this pattern when the app watches system state and recommends or performs op
 ## Shape
 
 ```python
-from loom import AgentConfig, ModelRef, SessionConfig, create_agent, tool
-from loom.config import (
-    HeartbeatConfig,
-    ResourceThresholds,
-    SafetyRule,
-    ToolAccessPolicy,
-    ToolPolicy,
-    WatchConfig,
-    PolicyConfig,
-)
+from loom import Agent, Capability, Model, Runtime, RuntimeSignal, SessionConfig, tool
 
 
 @tool(description="Restart a service")
@@ -29,57 +20,48 @@ async def restart_service(name: str) -> str:
     return f"Restarted {name}"
 
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="Monitor operational state and propose safe remediations.",
-        tools=[restart_service],
-        policy=PolicyConfig(
-            tools=ToolPolicy(
-                access=ToolAccessPolicy(
-                    allow=["restart_service"],
-                    allow_destructive=False,
-                )
-            )
-        ),
-        heartbeat=HeartbeatConfig(
-            watch_sources=[
-                WatchConfig.resource(
-                    thresholds=ResourceThresholds(cpu_pct=85.0, memory_pct=90.0),
-                )
-            ]
-        ),
-        safety_rules=[
-            SafetyRule.when_argument_contains_any(
-                name="protect-critical-services",
-                tool_name="restart_service",
-                argument="name",
-                values=["database", "auth-service"],
-                reason="Critical services require manual approval.",
-            )
-        ],
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="Monitor operational state and propose safe remediations.",
+    tools=[restart_service],
+    capabilities=[
+        Capability.shell(require_approval=True),
+    ],
+    runtime=Runtime.supervised(criteria=["critical services require approval"]),
+)
+
+incident = agent.session(SessionConfig(id="incident-2026-04-27"))
+
+await incident.receive(
+    RuntimeSignal.create(
+        "Memory usage exceeded 90%",
+        source="heartbeat",
+        type="alert",
+        urgency="high",
+        payload={"service": "api"},
     )
 )
 
-incident = agent.session(SessionConfig(id="incident-2026-04-08"))
 result = await incident.run("Assess system health and recommend the next action")
 ```
 
 ## Design Rule
 
-Ops agents should be constrained by configuration, not only by prompt wording.
+Ops agents should be constrained by runtime policy, not only by prompt wording.
 
 In practice:
 
-- heartbeat defines what the agent notices
-- policy defines broad tool permissions
-- safety rules define the hard stop conditions
+- heartbeat/gateway/cron events become `RuntimeSignal`
+- capability declarations define what the agent can reach
+- governance and supervised runtime profiles define the hard stops
+- approvals should enter through `RunContext` or external application state
 
 ## Good Defaults
 
 - keep critical actions vetoable
 - use sessions per incident or per environment
 - start in recommendation mode before enabling remediation
+- keep shell access approval-gated
 
 ## Related Patterns
 
@@ -89,3 +71,4 @@ In practice:
 ## Runnable Example
 
 - [examples/12_heartbeat_and_safety.py](https://github.com/kongusen/loom-agent/blob/main/examples/12_heartbeat_and_safety.py)
+- [examples/16_signal_adapters.py](https://github.com/kongusen/loom-agent/blob/main/examples/16_signal_adapters.py)

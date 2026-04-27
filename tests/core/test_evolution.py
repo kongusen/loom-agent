@@ -7,13 +7,13 @@ import pytest
 
 from loom.evolution.engine import EvolutionEngine
 from loom.evolution.feedback import FeedbackLoop
-from loom.providers.base import CompletionParams, LLMProvider
-from loom.runtime.engine import AgentEngine, EngineConfig
 from loom.evolution.strategies import (
     EvolutionStrategy,
     PolicyOptimizationStrategy,
     ToolLearningStrategy,
 )
+from loom.providers.base import CompletionParams, LLMProvider
+from loom.runtime.engine import AgentEngine, EngineConfig
 from loom.tools.schema import Tool, ToolDefinition, ToolParameter
 from loom.types import ToolCall
 

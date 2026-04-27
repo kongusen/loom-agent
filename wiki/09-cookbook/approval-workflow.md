@@ -7,21 +7,20 @@ Use this pattern when the agent prepares or checks an action, but a human or ext
 - structured multi-step flow
 - continuity across requests
 - explicit approval boundary
-- tool and safety configuration that reflects the workflow stages
+- tool and safety configuration that reflects workflow stages
 
 ## Shape
 
 ```python
-from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent
+from loom import Agent, Model, RunContext, Runtime, SessionConfig
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions=(
-            "Prepare operational changes, summarize risk, "
-            "and wait for explicit approval before irreversible actions."
-        ),
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions=(
+        "Prepare operational changes, summarize risk, "
+        "and wait for explicit approval before irreversible actions."
+    ),
+    runtime=Runtime.supervised(criteria=["irreversible actions require explicit approval"]),
 )
 
 session = agent.session(SessionConfig(id="deploy-request-42"))
@@ -54,13 +53,14 @@ That keeps the workflow auditable:
 
 - preparation happens in earlier runs
 - approval state is passed explicitly
-- the application can decide whether to unlock downstream tools
+- the application can decide whether to unlock downstream capabilities
 
 ## Good Defaults
 
 - keep approval state in `RunContext.inputs`
 - create one session per approval object or request
-- attach knowledge if the approval depends on policy documents
+- use `Runtime.supervised(...)` for review-heavy flows
+- attach knowledge if approval depends on policy documents
 
 ## Related Patterns
 

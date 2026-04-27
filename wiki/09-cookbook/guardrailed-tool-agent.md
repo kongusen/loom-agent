@@ -12,68 +12,43 @@ Use this pattern when the agent can call tools and some actions must be constrai
 ## Shape
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent, tool
-from loom.config import (
-    PolicyConfig,
-    PolicyContext,
-    SafetyRule,
-    ToolAccessPolicy,
-    ToolPolicy,
-    ToolRateLimitPolicy,
-)
+from loom import Agent, Capability, Model, Runtime, tool
 
 
-@tool(description="Read a file", read_only=True)
-async def read_file(path: str) -> str:
-    return f"Read {path}"
+@tool(description="Read deployment status", read_only=True)
+async def deployment_status(service: str) -> str:
+    return f"{service}: healthy"
 
 
-@tool(description="Delete a file")
-async def delete_file(path: str) -> str:
-    return f"Deleted {path}"
-
-
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="Help with repository maintenance.",
-        tools=[read_file, delete_file],
-        policy=PolicyConfig(
-            tools=ToolPolicy(
-                access=ToolAccessPolicy(
-                    allow=["read_file", "delete_file"],
-                    allow_destructive=False,
-                ),
-                rate_limits=ToolRateLimitPolicy(max_calls_per_minute=30),
-            ),
-            context=PolicyContext.named("repo"),
-        ),
-        safety_rules=[
-            SafetyRule.block_tool(
-                name="no_delete",
-                tool_names=["delete_file"],
-                reason="Deletion is blocked in this app.",
-            )
-        ],
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="Help with repository and deployment maintenance.",
+    tools=[deployment_status],
+    capabilities=[
+        Capability.files(read_only=True),
+        Capability.shell(require_approval=True),
+    ],
+    runtime=Runtime.supervised(criteria=["no destructive action without approval"]),
 )
 ```
 
 ## Design Rule
 
-Use both layers:
+Use capabilities for what the agent can reach and runtime governance for how those abilities are constrained.
 
-- `PolicyConfig` defines broad governance
-- `SafetyRule` defines explicit veto boundaries
+In practice:
 
-That split scales better than pushing all restrictions into one giant config object.
+- `Capability.files(read_only=True)` is the default for analysis
+- `Capability.shell(require_approval=True)` keeps shell access explicit
+- `Runtime.supervised(...)` adds a quality and approval-oriented runtime profile
+- custom safety rules and advanced policy objects remain available through `loom.config`
 
 ## What To Add Next
 
-- use `read_only_only=True` for browse/analyze modes
-- add custom `SafetyEvaluator` when rules depend on business conditions
+- use `GovernancePolicy` directly when the app needs custom approval or rate-limit behavior
+- add `SignalAdapter` when tool work is triggered by gateway, cron, heartbeat, or webhook events
 
 ## Runnable Example
 
 - [examples/12_heartbeat_and_safety.py](https://github.com/kongusen/loom-agent/blob/main/examples/12_heartbeat_and_safety.py)
-- [examples/00_agent_overview.py](https://github.com/kongusen/loom-agent/blob/main/examples/00_agent_overview.py)
+- [examples/15_approval_workflow.py](https://github.com/kongusen/loom-agent/blob/main/examples/15_approval_workflow.py)

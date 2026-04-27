@@ -20,7 +20,6 @@ Usage::
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Union
 
 
 @dataclass
@@ -87,11 +86,11 @@ class ErrorEvent:
 
 
 # Union alias used in type annotations throughout the framework.
-StreamEvent = Union[
-    ThinkingDelta,
-    TextDelta,
-    ToolCallEvent,
-    ToolResultEvent,
-    DoneEvent,
-    ErrorEvent,
-]
+StreamEvent = (
+    ThinkingDelta
+    | TextDelta
+    | ToolCallEvent
+    | ToolResultEvent
+    | DoneEvent
+    | ErrorEvent
+)

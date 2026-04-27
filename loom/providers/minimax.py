@@ -23,7 +23,6 @@ Provider-specific GenerationConfig.extensions keys:
   block to the returned ``content``.  Defaults to ``False``.
 """
 
-from typing import Any
 
 from .base import CompletionParams, CompletionResponse, TokenUsage
 from .openai import OpenAIProvider

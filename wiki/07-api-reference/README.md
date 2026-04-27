@@ -1,43 +1,45 @@
 # API Reference
 
-Loom exposes one public API.
-
-Its stable application-facing path is:
+Loom exposes one public SDK path for application developers:
 
 ```text
-AgentConfig -> Agent -> Session -> Run
+Agent + Model + Runtime + Capability
+    -> Run / Session
+    -> RuntimeTask / RuntimeSignal
 ```
 
-If you are integrating Loom for the first time, focus on these four steps:
+If you are integrating Loom for the first time, focus on these steps:
 
-1. Assemble an agent with `AgentConfig`
-2. Construct an `Agent` with `create_agent()`
-3. Use `agent.run()` for simple single-run flows
-4. Use `agent.session()` when you need stateful multi-run workflows
+1. Assemble an `Agent(...)`
+2. Select a model with `Model.openai(...)`, `Model.anthropic(...)`, or another provider constructor
+3. Choose a `Runtime` profile
+4. Declare abilities with `Capability`
+5. Use `agent.run()` for simple flows
+6. Use `agent.session()` when you need stateful multi-run workflows
+7. Use `agent.receive()` or `session.receive()` for external signal input
 
 ## Design Principles
 
-- There is only one public agent API. There is no separate "Simple API" or "Advanced API".
-- `policy`, `memory`, `heartbeat`, and `runtime` are stable config objects, not loose dictionaries.
-- `loom` stays intentionally narrow.
-- Deeper configuration lives in `loom.config`.
-- Runtime objects live in `loom.runtime`.
-- Older names such as `loom.api`, `AgentRuntime`, `SessionHandle`, `TaskHandle`, and `RunHandle` are no longer public usage guidance.
+- There is one main application API, centered on `Agent`.
+- Runtime behavior is composed through policy objects, not through product-specific gateway or cron classes.
+- Gateway, cron, heartbeat, webhook, and app events normalize into `RuntimeSignal`.
+- Tools, Toolsets, MCP, and skills normalize into `Capability`.
+- Governance is applied at the runtime boundary before tools execute.
+- `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain compatibility/advanced paths through `0.8.x`.
 
 ## 30-Second Start
 
 ```python
 import asyncio
 
-from loom import AgentConfig, ModelRef, create_agent
+from loom import Agent, Model, Runtime
 
 
 async def main():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.openai("gpt-4.1-mini"),
-            instructions="You are a concise, reliable technical assistant.",
-        )
+    agent = Agent(
+        model=Model.openai("gpt-5.1"),
+        instructions="You are a concise, reliable technical assistant.",
+        runtime=Runtime.sdk(),
     )
 
     result = await agent.run("Explain Loom's API design in three sentences.")
@@ -49,19 +51,24 @@ asyncio.run(main())
 
 ## Import Rules
 
-Most application code should import from only three layers:
+Most application code should import from `loom`:
 
 ```python
-from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent, tool
-from loom.config import GenerationConfig, MemoryConfig, PolicyConfig, RuntimeConfig
-from loom.runtime import Run, RunEvent, RunResult, RunState, Session
+from loom import (
+    Agent,
+    Capability,
+    Model,
+    Runtime,
+    RunContext,
+    RuntimeSignal,
+    RuntimeTask,
+    SessionConfig,
+    SignalAdapter,
+    tool,
+)
 ```
 
-Import layering:
-
-- `loom`: primary application-facing API
-- `loom.config`: stable configuration vocabulary
-- `loom.runtime`: sessions, runs, events, results, and states
+Use `loom.config` for advanced config internals and compatibility objects. Use `loom.runtime` when directly testing or extending runtime mechanism contracts.
 
 ## Common Development Paths
 
@@ -72,12 +79,7 @@ result = await agent.run("Summarize this request.")
 print(result.output)
 ```
 
-Good for:
-
-- chat endpoints
-- one-off analysis
-- text generation
-- extraction and classification
+Good for chat endpoints, one-off analysis, generation, extraction, and classification.
 
 ### 2. Multi-Run Session
 
@@ -93,16 +95,30 @@ second = await session.run(
 )
 ```
 
-Good for:
+Good for multi-turn assistants and workflows that need run history.
 
-- multi-turn assistants
-- step-by-step workflows
-- flows that need run history
-
-### 3. Tool Calling
+### 3. Capabilities
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent, tool
+from loom import Agent, Capability, Model, Runtime
+
+agent = Agent(
+    model=Model.openai("gpt-5.1"),
+    capabilities=[
+        Capability.files(read_only=True),
+        Capability.web(),
+        Capability.shell(require_approval=True),
+    ],
+    runtime=Runtime.long_running(criteria=["tests stay green"]),
+)
+```
+
+Good for governed file, web, shell, MCP, and skill access.
+
+### 4. Function Tools
+
+```python
+from loom import Agent, Model, tool
 
 
 @tool(description="Get the weather for a city", read_only=True)
@@ -110,16 +126,32 @@ def get_weather(city: str) -> str:
     return f"{city}: 22C, sunny"
 
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.openai("gpt-4.1-mini"),
-        instructions="You are a weather assistant.",
-        tools=[get_weather],
+agent = Agent(
+    model=Model.openai("gpt-5.1"),
+    instructions="You are a weather assistant.",
+    tools=[get_weather],
+)
+```
+
+### 5. Runtime Signals
+
+```python
+from loom import RuntimeSignal, SessionConfig
+
+session = agent.session(SessionConfig(id="ops"))
+
+await session.receive(
+    RuntimeSignal.create(
+        "CPU usage exceeded 90%",
+        source="heartbeat",
+        type="alert",
+        urgency="high",
+        payload={"host": "api-1"},
     )
 )
 ```
 
-### 4. Explicit Knowledge Context
+### 6. Explicit Knowledge Context
 
 ```python
 from loom import KnowledgeQuery, RunContext
@@ -138,32 +170,33 @@ result = await agent.run(
 )
 ```
 
-This is the clearest and most stable knowledge usage pattern today.
-
 ## Recommended Reading Order
 
 - [Agent API](agent-api.md): `Agent`, `Session`, `Run`, `RunContext`, `SessionConfig`
-- [Configuration](configuration.md): `AgentConfig` and all stable config objects
-- [Providers](providers.md): provider selection, environment variables, base URLs, and fallback behavior
+- [Providers](providers.md): provider selection, environment variables, base URLs, fallback behavior
+- [Configuration](configuration.md): compatibility and advanced config objects
 
 ## Quick Map
 
 | Goal | Start Here |
 |---|---|
 | Get an agent running fast | [Agent API](agent-api.md) |
-| Configure model, tools, policy, memory, heartbeat | [Configuration](configuration.md) |
 | Connect to OpenAI-compatible or other providers | [Providers](providers.md) |
 | Browse runnable examples | [examples directory](https://github.com/kongusen/loom-agent/tree/main/examples) |
+| Use advanced config objects | [Configuration](configuration.md) |
 
 ## Public Contract
 
-- `AgentConfig.model` must be a `ModelRef`
-- `generation`, `policy`, `memory`, `heartbeat`, and `runtime` must be config objects
-- `tools` must contain `ToolSpec`
-- `knowledge` must contain `KnowledgeSource`
-- `safety_rules` must contain `SafetyRule`
+- `Agent.model` should be a `Model` / `ModelRef`
+- `Agent.runtime` should be a `Runtime` profile or custom runtime config
+- `Agent.capabilities` should contain `Capability` declarations
+- `Agent.tools` should contain explicit `ToolSpec` or `@tool` functions
+- `RuntimeSignal` is the normalized external input contract
+- `RunContext` is the run-scoped structured input contract
 
-Loom no longer supports a "pass in a loose dict and infer the rest" API style.
+## Compatibility Contract
+
+`AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain exported through `0.8.x` for existing applications. New examples and docs should prefer the primary `Agent + Model + Runtime + Capability` path.
 
 ## Example Index
 
@@ -173,3 +206,4 @@ Loom no longer supports a "pass in a loose dict and infer the rest" API style.
 - [03_events_and_artifacts.py](https://github.com/kongusen/loom-agent/blob/main/examples/03_events_and_artifacts.py): run events and artifacts
 - [04_multi_task_session.py](https://github.com/kongusen/loom-agent/blob/main/examples/04_multi_task_session.py): multi-run sessions
 - [12_heartbeat_and_safety.py](https://github.com/kongusen/loom-agent/blob/main/examples/12_heartbeat_and_safety.py): heartbeat and safety rules
+- [16_signal_adapters.py](https://github.com/kongusen/loom-agent/blob/main/examples/16_signal_adapters.py): gateway/cron/heartbeat-style adapters

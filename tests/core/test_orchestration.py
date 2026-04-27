@@ -10,6 +10,7 @@ from loom.orchestration.coordinator import Coordinator
 from loom.orchestration.events import EventBus
 from loom.orchestration.planner import Task, TaskPlanner
 from loom.orchestration.subagent import SubAgentManager
+from loom.runtime import DelegationRequest, DelegationResult
 from loom.types import Event
 from loom.types.results import SubAgentResult
 
@@ -333,6 +334,34 @@ class TestCoordinator:
         assert summary["succeeded"] == len(tasks)
         assert summary["failed"] == 0
         assert len(bus.published_events) == 4
+
+    @pytest.mark.asyncio
+    async def test_execute_plan_accepts_runtime_delegation_policy(self):
+        bus = EventBus()
+        coord = Coordinator(bus)
+
+        class StubPolicy:
+            def __init__(self):
+                self.requests: list[DelegationRequest] = []
+
+            async def delegate(self, request: DelegationRequest):
+                self.requests.append(request)
+                return DelegationResult(
+                    success=True,
+                    output=f"delegated:{request.goal}",
+                    depth=request.depth + 1,
+                )
+
+        policy = StubPolicy()
+        coord.register_agent("agent_1", policy)
+        planner = TaskPlanner()
+        [task] = planner.create_plan("inspect repo")
+
+        results = await coord.execute_plan("agent_1", planner, depth=1)
+
+        assert results[task.id].output == "delegated:inspect repo"
+        assert policy.requests[0].goal == "inspect repo"
+        assert policy.requests[0].depth == 1
 
 
 class TestSubAgentManager:

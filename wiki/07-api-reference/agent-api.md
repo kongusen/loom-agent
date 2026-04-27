@@ -1,51 +1,52 @@
 # Agent API
 
-This page describes Loom's core runtime objects for application developers.
+This page describes Loom's core application-facing runtime objects.
 
-There is exactly one public execution path:
+The public `0.8.x` path is:
 
 ```text
-AgentConfig -> Agent -> Session -> Run
+Agent(...)
+    -> Run / Session
 ```
 
-## 1. `create_agent()`
+`AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain available for compatibility and advanced configuration, but new application code should start from `Agent(...)`.
+
+## 1. `Agent`
+
+`Agent` is the top-level execution object.
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent
-
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.openai("gpt-4.1-mini"),
-        instructions="You are a code assistant.",
-    )
-)
-```
-
-`create_agent(config)` returns an `Agent`.
-
-Equivalent form:
-
-```python
-from loom import Agent
+from loom import Agent, Capability, Model, Runtime
 
 agent = Agent(
-    config=AgentConfig(
-        model=ModelRef.openai("gpt-4.1-mini"),
-    )
+    model=Model.openai("gpt-5.1"),
+    instructions="You are a code assistant.",
+    capabilities=[
+        Capability.files(read_only=True),
+        Capability.web(),
+    ],
+    runtime=Runtime.sdk(),
 )
 ```
 
-Prefer `create_agent()` in application code. It is clearer and better matches top-level assembly.
+Common constructor fields:
 
-## 2. `Agent`
+| Field | Description |
+|---|---|
+| `model` | Provider-backed model reference, usually `Model.openai(...)`, `Model.anthropic(...)`, etc. |
+| `instructions` | Stable behavior instructions |
+| `tools` | Explicit Python tools declared with `@tool` |
+| `capabilities` | Files, web, shell, MCP, skill, or custom capability sources |
+| `generation` | Model generation controls |
+| `runtime` | Runtime profile or custom policy composition |
+| `session_store` | Optional durable session persistence |
 
-`Agent` is the only top-level execution object.
-
-### Main Methods
+## 2. Main Methods
 
 ```python
-await agent.run(prompt, context=None)
-agent.stream(prompt, context=None)
+await agent.run(prompt_or_task, context=None)
+agent.stream(prompt_or_task, context=None)
+await agent.receive(event_or_signal, adapter=None, session_id=None)
 agent.session(config=None)
 agent.resolve_knowledge(query)
 ```
@@ -58,11 +59,7 @@ print(result.output)
 print(result.state)
 ```
 
-Use it for:
-
-- one-off requests
-- stateless flows
-- the simplest possible integration
+Use it for one-off requests, stateless flows, extraction, classification, and simple chat endpoints.
 
 ### `agent.stream()`
 
@@ -71,11 +68,27 @@ async for event in agent.stream("Analyze the current requirement."):
     print(event.type, event.payload)
 ```
 
-Notes:
+This streams run events for event-driven UIs, status displays, and debugging.
 
-- this streams `RunEvent` objects
-- it is not token-level text streaming
-- it is useful for event-driven UIs, status displays, and debugging
+### `agent.receive()`
+
+```python
+from loom import SignalAdapter
+
+adapter = SignalAdapter(
+    source="gateway:slack",
+    type="message",
+    summary=lambda event: event["text"],
+)
+
+await agent.receive(
+    {"text": "Customer asks for deployment status"},
+    adapter=adapter,
+    session_id="support",
+)
+```
+
+`receive()` accepts an existing `RuntimeSignal` or a raw event plus `SignalAdapter`. The signal is stored in the target session's runtime dashboard; `AttentionPolicy` decides whether it should trigger execution.
 
 ### `agent.session()`
 
@@ -87,24 +100,14 @@ session = agent.session(SessionConfig(id="assistant-1"))
 
 Behavior rules:
 
-- `agent.session()` with no config returns a new `Session` each time
-- `agent.session(SessionConfig(id="same"))` reuses the same `Session` if that id already exists
-- reused sessions merge `metadata`
-
-Example:
-
-```python
-first = agent.session(SessionConfig(id="demo", metadata={"tenant": "acme"}))
-second = agent.session(SessionConfig(id="demo", metadata={"plan": "pro"}))
-
-assert first is second
-assert second.metadata == {"tenant": "acme", "plan": "pro"}
-```
+- `agent.session()` with no config returns a new `Session`
+- `agent.session(SessionConfig(id="same"))` reuses the same session object when available
+- reused sessions merge metadata
 
 ### `agent.resolve_knowledge()`
 
 ```python
-from loom import KnowledgeQuery
+from loom import KnowledgeQuery, RunContext
 
 bundle = agent.resolve_knowledge(
     KnowledgeQuery(
@@ -112,14 +115,6 @@ bundle = agent.resolve_knowledge(
         top_k=3,
     )
 )
-```
-
-This resolves the knowledge sources declared in `AgentConfig.knowledge` and returns a `KnowledgeBundle`.
-
-Recommended usage:
-
-```python
-from loom import RunContext
 
 result = await agent.run(
     "Explain Loom's session model.",
@@ -127,7 +122,23 @@ result = await agent.run(
 )
 ```
 
-## 3. `SessionConfig`
+## 3. `RuntimeTask`
+
+Use `RuntimeTask` when a run needs structured input or acceptance criteria.
+
+```python
+from loom import RuntimeTask
+
+task = RuntimeTask(
+    goal="Refactor the provider tool-call path",
+    input={"providers": ["openai", "anthropic", "gemini"]},
+    criteria=["tool call round-trip works", "provider details stay out of engine"],
+)
+
+result = await agent.run(task)
+```
+
+## 4. `SessionConfig`
 
 `SessionConfig` is the input object for session-level configuration.
 
@@ -141,24 +152,21 @@ config = SessionConfig(
 )
 ```
 
-Fields:
+| Field | Description |
+|---|---|
+| `id` | Explicit session identifier; the same id reuses the same session |
+| `metadata` | Business metadata |
+| `extensions` | Future-compatible extension fields |
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `str \| None` | Explicit session identifier; the same id reuses the same session |
-| `metadata` | `dict[str, Any]` | Business metadata |
-| `extensions` | `dict[str, Any]` | Extension fields |
-
-## 4. `Session`
+## 5. `Session`
 
 `Session` represents one stateful interaction scope.
 
-### Main Methods
-
 ```python
-session.start(prompt, context=None)
-await session.run(prompt, context=None)
-session.stream(prompt, context=None)
+session.start(prompt_or_task, context=None)
+await session.run(prompt_or_task, context=None)
+session.stream(prompt_or_task, context=None)
+await session.receive(event_or_signal, adapter=None)
 session.get_run(run_id)
 session.list_runs()
 await session.close()
@@ -171,11 +179,6 @@ run = session.start("Inspect the current repository layout.")
 ```
 
 This creates a `Run` but does not wait for completion.
-
-Use it when:
-
-- you want to consume events yourself
-- you want to separate run creation from run completion
 
 ### `session.run()`
 
@@ -190,37 +193,24 @@ run = session.start("Generate a requirement summary.")
 result = await run.wait()
 ```
 
-### `session.stream()`
+### `session.receive()`
 
 ```python
-async for event in session.stream("Analyze this monitoring alert."):
-    print(event.type)
+from loom import RuntimeSignal
+
+await session.receive(
+    RuntimeSignal.create(
+        "Nightly job completed",
+        source="cron",
+        type="job",
+        urgency="normal",
+    )
+)
 ```
 
-### `session.list_runs()`
+## 6. `RunContext`
 
-```python
-runs = session.list_runs()
-for run in runs:
-    print(run.id, run.prompt, run.state)
-```
-
-Returns runs in creation order.
-
-### `session.close()`
-
-```python
-await session.close()
-```
-
-After closing:
-
-- the session no longer allows `start()`
-- tracked run references are released
-
-## 5. `RunContext`
-
-`RunContext` is the input object for run-scoped structured context.
+`RunContext` is the run-scoped structured context object.
 
 ```python
 from loom import RunContext
@@ -234,21 +224,17 @@ context = RunContext(
 )
 ```
 
-Fields:
-
-| Field | Type | Description |
-|---|---|---|
-| `inputs` | `dict[str, Any]` | Structured inputs for the current run |
-| `knowledge` | `KnowledgeBundle \| None` | Explicit grounded knowledge evidence |
-| `extensions` | `dict[str, Any]` | Extension fields |
+| Field | Description |
+|---|---|
+| `inputs` | Structured inputs for the current run |
+| `knowledge` | Optional grounded knowledge evidence |
+| `extensions` | Future-compatible extension fields |
 
 Prefer putting business context in `inputs` rather than hiding it inside the prompt.
 
-## 6. `Run`
+## 7. `Run`
 
 `Run` represents one concrete execution.
-
-### Main Methods
 
 ```python
 await run.wait()
@@ -257,14 +243,6 @@ await run.artifacts()
 await run.transcript()
 ```
 
-### `run.wait()`
-
-```python
-result = await run.wait()
-```
-
-Waits for completion and returns a `RunResult`.
-
 ### `run.events()`
 
 ```python
@@ -272,111 +250,43 @@ async for event in run.events():
     print(event.type, event.payload)
 ```
 
-Typical event types include:
-
-- `run.started`
-- `run.completed`
-- `run.failed`
-- `artifact.created`
-- intermediate provider or tool-loop events
-
-### `run.artifacts()`
-
-```python
-artifacts = await run.artifacts()
-```
-
-By default, Loom emits at least one summary artifact for the final output:
-
-- `kind="text"`
-- `title="Run Output"`
-- `uri="run://<run_id>/output"`
+Typical event types include `run.started`, `run.completed`, `run.failed`, `artifact.created`, and provider/tool-loop events.
 
 ### `run.transcript()`
 
-```python
-transcript = await run.transcript()
-```
+Returns a serializable dictionary with run id, session id, state, prompt/task, context, output, events, and artifacts. This is useful for persistence, auditing, and debugging.
 
-Returns a serializable dictionary containing:
-
-- `run_id`
-- `session_id`
-- `state`
-- `prompt`
-- `context`
-- `output`
-- `events`
-- `artifacts`
-
-This is useful for persistence, auditing, and debugging.
-
-## 7. `RunResult`
+## 8. `RunResult`
 
 `RunResult` is returned by `run.wait()`, `session.run()`, and `agent.run()`.
 
-Fields:
+| Field | Description |
+|---|---|
+| `run_id` | Run identifier |
+| `state` | Final run state |
+| `output` | Final output |
+| `artifacts` | Output artifacts |
+| `events` | Execution events |
+| `error` | Optional error payload |
+| `duration_ms` | Execution duration |
 
-| Field | Type | Description |
-|---|---|---|
-| `run_id` | `str` | Run identifier |
-| `state` | `RunState` | Final run state |
-| `output` | `str` | Final output |
-| `artifacts` | `list[Artifact]` | Output artifacts |
-| `events` | `list[RunEvent]` | Execution events |
-| `error` | `dict[str, Any] \| None` | Error payload |
-| `duration_ms` | `int` | Execution duration |
+## 9. `tool()` Decorator
 
-## 8. `RunState`
-
-Values:
-
-- `QUEUED`
-- `RUNNING`
-- `COMPLETED`
-- `FAILED`
-- `CANCELLED`
-
-## 9. `RunEvent`
-
-`RunEvent` is Loom's standard execution event object.
-
-Fields:
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | `str` | Event identifier |
-| `run_id` | `str` | Owning run id |
-| `type` | `str` | Event type |
-| `ts` | `datetime` | Timestamp |
-| `visibility` | `str` | Visibility level, default `user` |
-| `payload` | `dict[str, Any]` | Event payload |
-
-## 10. `Artifact`
-
-Fields:
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | `str` | Artifact identifier |
-| `run_id` | `str` | Owning run id |
-| `kind` | `str` | Artifact kind |
-| `title` | `str` | Title |
-| `uri` | `str` | Access identifier |
-| `created_at` | `datetime` | Creation time |
-| `metadata` | `dict[str, Any]` | Extra metadata |
-
-## 11. `tool()` Decorator
-
-`tool()` turns a normal Python function into a Loom tool declaration.
+`tool()` turns a Python function into a Loom tool declaration.
 
 ```python
-from loom import tool
+from loom import Agent, Model, tool
 
 
 @tool(description="Get the weather for a city", read_only=True)
 def get_weather(city: str) -> str:
     return f"{city}: sunny"
+
+
+agent = Agent(
+    model=Model.openai("gpt-5.1"),
+    tools=[get_weather],
+)
 ```
 
 Common parameters:
@@ -390,24 +300,12 @@ Common parameters:
 | `concurrency_safe` | Whether the tool is concurrency-safe |
 | `requires_permission` | Whether the tool requires permission |
 
-The decorated object is a `ToolSpec`, so it can go directly into `AgentConfig.tools`:
-
-```python
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.openai("gpt-4.1-mini"),
-        tools=[get_weather],
-    )
-)
-```
-
-## 12. Recommended End-to-End Shape
+## 10. Recommended End-to-End Shape
 
 ```python
 import asyncio
 
-from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent, tool
-from loom.config import GenerationConfig
+from loom import Agent, Capability, Generation, Model, RunContext, Runtime, SessionConfig, tool
 
 
 @tool(description="Search repository docs", read_only=True)
@@ -416,13 +314,13 @@ def search_docs(query: str) -> str:
 
 
 async def main():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.openai("gpt-4.1-mini"),
-            instructions="You are a repository assistant.",
-            generation=GenerationConfig(temperature=0.2, max_output_tokens=512),
-            tools=[search_docs],
-        )
+    agent = Agent(
+        model=Model.openai("gpt-5.1"),
+        instructions="You are a repository assistant.",
+        generation=Generation(temperature=0.2, max_output_tokens=512),
+        tools=[search_docs],
+        capabilities=[Capability.files(read_only=True)],
+        runtime=Runtime.long_running(criteria=["answers cite repo evidence"]),
     )
 
     session = agent.session(SessionConfig(id="repo-assistant"))
@@ -439,10 +337,11 @@ asyncio.run(main())
 
 Next:
 
-- [Configuration](configuration.md)
 - [Providers](providers.md)
+- [Configuration](configuration.md)
 
 Related examples:
 
 - [03_events_and_artifacts.py](https://github.com/kongusen/loom-agent/blob/main/examples/03_events_and_artifacts.py)
 - [04_multi_task_session.py](https://github.com/kongusen/loom-agent/blob/main/examples/04_multi_task_session.py)
+- [16_signal_adapters.py](https://github.com/kongusen/loom-agent/blob/main/examples/16_signal_adapters.py)

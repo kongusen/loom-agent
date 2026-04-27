@@ -1,15 +1,18 @@
 # Loom Package Layout
 
-Loom exposes one public API centered on `Agent`.
+Loom exposes one public SDK API centered on `Agent`.
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent
+from loom import Agent, Capability, Model, Runtime
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.anthropic("claude-sonnet-4"),
-        instructions="You are a coding assistant",
-    )
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    instructions="You are a coding assistant",
+    capabilities=[
+        Capability.files(read_only=True),
+        Capability.web(),
+    ],
+    runtime=Runtime.sdk(),
 )
 
 result = await agent.run("Inspect this repository")
@@ -18,33 +21,29 @@ print(result.output)
 
 ## Import Layers
 
-Use the package in two layers:
+Use the package in three layers:
 
-- `loom`: the primary application-facing entry point
-- `loom.config` and `loom.runtime`: advanced configuration and runtime objects
+- `loom`: primary application-facing entry point
+- `loom.config`: advanced configuration and compatibility objects
+- `loom.runtime`: runtime mechanism contracts and internals
 
 Typical application imports stay small:
 
 ```python
-from loom import AgentConfig, ModelRef, SessionConfig, RunContext, create_agent, tool
+from loom import Agent, Capability, Model, Runtime, SessionConfig, RunContext, tool
 ```
 
-When you need richer configuration, import it explicitly from submodules:
-
-```python
-from loom.config import PolicyConfig, MemoryConfig, RuntimeConfig, HeartbeatConfig
-from loom.runtime import Session, Run, RunResult
-```
+Compatibility imports such as `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain available through `0.8.x`, but new code should prefer `Agent(...)`.
 
 ## Package Structure
 
-- `agent.py` - public Agent API
-- `config.py` - stable public configuration DSL
-- `runtime/` - sessions, runs, engine, loop, heartbeat
+- `agent.py` - public Agent API and compatibility factory
+- `config.py` - public config facade and 0.8 aliases
+- `runtime/` - sessions, runs, engine, signals, capabilities, policies
 - `context/` - context partitions, compression, renewal
 - `memory/` - session, semantic, persistent memory
 - `tools/` - registry, execution, governance
 - `safety/` - permissions, hooks, veto authority
-- `orchestration/` - planning and multi-agent coordination
+- `orchestration/` - planning and multi-agent coordination adapters
 - `ecosystem/` - skills, plugins, MCP integration
 - `providers/` - model provider implementations

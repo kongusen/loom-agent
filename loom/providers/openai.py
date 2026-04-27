@@ -1,6 +1,5 @@
 """OpenAI provider."""
 
-import asyncio
 import inspect
 import json
 import threading
@@ -8,7 +7,15 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from ..types import ToolCall
-from .base import CompletionParams, CompletionResponse, LLMProvider, TokenUsage  # noqa: F401 (re-exported)
+from .base import (  # noqa: F401 (re-exported)
+    CompletionParams,
+    CompletionRequest,
+    CompletionResponse,
+    LLMProvider,
+    TokenUsage,
+    normalize_tool_call,
+    parse_tool_arguments,
+)
 
 
 class OpenAIProvider(LLMProvider):
@@ -80,7 +87,7 @@ class OpenAIProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> str:
-        response = await self._complete_response(messages, params)
+        response = await self._complete_request(CompletionRequest.create(messages, params))
         return response.content
 
     async def _complete_response(
@@ -88,9 +95,15 @@ class OpenAIProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> CompletionResponse:
+        return await self._complete_request(CompletionRequest.create(messages, params))
+
+    async def _complete_request(
+        self,
+        request: CompletionRequest,
+    ) -> CompletionResponse:
         """Generate a completion through OpenAI chat completions."""
-        request = self._build_request(messages, params)
-        response = await self.client.chat.completions.create(**request)
+        payload = self._build_request(request.messages, request.params)
+        response = await self.client.chat.completions.create(**payload)
         choice = response.choices[0]
         message = getattr(choice, "message", None)
         content = self._extract_text(getattr(message, "content", ""))
@@ -111,10 +124,20 @@ class OpenAIProvider(LLMProvider):
         params: CompletionParams | None = None,
         on_token: Any | None = None,
     ) -> CompletionResponse:
+        return await self._complete_request_streaming(
+            CompletionRequest.create(messages, params),
+            on_token,
+        )
+
+    async def _complete_request_streaming(
+        self,
+        request: CompletionRequest,
+        on_token: Any | None = None,
+    ) -> CompletionResponse:
         """Single streaming API call: yield tokens via *on_token*, accumulate
         tool-call deltas, return the complete ``CompletionResponse``."""
-        request = self._build_request(messages, params)
-        stream = await self.client.chat.completions.create(**request, stream=True)
+        payload = self._build_request(request.messages, request.params)
+        stream = await self.client.chat.completions.create(**payload, stream=True)
 
         text_parts: list[str] = []
         # tool_deltas: index → {"id", "name", "arguments"}
@@ -165,15 +188,13 @@ class OpenAIProvider(LLMProvider):
         tool_calls: list[ToolCall] = []
         for idx in sorted(tool_deltas.keys()):
             td = tool_deltas[idx]
-            try:
-                arguments = json.loads(td["arguments"] or "{}")
-            except json.JSONDecodeError:
-                arguments = {}
-            tool_calls.append(ToolCall(
-                id=td["id"],
+            tool_call = normalize_tool_call(
+                call_id=td["id"],
                 name=td["name"],
-                arguments=arguments if isinstance(arguments, dict) else {},
-            ))
+                arguments=parse_tool_arguments(td["arguments"]),
+            )
+            if tool_call is not None:
+                tool_calls.append(tool_call)
         return tool_calls
 
     async def stream(
@@ -212,6 +233,13 @@ class OpenAIProvider(LLMProvider):
         messages: list,
         params: CompletionParams | None = None,
     ) -> AsyncGenerator[Any, None]:
+        async for event in self._stream_request_events(CompletionRequest.create(messages, params)):
+            yield event
+
+    async def _stream_request_events(
+        self,
+        request: CompletionRequest,
+    ) -> AsyncGenerator[Any, None]:
         """Yield typed StreamEvents from the OpenAI chat-completions SSE stream.
 
         Emits:
@@ -222,13 +250,13 @@ class OpenAIProvider(LLMProvider):
         """
         from ..types.stream import TextDelta, ThinkingDelta, ToolCallEvent
 
-        request = self._build_request(messages, params)
-        ext = (params.extensions if params is not None else None) or {}
+        payload = self._build_request(request.messages, request.params)
+        ext = request.params.extensions or {}
         expose_thinking = bool(
             self._reasoning_ext_key and ext.get(self._reasoning_ext_key)
         )
 
-        stream = await self.client.chat.completions.create(**request, stream=True)
+        stream = await self.client.chat.completions.create(**payload, stream=True)
         # tool_deltas: index → {"id", "name", "arguments"}
         tool_deltas: dict[int, dict[str, str]] = {}
 
@@ -276,16 +304,11 @@ class OpenAIProvider(LLMProvider):
                         slot["arguments"] += getattr(fn, "arguments", "") or ""
 
         # Emit assembled tool calls after stream ends
-        for idx in sorted(tool_deltas.keys()):
-            td = tool_deltas[idx]
-            try:
-                arguments = json.loads(td["arguments"] or "{}")
-            except json.JSONDecodeError:
-                arguments = {}
+        for tool_call in self._parse_tool_deltas(tool_deltas):
             yield ToolCallEvent(
-                id=td["id"],
-                name=td["name"],
-                arguments=arguments if isinstance(arguments, dict) else {},
+                id=tool_call.id,
+                name=tool_call.name,
+                arguments=tool_call.arguments,
             )
 
     def _build_request(
@@ -302,13 +325,14 @@ class OpenAIProvider(LLMProvider):
             "temperature": resolved.temperature,
             "max_tokens": resolved.max_tokens,
         }
-        if resolved.tools:
+        tools = resolved.tool_dicts()
+        if tools:
             request["tools"] = [
                 {
                     "type": "function",
                     "function": tool,
                 }
-                for tool in resolved.tools
+                for tool in tools
             ]
             request["tool_choice"] = resolved.tool_choice or "auto"
         return request
@@ -424,19 +448,15 @@ class OpenAIProvider(LLMProvider):
                 if isinstance(function, dict)
                 else getattr(function, "arguments", "{}")
             )
-            try:
-                arguments = json.loads(raw_arguments or "{}")
-            except json.JSONDecodeError:
-                arguments = {}
-            tool_calls.append(
-                ToolCall(
-                    id=str(item.get("id", "")) if isinstance(item, dict) else str(getattr(item, "id", "")),
-                    name=(
-                        str(function.get("name", ""))
-                        if isinstance(function, dict)
-                        else str(getattr(function, "name", ""))
-                    ),
-                    arguments=arguments if isinstance(arguments, dict) else {},
-                )
+            tool_call = normalize_tool_call(
+                call_id=item.get("id", "") if isinstance(item, dict) else getattr(item, "id", ""),
+                name=(
+                    function.get("name", "")
+                    if isinstance(function, dict)
+                    else getattr(function, "name", "")
+                ),
+                arguments=parse_tool_arguments(raw_arguments),
             )
+            if tool_call is not None:
+                tool_calls.append(tool_call)
         return tool_calls

@@ -41,6 +41,7 @@ class Dashboard:
     goal_progress: str = ""
     error_count: int = 0
     depth: int = 0
+    last_signal_ts: str = ""
     last_hb_ts: str = ""
     interrupt_requested: bool = False
 

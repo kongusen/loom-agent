@@ -1,5 +1,8 @@
 """Test safety module - constraints, veto, hooks, permissions"""
 
+from unittest.mock import MagicMock
+
+import pytest
 
 from loom.safety.constraints import ConstraintValidator
 from loom.safety.hooks import HookDecision, HookOutcome
@@ -337,9 +340,6 @@ class TestSafetyPermissionManager:
         assert decision.matched_permission is not None
 
 # ── Engine integration: hook → permission → veto pipeline ──
-
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestEngineHookPermissionPipeline:

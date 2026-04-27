@@ -3,9 +3,8 @@
 import asyncio
 
 from loom import (
-    AgentConfig,
-    ModelRef,
-    create_agent,
+    Agent,
+    Model,
     tool,
 )
 from loom.config import (
@@ -23,17 +22,15 @@ async def example_basic_heartbeat():
     """Enable heartbeat monitoring for file system changes"""
     print("\n=== Example 1: Basic Heartbeat ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a DevOps assistant monitoring the codebase",
-            heartbeat=HeartbeatConfig(
-                interval=5.0,
-                min_entropy_delta=0.1,
-                watch_sources=[
-                    WatchConfig.filesystem(paths=["./src"], method=FilesystemWatchMethod.HASH)
-                ],
-            ),
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a DevOps assistant monitoring the codebase",
+        heartbeat=HeartbeatConfig(
+            interval=5.0,
+            min_entropy_delta=0.1,
+            watch_sources=[
+                WatchConfig.filesystem(paths=["./src"], method=FilesystemWatchMethod.HASH)
+            ],
         ),
     )
 
@@ -47,23 +44,21 @@ async def example_multiple_watch_sources():
     """Monitor multiple sources: filesystem, resources, processes"""
     print("\n=== Example 2: Multiple Watch Sources ===")
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a system monitoring assistant",
-            heartbeat=HeartbeatConfig(
-                interval=3.0,
-                watch_sources=[
-                    WatchConfig.filesystem(
-                        paths=["./src", "./config"],
-                        method=FilesystemWatchMethod.HASH,
-                    ),
-                    WatchConfig.resource(
-                        thresholds=ResourceThresholds(cpu_pct=80.0, memory_pct=90.0),
-                    ),
-                    WatchConfig.process(watch_pids=[1234, 5678]),
-                ],
-            ),
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a system monitoring assistant",
+        heartbeat=HeartbeatConfig(
+            interval=3.0,
+            watch_sources=[
+                WatchConfig.filesystem(
+                    paths=["./src", "./config"],
+                    method=FilesystemWatchMethod.HASH,
+                ),
+                WatchConfig.resource(
+                    thresholds=ResourceThresholds(cpu_pct=80.0, memory_pct=90.0),
+                ),
+                WatchConfig.process(watch_pids=[1234, 5678]),
+            ],
         ),
     )
 
@@ -84,19 +79,17 @@ async def example_basic_safety():
     async def read_file(path: str) -> str:
         return f"Content of: {path}"
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a file management assistant",
-            tools=[delete_file, read_file],
-            safety_rules=[
-                SafetyRule.block_tool(
-                    name="no_delete",
-                    reason="File deletion is forbidden",
-                    tool_names=["delete_file"],
-                )
-            ],
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a file management assistant",
+        tools=[delete_file, read_file],
+        safety_rules=[
+            SafetyRule.block_tool(
+                name="no_delete",
+                reason="File deletion is forbidden",
+                tool_names=["delete_file"],
+            )
+        ],
     )
 
     # This will be vetoed
@@ -117,28 +110,26 @@ async def example_advanced_safety():
     async def execute_command(cmd: str) -> str:
         return f"Executed: {cmd}"
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a system administrator assistant",
-            tools=[write_file, execute_command],
-            safety_rules=[
-                SafetyRule.when_argument_startswith(
-                    name="no_prod_write",
-                    reason="Cannot write to production environment",
-                    tool_name="write_file",
-                    argument="path",
-                    prefix="/prod/",
-                ),
-                SafetyRule.when_argument_contains_any(
-                    name="no_dangerous_commands",
-                    reason="Dangerous command blocked",
-                    tool_name="execute_command",
-                    argument="cmd",
-                    values=["rm -rf", "dd if=", "mkfs"],
-                ),
-            ],
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a system administrator assistant",
+        tools=[write_file, execute_command],
+        safety_rules=[
+            SafetyRule.when_argument_startswith(
+                name="no_prod_write",
+                reason="Cannot write to production environment",
+                tool_name="write_file",
+                argument="path",
+                prefix="/prod/",
+            ),
+            SafetyRule.when_argument_contains_any(
+                name="no_dangerous_commands",
+                reason="Dangerous command blocked",
+                tool_name="execute_command",
+                argument="cmd",
+                values=["rm -rf", "dd if=", "mkfs"],
+            ),
+        ],
     )
 
     result = await agent.run("Write config to /prod/config.yaml")
@@ -170,13 +161,11 @@ async def example_safety_rule_objects():
         prefix="v1.",
     )
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a deployment assistant",
-            tools=[deploy],
-            safety_rules=[no_prod_deploy, no_old_versions],
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a deployment assistant",
+        tools=[deploy],
+        safety_rules=[no_prod_deploy, no_old_versions],
     )
 
     result = await agent.run("Deploy v2.0 to production")
@@ -196,29 +185,27 @@ async def example_combined():
     async def check_status(name: str) -> str:
         return f"Status of {name}: running"
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a service monitoring and management assistant",
-            tools=[restart_service, check_status],
-            heartbeat=HeartbeatConfig(
-                interval=5.0,
-                watch_sources=[
-                    WatchConfig.resource(
-                        thresholds=ResourceThresholds(cpu_pct=80.0, memory_pct=90.0),
-                    )
-                ],
-            ),
-            safety_rules=[
-                SafetyRule.when_argument_contains_any(
-                    name="no_critical_restart",
-                    reason="Critical services require manual restart approval",
-                    tool_name="restart_service",
-                    argument="name",
-                    values=["database", "auth-service"],
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a service monitoring and management assistant",
+        tools=[restart_service, check_status],
+        heartbeat=HeartbeatConfig(
+            interval=5.0,
+            watch_sources=[
+                WatchConfig.resource(
+                    thresholds=ResourceThresholds(cpu_pct=80.0, memory_pct=90.0),
                 )
             ],
-        )
+        ),
+        safety_rules=[
+            SafetyRule.when_argument_contains_any(
+                name="no_critical_restart",
+                reason="Critical services require manual restart approval",
+                tool_name="restart_service",
+                argument="name",
+                values=["database", "auth-service"],
+            )
+        ],
     )
 
     result = await agent.run("Monitor services and restart if needed")
@@ -241,59 +228,55 @@ async def example_dynamic_safety():
         now = datetime.datetime.now()
         return 9 <= now.hour < 17 and now.weekday() < 5
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a configuration management assistant",
-            tools=[modify_config],
-            safety_rules=[
-                SafetyRule.custom(
-                    name="business_hours_only",
-                    reason="Configuration changes only allowed during business hours",
-                    evaluator=SafetyEvaluator.callable(
-                        lambda tool, args: tool == "modify_config" and not is_business_hours()
-                    ),
-                )
-            ],
-        )
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a configuration management assistant",
+        tools=[modify_config],
+        safety_rules=[
+            SafetyRule.custom(
+                name="business_hours_only",
+                reason="Configuration changes only allowed during business hours",
+                evaluator=SafetyEvaluator.callable(
+                    lambda tool, args: tool == "modify_config" and not is_business_hours()
+                ),
+            )
+        ],
     )
 
     result = await agent.run("Update the database connection string")
     print(f"Result: {result.output}")
 
 
-# Example 8: Explicit AgentConfig Composition
+# Example 8: Explicit Agent Composition
 async def example_explicit_composition():
-    """Build the final agent in one explicit AgentConfig"""
-    print("\n=== Example 8: Explicit AgentConfig Composition ===")
+    """Build the final agent in one explicit Agent declaration"""
+    print("\n=== Example 8: Explicit Agent Composition ===")
 
     @tool(description="Execute query")
     async def execute_query(sql: str) -> str:
         return f"Query result: {sql}"
 
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            instructions="You are a database assistant",
-            tools=[execute_query],
-            heartbeat=HeartbeatConfig(
-                interval=10.0,
-                watch_sources=[
-                    WatchConfig.resource(
-                        thresholds=ResourceThresholds(cpu_pct=90.0),
-                    )
-                ],
-            ),
-            safety_rules=[
-                SafetyRule.when_argument_contains_any(
-                    name="no_drop",
-                    reason="DROP statements are forbidden",
-                    tool_name="execute_query",
-                    argument="sql",
-                    values=["DROP"],
+    agent = Agent(
+        model=Model.anthropic("claude-sonnet-4"),
+        instructions="You are a database assistant",
+        tools=[execute_query],
+        heartbeat=HeartbeatConfig(
+            interval=10.0,
+            watch_sources=[
+                WatchConfig.resource(
+                    thresholds=ResourceThresholds(cpu_pct=90.0),
                 )
             ],
-        )
+        ),
+        safety_rules=[
+            SafetyRule.when_argument_contains_any(
+                name="no_drop",
+                reason="DROP statements are forbidden",
+                tool_name="execute_query",
+                argument="sql",
+                values=["DROP"],
+            )
+        ],
     )
 
     result = await agent.run("Show me all users")
