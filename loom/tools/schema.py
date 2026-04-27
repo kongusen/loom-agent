@@ -13,6 +13,7 @@ from typing import Any
 @dataclass
 class ToolParameter:
     """Tool parameter definition"""
+
     name: str
     type: str
     description: str
@@ -23,6 +24,7 @@ class ToolParameter:
 @dataclass
 class ToolDefinition:
     """Tool definition schema"""
+
     name: str
     description: str
     parameters: list[ToolParameter] = field(default_factory=list)
@@ -35,6 +37,7 @@ class ToolDefinition:
 @dataclass
 class Tool:
     """Tool implementation with fail-closed principle"""
+
     definition: ToolDefinition
     handler: Callable
 

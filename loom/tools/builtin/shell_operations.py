@@ -10,22 +10,16 @@ async def bash(command: str, timeout: int = 120000) -> dict[str, Any]:
     proc = None
     try:
         proc = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            shell=True
+            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, shell=True
         )
 
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(),
-            timeout=timeout / 1000
-        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout / 1000)
 
         return {
             "command": command,
-            "stdout": stdout.decode('utf-8', errors='replace'),
-            "stderr": stderr.decode('utf-8', errors='replace'),
-            "exit_code": proc.returncode
+            "stdout": stdout.decode("utf-8", errors="replace"),
+            "stderr": stderr.decode("utf-8", errors="replace"),
+            "exit_code": proc.returncode,
         }
     except TimeoutError as e:
         if proc:

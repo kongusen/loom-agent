@@ -7,6 +7,7 @@ from typing import Any
 @dataclass
 class Task:
     """Task definition"""
+
     id: str
     goal: str
     dependencies: list[str]
@@ -36,11 +37,15 @@ class TaskPlanner:
     async def _llm_plan(self, goal: str, provider: Any, max_tasks: int) -> list[Task]:
         """Ask LLM to decompose goal into numbered steps."""
         from ..providers.base import CompletionParams
+
         params = CompletionParams(max_tokens=512, temperature=0.3)
         messages = [
-            {"role": "system", "content": "Decompose the goal into at most "
-             f"{max_tasks} concrete sequential steps. Output one step per line, "
-             "numbered 1. 2. 3. No extra text."},
+            {
+                "role": "system",
+                "content": "Decompose the goal into at most "
+                f"{max_tasks} concrete sequential steps. Output one step per line, "
+                "numbered 1. 2. 3. No extra text.",
+            },
             {"role": "user", "content": goal},
         ]
         response = await provider.complete(messages, params)
@@ -103,4 +108,3 @@ class TaskPlanner:
             for part in line.split(";"):
                 raw_parts.extend(part.split(","))
         return [part.strip(" -") for part in raw_parts if part.strip(" -")]
-

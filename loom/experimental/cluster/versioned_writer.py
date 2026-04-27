@@ -11,10 +11,12 @@ from typing import Any
 @dataclass
 class WriteVersion:
     """写入版本"""
+
     agent_id: str
     content: Any
     timestamp: datetime = field(default_factory=datetime.now)
     version: int = 1
+
 
 class VersionedWriter:
     """版本化写入"""
@@ -31,9 +33,7 @@ class VersionedWriter:
             self.versions[key] = []
 
         version = WriteVersion(
-            agent_id=agent_id,
-            content=content,
-            version=len(self.versions[key]) + 1
+            agent_id=agent_id, content=content, version=len(self.versions[key]) + 1
         )
         self.versions[key].append(version)
 

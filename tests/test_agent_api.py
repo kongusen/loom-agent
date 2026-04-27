@@ -105,7 +105,9 @@ def test_agent_creation():
             ],
             heartbeat=HeartbeatConfig(
                 interval=5.0,
-                watch_sources=[WatchConfig.filesystem(paths=["./src"], method=FilesystemWatchMethod.HASH)],
+                watch_sources=[
+                    WatchConfig.filesystem(paths=["./src"], method=FilesystemWatchMethod.HASH)
+                ],
             ),
             safety_rules=[
                 SafetyRule.block_tool(
@@ -443,7 +445,11 @@ def test_capability_factories_expose_ideal_user_api():
     assert mcp.name == "mcp:github"
     assert mcp.metadata["server"] == "github"
     assert mcp.metadata["config"] == {"command": "gh"}
-    assert [tool.name for tool in mcp.to_tools()] == ["ListMcpResources", "ReadMcpResource", "MCPTool"]
+    assert [tool.name for tool in mcp.to_tools()] == [
+        "ListMcpResources",
+        "ReadMcpResource",
+        "MCPTool",
+    ]
     assert skill.source == CapabilitySource.SKILL
     assert skill.to_tools() == []
 
@@ -806,6 +812,7 @@ async def test_memory_provider_prefetch_and_sync_turn():
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "remembered"
+
             return _gen()
 
     memory = RecorderMemory()
@@ -894,6 +901,7 @@ async def test_memory_provider_errors_are_isolated(caplog):
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "safe"
+
             return _gen()
 
     unavailable = UnavailableMemory()
@@ -934,6 +942,7 @@ async def test_session_store_records_session_and_run():
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "stored"
+
             return _gen()
 
     store = InMemorySessionStore()
@@ -975,6 +984,7 @@ async def test_file_session_store_persists_sessions_and_runs(tmp_path):
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "stored on disk"
+
             return _gen()
 
     path = tmp_path / "sessions.json"
@@ -1434,7 +1444,9 @@ async def test_run_without_provider_uses_local_fallback():
                             thresholds=ResourceThresholds(memory_pct=80.0),
                         )
                     ],
-                    interrupt_policy=HeartbeatInterruptPolicy(low="queue", high="request", critical="force"),
+                    interrupt_policy=HeartbeatInterruptPolicy(
+                        low="queue", high="request", critical="force"
+                    ),
                 ),
             )
         )
@@ -1694,6 +1706,7 @@ async def test_engine_finalizes_plain_provider_response_without_completion_phras
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "provider smoke test ok"
+
             return _gen()
 
     engine = AgentEngine(
@@ -1773,6 +1786,7 @@ async def test_agent_run_executes_tool_call_round_trip():
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "The answer is 5."
+
             return _gen()
 
     agent = create_agent(
@@ -1832,9 +1846,7 @@ async def test_agent_runtime_exposes_semantic_hooks():
             self.calls += 1
             if self.calls == 1:
                 return CompletionResponse(
-                    tool_calls=[
-                        ToolCall(id="call_echo_1", name="echo", arguments={"text": "ok"})
-                    ]
+                    tool_calls=[ToolCall(id="call_echo_1", name="echo", arguments={"text": "ok"})]
                 )
             return CompletionResponse(content="done")
 
@@ -1889,6 +1901,7 @@ async def test_provider_health_check_failure_triggers_fallback_error():
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "ok"
+
             return _gen()
 
     with patch("loom.agent._resolve_provider", return_value=MockProvider()):
@@ -1931,6 +1944,7 @@ async def test_provider_health_check_can_be_disabled_via_runtime_extensions():
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "provider smoke test ok"
+
             return _gen()
 
     provider = MockProvider()
@@ -1959,6 +1973,7 @@ def test_runtime_compression_policy_is_propagated_to_engine():
         def stream(self, messages: list, params: CompletionParams | None = None):
             async def _gen():
                 yield "ok"
+
             return _gen()
 
     agent = create_agent(

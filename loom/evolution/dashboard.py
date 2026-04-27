@@ -9,10 +9,12 @@ from dataclasses import dataclass
 @dataclass
 class EvolutionMetrics:
     """演化指标"""
+
     success_rate: float
     avg_cost: float
     skill_reuse_rate: float
     constraint_count: int
+
 
 class EvolutionDashboard:
     """演化指标面板"""
@@ -39,5 +41,5 @@ class EvolutionDashboard:
             "capability_growth": last.success_rate > first.success_rate + 0.15,
             "success_delta": last.success_rate - first.success_rate,
             "cost_reduction": first.avg_cost - last.avg_cost,
-            "skill_growth": last.skill_reuse_rate - first.skill_reuse_rate
+            "skill_growth": last.skill_reuse_rate - first.skill_reuse_rate,
         }

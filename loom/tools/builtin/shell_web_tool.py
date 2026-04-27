@@ -10,11 +10,11 @@ BASH_TOOL = Tool(
         description="执行 shell 命令",
         parameters=[
             ToolParameter("command", "string", "命令"),
-            ToolParameter("timeout", "integer", "超时(ms)", required=False, default=120000)
+            ToolParameter("timeout", "integer", "超时(ms)", required=False, default=120000),
         ],
-        is_read_only=False
+        is_read_only=False,
     ),
-    handler=bash
+    handler=bash,
 )
 
 WEB_FETCH_TOOL = Tool(
@@ -23,23 +23,21 @@ WEB_FETCH_TOOL = Tool(
         description="获取网页内容",
         parameters=[
             ToolParameter("url", "string", "URL"),
-            ToolParameter("prompt", "string", "提示")
+            ToolParameter("prompt", "string", "提示"),
         ],
         is_read_only=True,
-        is_concurrency_safe=True
+        is_concurrency_safe=True,
     ),
-    handler=web_fetch
+    handler=web_fetch,
 )
 
 WEB_SEARCH_TOOL = Tool(
     definition=ToolDefinition(
         name="WebSearch",
         description="网页搜索",
-        parameters=[
-            ToolParameter("query", "string", "搜索查询")
-        ],
+        parameters=[ToolParameter("query", "string", "搜索查询")],
         is_read_only=True,
-        is_concurrency_safe=True
+        is_concurrency_safe=True,
     ),
-    handler=web_search
+    handler=web_search,
 )

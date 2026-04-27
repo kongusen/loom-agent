@@ -34,8 +34,7 @@ class RuntimeHarness(Protocol):
         self,
         task: RuntimeTask,
         context: HarnessContext,
-    ) -> HarnessOutcome:
-        ...
+    ) -> HarnessOutcome: ...
 
 
 class Harness:

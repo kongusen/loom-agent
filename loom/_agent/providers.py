@@ -69,6 +69,7 @@ class ProviderMixin:
                 return f"Completed goal: {prompt} with context keys {sorted(payload.keys())}"
         return f"Completed goal: {prompt}"
 
+
 def _resolve_provider(model: ModelRef) -> LLMProvider | None:
     provider_name = model.provider.lower()
 
@@ -95,7 +96,11 @@ def _resolve_provider(model: ModelRef) -> LLMProvider | None:
 
         if provider_name == "gemini":
             api_env = model.api_key_env
-            api_key = os.getenv(api_env) if api_env else os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            api_key = (
+                os.getenv(api_env)
+                if api_env
+                else os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            )
             if not api_key:
                 raise ValueError(f"{api_env or 'GEMINI_API_KEY or GOOGLE_API_KEY'} not set")
             from ..providers.gemini import GeminiProvider

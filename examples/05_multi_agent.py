@@ -38,6 +38,7 @@ class SimpleSubAgentManager:
 
     async def spawn(self, goal: str, depth: int = 0, inherit_context: bool = True):
         from loom.types import SubAgentResult
+
         if depth >= self.max_depth:
             return SubAgentResult(success=False, output="", depth=depth, error="MAX_DEPTH_EXCEEDED")
         agent = SimpleAgent(depth=depth + 1)

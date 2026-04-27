@@ -23,7 +23,7 @@ async def execute_inline_shell(content: str, shell_config: Any = None) -> str:
         Output: "Current dir: /Users/shan/project"
     """
     # Pattern to match !`command`
-    pattern = r'!`([^`]+)`'
+    pattern = r"!`([^`]+)`"
     matches = re.findall(pattern, content)
 
     if not matches:
@@ -33,10 +33,10 @@ async def execute_inline_shell(content: str, shell_config: Any = None) -> str:
     for cmd in matches:
         try:
             result = await execute_bash_command(cmd.strip(), shell_config)
-            content = content.replace(f'!`{cmd}`', result)
+            content = content.replace(f"!`{cmd}`", result)
         except Exception as e:
             error_msg = f"[Error: {e}]"
-            content = content.replace(f'!`{cmd}`', error_msg)
+            content = content.replace(f"!`{cmd}`", error_msg)
 
     return content
 
@@ -60,6 +60,7 @@ async def execute_bash_command(command: str, shell_config: Any = None) -> str:
 
             # Merge custom env with current env
             import os
+
             env = os.environ.copy()
             if shell_config.env:
                 env.update(shell_config.env)
@@ -86,10 +87,7 @@ async def execute_bash_command(command: str, shell_config: Any = None) -> str:
             )
 
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout
-            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except TimeoutError:
             with suppress(ProcessLookupError):
                 process.kill()
@@ -98,7 +96,7 @@ async def execute_bash_command(command: str, shell_config: Any = None) -> str:
             return f"[Error: Command timed out after {timeout}s]"
 
         if process.returncode == 0:
-            return stdout.decode('utf-8').strip()
+            return stdout.decode("utf-8").strip()
         else:
             return f"[Error: {stderr.decode('utf-8').strip()}]"
 
@@ -115,7 +113,7 @@ def has_inline_shell_commands(content: str) -> bool:
     Returns:
         True if content has !`...` patterns
     """
-    pattern = r'!`([^`]+)`'
+    pattern = r"!`([^`]+)`"
     return bool(re.search(pattern, content))
 
 
@@ -131,9 +129,9 @@ async def execute_inline_shell_safe(content: str, allowed_commands: list[str] | 
     """
     if allowed_commands is None:
         # Default safe commands
-        allowed_commands = ['pwd', 'ls', 'echo', 'date', 'whoami', 'git status', 'git branch']
+        allowed_commands = ["pwd", "ls", "echo", "date", "whoami", "git status", "git branch"]
 
-    pattern = r'!`([^`]+)`'
+    pattern = r"!`([^`]+)`"
     matches = re.findall(pattern, content)
 
     if not matches:
@@ -148,13 +146,13 @@ async def execute_inline_shell_safe(content: str, allowed_commands: list[str] | 
         if is_allowed:
             try:
                 result = await execute_bash_command(cmd_stripped)
-                content = content.replace(f'!`{cmd}`', result)
+                content = content.replace(f"!`{cmd}`", result)
             except Exception as e:
                 error_msg = f"[Error: {e}]"
-                content = content.replace(f'!`{cmd}`', error_msg)
+                content = content.replace(f"!`{cmd}`", error_msg)
         else:
             # Replace with warning
             warning = f"[Command not allowed: {cmd_stripped}]"
-            content = content.replace(f'!`{cmd}`', warning)
+            content = content.replace(f"!`{cmd}`", warning)
 
     return content

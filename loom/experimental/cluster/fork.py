@@ -7,6 +7,7 @@ from typing import Any
 @dataclass
 class SubAgentConfig:
     """子 Agent 配置"""
+
     goal: str
     depth: int
     parent_id: str

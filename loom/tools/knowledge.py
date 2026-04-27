@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EvidencePack:
     """证据包"""
+
     question: str
     sources: list[str] = field(default_factory=list)
     chunks: list[dict] = field(default_factory=list)
@@ -137,8 +138,10 @@ class KnowledgePipeline:
         ranked = []
         for candidate in candidates:
             goal_score = self._similarity(goal, candidate.get("content", ""))
-            final_score = (candidate.get("retrieval_score", 0.0) * self.rerank_retrieval_weight
-                           + goal_score * self.rerank_goal_weight)
+            final_score = (
+                candidate.get("retrieval_score", 0.0) * self.rerank_retrieval_weight
+                + goal_score * self.rerank_goal_weight
+            )
             reranked = dict(candidate)
             reranked["goal_score"] = goal_score
             reranked["score"] = final_score
@@ -322,8 +325,4 @@ class KnowledgePipeline:
 
     def _tokenize(self, text: str) -> set[str]:
         """Tokenize text into lowercase terms."""
-        return {
-            token.strip(".,:;!?()[]{}\"'").lower()
-            for token in text.split()
-            if token.strip()
-        }
+        return {token.strip(".,:;!?()[]{}\"'").lower() for token in text.split() if token.strip()}

@@ -258,8 +258,14 @@ class GeminiProvider(LLMProvider):
                         "parts": [
                             {
                                 "function_response": {
-                                    "name": message.get("name") or message.get("tool_call_id") or "tool",
-                                    "response": {"content": content if isinstance(content, str) else str(content)},
+                                    "name": message.get("name")
+                                    or message.get("tool_call_id")
+                                    or "tool",
+                                    "response": {
+                                        "content": content
+                                        if isinstance(content, str)
+                                        else str(content)
+                                    },
                                 }
                             }
                         ],
@@ -271,10 +277,12 @@ class GeminiProvider(LLMProvider):
             gemini_role = "model" if role == "assistant" else "user"
 
             # Convert content to Gemini parts format
-            converted.append({
-                "role": gemini_role,
-                "parts": self._to_gemini_parts(content),
-            })
+            converted.append(
+                {
+                    "role": gemini_role,
+                    "parts": self._to_gemini_parts(content),
+                }
+            )
 
         # Prepend system messages to first user message if any
         if system_parts and converted:
@@ -282,15 +290,10 @@ class GeminiProvider(LLMProvider):
             first_msg = converted[0]
             if first_msg["role"] == "user":
                 # Prepend system context to first user message
-                first_msg["parts"] = [
-                    {"text": f"{system_text}\n\n{first_msg['parts'][0]['text']}"}
-                ]
+                first_msg["parts"] = [{"text": f"{system_text}\n\n{first_msg['parts'][0]['text']}"}]
             else:
                 # Insert system as first user message
-                converted.insert(0, {
-                    "role": "user",
-                    "parts": [{"text": system_text}]
-                })
+                converted.insert(0, {"role": "user", "parts": [{"text": system_text}]})
 
         return converted
 
@@ -360,24 +363,28 @@ class GeminiProvider(LLMProvider):
                     elif block_type == "image":
                         source = block.get("source", {})
                         if source.get("type") == "base64":
-                            parts.append({
-                                "inline_data": {
-                                    "mime_type": source.get("media_type", "image/png"),
-                                    "data": source.get("data", ""),
+                            parts.append(
+                                {
+                                    "inline_data": {
+                                        "mime_type": source.get("media_type", "image/png"),
+                                        "data": source.get("data", ""),
+                                    }
                                 }
-                            })
+                            )
                 elif hasattr(block, "type"):
                     if block.type == "text":
                         parts.append({"text": getattr(block, "text", "")})
                     elif block.type == "image":
                         source = getattr(block, "source", {})
                         if source.get("type") == "base64":
-                            parts.append({
-                                "inline_data": {
-                                    "mime_type": source.get("media_type", "image/png"),
-                                    "data": source.get("data", ""),
+                            parts.append(
+                                {
+                                    "inline_data": {
+                                        "mime_type": source.get("media_type", "image/png"),
+                                        "data": source.get("data", ""),
+                                    }
                                 }
-                            })
+                            )
             return parts
         return [{"text": str(content)}]
 

@@ -7,6 +7,7 @@ from loom.types.results import SubAgentResult
 
 # ── Stubs ────────────────────────────────────────────────────────────────────
 
+
 class _StubManager:
     """Minimal SubAgentManager stub."""
 
@@ -16,7 +17,9 @@ class _StubManager:
         self.prompts: list[str] = []
         self._fail = fail
 
-    async def spawn(self, goal: str, depth: int = 0, inherit_context: bool = True) -> SubAgentResult:
+    async def spawn(
+        self, goal: str, depth: int = 0, inherit_context: bool = True
+    ) -> SubAgentResult:
         self.prompts.append(goal)
         if self._fail:
             return SubAgentResult(success=False, output="error", depth=depth + 1, error="error")
@@ -27,6 +30,7 @@ class _StubManager:
 
 
 # ── HarnessResult ─────────────────────────────────────────────────────────────
+
 
 class TestHarnessResult:
     def test_fields(self):
@@ -47,6 +51,7 @@ class TestHarnessResult:
 
 # ── AgentHarness ─────────────────────────────────────────────────────────────
 
+
 class TestAgentHarnessNoEvaluator:
     """Single-shot mode: generator only, no evaluator."""
 
@@ -62,7 +67,7 @@ class TestAgentHarnessNoEvaluator:
         assert result.output == "Here is the final answer"
         assert result.sprints == 1
         assert result.critique == ""
-        assert result.spec == "Write a poem"   # no planner → spec == brief
+        assert result.spec == "Write a poem"  # no planner → spec == brief
 
     @pytest.mark.asyncio
     async def test_single_shot_generator_failure(self):
@@ -94,12 +99,14 @@ class TestAgentHarnessWithEvaluator:
 
     @pytest.mark.asyncio
     async def test_iterates_on_fail(self):
-        evaluator = _StubManager([
-            "criterion A",      # negotiate sprint 1
-            "FAIL\nMissing Y",  # eval sprint 1
-            "criterion A",      # negotiate sprint 2
-            "PASS\nNow good",   # eval sprint 2
-        ])
+        evaluator = _StubManager(
+            [
+                "criterion A",  # negotiate sprint 1
+                "FAIL\nMissing Y",  # eval sprint 1
+                "criterion A",  # negotiate sprint 2
+                "PASS\nNow good",  # eval sprint 2
+            ]
+        )
         generator = _StubManager(["v1", "v2"])
         harness = AgentHarness(generator=generator, evaluator=evaluator, max_sprints=5)
 

@@ -23,11 +23,11 @@ from .gen_eval import GeneratorEvaluatorLoop, SprintResult
 class HarnessResult:
     """Complete result from an AgentHarness.run() call."""
 
-    spec: str                              # planner-expanded brief (or original brief)
-    output: str                            # final generator output
-    passed: bool                           # True if evaluator passed the last sprint
-    sprints: int                           # total sprints executed
-    critique: str                          # last evaluator critique (empty on first-try PASS)
+    spec: str  # planner-expanded brief (or original brief)
+    output: str  # final generator output
+    passed: bool  # True if evaluator passed the last sprint
+    sprints: int  # total sprints executed
+    critique: str  # last evaluator critique (empty on first-try PASS)
     sprint_results: list[SprintResult] = field(default_factory=list)
 
 

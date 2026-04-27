@@ -9,6 +9,7 @@ from .base import Tool
 @dataclass
 class Scenario:
     """场景定义"""
+
     name: str
     tools: list[Tool] = field(default_factory=list)
     constraints: dict = field(default_factory=dict)

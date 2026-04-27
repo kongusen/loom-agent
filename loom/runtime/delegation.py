@@ -57,14 +57,12 @@ class DelegationResult:
 class RuntimeDelegationPolicy(Protocol):
     """Protocol implemented by delegation policies."""
 
-    async def delegate(self, request: DelegationRequest) -> DelegationResult:
-        ...
+    async def delegate(self, request: DelegationRequest) -> DelegationResult: ...
 
     async def delegate_many(
         self,
         requests: list[DelegationRequest],
-    ) -> list[DelegationResult]:
-        ...
+    ) -> list[DelegationResult]: ...
 
 
 class DelegationPolicy:

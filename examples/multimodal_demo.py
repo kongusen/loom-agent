@@ -46,6 +46,7 @@ async def demo_content_blocks():
 
     # Create a minimal PNG (1x1 red pixel)
     import base64
+
     png_data = base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
     )
@@ -54,9 +55,7 @@ async def demo_content_blocks():
 
     try:
         image_file_block = create_image_block_from_file(
-            test_image_path,
-            media_type="image/png",
-            validate=True
+            test_image_path, media_type="image/png", validate=True
         )
         print(f"   Type: {image_file_block.type}")
         print(f"   Source type: {image_file_block.source['type']}")
@@ -78,6 +77,7 @@ async def demo_validation():
     # Create a test image
     test_image_path = Path("test_image.png")
     import base64
+
     png_data = base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
     )
@@ -87,40 +87,28 @@ async def demo_validation():
         # Valid image with validation
         print("\n1. Valid image (with validation):")
         block = create_image_block_from_file(
-            test_image_path,
-            media_type="image/png",
-            validate=True,
-            provider="anthropic"
+            test_image_path, media_type="image/png", validate=True, provider="anthropic"
         )
         print(f"   ✓ Created image block: {len(block.source['data'])} bytes")
 
         # Without validation
         print("\n2. Without validation:")
         block = create_image_block_from_file(
-            test_image_path,
-            media_type="image/png",
-            validate=False
+            test_image_path, media_type="image/png", validate=False
         )
         print(f"   ✓ Created image block (no validation): {len(block.source['data'])} bytes")
 
         # Test validation error (non-existent file)
         print("\n3. Testing validation error (non-existent file):")
         try:
-            block = create_image_block_from_file(
-                "nonexistent.png",
-                validate=True
-            )
+            block = create_image_block_from_file("nonexistent.png", validate=True)
         except FileNotFoundError:
             print("   ✓ Caught expected error: FileNotFoundError")
 
         # Test different provider limits
         print("\n4. Provider-specific validation:")
         for provider in ["anthropic", "openai", "gemini"]:
-            block = create_image_block_from_file(
-                test_image_path,
-                validate=True,
-                provider=provider
-            )
+            block = create_image_block_from_file(test_image_path, validate=True, provider=provider)
             print(f"   ✓ {provider}: validated successfully")
 
     finally:
@@ -139,6 +127,7 @@ async def demo_multimodal_message():
     # Create test image
     test_image_path = Path("test_image.png")
     import base64
+
     png_data = base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
     )
@@ -162,7 +151,7 @@ async def demo_multimodal_message():
         print("\n3. Text + Image message:")
         multimodal_content = [
             create_text_block("What color is this image?"),
-            create_image_block_from_file(test_image_path, media_type="image/png")
+            create_image_block_from_file(test_image_path, media_type="image/png"),
         ]
         print("   Content: list[ContentBlock]")
         print(f"   Blocks: {len(multimodal_content)}")
@@ -174,7 +163,7 @@ async def demo_multimodal_message():
         multi_image_content = [
             create_text_block("Compare these images"),
             create_image_block_from_file(test_image_path, media_type="image/png"),
-            create_image_block_from_url("https://example.com/image2.jpg")
+            create_image_block_from_url("https://example.com/image2.jpg"),
         ]
         print("   Content: list[ContentBlock]")
         print(f"   Blocks: {len(multi_image_content)}")
@@ -202,6 +191,7 @@ async def demo_provider_formats():
     # Create test content
     test_image_path = Path("test_image.png")
     import base64
+
     png_data = base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
     )
@@ -210,24 +200,26 @@ async def demo_provider_formats():
     try:
         content_blocks = [
             create_text_block("What's in this image?"),
-            create_image_block_from_file(test_image_path, media_type="image/png")
+            create_image_block_from_file(test_image_path, media_type="image/png"),
         ]
 
         # Convert to dict format (as used internally)
-        messages = [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": "What's in this image?"},
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/png",
-                        "data": content_blocks[1].source["data"]
-                    }
-                }
-            ]
-        }]
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What's in this image?"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": content_blocks[1].source["data"],
+                        },
+                    },
+                ],
+            }
+        ]
 
         # 1. Anthropic format
         print("\n1. Anthropic Provider:")

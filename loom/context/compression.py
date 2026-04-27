@@ -35,9 +35,7 @@ class CompressionPolicy:
         ]
         if any(value < 0 or value > 1 for value in values):
             raise ValueError("Compression thresholds must be in [0, 1]")
-        if not (
-            self.snip_at <= self.micro_at <= self.collapse_at <= self.auto_compact_at
-        ):
+        if not (self.snip_at <= self.micro_at <= self.collapse_at <= self.auto_compact_at):
             raise ValueError(
                 "Compression thresholds must be monotonic: "
                 "snip_at <= micro_at <= collapse_at <= auto_compact_at"
@@ -56,10 +54,10 @@ class ContextCompressor:
     ):
         self.policy = policy or CompressionPolicy()
         self.thresholds = {
-            'snip': self.policy.snip_at,
-            'micro': self.policy.micro_at,
-            'collapse': self.policy.collapse_at,
-            'auto': self.policy.auto_compact_at,
+            "snip": self.policy.snip_at,
+            "micro": self.policy.micro_at,
+            "collapse": self.policy.collapse_at,
+            "auto": self.policy.auto_compact_at,
         }
         self.micro_max_chars = micro_max_chars
         self.collapse_keep_first = collapse_keep_first
@@ -68,13 +66,13 @@ class ContextCompressor:
     def should_compress(self, rho: float) -> str | None:
         """Determine which compression to trigger"""
         if rho >= self.policy.auto_compact_at:
-            return 'auto'
+            return "auto"
         elif rho >= self.policy.collapse_at:
-            return 'collapse'
+            return "collapse"
         elif rho >= self.policy.micro_at:
-            return 'micro'
+            return "micro"
         elif rho >= self.policy.snip_at:
-            return 'snip'
+            return "snip"
         return None
 
     def snip_compact(self, messages: list[Message], max_length: int = 2000) -> list[Message]:
@@ -84,7 +82,10 @@ class ContextCompressor:
             # Type guard: handle both str and list content
             if isinstance(msg.content, str):
                 if len(msg.content) > max_length:
-                    snipped = msg.content[:max_length] + f"\n[...snipped {len(msg.content) - max_length} chars]"
+                    snipped = (
+                        msg.content[:max_length]
+                        + f"\n[...snipped {len(msg.content) - max_length} chars]"
+                    )
                     result.append(Message(role=msg.role, content=snipped))
                 else:
                     result.append(msg)
@@ -165,17 +166,19 @@ class ContextCompressor:
         if len(non_system) < min_len:
             return messages
 
-        head = non_system[:self.collapse_keep_first]
-        tail = non_system[-self.collapse_keep_last:]
-        middle = non_system[self.collapse_keep_first:-self.collapse_keep_last]
+        head = non_system[: self.collapse_keep_first]
+        tail = non_system[-self.collapse_keep_last :]
+        middle = non_system[self.collapse_keep_first : -self.collapse_keep_last]
 
         collapsed = system_msgs + head + [self._summarize_middle(middle, goal=goal)] + tail
         return collapsed
 
     def auto_compact(self, messages: list[Message], goal: str) -> list[Message]:
         """Auto Compact: 全量压缩，保留顺序"""
-        scored = [(i, msg, self._score_message(msg, goal, i, len(messages)))
-                  for i, msg in enumerate(messages)]
+        scored = [
+            (i, msg, self._score_message(msg, goal, i, len(messages)))
+            for i, msg in enumerate(messages)
+        ]
         scored.sort(key=lambda x: x[2], reverse=True)
         keep_count = max(5, len(messages) // 2)
         kept_indices = {i for i, _, _ in scored[:keep_count]}
@@ -220,7 +223,9 @@ class ContextCompressor:
             parts.append(f"[{msg.role}] {content[:end]}")
         summary = " | ".join(parts) if parts else f"[{len(messages)} messages]"
         goal_hint = f" (goal: {goal})" if goal else ""
-        return Message(role="system", content=f"[collapsed {len(messages)} messages{goal_hint}: {summary}]")
+        return Message(
+            role="system", content=f"[collapsed {len(messages)} messages{goal_hint}: {summary}]"
+        )
 
     def _cached_tool_message(self, msg: Message, cached_from: str) -> Message:
         """Replace duplicate tool output with a cache reference."""

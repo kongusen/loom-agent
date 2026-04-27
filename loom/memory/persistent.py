@@ -14,7 +14,7 @@ class PersistentMemory:
     def save(self, key: str, data: dict):
         """Save data to file"""
         file_path = self.storage_path / f"{key}.json"
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             json.dump(data, f, indent=2)
 
     def load(self, key: str) -> dict | None:

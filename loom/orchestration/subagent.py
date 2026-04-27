@@ -98,11 +98,14 @@ class SubAgentManager:
                 child = Agent(config=deepcopy(self.parent.config))
             else:
                 from dataclasses import replace
-                child = Agent(config=replace(
-                    self.parent.config,
-                    instructions="",
-                    knowledge=[],
-                ))
+
+                child = Agent(
+                    config=replace(
+                        self.parent.config,
+                        instructions="",
+                        knowledge=[],
+                    )
+                )
         else:
             child = self.parent
 

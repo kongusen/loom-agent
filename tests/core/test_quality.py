@@ -14,7 +14,9 @@ class _StubEvaluator:
         self._call_count = 0
         self.prompts: list[str] = []
 
-    async def spawn(self, goal: str, depth: int = 0, inherit_context: bool = True) -> SubAgentResult:
+    async def spawn(
+        self, goal: str, depth: int = 0, inherit_context: bool = True
+    ) -> SubAgentResult:
         self.prompts.append(goal)
         idx = min(self._call_count, len(self._responses) - 1)
         response = self._responses[idx]

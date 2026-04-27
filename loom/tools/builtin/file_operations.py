@@ -11,7 +11,7 @@ async def read_file(file_path: str, offset: int = 1, limit: int | None = None) -
     if not path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    with open(path, encoding='utf-8') as f:
+    with open(path, encoding="utf-8") as f:
         lines = f.readlines()
 
     total_lines = len(lines)
@@ -19,14 +19,14 @@ async def read_file(file_path: str, offset: int = 1, limit: int | None = None) -
     end = start + limit if limit else total_lines
 
     content_lines = lines[start:end]
-    content = ''.join(content_lines)
+    content = "".join(content_lines)
 
     return {
         "file_path": file_path,
         "content": content,
         "start_line": offset,
         "num_lines": len(content_lines),
-        "total_lines": total_lines
+        "total_lines": total_lines,
     }
 
 
@@ -35,20 +35,22 @@ async def write_file(file_path: str, content: str) -> dict[str, Any]:
     path = Path(file_path).expanduser().resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
     return {"file_path": file_path, "status": "written"}
 
 
-async def edit_file(file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> dict[str, Any]:
+async def edit_file(
+    file_path: str, old_string: str, new_string: str, replace_all: bool = False
+) -> dict[str, Any]:
     """编辑文件 - 精确字符串替换"""
     path = Path(file_path).expanduser().resolve()
 
     if not path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    with open(path, encoding='utf-8') as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
 
     if old_string not in content:
@@ -58,9 +60,13 @@ async def edit_file(file_path: str, old_string: str, new_string: str, replace_al
     if count > 1 and not replace_all:
         raise ValueError(f"Found {count} matches. Set replace_all=True to replace all.")
 
-    new_content = content.replace(old_string, new_string) if replace_all else content.replace(old_string, new_string, 1)
+    new_content = (
+        content.replace(old_string, new_string)
+        if replace_all
+        else content.replace(old_string, new_string, 1)
+    )
 
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(new_content)
 
     return {
@@ -68,13 +74,14 @@ async def edit_file(file_path: str, old_string: str, new_string: str, replace_al
         "old_string": old_string,
         "new_string": new_string,
         "replace_all": replace_all,
-        "status": "edited"
+        "status": "edited",
     }
 
 
 async def glob_files(pattern: str, path: str = ".") -> dict[str, Any]:
     """文件模式匹配"""
     from glob import glob
+
     base_path = Path(path).expanduser().resolve()
 
     matches = glob(str(base_path / pattern), recursive=True)
@@ -84,7 +91,7 @@ async def glob_files(pattern: str, path: str = ".") -> dict[str, Any]:
         "pattern": pattern,
         "num_files": len(filenames),
         "filenames": filenames[:100],
-        "truncated": len(filenames) > 100
+        "truncated": len(filenames) > 100,
     }
 
 
@@ -103,14 +110,16 @@ async def grep_files(pattern: str, path: str = ".", glob_pattern: str = "*") -> 
         if not Path(file).is_file():
             continue
         try:
-            with open(file, encoding='utf-8') as f:
+            with open(file, encoding="utf-8") as f:
                 for line_num, line in enumerate(f, 1):
                     if regex.search(line):
-                        matches.append({
-                            "file": str(Path(file).relative_to(base_path)),
-                            "line": line_num,
-                            "content": line.rstrip()
-                        })
+                        matches.append(
+                            {
+                                "file": str(Path(file).relative_to(base_path)),
+                                "line": line_num,
+                                "content": line.rstrip(),
+                            }
+                        )
                         if len(matches) >= 100:
                             break
         except Exception:
@@ -120,5 +129,5 @@ async def grep_files(pattern: str, path: str = ".", glob_pattern: str = "*") -> 
         "pattern": pattern,
         "num_matches": len(matches),
         "matches": matches,
-        "truncated": len(matches) >= 100
+        "truncated": len(matches) >= 100,
     }

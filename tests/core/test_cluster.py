@@ -11,6 +11,7 @@ from loom.experimental.cluster.shared_memory import SharedMemory
 
 # ── SubAgentConfig ──
 
+
 class TestSubAgentConfig:
     def test_defaults(self):
         config = SubAgentConfig(goal="test", depth=1, parent_id="p1")
@@ -25,6 +26,7 @@ class TestSubAgentConfig:
 
 
 # ── AgentFork ──
+
 
 class TestAgentFork:
     def test_creation(self):
@@ -82,6 +84,7 @@ class TestAgentFork:
 
 # ── Event (cluster) ──
 
+
 class TestClusterEvent:
     def test_event_creation(self):
         event = Event(
@@ -89,7 +92,7 @@ class TestClusterEvent:
             source="test",
             data={"key": "value"},
             delta_H=0.5,
-            timestamp="2024-01-01T00:00:00"
+            timestamp="2024-01-01T00:00:00",
         )
         assert event.event_id == "evt_001"
         assert event.source == "test"
@@ -98,6 +101,7 @@ class TestClusterEvent:
 
 
 # ── EventBus (cluster) ──
+
 
 class TestClusterEventBus:
     def test_creation(self):
@@ -113,7 +117,7 @@ class TestClusterEventBus:
                 source="agent_1",
                 data={"action": "complete"},
                 delta_H=0.7,
-                timestamp="2024-01-01T00:00:00"
+                timestamp="2024-01-01T00:00:00",
             )
             bus.publish(event)
 
@@ -136,7 +140,7 @@ class TestClusterEventBus:
                 source="agent_1",
                 data={},
                 delta_H=0.3,
-                timestamp="2024-01-01T00:00:00"
+                timestamp="2024-01-01T00:00:00",
             )
             bus.publish(event)
             assert len(received) == 1
@@ -154,7 +158,7 @@ class TestClusterEventBus:
                 source="agent_2",
                 data={},
                 delta_H=0.3,
-                timestamp="2024-01-01T00:00:00"
+                timestamp="2024-01-01T00:00:00",
             )
             bus.publish(event)
             assert len(received) == 0
@@ -169,7 +173,7 @@ class TestClusterEventBus:
                     source="src",
                     data={"i": i},
                     delta_H=0.5,
-                    timestamp="2024-01-01T00:00:00"
+                    timestamp="2024-01-01T00:00:00",
                 )
                 bus.publish(event)
 
@@ -184,6 +188,7 @@ class TestClusterEventBus:
 
 
 # ── SharedMemory ──
+
 
 class TestSharedMemory:
     def test_creation(self):

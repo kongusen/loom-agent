@@ -13,6 +13,7 @@ from typing import Literal
 @dataclass
 class TextBlock:
     """Text content block"""
+
     type: Literal["text"] = "text"
     text: str = ""
 
@@ -29,6 +30,7 @@ class ImageBlock:
     Example URL source:
         {"type": "url", "url": "https://example.com/image.jpg"}
     """
+
     type: Literal["image"] = "image"
     source: dict[str, str] = field(default_factory=dict)
 
@@ -40,6 +42,7 @@ class DocumentBlock:
     Example source:
         {"type": "base64", "media_type": "application/pdf", "data": "JVBERi0x..."}
     """
+
     type: Literal["document"] = "document"
     source: dict[str, str] = field(default_factory=dict)
 
@@ -49,6 +52,7 @@ MessageContent = str | list[ContentBlock]
 
 
 # Helper functions
+
 
 def create_text_block(text: str) -> TextBlock:
     """Create a text content block
@@ -66,7 +70,7 @@ def create_image_block_from_file(
     file_path: str | Path,
     media_type: Literal["image/png", "image/jpeg", "image/gif", "image/webp"] = "image/png",
     validate: bool = True,
-    provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
+    provider: Literal["anthropic", "openai", "gemini"] = "anthropic",
 ) -> ImageBlock:
     """Create an image content block from a file
 
@@ -89,6 +93,7 @@ def create_image_block_from_file(
     # Validate if requested
     if validate:
         from .validation import validate_image_file, validate_media_type
+
         validate_image_file(path, provider=provider)
         validate_media_type(media_type, content_type="image")
 
@@ -96,12 +101,7 @@ def create_image_block_from_file(
         data = base64.b64encode(f.read()).decode("utf-8")
 
     return ImageBlock(
-        type="image",
-        source={
-            "type": "base64",
-            "media_type": media_type,
-            "data": data
-        }
+        type="image", source={"type": "base64", "media_type": media_type, "data": data}
     )
 
 
@@ -114,20 +114,14 @@ def create_image_block_from_url(url: str) -> ImageBlock:
     Returns:
         ImageBlock instance with URL source
     """
-    return ImageBlock(
-        type="image",
-        source={
-            "type": "url",
-            "url": url
-        }
-    )
+    return ImageBlock(type="image", source={"type": "url", "url": url})
 
 
 def create_document_block_from_file(
     file_path: str | Path,
     media_type: Literal["application/pdf"] = "application/pdf",
     validate: bool = True,
-    provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
+    provider: Literal["anthropic", "openai", "gemini"] = "anthropic",
 ) -> DocumentBlock:
     """Create a document content block from a file
 
@@ -150,6 +144,7 @@ def create_document_block_from_file(
     # Validate if requested
     if validate:
         from .validation import validate_document_file, validate_media_type
+
         validate_document_file(path, provider=provider)
         validate_media_type(media_type, content_type="document")
 
@@ -157,10 +152,5 @@ def create_document_block_from_file(
         data = base64.b64encode(f.read()).decode("utf-8")
 
     return DocumentBlock(
-        type="document",
-        source={
-            "type": "base64",
-            "media_type": media_type,
-            "data": data
-        }
+        type="document", source={"type": "base64", "media_type": media_type, "data": data}
     )

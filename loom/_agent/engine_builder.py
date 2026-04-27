@@ -39,7 +39,9 @@ class EngineBuilderMixin:
         engine = AgentEngine(
             provider=provider,
             config=EngineConfig(
-                max_iterations=self.config.runtime.limits.max_iterations if self.config.runtime else 100,
+                max_iterations=self.config.runtime.limits.max_iterations
+                if self.config.runtime
+                else 100,
                 max_tokens=(
                     self.config.runtime.limits.max_context_tokens
                     if self.config.runtime and self.config.runtime.limits.max_context_tokens
@@ -50,7 +52,9 @@ class EngineBuilderMixin:
                 completion_max_tokens=self.config.generation.max_output_tokens or 4096,
                 compression_policy=_resolve_compression_policy(self.config.runtime),
                 enable_heartbeat=self.config.heartbeat is not None,
-                enable_safety=self.config.runtime.features.enable_safety if self.config.runtime else True,
+                enable_safety=self.config.runtime.features.enable_safety
+                if self.config.runtime
+                else True,
                 enable_memory=bool(self.config.memory and self.config.memory.enabled),
                 extensions=dict(self.config.generation.extensions),
                 stream_output=bool(self.config.generation.extensions.get("stream", False)),

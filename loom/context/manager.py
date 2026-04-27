@@ -81,16 +81,16 @@ class ContextManager:
     def compress(self, strategy: str):
         """Execute compression strategy on history only."""
         with self._lock:
-            if strategy == 'snip':
+            if strategy == "snip":
                 self.partitions.history = self.compressor.snip_compact(self.partitions.history)
-            elif strategy == 'micro':
+            elif strategy == "micro":
                 self.partitions.history = self.compressor.micro_compact(self.partitions.history)
-            elif strategy == 'collapse':
+            elif strategy == "collapse":
                 self.partitions.history = self.compressor.context_collapse(
                     self.partitions.history,
                     self.current_goal,
                 )
-            elif strategy == 'auto':
+            elif strategy == "auto":
                 self.partitions.history = self.compressor.auto_compact(
                     self.partitions.history,
                     self.current_goal,

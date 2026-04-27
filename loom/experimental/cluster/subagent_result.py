@@ -20,29 +20,19 @@ class SubAgentResult:
         return {
             "result": self.result,
             "schema": self.schema,
-            "tool_context": self.tool_context or {}
+            "tool_context": self.tool_context or {},
         }
 
+
 def create_structured_result(
-    result: Any,
-    result_type: str,
-    tools_used: list[str]
+    result: Any, result_type: str, tools_used: list[str]
 ) -> SubAgentResult:
     """创建结构化回传结果
 
     实验结果: 成功率从 0.60 提升至 0.95
     """
-    schema = {
-        "type": result_type,
-        "tools_used": tools_used
-    }
+    schema = {"type": result_type, "tools_used": tools_used}
 
-    tool_context = {
-        tool: f"Tool: {tool}" for tool in tools_used
-    }
+    tool_context = {tool: f"Tool: {tool}" for tool in tools_used}
 
-    return SubAgentResult(
-        result=result,
-        schema=schema,
-        tool_context=tool_context
-    )
+    return SubAgentResult(result=result, schema=schema, tool_context=tool_context)

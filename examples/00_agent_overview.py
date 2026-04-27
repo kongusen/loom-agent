@@ -80,7 +80,9 @@ async def example_with_knowledge():
                 "loom-docs",
                 [
                     KnowledgeDocument(content="Loom 提供 stateful session API。", title="Session"),
-                    KnowledgeDocument(content="Loom 支持 heartbeat 和 safety rule 配置。", title="Safety"),
+                    KnowledgeDocument(
+                        content="Loom 支持 heartbeat 和 safety rule 配置。", title="Safety"
+                    ),
                 ],
                 description="Loom product notes",
             )

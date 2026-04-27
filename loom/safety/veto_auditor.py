@@ -11,6 +11,7 @@ from typing import Literal
 @dataclass
 class VetoLog:
     """Veto 日志"""
+
     timestamp: datetime
     agent_id: str
     action_type: str
@@ -18,6 +19,7 @@ class VetoLog:
     veto_reason: str
     rule_triggered: str
     severity: Literal["low", "medium", "high", "critical"]
+
 
 class VetoAuditor:
     """Veto 审计系统"""
@@ -37,5 +39,5 @@ class VetoAuditor:
         return {
             "total_vetos": len(self.logs),
             "critical_count": sum(1 for log in self.logs if log.severity == "critical"),
-            "completeness": 1.0
+            "completeness": 1.0,
         }

@@ -16,6 +16,7 @@ from loom.types.results import SubAgentResult
 
 # ── Task (planner) ──
 
+
 class TestPlannerTask:
     def test_creation(self):
         task = Task(id="t1", goal="do stuff", dependencies=[])
@@ -30,6 +31,7 @@ class TestPlannerTask:
 
 
 # ── TaskPlanner ──
+
 
 class TestTaskPlanner:
     def test_creation(self):
@@ -133,6 +135,7 @@ class TestTaskPlanner:
 
 # ── EventBus (orchestration) ──
 
+
 class TestOrchestrationEventBus:
     def test_creation(self):
         bus = EventBus()
@@ -146,8 +149,12 @@ class TestOrchestrationEventBus:
     def test_publish_high_delta(self):
         bus = EventBus(delta_min=0.1)
         event = Event(
-            id="e1", sender="agent_1", topic="task",
-            payload={"msg": "hello"}, delta_h=0.5, priority="high"
+            id="e1",
+            sender="agent_1",
+            topic="task",
+            payload={"msg": "hello"},
+            delta_h=0.5,
+            priority="high",
         )
         bus.publish(event)
         assert len(bus.published_events) == 1
@@ -155,8 +162,12 @@ class TestOrchestrationEventBus:
     def test_publish_low_delta_filtered(self):
         bus = EventBus(delta_min=0.5)
         event = Event(
-            id="e2", sender="agent_1", topic="task",
-            payload={"msg": "low"}, delta_h=0.1, priority="low"
+            id="e2",
+            sender="agent_1",
+            topic="task",
+            payload={"msg": "low"},
+            delta_h=0.1,
+            priority="low",
         )
         bus.publish(event)
         assert len(bus.published_events) == 0
@@ -167,8 +178,7 @@ class TestOrchestrationEventBus:
         bus.subscribe("task", lambda e: received.append(e))
 
         event = Event(
-            id="e3", sender="agent_1", topic="task",
-            payload={}, delta_h=0.3, priority="medium"
+            id="e3", sender="agent_1", topic="task", payload={}, delta_h=0.3, priority="medium"
         )
         bus.publish(event)
         assert len(received) == 1
@@ -180,8 +190,7 @@ class TestOrchestrationEventBus:
         bus.subscribe("other", lambda e: received.append(e))
 
         event = Event(
-            id="e4", sender="agent_1", topic="task",
-            payload={}, delta_h=0.3, priority="medium"
+            id="e4", sender="agent_1", topic="task", payload={}, delta_h=0.3, priority="medium"
         )
         bus.publish(event)
         assert len(received) == 0
@@ -192,12 +201,12 @@ class TestOrchestrationEventBus:
 
         def callback(e):
             return received.append(e)
+
         bus.subscribe("task", callback)
         bus.unsubscribe("task", callback)
 
         event = Event(
-            id="e5", sender="agent_1", topic="task",
-            payload={}, delta_h=0.3, priority="medium"
+            id="e5", sender="agent_1", topic="task", payload={}, delta_h=0.3, priority="medium"
         )
         bus.publish(event)
         assert len(received) == 0
@@ -208,16 +217,14 @@ class TestOrchestrationEventBus:
         bus.subscribe("task", lambda e: r1.append(e))
         bus.subscribe("task", lambda e: r2.append(e))
 
-        event = Event(
-            id="e6", sender="a", topic="task",
-            payload={}, delta_h=0.3, priority="medium"
-        )
+        event = Event(id="e6", sender="a", topic="task", payload={}, delta_h=0.3, priority="medium")
         bus.publish(event)
         assert len(r1) == 1
         assert len(r2) == 1
 
 
 # ── CommunicationProtocol ──
+
 
 class TestCommunicationProtocol:
     def test_creation(self):
@@ -227,8 +234,7 @@ class TestCommunicationProtocol:
     def test_send(self):
         proto = CommunicationProtocol()
         event = Event(
-            id="e1", sender="a", topic="test",
-            payload={"data": 1}, delta_h=0.5, priority="high"
+            id="e1", sender="a", topic="test", payload={"data": 1}, delta_h=0.5, priority="high"
         )
         proto.send(event)
         assert len(proto.messages) == 1
@@ -264,6 +270,7 @@ class TestCommunicationProtocol:
 
 # ── Coordinator ──
 
+
 class TestCoordinator:
     def test_creation(self):
         bus = EventBus()
@@ -276,6 +283,7 @@ class TestCoordinator:
         coord = Coordinator(bus)
 
         from unittest.mock import MagicMock
+
         manager = MagicMock()
         coord.register_agent("agent_1", manager)
         assert "agent_1" in coord.agents
@@ -286,6 +294,7 @@ class TestCoordinator:
         coord = Coordinator(bus)
 
         from unittest.mock import MagicMock
+
         m1, m2 = MagicMock(), MagicMock()
         coord.register_agent("a1", m1)
         coord.register_agent("a2", m2)
@@ -296,6 +305,7 @@ class TestCoordinator:
         coord = Coordinator(bus)
 
         from unittest.mock import MagicMock
+
         manager = MagicMock()
         coord.register_agent("agent_1", manager)
         coord.unregister_agent("agent_1")

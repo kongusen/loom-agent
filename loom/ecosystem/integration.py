@@ -18,6 +18,7 @@ from .activation import Capability, CapabilityRegistry
 @dataclass
 class PluginLoadState:
     """Track components loaded from one plugin."""
+
     skill_names: list[str] = field(default_factory=list)
     mcp_server_names: list[str] = field(default_factory=list)
 
@@ -121,32 +122,29 @@ class EcosystemManager:
 
     def _parse_mcp_config(self, config_dict: dict, plugin_path: Path) -> MCPServerConfig:
         """Parse MCP config from dict"""
-        transport_type = MCPTransportType(config_dict.get('type', 'stdio'))
+        transport_type = MCPTransportType(config_dict.get("type", "stdio"))
 
         config = MCPServerConfig(type=transport_type)
 
         if transport_type == MCPTransportType.STDIO:
-            config.command = config_dict.get('command')
-            config.args = config_dict.get('args', [])
-            config.env = config_dict.get('env', {})
+            config.command = config_dict.get("command")
+            config.args = config_dict.get("args", [])
+            config.env = config_dict.get("env", {})
 
             # Resolve environment variables
             if config.command:
-                config.command = self.mcp_bridge.resolve_env_vars(
-                    config.command, str(plugin_path)
-                )
+                config.command = self.mcp_bridge.resolve_env_vars(config.command, str(plugin_path))
             if config.args:
                 config.args = [
-                    self.mcp_bridge.resolve_env_vars(arg, str(plugin_path))
-                    for arg in config.args
+                    self.mcp_bridge.resolve_env_vars(arg, str(plugin_path)) for arg in config.args
                 ]
         else:
-            config.url = config_dict.get('url')
-            config.headers = config_dict.get('headers', {})
+            config.url = config_dict.get("url")
+            config.headers = config_dict.get("headers", {})
 
-        config.disabled = config_dict.get('disabled', False)
-        config.auto_approve = config_dict.get('autoApprove', [])
-        config.instructions = config_dict.get('instructions', "")
+        config.disabled = config_dict.get("disabled", False)
+        config.auto_approve = config_dict.get("autoApprove", [])
+        config.instructions = config_dict.get("instructions", "")
 
         return config
 

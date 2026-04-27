@@ -55,6 +55,7 @@ async def test_engine_with_tools():
     print(f"✓ Registered {len(agent.config.tools)} tools")
 
     from loom.tools.schema import Tool as EngineToolSchema
+
     converted = agent._convert_tool_to_schema(agent._compiled_tools[0])
     assert isinstance(converted, EngineToolSchema)
     print("✓ Tool conversion works")
@@ -92,6 +93,7 @@ async def test_engine_components():
             async def _gen():
                 yield "Mock"
                 yield " response"
+
             return _gen()
 
     provider = MockProvider()
@@ -227,6 +229,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 

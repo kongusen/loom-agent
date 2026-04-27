@@ -7,12 +7,10 @@ MCP_LIST_TOOL = Tool(
     definition=ToolDefinition(
         name="ListMcpResources",
         description="列出 MCP 资源",
-        parameters=[
-            ToolParameter("server", "string", "服务器名", required=False)
-        ],
-        is_read_only=True
+        parameters=[ToolParameter("server", "string", "服务器名", required=False)],
+        is_read_only=True,
     ),
-    handler=mcp_list_resources
+    handler=mcp_list_resources,
 )
 
 MCP_READ_TOOL = Tool(
@@ -21,11 +19,11 @@ MCP_READ_TOOL = Tool(
         description="读取 MCP 资源",
         parameters=[
             ToolParameter("server", "string", "服务器名"),
-            ToolParameter("uri", "string", "资源 URI")
+            ToolParameter("uri", "string", "资源 URI"),
         ],
-        is_read_only=True
+        is_read_only=True,
     ),
-    handler=mcp_read_resource
+    handler=mcp_read_resource,
 )
 
 MCP_CALL_TOOL = Tool(
@@ -35,8 +33,8 @@ MCP_CALL_TOOL = Tool(
         parameters=[
             ToolParameter("server", "string", "服务器名"),
             ToolParameter("tool_name", "string", "工具名"),
-            ToolParameter("arguments", "object", "参数")
-        ]
+            ToolParameter("arguments", "object", "参数"),
+        ],
     ),
-    handler=mcp_call_tool
+    handler=mcp_call_tool,
 )

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 @dataclass
 class CoordinationEvent:
     """Event definition - V(e) = ΔH"""
+
     id: str
     sender: str
     topic: str
@@ -23,6 +24,7 @@ class CoordinationEvent:
 @dataclass
 class HeartbeatEvent:
     """Heartbeat perception event"""
+
     source: str
     event_type: str
     data: dict

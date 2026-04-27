@@ -186,7 +186,9 @@ class KnowledgeResolver:
     def resolve(self, query: KnowledgeQuery) -> KnowledgeEvidence:
         evidence = self.handler(query)
         if not isinstance(evidence, KnowledgeEvidence):
-            raise TypeError(f"knowledge resolver must return KnowledgeEvidence, got {type(evidence).__name__}")
+            raise TypeError(
+                f"knowledge resolver must return KnowledgeEvidence, got {type(evidence).__name__}"
+            )
         return evidence
 
     def to_context_payload(self) -> dict[str, Any]:

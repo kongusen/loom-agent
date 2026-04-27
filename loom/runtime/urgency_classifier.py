@@ -7,6 +7,7 @@ from typing import Literal
 
 UrgencyLevel = Literal["low", "high", "critical"]
 
+
 class HybridUrgencyClassifier:
     """混合紧迫度分类器"""
 

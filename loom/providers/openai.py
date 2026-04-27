@@ -114,7 +114,9 @@ class OpenAIProvider(LLMProvider):
             usage=TokenUsage(
                 input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                 output_tokens=getattr(usage, "completion_tokens", 0) or 0,
-            ) if usage is not None else None,
+            )
+            if usage is not None
+            else None,
             raw=response,
         )
 
@@ -181,7 +183,9 @@ class OpenAIProvider(LLMProvider):
             usage=TokenUsage(
                 input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                 output_tokens=getattr(usage, "completion_tokens", 0) or 0,
-            ) if usage is not None else None,
+            )
+            if usage is not None
+            else None,
         )
 
     def _parse_tool_deltas(self, tool_deltas: dict[int, dict[str, str]]) -> list[ToolCall]:
@@ -252,9 +256,7 @@ class OpenAIProvider(LLMProvider):
 
         payload = self._build_request(request.messages, request.params)
         ext = request.params.extensions or {}
-        expose_thinking = bool(
-            self._reasoning_ext_key and ext.get(self._reasoning_ext_key)
-        )
+        expose_thinking = bool(self._reasoning_ext_key and ext.get(self._reasoning_ext_key))
 
         stream = await self.client.chat.completions.create(**payload, stream=True)
         # tool_deltas: index → {"id", "name", "arguments"}
@@ -293,9 +295,7 @@ class OpenAIProvider(LLMProvider):
             if tc_deltas:
                 for tc in tc_deltas:
                     idx = getattr(tc, "index", 0)
-                    slot = tool_deltas.setdefault(
-                        idx, {"id": "", "name": "", "arguments": ""}
-                    )
+                    slot = tool_deltas.setdefault(idx, {"id": "", "name": "", "arguments": ""})
                     if getattr(tc, "id", None):
                         slot["id"] += tc.id
                     fn = getattr(tc, "function", None)
@@ -356,7 +356,9 @@ class OpenAIProvider(LLMProvider):
                             "type": "function",
                             "function": {
                                 "name": tool_call["name"],
-                                "arguments": json.dumps(tool_call.get("arguments", {}), ensure_ascii=False),
+                                "arguments": json.dumps(
+                                    tool_call.get("arguments", {}), ensure_ascii=False
+                                ),
                             },
                         }
                         for tool_call in tool_calls
@@ -399,14 +401,15 @@ class OpenAIProvider(LLMProvider):
                                 # Use URL directly
                                 image_url = source.get("url", "")
 
-                            content_parts.append({
-                                "type": "image_url",
-                                "image_url": {"url": image_url}
-                            })
+                            content_parts.append(
+                                {"type": "image_url", "image_url": {"url": image_url}}
+                            )
                     elif hasattr(block, "type"):
                         # ContentBlock dataclass
                         if block.type == "text":
-                            content_parts.append({"type": "text", "text": getattr(block, "text", "")})
+                            content_parts.append(
+                                {"type": "text", "text": getattr(block, "text", "")}
+                            )
                         elif block.type == "image":
                             # Convert to OpenAI image_url format
                             source = getattr(block, "source", {})
@@ -417,10 +420,9 @@ class OpenAIProvider(LLMProvider):
                             else:
                                 image_url = source.get("url", "")
 
-                            content_parts.append({
-                                "type": "image_url",
-                                "image_url": {"url": image_url}
-                            })
+                            content_parts.append(
+                                {"type": "image_url", "image_url": {"url": image_url}}
+                            )
 
                 converted.append({"role": role, "content": content_parts})
             else:
@@ -440,7 +442,11 @@ class OpenAIProvider(LLMProvider):
     def _extract_tool_calls(self, value: Any) -> list[ToolCall]:
         tool_calls: list[ToolCall] = []
         for item in value or []:
-            function = item.get("function", {}) if isinstance(item, dict) else getattr(item, "function", None)
+            function = (
+                item.get("function", {})
+                if isinstance(item, dict)
+                else getattr(item, "function", None)
+            )
             if function is None:
                 continue
             raw_arguments = (

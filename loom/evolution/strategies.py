@@ -136,20 +136,26 @@ class ToolLearningStrategy(EvolutionStrategy):
             for tool_name, stats in sorted(
                 tool_stats.items(),
                 key=lambda item: (
-                    item[1]["success_rate"] if isinstance(item[1]["success_rate"], int | float) else 0.0,
+                    item[1]["success_rate"]
+                    if isinstance(item[1]["success_rate"], int | float)
+                    else 0.0,
                     item[1]["avg_score"] if isinstance(item[1]["avg_score"], int | float) else -1.0,
                     item[1]["calls"] if isinstance(item[1]["calls"], int) else 0,
                 ),
                 reverse=True,
             )
-            if isinstance(stats["calls"], int) and stats["calls"] >= self.min_examples
-            and isinstance(stats["success_rate"], int | float) and stats["success_rate"] >= self.success_threshold
+            if isinstance(stats["calls"], int)
+            and stats["calls"] >= self.min_examples
+            and isinstance(stats["success_rate"], int | float)
+            and stats["success_rate"] >= self.success_threshold
         ]
         discouraged_tools = [
             tool_name
             for tool_name, stats in tool_stats.items()
-            if isinstance(stats["calls"], int) and stats["calls"] >= self.min_examples
-            and isinstance(stats["failures"], int) and isinstance(stats["successes"], int)
+            if isinstance(stats["calls"], int)
+            and stats["calls"] >= self.min_examples
+            and isinstance(stats["failures"], int)
+            and isinstance(stats["successes"], int)
             and stats["failures"] > stats["successes"]
         ]
 
@@ -212,7 +218,10 @@ class PolicyOptimizationStrategy(EvolutionStrategy):
                 stats["blocked"] += 1
             if event_type in {"policy_override", "approval_required", "approved"}:
                 stats["approvals"] += 1
-            if item.get("risk") in {"high", "critical"} or item.get("severity") in {"high", "critical"}:
+            if item.get("risk") in {"high", "critical"} or item.get("severity") in {
+                "high",
+                "critical",
+            }:
                 stats["risky"] += 1
             if success is True or event_type in {"success", "completed"}:
                 stats["successes"] += 1
@@ -282,9 +291,7 @@ class ConstraintHardeningStrategy(EvolutionStrategy):
 
     def apply(self, agent):
         feedback = self._feedback_entries(agent)
-        existing: dict[str, dict] = dict(
-            getattr(agent, "hardened_constraints", {}) or {}
-        )
+        existing: dict[str, dict] = dict(getattr(agent, "hardened_constraints", {}) or {})
 
         # Collect failure root causes → candidate new constraints
         for item in feedback:
@@ -344,13 +351,15 @@ class AmoebaSplitStrategy(EvolutionStrategy):
                 continue
             ratio = stats["early_stop"] / stats["total"]
             if ratio > self.split_threshold:
-                split_recommendations.append({
-                    "domain": domain,
-                    "task_ratio": round(ratio, 3),
-                    "total": stats["total"],
-                    "early_stop": stats["early_stop"],
-                    "recommendation": f"spawn specialist sub-agent for domain '{domain}'",
-                })
+                split_recommendations.append(
+                    {
+                        "domain": domain,
+                        "task_ratio": round(ratio, 3),
+                        "total": stats["total"],
+                        "early_stop": stats["early_stop"],
+                        "recommendation": f"spawn specialist sub-agent for domain '{domain}'",
+                    }
+                )
 
         result = {
             "split_recommendations": split_recommendations,

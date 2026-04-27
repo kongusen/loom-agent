@@ -10,7 +10,9 @@ async def main():
         model=Model.anthropic("claude-sonnet-4"),
         instructions="You are a repository analyst.",
     )
-    run = agent.session(SessionConfig(id="events-demo")).start("Analyze the structure of a Python project")
+    run = agent.session(SessionConfig(id="events-demo")).start(
+        "Analyze the structure of a Python project"
+    )
 
     # Events
     print("=== Events ===")

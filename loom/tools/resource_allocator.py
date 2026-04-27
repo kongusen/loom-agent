@@ -8,12 +8,15 @@ from typing import Literal
 
 EffortLevel = Literal["low", "medium", "high"]
 
+
 @dataclass
 class ResourceAllocation:
     """资源分配配置"""
+
     timeout: int
     token_budget: int
     tool_depth: int
+
 
 def allocate_resources(effort: EffortLevel) -> ResourceAllocation:
     """根据 effort hint 分配资源
@@ -26,6 +29,6 @@ def allocate_resources(effort: EffortLevel) -> ResourceAllocation:
     allocations = {
         "low": ResourceAllocation(timeout=30, token_budget=1000, tool_depth=2),
         "medium": ResourceAllocation(timeout=60, token_budget=3000, tool_depth=4),
-        "high": ResourceAllocation(timeout=120, token_budget=8000, tool_depth=7)
+        "high": ResourceAllocation(timeout=120, token_budget=8000, tool_depth=7),
     }
     return allocations[effort]

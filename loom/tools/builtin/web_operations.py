@@ -23,7 +23,7 @@ async def web_fetch(url: str, prompt: str = "") -> dict[str, Any]:
                 "url": url,
                 "content": f"Error: Invalid URL '{url}'. Must start with http:// or https://",
                 "status_code": 0,
-                "error": "Invalid URL"
+                "error": "Invalid URL",
             }
 
         # Fetch with timeout
@@ -45,39 +45,35 @@ async def web_fetch(url: str, prompt: str = "") -> dict[str, Any]:
             else:
                 content = f"Binary content from {url} (Content-Type: {content_type})"
 
-            return {
-                "url": url,
-                "content": content,
-                "status_code": response.status_code
-            }
+            return {"url": url, "content": content, "status_code": response.status_code}
 
     except httpx.TimeoutException:
         return {
             "url": url,
             "content": f"Error: Request to {url} timed out after 10 seconds",
             "status_code": 0,
-            "error": "Timeout"
+            "error": "Timeout",
         }
     except httpx.HTTPStatusError as e:
         return {
             "url": url,
             "content": f"Error: HTTP {e.response.status_code} from {url}",
             "status_code": e.response.status_code,
-            "error": f"HTTP {e.response.status_code}"
+            "error": f"HTTP {e.response.status_code}",
         }
     except httpx.RequestError as e:
         return {
             "url": url,
             "content": f"Error: Failed to fetch {url}: {str(e)}",
             "status_code": 0,
-            "error": str(e)
+            "error": str(e),
         }
     except Exception as e:
         return {
             "url": url,
             "content": f"Error: Unexpected error fetching {url}: {str(e)}",
             "status_code": 0,
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -97,7 +93,7 @@ async def web_search(query: str, num_results: int = 5) -> dict[str, Any]:
             response = await client.get(
                 "https://html.duckduckgo.com/html/",
                 params={"q": query},
-                headers={"User-Agent": "Mozilla/5.0 (compatible; LoomAgent/1.0)"}
+                headers={"User-Agent": "Mozilla/5.0 (compatible; LoomAgent/1.0)"},
             )
             response.raise_for_status()
 
@@ -105,42 +101,22 @@ async def web_search(query: str, num_results: int = 5) -> dict[str, Any]:
             results = _parse_duckduckgo_results(response.text, num_results)
 
             if not results:
-                return {
-                    "query": query,
-                    "results": [],
-                    "message": f"No results found for: {query}"
-                }
+                return {"query": query, "results": [], "message": f"No results found for: {query}"}
 
-            return {
-                "query": query,
-                "results": results,
-                "message": f"Found {len(results)} results"
-            }
+            return {"query": query, "results": results, "message": f"Found {len(results)} results"}
 
     except httpx.TimeoutException:
-        return {
-            "query": query,
-            "results": [],
-            "error": "Search request timed out after 10 seconds"
-        }
+        return {"query": query, "results": [], "error": "Search request timed out after 10 seconds"}
     except httpx.HTTPStatusError as e:
         return {
             "query": query,
             "results": [],
-            "error": f"HTTP {e.response.status_code} from search service"
+            "error": f"HTTP {e.response.status_code} from search service",
         }
     except httpx.RequestError as e:
-        return {
-            "query": query,
-            "results": [],
-            "error": f"Failed to search: {str(e)}"
-        }
+        return {"query": query, "results": [], "error": f"Failed to search: {str(e)}"}
     except Exception as e:
-        return {
-            "query": query,
-            "results": [],
-            "error": f"Unexpected error during search: {str(e)}"
-        }
+        return {"query": query, "results": [], "error": f"Unexpected error during search: {str(e)}"}
 
 
 def _extract_text_from_html(html: str) -> str:
@@ -152,7 +128,7 @@ def _extract_text_from_html(html: str) -> str:
             def __init__(self):
                 super().__init__()
                 self.text_parts = []
-                self.skip_tags = {'script', 'style', 'head', 'meta', 'link'}
+                self.skip_tags = {"script", "style", "head", "meta", "link"}
                 self.current_tag = None
 
             def handle_starttag(self, tag, attrs):
@@ -196,8 +172,9 @@ def _extract_text_from_html(html: str) -> str:
     except Exception:
         # Fallback: simple tag removal
         import re
-        text = re.sub(r'<[^>]+>', '', html)
-        text = re.sub(r'\s+', ' ', text).strip()
+
+        text = re.sub(r"<[^>]+>", "", html)
+        text = re.sub(r"\s+", " ", text).strip()
 
         max_length = 5000
         if len(text) > max_length:
@@ -224,30 +201,34 @@ def _parse_duckduckgo_results(html: str, num_results: int) -> list[dict]:
             def handle_starttag(self, tag, attrs):
                 attrs_dict = dict(attrs)
 
-                if tag == 'div' and attrs_dict.get('class', '').startswith('result'):
+                if tag == "div" and attrs_dict.get("class", "").startswith("result"):
                     self.in_result = True
                     self.current_result = {}
 
-                if self.in_result and tag == 'a' and 'result__a' in attrs_dict.get('class', ''):
+                if self.in_result and tag == "a" and "result__a" in attrs_dict.get("class", ""):
                     self.in_title = True
-                    self.current_result['url'] = attrs_dict.get('href', '')
+                    self.current_result["url"] = attrs_dict.get("href", "")
                     self.current_data = []
 
-                if self.in_result and tag == 'a' and 'result__snippet' in attrs_dict.get('class', ''):
+                if (
+                    self.in_result
+                    and tag == "a"
+                    and "result__snippet" in attrs_dict.get("class", "")
+                ):
                     self.in_snippet = True
                     self.current_data = []
 
             def handle_endtag(self, tag):
-                if tag == 'a' and self.in_title:
-                    self.current_result['title'] = ''.join(self.current_data).strip()
+                if tag == "a" and self.in_title:
+                    self.current_result["title"] = "".join(self.current_data).strip()
                     self.in_title = False
 
-                if tag == 'a' and self.in_snippet:
-                    self.current_result['snippet'] = ''.join(self.current_data).strip()
+                if tag == "a" and self.in_snippet:
+                    self.current_result["snippet"] = "".join(self.current_data).strip()
                     self.in_snippet = False
 
-                if tag == 'div' and self.in_result:
-                    if self.current_result.get('title') and self.current_result.get('url'):
+                if tag == "div" and self.in_result:
+                    if self.current_result.get("title") and self.current_result.get("url"):
                         self.results.append(self.current_result)
                     self.in_result = False
                     self.current_result = {}
@@ -263,4 +244,3 @@ def _parse_duckduckgo_results(html: str, num_results: int) -> list[dict]:
 
     except Exception:
         return []
-

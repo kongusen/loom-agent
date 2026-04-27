@@ -141,9 +141,7 @@ class InMemorySessionStore(SessionStore):
     def delete_session(self, session_id: str) -> None:
         self.sessions.pop(session_id, None)
         self.runs = {
-            run_id: run
-            for run_id, run in self.runs.items()
-            if run.session_id != session_id
+            run_id: run for run_id, run in self.runs.items() if run.session_id != session_id
         }
         self.transcripts = {
             run_id: transcript

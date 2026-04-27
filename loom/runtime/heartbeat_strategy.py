@@ -9,9 +9,11 @@ from typing import Literal
 
 class Phase(Enum):
     """执行阶段"""
+
     REASON = "reason"
     ACT = "act"
     OBSERVE = "observe"
+
 
 class HeartbeatStrategy:
     """动态心跳间隔"""

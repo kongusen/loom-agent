@@ -103,7 +103,9 @@ class AnthropicProvider(LLMProvider):
             usage=TokenUsage(
                 input_tokens=getattr(usage, "input_tokens", 0) or 0,
                 output_tokens=getattr(usage, "output_tokens", 0) or 0,
-            ) if usage is not None else None,
+            )
+            if usage is not None
+            else None,
             raw=response,
         )
 
@@ -308,11 +310,15 @@ class AnthropicProvider(LLMProvider):
                 {
                     "name": tool["name"],
                     "description": tool.get("description", ""),
-                    "input_schema": tool.get("parameters", {"type": "object", "properties": {}, "required": []}),
+                    "input_schema": tool.get(
+                        "parameters", {"type": "object", "properties": {}, "required": []}
+                    ),
                 }
                 for tool in tools
             ]
-            request["tool_choice"] = {"type": resolved.tool_choice} if resolved.tool_choice else {"type": "auto"}
+            request["tool_choice"] = (
+                {"type": resolved.tool_choice} if resolved.tool_choice else {"type": "auto"}
+            )
         return request
 
     def _convert_messages(self, messages: list) -> tuple[str | None, list[dict]]:
@@ -447,5 +453,7 @@ class AnthropicProvider(LLMProvider):
                 elif block.type == "image":
                     content_blocks.append({"type": "image", "source": getattr(block, "source", {})})
                 elif block.type == "document":
-                    content_blocks.append({"type": "document", "source": getattr(block, "source", {})})
+                    content_blocks.append(
+                        {"type": "document", "source": getattr(block, "source", {})}
+                    )
         return content_blocks

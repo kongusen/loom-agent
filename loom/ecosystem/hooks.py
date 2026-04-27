@@ -9,8 +9,9 @@ from typing import Any
 @dataclass
 class SkillHooks:
     """Skill lifecycle hooks"""
-    on_load: Callable[[], Any] | None = None      # 加载时执行
-    on_invoke: Callable[[], Any] | None = None    # 调用前执行
+
+    on_load: Callable[[], Any] | None = None  # 加载时执行
+    on_invoke: Callable[[], Any] | None = None  # 调用前执行
     on_complete: Callable[[Any], Any] | None = None  # 完成后执行
     on_error: Callable[[Exception], Any] | None = None  # 错误时执行
 
@@ -91,18 +92,18 @@ def parse_hooks_from_frontmatter(frontmatter: dict) -> SkillHooks | None:
           onComplete: print("Skill completed")
           onError: print("Skill failed")
     """
-    if 'hooks' not in frontmatter:
+    if "hooks" not in frontmatter:
         return None
 
-    hooks_data = frontmatter['hooks']
+    hooks_data = frontmatter["hooks"]
     if not isinstance(hooks_data, dict):
         return None
 
     # For now, we store hook definitions as strings
     # In a full implementation, these would be compiled/evaluated
     return SkillHooks(
-        on_load=hooks_data.get('onLoad'),
-        on_invoke=hooks_data.get('onInvoke'),
-        on_complete=hooks_data.get('onComplete'),
-        on_error=hooks_data.get('onError'),
+        on_load=hooks_data.get("onLoad"),
+        on_invoke=hooks_data.get("onInvoke"),
+        on_complete=hooks_data.get("onComplete"),
+        on_error=hooks_data.get("onError"),
     )

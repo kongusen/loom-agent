@@ -63,7 +63,7 @@ class TestShellExec:
             env={"CUSTOM_FLAG": "enabled"},
             timeout=5,
         )
-        output = await execute_bash_command("printf %s \"$CUSTOM_FLAG\"", config)
+        output = await execute_bash_command('printf %s "$CUSTOM_FLAG"', config)
         assert output == "enabled"
 
     @pytest.mark.asyncio
@@ -94,12 +94,15 @@ class TestShellExec:
             _ = timeout
             raise TimeoutError
 
-        with patch(
-            "loom.ecosystem.shell_exec.asyncio.create_subprocess_shell",
-            new=fake_create_subprocess_shell,
-        ), patch(
-            "loom.ecosystem.shell_exec.asyncio.wait_for",
-            new=fake_wait_for,
+        with (
+            patch(
+                "loom.ecosystem.shell_exec.asyncio.create_subprocess_shell",
+                new=fake_create_subprocess_shell,
+            ),
+            patch(
+                "loom.ecosystem.shell_exec.asyncio.wait_for",
+                new=fake_wait_for,
+            ),
         ):
             result = await execute_bash_command("sleep 10")
 

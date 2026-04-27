@@ -106,11 +106,7 @@ class ProviderToolSpec:
                     parameter.name: parameter.to_json_schema_property()
                     for parameter in self.parameters
                 },
-                "required": [
-                    parameter.name
-                    for parameter in self.parameters
-                    if parameter.required
-                ],
+                "required": [parameter.name for parameter in self.parameters if parameter.required],
             },
         }
 
@@ -118,6 +114,7 @@ class ProviderToolSpec:
 @dataclass
 class CompletionParams:
     """LLM completion parameters"""
+
     model: str = "claude-3-5-sonnet-20241022"
     max_tokens: int = 4096
     temperature: float = 1.0
@@ -171,6 +168,7 @@ class CompletionRequest:
 @dataclass
 class TokenUsage:
     """Token usage statistics"""
+
     input_tokens: int = 0
     output_tokens: int = 0
 
@@ -192,9 +190,10 @@ class CompletionResponse:
 @dataclass
 class RetryConfig:
     """Retry + circuit-breaker config."""
+
     max_retries: int = 3
-    base_delay: float = 1.0       # seconds, exponential backoff
-    circuit_open_after: int = 5   # consecutive failures before open
+    base_delay: float = 1.0  # seconds, exponential backoff
+    circuit_open_after: int = 5  # consecutive failures before open
     circuit_reset_after: float = 60.0  # seconds before half-open
 
 
@@ -210,6 +209,7 @@ class CircuitBreaker:
         if self._opened_at is None:
             return False
         import time
+
         if time.monotonic() - self._opened_at >= self._cfg.circuit_reset_after:
             self._opened_at = None  # half-open: allow one attempt
             return False
@@ -223,6 +223,7 @@ class CircuitBreaker:
         self._failures += 1
         if self._failures >= self._cfg.circuit_open_after:
             import time
+
             self._opened_at = time.monotonic()
             logger.warning("Circuit breaker opened after %d failures", self._failures)
 
@@ -279,6 +280,7 @@ class LLMProvider:
                 for each token chunk.  May be ``None``.
         """
         import inspect
+
         response = await self._complete_response(messages, params)
         if on_token is not None and response.content:
             result = on_token(response.content)
@@ -360,9 +362,7 @@ class LLMProvider:
         on_token: "Any | None" = None,
     ) -> CompletionResponse:
         """Stream a structured request and return the final response."""
-        return await self._with_retry(
-            lambda: self._complete_request_streaming(request, on_token)
-        )
+        return await self._with_retry(lambda: self._complete_request_streaming(request, on_token))
 
     async def stream_request_events(
         self,
@@ -416,9 +416,14 @@ class LLMProvider:
                 last_exc = exc
                 self._circuit.record_failure()
                 if attempt < self._retry.max_retries - 1:
-                    delay = self._retry.base_delay * (2 ** attempt)
-                    logger.warning("Provider error (attempt %d/%d): %s — retrying in %.1fs",
-                                   attempt + 1, self._retry.max_retries, exc, delay)
+                    delay = self._retry.base_delay * (2**attempt)
+                    logger.warning(
+                        "Provider error (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt + 1,
+                        self._retry.max_retries,
+                        exc,
+                        delay,
+                    )
                     await asyncio.sleep(delay)
 
         if last_exc is None:

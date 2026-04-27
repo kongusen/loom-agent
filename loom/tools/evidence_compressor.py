@@ -30,11 +30,13 @@ class ConflictPriorityStrategy:
         # 补充非冲突证据（摘要形式）
         remaining = [p for p in evidence_packs if p.get("id") not in conflicts]
         if remaining:
-            priority.append({
-                "type": "summary",
-                "count": len(remaining),
-                "sources": [p.get("source") for p in remaining[:3]]
-            })
+            priority.append(
+                {
+                    "type": "summary",
+                    "count": len(remaining),
+                    "sources": [p.get("source") for p in remaining[:3]],
+                }
+            )
 
         return priority
 

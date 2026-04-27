@@ -47,8 +47,7 @@ class CapabilitySpec:
 class RuntimeCapabilityProvider(Protocol):
     """Protocol for objects that provide capabilities to a runtime."""
 
-    def capabilities(self) -> Iterable[CapabilitySpec]:
-        ...
+    def capabilities(self) -> Iterable[CapabilitySpec]: ...
 
 
 class Capability:
@@ -112,10 +111,7 @@ class Capability:
         if not require_approval:
             toolset = replace(
                 toolset,
-                tools=[
-                    replace(tool, requires_permission=False)
-                    for tool in toolset.tools
-                ],
+                tools=[replace(tool, requires_permission=False) for tool in toolset.tools],
             )
         return CapabilitySpec(
             name=name,
@@ -220,9 +216,7 @@ def activate_capability(capability: CapabilitySpec, ecosystem_manager: Any) -> b
 
 def _normalize_capability(capability: CapabilitySpec) -> CapabilitySpec:
     if not isinstance(capability, CapabilitySpec):
-        raise TypeError(
-            f"capability must be CapabilitySpec, got {type(capability).__name__}"
-        )
+        raise TypeError(f"capability must be CapabilitySpec, got {type(capability).__name__}")
     source = capability.source
     if not isinstance(source, CapabilitySource):
         source = CapabilitySource(source)
@@ -244,8 +238,7 @@ def _flatten_tool_entries(entries: Iterable[ToolSpec | Toolset]) -> list[ToolSpe
             tools.extend(entry.tools)
         else:
             raise TypeError(
-                "capability tools must be ToolSpec or Toolset, "
-                f"got {type(entry).__name__}"
+                "capability tools must be ToolSpec or Toolset, " f"got {type(entry).__name__}"
             )
     return tools
 
@@ -315,10 +308,7 @@ def _should_connect_mcp_server(raw_config: dict[str, Any], config: Any) -> bool:
     if explicit is not None:
         return bool(explicit)
     return bool(
-        config.command
-        or config.mock_tools
-        or config.mock_resources
-        or config.mock_tool_results
+        config.command or config.mock_tools or config.mock_resources or config.mock_tool_results
     )
 
 

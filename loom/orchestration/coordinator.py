@@ -63,7 +63,12 @@ class Coordinator:
                 except Exception as exc:
                     result = SubAgentResult(success=False, output="", depth=depth, error=str(exc))
                 planner.update_status(task.id, "completed" if result.success else "failed")
-                self._publish("task.completed" if result.success else "task.failed", agent_id, task, result=result)
+                self._publish(
+                    "task.completed" if result.success else "task.failed",
+                    agent_id,
+                    task,
+                    result=result,
+                )
                 return task.id, result
 
             pairs = await asyncio.gather(*[_run_task(t) for t in pending])

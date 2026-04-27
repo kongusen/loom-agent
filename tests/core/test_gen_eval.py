@@ -1,6 +1,5 @@
 """Tests for GeneratorEvaluatorLoop and SprintContract."""
 
-
 import pytest
 
 from loom.orchestration.events import CoordinationEventBus
@@ -13,6 +12,7 @@ from loom.runtime.task import RuntimeTask
 from loom.types.results import SubAgentResult
 
 # ── SprintContract ──────────────────────────────────────────────────────────
+
 
 class TestSprintContract:
     def test_creation(self):
@@ -38,6 +38,7 @@ class TestSprintContract:
 
 # ── Stubs ────────────────────────────────────────────────────────────────────
 
+
 class _StubManager:
     """Minimal SubAgentManager stub for testing."""
 
@@ -46,7 +47,9 @@ class _StubManager:
         self._call_count = 0
         self.prompts: list[str] = []
 
-    async def spawn(self, goal: str, depth: int = 0, inherit_context: bool = True) -> SubAgentResult:
+    async def spawn(
+        self, goal: str, depth: int = 0, inherit_context: bool = True
+    ) -> SubAgentResult:
         self.prompts.append(goal)
         idx = min(self._call_count, len(self._responses) - 1)
         response = self._responses[idx]
@@ -57,7 +60,9 @@ class _StubManager:
 class _FailingManager:
     """Stub that always returns a failed result."""
 
-    async def spawn(self, goal: str, depth: int = 0, inherit_context: bool = True) -> SubAgentResult:
+    async def spawn(
+        self, goal: str, depth: int = 0, inherit_context: bool = True
+    ) -> SubAgentResult:
         return SubAgentResult(success=False, output="boom", depth=depth + 1, error="boom")
 
 
@@ -87,15 +92,18 @@ class _QualityGate:
 
 # ── GeneratorEvaluatorLoop ───────────────────────────────────────────────────
 
+
 class TestGeneratorEvaluatorLoop:
     @pytest.mark.asyncio
     async def test_pass_on_first_sprint(self):
         """When evaluator returns PASS on the first sprint, loop exits early."""
         # evaluator: negotiate criteria, then evaluate → PASS
-        evaluator = _StubManager([
-            "criterion 1\ncriterion 2",  # negotiate
-            "PASS\nLooks great",          # eval
-        ])
+        evaluator = _StubManager(
+            [
+                "criterion 1\ncriterion 2",  # negotiate
+                "PASS\nLooks great",  # eval
+            ]
+        )
         generator = _StubManager(["Here is the output"])
 
         loop = GeneratorEvaluatorLoop(generator=generator, evaluator=evaluator)
@@ -110,12 +118,14 @@ class TestGeneratorEvaluatorLoop:
     @pytest.mark.asyncio
     async def test_fail_then_pass_carries_critique(self):
         """Critique from sprint 1 FAIL is carried into sprint 2 generator prompt."""
-        evaluator = _StubManager([
-            "criterion A",      # negotiate sprint 1
-            "FAIL\nMissing X",  # eval sprint 1
-            "criterion A",      # negotiate sprint 2
-            "PASS\nGood",       # eval sprint 2
-        ])
+        evaluator = _StubManager(
+            [
+                "criterion A",  # negotiate sprint 1
+                "FAIL\nMissing X",  # eval sprint 1
+                "criterion A",  # negotiate sprint 2
+                "PASS\nGood",  # eval sprint 2
+            ]
+        )
         generator = _StubManager(["output v1", "output v2"])
 
         loop = GeneratorEvaluatorLoop(generator=generator, evaluator=evaluator)
@@ -132,9 +142,7 @@ class TestGeneratorEvaluatorLoop:
     @pytest.mark.asyncio
     async def test_max_sprints_exhausted_returns_all(self):
         """When max_sprints is exhausted without PASS, all results are returned."""
-        always_fail_eval = _StubManager(
-            ["criterion A", "FAIL\nbad"] * 10
-        )
+        always_fail_eval = _StubManager(["criterion A", "FAIL\nbad"] * 10)
         generator = _StubManager(["output"] * 10)
 
         loop = GeneratorEvaluatorLoop(generator=generator, evaluator=always_fail_eval)
@@ -148,12 +156,14 @@ class TestGeneratorEvaluatorLoop:
         """sprint.passed and sprint.failed events are published to the event bus."""
         bus = CoordinationEventBus(delta_min=0.0)
 
-        evaluator = _StubManager([
-            "criterion A",
-            "FAIL\nbad",
-            "criterion A",
-            "PASS\nok",
-        ])
+        evaluator = _StubManager(
+            [
+                "criterion A",
+                "FAIL\nbad",
+                "criterion A",
+                "PASS\nok",
+            ]
+        )
         generator = _StubManager(["v1", "v2"])
 
         loop = GeneratorEvaluatorLoop(generator=generator, evaluator=evaluator, event_bus=bus)
@@ -190,10 +200,12 @@ class TestGeneratorEvaluatorLoop:
     @pytest.mark.asyncio
     async def test_sprint_contract_criteria_used_in_eval_prompt(self):
         """The criteria from the contract appear in the evaluator's judgment prompt."""
-        evaluator = _StubManager([
-            "must have feature X\nmust be fast",
-            "PASS\nAll criteria met",
-        ])
+        evaluator = _StubManager(
+            [
+                "must have feature X\nmust be fast",
+                "PASS\nAll criteria met",
+            ]
+        )
         generator = _StubManager(["good output"])
 
         loop = GeneratorEvaluatorLoop(generator=generator, evaluator=evaluator)

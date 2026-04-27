@@ -41,10 +41,7 @@ async def task_update(task_id: str, status: str) -> dict[str, Any]:
 
 async def task_list() -> dict[str, Any]:
     """列出所有任务"""
-    tasks = [
-        {"id": t.id, "subject": t.subject, "status": t.status}
-        for t in _tasks.values()
-    ]
+    tasks = [{"id": t.id, "subject": t.subject, "status": t.status} for t in _tasks.values()]
     return {"tasks": tasks, "count": len(tasks)}
 
 
@@ -58,5 +55,5 @@ async def task_get(task_id: str) -> dict[str, Any]:
         "id": task.id,
         "subject": task.subject,
         "description": task.description,
-        "status": task.status
+        "status": task.status,
     }

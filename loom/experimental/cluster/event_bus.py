@@ -9,6 +9,7 @@ from pathlib import Path
 @dataclass
 class ClusterEvent:
     """事件定义"""
+
     event_id: str
     source: str
     data: dict
@@ -27,13 +28,17 @@ class ClusterEventBus:
     def publish(self, event: ClusterEvent):
         """发布事件到 M_f"""
         event_file = self.mf_path / f"{event.event_id}.json"
-        event_file.write_text(json.dumps({
-            "event_id": event.event_id,
-            "source": event.source,
-            "data": event.data,
-            "delta_H": event.delta_H,
-            "timestamp": event.timestamp,
-        }))
+        event_file.write_text(
+            json.dumps(
+                {
+                    "event_id": event.event_id,
+                    "source": event.source,
+                    "data": event.data,
+                    "delta_H": event.delta_H,
+                    "timestamp": event.timestamp,
+                }
+            )
+        )
 
         # 通知订阅者
         for callback in self.subscribers.get(event.source, []):

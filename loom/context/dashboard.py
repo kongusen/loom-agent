@@ -65,7 +65,10 @@ class DashboardManager:
             ):
                 return
             self.dashboard.event_surface.pending_events.append(event)
-            if len(self.dashboard.event_surface.pending_events) >= _PENDING_EVENTS_AGGREGATE_THRESHOLD:
+            if (
+                len(self.dashboard.event_surface.pending_events)
+                >= _PENDING_EVENTS_AGGREGATE_THRESHOLD
+            ):
                 self.dashboard.event_surface.pending_events = self._aggregator.aggregate(
                     self.dashboard.event_surface.pending_events
                 )
@@ -74,12 +77,14 @@ class DashboardManager:
         """Acknowledge event and move to recent_event_decisions"""
         with self._lock:
             self.dashboard.event_surface.pending_events = [
-                e for e in self.dashboard.event_surface.pending_events
-                if e.get('event_id') != event_id
+                e
+                for e in self.dashboard.event_surface.pending_events
+                if e.get("event_id") != event_id
             ]
             self.dashboard.event_surface.active_risks = [
-                risk for risk in self.dashboard.event_surface.active_risks
-                if risk.get('event_id') != event_id
+                risk
+                for risk in self.dashboard.event_surface.active_risks
+                if risk.get("event_id") != event_id
             ]
             if event_id and "event_id" not in decision:
                 decision = {**decision, "event_id": event_id}

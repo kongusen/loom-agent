@@ -7,6 +7,7 @@ from typing import Literal
 
 ModelType = Literal["haiku", "opus"]
 
+
 class CacheAwareScheduler:
     """Cache-aware 混合调度"""
 
@@ -14,9 +15,7 @@ class CacheAwareScheduler:
         self.cache_hit_rate = 0.0
 
     def select_model(
-        self,
-        task_type: Literal["explore", "reason"],
-        cache_available: bool
+        self, task_type: Literal["explore", "reason"], cache_available: bool
     ) -> ModelType:
         """选择最优模型
 

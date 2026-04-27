@@ -133,7 +133,11 @@ class PermissionManager:
                     effective_mode=self.mode,
                 )
 
-            if permission.risk_levels and risk in permission.risk_levels and self.mode != PermissionMode.AUTO:
+            if (
+                permission.risk_levels
+                and risk in permission.risk_levels
+                and self.mode != PermissionMode.AUTO
+            ):
                 return PermissionDecision(
                     allowed=False,
                     reason=permission.note or f"Risk level {risk} requires approval",
@@ -142,7 +146,9 @@ class PermissionManager:
                     effective_mode=self.mode,
                 )
 
-            if (permission.requires_approval or hook_decision == HookDecision.ASK) and self.mode != PermissionMode.AUTO:
+            if (
+                permission.requires_approval or hook_decision == HookDecision.ASK
+            ) and self.mode != PermissionMode.AUTO:
                 return PermissionDecision(
                     allowed=False,
                     reason=permission.note or "Approval required",

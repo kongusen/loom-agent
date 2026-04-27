@@ -47,7 +47,7 @@ async def main():
         print()
 
         # Show content with executed shell commands
-        content = result['content']
+        content = result["content"]
         print("Content preview (first 800 chars):")
         print("-" * 50)
         print(content[:800])
@@ -56,7 +56,7 @@ async def main():
         print()
 
         # Check if custom environment variable was used
-        if 'CUSTOM_VAR' in content or 'Hello from custom shell' in content:
+        if "CUSTOM_VAR" in content or "Hello from custom shell" in content:
             print("✅ Custom environment variable detected in output")
         else:
             print("⚠️  Custom environment variable not found in output")
@@ -69,9 +69,9 @@ async def main():
     print("\n3. Testing Token Estimation (Frontmatter vs Full)")
     print("-" * 50)
 
-
     # Get registry
     from loom.tools.builtin.skill_operations import _get_or_create_registry
+
     registry = _get_or_create_registry()
 
     skill_obj = registry.get("custom-shell")
@@ -82,7 +82,9 @@ async def main():
         print(f"Skill: {skill_obj.name}")
         print(f"   Frontmatter only: ~{frontmatter_tokens} tokens")
         print(f"   Full content: ~{full_tokens} tokens")
-        print(f"   Savings: ~{full_tokens - frontmatter_tokens} tokens ({100 - int(frontmatter_tokens/full_tokens*100)}%)")
+        print(
+            f"   Savings: ~{full_tokens - frontmatter_tokens} tokens ({100 - int(frontmatter_tokens/full_tokens*100)}%)"
+        )
         print()
         print("✅ Progressive loading saves tokens during discovery")
     else:

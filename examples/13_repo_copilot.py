@@ -22,7 +22,9 @@ async def read_file(path: str) -> str:
 
 
 def resolve_model():
-    provider = os.getenv("LOOM_PROVIDER", "openai" if os.getenv("OPENAI_API_KEY") else "anthropic").lower()
+    provider = os.getenv(
+        "LOOM_PROVIDER", "openai" if os.getenv("OPENAI_API_KEY") else "anthropic"
+    ).lower()
     model_name = os.getenv("LOOM_MODEL_NAME")
     if provider == "openai":
         return Model.openai(
@@ -65,7 +67,9 @@ async def main():
         )
     )
 
-    first = await session.run("Summarize what this repository is trying to expose to application developers.")
+    first = await session.run(
+        "Summarize what this repository is trying to expose to application developers."
+    )
     second = await session.run(
         "Based on the previous answer, what should be tightened next?",
         context=RunContext(

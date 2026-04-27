@@ -92,7 +92,7 @@ class SessionRestorePolicy:
         if not self.enabled:
             return []
 
-        selected = transcripts[-max(0, self.max_transcripts):] if self.max_transcripts else []
+        selected = transcripts[-max(0, self.max_transcripts) :] if self.max_transcripts else []
         messages: list[dict[str, Any]] = []
 
         if self.include_transcript:
@@ -112,13 +112,15 @@ class SessionRestorePolicy:
             if role not in {"user", "assistant"}:
                 continue
             content = message.get("content", "")
-            restored.append({
-                "role": role,
-                "content": content if isinstance(content, str) else str(content),
-            })
+            restored.append(
+                {
+                    "role": role,
+                    "content": content if isinstance(content, str) else str(content),
+                }
+            )
         if self.max_messages <= 0:
             return []
-        return restored[-self.max_messages:]
+        return restored[-self.max_messages :]
 
     def _render_runtime_state(self, transcripts: list[TranscriptRecord]) -> str:
         sections: list[str] = []
@@ -131,7 +133,7 @@ class SessionRestorePolicy:
                     "Events: "
                     + "; ".join(
                         _summarize_event(event)
-                        for event in transcript.events[-self.max_runtime_items:]
+                        for event in transcript.events[-self.max_runtime_items :]
                     )
                 )
             if self.include_artifacts and transcript.artifacts:
@@ -139,13 +141,11 @@ class SessionRestorePolicy:
                     "Artifacts: "
                     + "; ".join(
                         _summarize_artifact(artifact)
-                        for artifact in transcript.artifacts[-self.max_runtime_items:]
+                        for artifact in transcript.artifacts[-self.max_runtime_items :]
                     )
                 )
             if details:
-                sections.append(
-                    f"Run {transcript.id} ({transcript.prompt})\n" + "\n".join(details)
-                )
+                sections.append(f"Run {transcript.id} ({transcript.prompt})\n" + "\n".join(details))
 
         if not sections:
             return ""
@@ -160,7 +160,7 @@ class SessionRestorePolicy:
             content = str(message.get("content", ""))
             cost = len(content)
             if cost > self.max_chars:
-                content = content[-self.max_chars:]
+                content = content[-self.max_chars :]
                 cost = len(content)
                 message = {**message, "content": content}
             if selected and total + cost > self.max_chars:

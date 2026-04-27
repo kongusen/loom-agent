@@ -5,11 +5,11 @@ from typing import Literal
 
 # Image size limits (in bytes)
 ANTHROPIC_IMAGE_SIZE_LIMIT = 5 * 1024 * 1024  # 5MB
-OPENAI_IMAGE_SIZE_LIMIT = 20 * 1024 * 1024    # 20MB
-GEMINI_IMAGE_SIZE_LIMIT = 4 * 1024 * 1024     # 4MB
+OPENAI_IMAGE_SIZE_LIMIT = 20 * 1024 * 1024  # 20MB
+GEMINI_IMAGE_SIZE_LIMIT = 4 * 1024 * 1024  # 4MB
 
 # Document size limits (in bytes)
-ANTHROPIC_PDF_SIZE_LIMIT = 32 * 1024 * 1024   # 32MB
+ANTHROPIC_PDF_SIZE_LIMIT = 32 * 1024 * 1024  # 32MB
 
 # Supported formats
 SUPPORTED_IMAGE_FORMATS = {"image/png", "image/jpeg", "image/gif", "image/webp"}
@@ -18,12 +18,12 @@ SUPPORTED_DOCUMENT_FORMATS = {"application/pdf"}
 
 class ValidationError(Exception):
     """Raised when content validation fails"""
+
     pass
 
 
 def validate_image_file(
-    file_path: str | Path,
-    provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
+    file_path: str | Path, provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
 ) -> None:
     """Validate image file before encoding
 
@@ -69,8 +69,7 @@ def validate_image_file(
 
 
 def validate_document_file(
-    file_path: str | Path,
-    provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
+    file_path: str | Path, provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
 ) -> None:
     """Validate document file before encoding
 

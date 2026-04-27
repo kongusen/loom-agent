@@ -40,11 +40,9 @@ class GovernanceRequest:
 class RuntimeGovernancePolicy(Protocol):
     """Protocol implemented by runtime governance policies."""
 
-    def evaluate_tool(self, request: GovernanceRequest) -> GovernanceDecision:
-        ...
+    def evaluate_tool(self, request: GovernanceRequest) -> GovernanceDecision: ...
 
-    def record_tool_result(self, request: GovernanceRequest, *, success: bool) -> None:
-        ...
+    def record_tool_result(self, request: GovernanceRequest, *, success: bool) -> None: ...
 
 
 class GovernancePolicy:

@@ -1,6 +1,5 @@
 """Test context extended modules - compression, renewal, event_aggregator, dashboard"""
 
-
 import pytest
 
 from loom.context.compression import CompressionPolicy, ContextCompressor
@@ -12,11 +11,12 @@ from loom.types import Dashboard, Message
 
 # ── ContextCompressor ──
 
+
 class TestContextCompressor:
     def test_creation(self):
         comp = ContextCompressor()
-        assert comp.thresholds['snip'] == 0.7
-        assert comp.thresholds['auto'] == 0.95
+        assert comp.thresholds["snip"] == 0.7
+        assert comp.thresholds["auto"] == 0.95
 
     def test_should_compress_none(self):
         comp = ContextCompressor()
@@ -24,23 +24,23 @@ class TestContextCompressor:
 
     def test_should_compress_snip(self):
         comp = ContextCompressor()
-        assert comp.should_compress(0.7) == 'snip'
+        assert comp.should_compress(0.7) == "snip"
 
     def test_should_compress_micro(self):
         comp = ContextCompressor()
-        assert comp.should_compress(0.8) == 'micro'
+        assert comp.should_compress(0.8) == "micro"
 
     def test_should_compress_collapse(self):
         comp = ContextCompressor()
-        assert comp.should_compress(0.9) == 'collapse'
+        assert comp.should_compress(0.9) == "collapse"
 
     def test_should_compress_auto(self):
         comp = ContextCompressor()
-        assert comp.should_compress(0.95) == 'auto'
+        assert comp.should_compress(0.95) == "auto"
 
     def test_should_compress_high(self):
         comp = ContextCompressor()
-        assert comp.should_compress(1.0) == 'auto'
+        assert comp.should_compress(1.0) == "auto"
 
     def test_supports_custom_compression_policy(self):
         policy = CompressionPolicy(
@@ -151,6 +151,7 @@ class TestContextCompressor:
 
 # ── ContextRenewer ──
 
+
 class TestContextRenewer:
     def test_creation(self):
         renewer = ContextRenewer()
@@ -209,6 +210,7 @@ class TestContextRenewer:
 
 # ── EventAggregator ──
 
+
 class TestEventAggregator:
     def test_creation(self):
         agg = EventAggregator()
@@ -239,6 +241,7 @@ class TestEventAggregator:
 
 
 # ── DashboardManager ──
+
 
 class TestDashboardManager:
     def test_creation(self):
@@ -344,17 +347,20 @@ class TestDashboardManager:
 
 # ── EventAggregator → DashboardManager integration ──
 
+
 class TestEventAggregatorDashboardIntegration:
     """EventAggregator is called automatically when pending_events reaches threshold."""
 
     def test_aggregator_created_on_dashboard_manager(self):
         from loom.context.dashboard import DashboardManager
         from loom.context.event_aggregator import EventAggregator
+
         dm = DashboardManager()
         assert isinstance(dm._aggregator, EventAggregator)
 
     def test_aggregation_fires_at_threshold(self):
         from loom.context.dashboard import _PENDING_EVENTS_AGGREGATE_THRESHOLD, DashboardManager
+
         dm = DashboardManager()
         for i in range(_PENDING_EVENTS_AGGREGATE_THRESHOLD + 1):
             dm.add_pending_event({"type": "tool_call", "event_id": str(i), "observed_at": ""})
@@ -363,6 +369,7 @@ class TestEventAggregatorDashboardIntegration:
 
     def test_aggregated_entry_has_count(self):
         from loom.context.dashboard import _PENDING_EVENTS_AGGREGATE_THRESHOLD, DashboardManager
+
         dm = DashboardManager()
         for i in range(_PENDING_EVENTS_AGGREGATE_THRESHOLD + 1):
             dm.add_pending_event({"type": "heartbeat", "event_id": str(i), "observed_at": ""})
@@ -372,6 +379,7 @@ class TestEventAggregatorDashboardIntegration:
 
     def test_below_threshold_not_aggregated(self):
         from loom.context.dashboard import _PENDING_EVENTS_AGGREGATE_THRESHOLD, DashboardManager
+
         dm = DashboardManager()
         count = _PENDING_EVENTS_AGGREGATE_THRESHOLD - 1
         for i in range(count):

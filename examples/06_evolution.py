@@ -28,11 +28,11 @@ class MockAgent:
         {"tool": "web_search", "success": False},
         {"tool": "file_write", "success": False, "blocked": True, "reason": "permission denied"},
         {"tool": "file_write", "success": False, "blocked": True, "reason": "permission denied"},
-        {"tool": "code_exec",  "success": True,  "domain": "python", "early_stop": False},
-        {"tool": "code_exec",  "success": True,  "domain": "python", "early_stop": False},
-        {"tool": "sql_query",  "success": False, "domain": "sql",    "early_stop": True},
-        {"tool": "sql_query",  "success": False, "domain": "sql",    "early_stop": True},
-        {"tool": "sql_query",  "success": False, "domain": "sql",    "early_stop": True},
+        {"tool": "code_exec", "success": True, "domain": "python", "early_stop": False},
+        {"tool": "code_exec", "success": True, "domain": "python", "early_stop": False},
+        {"tool": "sql_query", "success": False, "domain": "sql", "early_stop": True},
+        {"tool": "sql_query", "success": False, "domain": "sql", "early_stop": True},
+        {"tool": "sql_query", "success": False, "domain": "sql", "early_stop": True},
         {"tool": "file_write", "success": False, "root_cause": "missing write permission"},
     ]
 

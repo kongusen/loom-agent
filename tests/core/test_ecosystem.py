@@ -197,11 +197,14 @@ class TestMCPOperations:
 
 # ── Agent integration: M3/M4/M5 ──
 
+
 def _make_agent(**kwargs):
-    return Agent(config=AgentConfig(
-        model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
-        **kwargs,
-    ))
+    return Agent(
+        config=AgentConfig(
+            model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+            **kwargs,
+        )
+    )
 
 
 class TestAgentEcosystemIntegration:
@@ -247,15 +250,17 @@ class TestAgentEcosystemIntegration:
         bridge.register_server(
             "myserver",
             MCPServerConfig(
-                mock_tools=[{
-                    "name": "search",
-                    "description": "Search tool",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {"query": {"type": "string", "description": "Query"}},
-                        "required": ["query"],
-                    },
-                }],
+                mock_tools=[
+                    {
+                        "name": "search",
+                        "description": "Search tool",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string", "description": "Query"}},
+                            "required": ["query"],
+                        },
+                    }
+                ],
             ),
         )
         bridge.connect("myserver")
@@ -271,6 +276,7 @@ class TestAgentEvolutionIntegration:
         agent = _make_agent()
         assert agent._evolution_engine is None
         from loom.evolution.engine import EvolutionEngine
+
         evo = agent.evolution
         assert isinstance(evo, EvolutionEngine)
         assert evo is agent.evolution  # singleton
@@ -296,6 +302,7 @@ class TestAgentCoordinatorIntegration:
         agent = _make_agent()
         assert agent._coordinator is None
         from loom.orchestration.coordinator import Coordinator
+
         coord = agent.coordinator
         assert isinstance(coord, Coordinator)
         assert coord is agent.coordinator  # singleton
@@ -307,6 +314,7 @@ class TestAgentCoordinatorIntegration:
 
     def test_coordinator_has_subagent_manager(self):
         from loom.orchestration.subagent import SubAgentManager
+
         agent = _make_agent()
         coord = agent.coordinator
         mgr = coord.agents[str(id(agent))]

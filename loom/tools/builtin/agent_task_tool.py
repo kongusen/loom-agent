@@ -11,10 +11,10 @@ TASK_TOOL = Tool(
         description="生成子 Agent",
         parameters=[
             ToolParameter("task", "string", "任务描述"),
-            ToolParameter("depth", "integer", "深度", required=False, default=1)
-        ]
+            ToolParameter("depth", "integer", "深度", required=False, default=1),
+        ],
     ),
-    handler=spawn_agent
+    handler=spawn_agent,
 )
 
 ASK_USER_TOOL = Tool(
@@ -23,10 +23,10 @@ ASK_USER_TOOL = Tool(
         description="询问用户",
         parameters=[
             ToolParameter("question", "string", "问题"),
-            ToolParameter("options", "array", "选项")
-        ]
+            ToolParameter("options", "array", "选项"),
+        ],
     ),
-    handler=ask_user
+    handler=ask_user,
 )
 
 TASK_CREATE_TOOL = Tool(
@@ -35,10 +35,10 @@ TASK_CREATE_TOOL = Tool(
         description="创建任务",
         parameters=[
             ToolParameter("subject", "string", "主题"),
-            ToolParameter("description", "string", "描述")
-        ]
+            ToolParameter("description", "string", "描述"),
+        ],
     ),
-    handler=task_create
+    handler=task_create,
 )
 
 TASK_UPDATE_TOOL = Tool(
@@ -47,32 +47,27 @@ TASK_UPDATE_TOOL = Tool(
         description="更新任务",
         parameters=[
             ToolParameter("task_id", "string", "任务ID"),
-            ToolParameter("status", "string", "状态")
-        ]
+            ToolParameter("status", "string", "状态"),
+        ],
     ),
-    handler=task_update
+    handler=task_update,
 )
 
 TASK_LIST_TOOL = Tool(
     definition=ToolDefinition(
-        name="TaskList",
-        description="列出任务",
-        parameters=[],
-        is_read_only=True
+        name="TaskList", description="列出任务", parameters=[], is_read_only=True
     ),
-    handler=task_list
+    handler=task_list,
 )
 
 TASK_GET_TOOL = Tool(
     definition=ToolDefinition(
         name="TaskGet",
         description="获取任务",
-        parameters=[
-            ToolParameter("task_id", "string", "任务ID")
-        ],
-        is_read_only=True
+        parameters=[ToolParameter("task_id", "string", "任务ID")],
+        is_read_only=True,
     ),
-    handler=task_get
+    handler=task_get,
 )
 
 TASK_OUTPUT_TOOL = Tool(
@@ -81,20 +76,18 @@ TASK_OUTPUT_TOOL = Tool(
         description="获取任务输出",
         parameters=[
             ToolParameter("task_id", "string", "任务ID"),
-            ToolParameter("block", "boolean", "阻塞", required=False, default=True)
+            ToolParameter("block", "boolean", "阻塞", required=False, default=True),
         ],
-        is_read_only=True
+        is_read_only=True,
     ),
-    handler=task_output
+    handler=task_output,
 )
 
 TASK_STOP_TOOL = Tool(
     definition=ToolDefinition(
         name="TaskStop",
         description="停止任务",
-        parameters=[
-            ToolParameter("task_id", "string", "任务ID")
-        ]
+        parameters=[ToolParameter("task_id", "string", "任务ID")],
     ),
-    handler=task_stop
+    handler=task_stop,
 )

@@ -20,6 +20,7 @@ from loom.types import LoopState
 
 # ── LoopConfig ──
 
+
 class TestLoopConfig:
     def test_defaults(self):
         config = LoopConfig()
@@ -35,6 +36,7 @@ class TestLoopConfig:
 
 
 # ── AgentLoop ──
+
 
 class TestAgentLoop:
     def test_creation(self):
@@ -74,11 +76,7 @@ class TestAgentLoop:
 
         delta_fn = MagicMock(return_value="continue")
 
-        result = loop.run("goal", ctx,
-                          lambda g, c: c,
-                          lambda c: "effect",
-                          lambda e, c: c,
-                          delta_fn)
+        result = loop.run("goal", ctx, lambda g, c: c, lambda c: "effect", lambda e, c: c, delta_fn)
         assert result["status"] == "max_iterations"
         assert loop.iteration == 3
 
@@ -103,11 +101,14 @@ class TestAgentLoop:
             mock_renewer.renew.side_effect = mock_renew_fn
             MockRenewer.return_value = mock_renewer
 
-            loop.run("goal", ctx,
-                              lambda g, c: c,
-                              lambda c: "effect",
-                              lambda e, c: c,
-                              lambda c: "goal_reached")
+            loop.run(
+                "goal",
+                ctx,
+                lambda g, c: c,
+                lambda c: "effect",
+                lambda e, c: c,
+                lambda c: "goal_reached",
+            )
             # renew should have been triggered at least once
             assert renew_call_count["n"] >= 1
 
@@ -121,11 +122,7 @@ class TestAgentLoop:
 
         delta_fn = MagicMock(return_value="decompose")
 
-        result = loop.run("goal", ctx,
-                          lambda g, c: c,
-                          lambda c: "effect",
-                          lambda e, c: c,
-                          delta_fn)
+        result = loop.run("goal", ctx, lambda g, c: c, lambda c: "effect", lambda e, c: c, delta_fn)
         assert result["status"] == "decompose"
 
     def test_harness_decision(self):
@@ -136,11 +133,9 @@ class TestAgentLoop:
         ctx.working = MagicMock()
         ctx.working.rho = 0.3
 
-        result = loop.run("goal", ctx,
-                          lambda g, c: c,
-                          lambda c: "effect",
-                          lambda e, c: c,
-                          lambda c: "harness")
+        result = loop.run(
+            "goal", ctx, lambda g, c: c, lambda c: "effect", lambda e, c: c, lambda c: "harness"
+        )
         assert result["status"] == "harness"
 
     def test_renew_decision_from_delta(self):
@@ -159,16 +154,15 @@ class TestAgentLoop:
             mock_renewer.renew.return_value = (ctx, None)  # renew() returns (partitions, handoff)
             MockRenewer.return_value = mock_renewer
 
-            result = loop.run("goal", ctx,
-                              lambda g, c: c,
-                              lambda c: "effect",
-                              lambda e, c: c,
-                              delta_fn)
+            result = loop.run(
+                "goal", ctx, lambda g, c: c, lambda c: "effect", lambda e, c: c, delta_fn
+            )
             assert result["status"] == "success"
             mock_renewer.renew.assert_called_once()
 
 
 # ── HeartbeatConfig & WatchSource ──
+
 
 class TestWatchSource:
     def test_defaults(self):
@@ -198,6 +192,7 @@ class TestHeartbeatConfig:
 
 
 # ── Heartbeat ──
+
 
 class TestHeartbeat:
     def test_creation(self):
@@ -323,6 +318,7 @@ class TestHeartbeat:
 
 # ── FilesystemMonitor ──
 
+
 class TestFilesystemMonitor:
     def test_file_change_detection(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -381,6 +377,7 @@ class TestFilesystemMonitor:
 
 # ── ProcessMonitor ──
 
+
 class TestProcessMonitor:
     def test_no_pid_file(self):
         monitor = ProcessMonitor()
@@ -393,7 +390,7 @@ class TestProcessMonitor:
         assert result is None
 
     def test_nonexistent_process(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.pid', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
             f.write("999999999")  # Very unlikely to exist
             pid_path = f.name
 
@@ -409,7 +406,8 @@ class TestProcessMonitor:
 
     def test_running_process(self):
         import os
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.pid', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
             f.write(str(os.getpid()))
             pid_path = f.name
 
@@ -423,6 +421,7 @@ class TestProcessMonitor:
 
 
 # ── ResourceMonitor ──
+
 
 class TestResourceMonitor:
     def test_no_threshold_breach(self):
@@ -452,6 +451,7 @@ class TestResourceMonitor:
 
 
 # ── MFEventsMonitor ──
+
 
 class TestMFEventsMonitor:
     def test_reads_published_events(self):

@@ -94,7 +94,9 @@ class TestProviders:
         assert response.content == "native response"
         assert compat_response.content == "native response"
         assert text == "native response"
-        assert any(isinstance(event, TextDelta) and event.delta == "native response" for event in events)
+        assert any(
+            isinstance(event, TextDelta) and event.delta == "native response" for event in events
+        )
 
     @pytest.mark.asyncio
     async def test_complete_request_uses_retry_and_circuit_breaker(self):
@@ -170,16 +172,10 @@ class TestProviders:
                 assert kwargs["model"] == "gpt-test"
                 assert kwargs["messages"][-1]["content"] == "hello"
                 return SimpleNamespace(
-                    choices=[
-                        SimpleNamespace(
-                            message=SimpleNamespace(content="hi there")
-                        )
-                    ]
+                    choices=[SimpleNamespace(message=SimpleNamespace(content="hi there"))]
                 )
 
-        fake_client = SimpleNamespace(
-            chat=SimpleNamespace(completions=FakeCompletions())
-        )
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
         provider = OpenAIProvider(api_key="test", client=fake_client)
         result = await provider.complete(
             [{"role": "user", "content": "hello"}],
@@ -191,7 +187,9 @@ class TestProviders:
         fake_client = SimpleNamespace()
 
         assert OpenAIProvider(api_key="test", client=fake_client)._uses_request_native_completion()
-        assert AnthropicProvider(api_key="test", client=fake_client)._uses_request_native_completion()
+        assert AnthropicProvider(
+            api_key="test", client=fake_client
+        )._uses_request_native_completion()
         assert GeminiProvider(api_key="test", client=fake_client)._uses_request_native_completion()
 
     @pytest.mark.asyncio
@@ -217,21 +215,15 @@ class TestProviders:
                 return FakeStream(
                     [
                         SimpleNamespace(
-                            choices=[
-                                SimpleNamespace(delta=SimpleNamespace(content="hi"))
-                            ]
+                            choices=[SimpleNamespace(delta=SimpleNamespace(content="hi"))]
                         ),
                         SimpleNamespace(
-                            choices=[
-                                SimpleNamespace(delta=SimpleNamespace(content=" there"))
-                            ]
+                            choices=[SimpleNamespace(delta=SimpleNamespace(content=" there"))]
                         ),
                     ]
                 )
 
-        fake_client = SimpleNamespace(
-            chat=SimpleNamespace(completions=FakeCompletions())
-        )
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
         provider = OpenAIProvider(api_key="test", client=fake_client)
         chunks = []
         async for chunk in provider.stream(
@@ -387,9 +379,7 @@ class TestProviders:
                 assert kwargs["system"] == "system prompt"
                 assert kwargs["messages"] == [{"role": "user", "content": "hello"}]
                 return SimpleNamespace(
-                    content=[
-                        SimpleNamespace(type="text", text="anthropic response")
-                    ]
+                    content=[SimpleNamespace(type="text", text="anthropic response")]
                 )
 
         fake_client = SimpleNamespace(messages=FakeMessages())
@@ -607,7 +597,9 @@ class TestProviders:
                 assert kwargs["contents"][1]["role"] == "model"
                 assert kwargs["contents"][1]["parts"][0]["function_call"]["name"] == "search_docs"
                 assert kwargs["contents"][2]["role"] == "user"
-                assert kwargs["contents"][2]["parts"][0]["function_response"]["name"] == "search_docs"
+                assert (
+                    kwargs["contents"][2]["parts"][0]["function_response"]["name"] == "search_docs"
+                )
                 return SimpleNamespace(
                     candidates=[
                         SimpleNamespace(
@@ -672,9 +664,7 @@ class TestProviders:
                 ProviderToolSpec(
                     name="search_docs",
                     description="Search docs",
-                    parameters=(
-                        ProviderToolParameter(name="query", type="string", required=True),
-                    ),
+                    parameters=(ProviderToolParameter(name="query", type="string", required=True),),
                 )
             ],
         )
@@ -726,12 +716,15 @@ class TestProviders:
     @pytest.mark.asyncio
     async def test_provider_base_maps_429_to_rate_limit_error(self):
         class FlakyProvider(LLMProvider):
-            async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+            async def _complete(
+                self, messages: list, params: CompletionParams | None = None
+            ) -> str:
                 raise RuntimeError("429 rate limit exceeded")
 
             def stream(self, messages: list, params: CompletionParams | None = None):
                 async def _gen():
                     yield ""
+
                 return _gen()
 
         provider = FlakyProvider()
@@ -741,12 +734,15 @@ class TestProviders:
     @pytest.mark.asyncio
     async def test_provider_base_uses_provider_unavailable_error_when_circuit_open(self):
         class DownProvider(LLMProvider):
-            async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+            async def _complete(
+                self, messages: list, params: CompletionParams | None = None
+            ) -> str:
                 raise RuntimeError("network down")
 
             def stream(self, messages: list, params: CompletionParams | None = None):
                 async def _gen():
                     yield ""
+
                 return _gen()
 
         provider = DownProvider()

@@ -10,6 +10,7 @@ from .base import Tool
 @dataclass
 class ToolExecutionContext:
     """工具执行上下文"""
+
     tool: Tool
     input_data: dict
     user_context: dict

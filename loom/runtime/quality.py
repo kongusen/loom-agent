@@ -54,15 +54,13 @@ class RuntimeQualityGate(Protocol):
         task: RuntimeTask,
         *,
         iteration: int = 1,
-    ) -> QualityContract:
-        ...
+    ) -> QualityContract: ...
 
     async def evaluate(
         self,
         output: str,
         contract: QualityContract,
-    ) -> QualityResult:
-        ...
+    ) -> QualityResult: ...
 
 
 class QualityGate:
@@ -161,16 +159,20 @@ class CriteriaQualityGate(PassFailQualityGate):
     ) -> QualityContract:
         metadata = {"iteration": iteration}
         criteria = self.criteria or task.criteria
-        return QualityContract.from_task(
-            task,
-            criteria=criteria,
-            eval_tools=self.eval_tools,
-            metadata=metadata,
-        ) if self.goal is None else QualityContract(
-            goal=self.goal,
-            criteria=list(criteria),
-            eval_tools=list(self.eval_tools),
-            metadata=metadata,
+        return (
+            QualityContract.from_task(
+                task,
+                criteria=criteria,
+                eval_tools=self.eval_tools,
+                metadata=metadata,
+            )
+            if self.goal is None
+            else QualityContract(
+                goal=self.goal,
+                criteria=list(criteria),
+                eval_tools=list(self.eval_tools),
+                metadata=metadata,
+            )
         )
 
 

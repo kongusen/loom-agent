@@ -17,6 +17,6 @@ def count_messages_tokens(messages: list) -> int:
     """Count tokens in message list"""
     total = 0
     for msg in messages:
-        if hasattr(msg, 'content'):
+        if hasattr(msg, "content"):
             total += count_tokens(msg.content)
     return total

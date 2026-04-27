@@ -187,7 +187,7 @@ class MFEventsMonitor:
         if self.cursor >= len(events):
             return None
 
-        new_events = events[self.cursor:]
+        new_events = events[self.cursor :]
         self.cursor = len(events)
 
         for event in new_events:

@@ -46,9 +46,11 @@ class EvolutionEngine:
         if feedback:
             total = len(feedback)
             successes = sum(1 for f in feedback if f.get("success", False))
-            self.dashboard.record(EvolutionMetrics(
-                success_rate=successes / total,
-                avg_cost=0.0,
-                skill_reuse_rate=0.0,
-                constraint_count=total,
-            ))
+            self.dashboard.record(
+                EvolutionMetrics(
+                    success_rate=successes / total,
+                    avg_cost=0.0,
+                    skill_reuse_rate=0.0,
+                    constraint_count=total,
+                )
+            )

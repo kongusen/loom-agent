@@ -11,6 +11,7 @@ from ..types import LoopState
 @dataclass
 class LoopConfig:
     """L* loop configuration"""
+
     max_iterations: int = 100
     d_max: int = 5  # 最大递归深度
     rho_threshold: float = 1.0  # 强制 renew 阈值
@@ -76,6 +77,7 @@ class AgentLoop:
             # Renew: 压缩重建 C
             elif self.state == LoopState.RENEW:
                 from ..context import ContextRenewer
+
                 renewer = ContextRenewer()
                 context, _ = renewer.renew(context, goal)
                 self.state = LoopState.REASON

@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EngineConfig:
     """Engine configuration"""
+
     max_iterations: int = 100
     max_tokens: int = 200000
     model: str = "claude-3-5-sonnet-20241022"
@@ -315,7 +316,9 @@ class AgentEngine:
         if self.ecosystem_manager:
             mcp_additions = self.ecosystem_manager.get_system_prompt_additions()
             if mcp_additions:
-                instructions = f"{instructions}\n\n{mcp_additions}".strip() if instructions else mcp_additions
+                instructions = (
+                    f"{instructions}\n\n{mcp_additions}".strip() if instructions else mcp_additions
+                )
         provider_prompt = self._memory_provider_system_prompt()
         if provider_prompt:
             instructions = f"{instructions}\n\n{provider_prompt}".strip()
@@ -393,10 +396,12 @@ class AgentEngine:
         token_callback: "Callable[[str], Any] | None" = None,
     ) -> AsyncGenerator[_LoopTrace | _LoopStreamEvent | _LoopDone, None]:
         """Shared L* loop for batch and streaming execution."""
-        loop = AgentLoop(LoopConfig(
-            max_iterations=self.config.max_iterations,
-            rho_threshold=1.0,
-        ))
+        loop = AgentLoop(
+            LoopConfig(
+                max_iterations=self.config.max_iterations,
+                rho_threshold=1.0,
+            )
+        )
 
         iteration = 0
         messages: list[Message] = self._build_messages(goal)
@@ -436,11 +441,13 @@ class AgentEngine:
                     iteration=iteration,
                     rho=self.context_manager.rho,
                 )
-                yield _LoopTrace({
-                    "type": "context.compressed",
-                    "strategy": strategy,
-                    "iteration": iteration,
-                })
+                yield _LoopTrace(
+                    {
+                        "type": "context.compressed",
+                        "strategy": strategy,
+                        "iteration": iteration,
+                    }
+                )
 
             if loop.state == LoopState.REASON:
                 if stream:
@@ -505,16 +512,20 @@ class AgentEngine:
                 if tool_calls:
                     content = str(response.get("content", "")).strip()
                     loop.state = LoopState.ACT
-                    _append(Message(
-                        role="assistant",
-                        content=content,
-                        tool_calls=tool_calls,
-                    ))
-                    yield _LoopTrace({
-                        "type": "tools.requested",
-                        "count": len(tool_calls),
-                        "iteration": iteration,
-                    })
+                    _append(
+                        Message(
+                            role="assistant",
+                            content=content,
+                            tool_calls=tool_calls,
+                        )
+                    )
+                    yield _LoopTrace(
+                        {
+                            "type": "tools.requested",
+                            "count": len(tool_calls),
+                            "iteration": iteration,
+                        }
+                    )
                 else:
                     output = str(response.get("content", "")).strip()
                     _append(Message(role="assistant", content=output))
@@ -533,10 +544,7 @@ class AgentEngine:
                 tool_results = await self._execute_tools(last_message.tool_calls)
                 if self._drain_signals():
                     messages = self._build_messages(goal)
-                tool_names = {
-                    tool_call.id: tool_call.name
-                    for tool_call in last_message.tool_calls
-                }
+                tool_names = {tool_call.id: tool_call.name for tool_call in last_message.tool_calls}
 
                 error_count = 0
                 for result in tool_results:
@@ -549,40 +557,50 @@ class AgentEngine:
                             if isinstance(result.content, str)
                             else str(result.content)
                         )
-                        yield _LoopStreamEvent(ToolResultEvent(
-                            tool_call_id=result.tool_call_id,
-                            name=name or "",
-                            content=content_str,
-                            is_error=result.is_error,
-                        ))
+                        yield _LoopStreamEvent(
+                            ToolResultEvent(
+                                tool_call_id=result.tool_call_id,
+                                name=name or "",
+                                content=content_str,
+                                is_error=result.is_error,
+                            )
+                        )
 
-                    _append(Message(
-                        role="tool",
-                        content=result.content,
-                        tool_call_id=result.tool_call_id,
-                        name=name,
-                    ))
+                    _append(
+                        Message(
+                            role="tool",
+                            content=result.content,
+                            tool_call_id=result.tool_call_id,
+                            name=name,
+                        )
+                    )
                     if result.is_error:
                         error_count += 1
-                    elif self.semantic_memory and isinstance(result.content, str) and result.content:
-                        self.semantic_memory.add(MemoryEntry(
-                            content=result.content,
-                            metadata={
-                                "tool": name,
-                                "iteration": iteration,
-                                "goal": self.context_manager.current_goal or "",
-                            },
-                        ))
+                    elif (
+                        self.semantic_memory and isinstance(result.content, str) and result.content
+                    ):
+                        self.semantic_memory.add(
+                            MemoryEntry(
+                                content=result.content,
+                                metadata={
+                                    "tool": name,
+                                    "iteration": iteration,
+                                    "goal": self.context_manager.current_goal or "",
+                                },
+                            )
+                        )
 
                 if error_count:
                     for _ in range(error_count):
                         self.context_manager.dashboard.increment_errors()
 
-                yield _LoopTrace({
-                    "type": "tools.executed",
-                    "count": len(tool_results),
-                    "iteration": iteration,
-                })
+                yield _LoopTrace(
+                    {
+                        "type": "tools.executed",
+                        "count": len(tool_results),
+                        "iteration": iteration,
+                    }
+                )
 
                 loop.state = LoopState.OBSERVE
 
@@ -822,7 +840,9 @@ class AgentEngine:
         if self.ecosystem_manager:
             mcp_additions = self.ecosystem_manager.get_system_prompt_additions()
             if mcp_additions:
-                instructions = f"{instructions}\n\n{mcp_additions}".strip() if instructions else mcp_additions
+                instructions = (
+                    f"{instructions}\n\n{mcp_additions}".strip() if instructions else mcp_additions
+                )
         provider_prompt = self._memory_provider_system_prompt()
         if provider_prompt:
             instructions = f"{instructions}\n\n{provider_prompt}".strip()
@@ -962,31 +982,22 @@ class AgentEngine:
 
     def _sync_governance_policy(self) -> None:
         """Keep the default governance adapter aligned with mutable engine hooks."""
-        if (
-            hasattr(self.governance_policy, "tool_governance")
-            and not getattr(
-                self.governance_policy,
-                "_uses_external_tool_governance",
-                False,
-            )
+        if hasattr(self.governance_policy, "tool_governance") and not getattr(
+            self.governance_policy,
+            "_uses_external_tool_governance",
+            False,
         ):
             self.governance_policy.tool_governance = self.tool_governance
-        if (
-            hasattr(self.governance_policy, "permission_manager")
-            and not getattr(
-                self.governance_policy,
-                "_uses_external_permission_manager",
-                False,
-            )
+        if hasattr(self.governance_policy, "permission_manager") and not getattr(
+            self.governance_policy,
+            "_uses_external_permission_manager",
+            False,
         ):
             self.governance_policy.permission_manager = self.permission_manager
-        if (
-            hasattr(self.governance_policy, "veto_authority")
-            and not getattr(
-                self.governance_policy,
-                "_uses_external_veto_authority",
-                False,
-            )
+        if hasattr(self.governance_policy, "veto_authority") and not getattr(
+            self.governance_policy,
+            "_uses_external_veto_authority",
+            False,
         ):
             self.governance_policy.veto_authority = self.veto_authority
 

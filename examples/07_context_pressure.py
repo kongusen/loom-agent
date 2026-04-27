@@ -17,7 +17,9 @@ from loom.types import Message
 
 
 def make_messages(n: int, length: int = 3000) -> list[Message]:
-    return [Message(role="user" if i % 2 == 0 else "assistant", content="x" * length) for i in range(n)]
+    return [
+        Message(role="user" if i % 2 == 0 else "assistant", content="x" * length) for i in range(n)
+    ]
 
 
 def main():
@@ -44,11 +46,15 @@ def main():
 
     print("\n=== Context Collapse (ρ=0.92) ===")
     collapsed = compressor.context_collapse(messages, goal="summarize project")
-    print(f"  After collapse: {len(collapsed)} messages (kept first {compressor.collapse_keep_first} + last {compressor.collapse_keep_last})")
+    print(
+        f"  After collapse: {len(collapsed)} messages (kept first {compressor.collapse_keep_first} + last {compressor.collapse_keep_last})"
+    )
 
     print("\n=== Reactive Compact (API 413) ===")
     reactive = compressor.reactive_compact(messages, goal="summarize project")
-    print(f"  After reactive: {len(reactive)} messages, {sum(len(m.content) for m in reactive)} chars")
+    print(
+        f"  After reactive: {len(reactive)} messages, {sum(len(m.content) for m in reactive)} chars"
+    )
 
 
 main()

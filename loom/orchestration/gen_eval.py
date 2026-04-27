@@ -32,8 +32,8 @@ class SprintContract:
 
     sprint: int
     goal: str
-    criteria: list[str]      # verifiable pass conditions
-    eval_tools: list[str] = field(default_factory=list)   # tools evaluator may use
+    criteria: list[str]  # verifiable pass conditions
+    eval_tools: list[str] = field(default_factory=list)  # tools evaluator may use
 
     @classmethod
     def from_quality_contract(
@@ -66,8 +66,8 @@ class SprintResult:
 
     sprint: int
     passed: bool
-    output: str              # Generator's output
-    critique: str            # Evaluator's feedback (empty string on first PASS)
+    output: str  # Generator's output
+    critique: str  # Evaluator's feedback (empty string on first PASS)
     contract: SprintContract
     handoff: HandoffArtifact | None = None
 
@@ -123,7 +123,9 @@ class GeneratorEvaluatorLoop:
             # Phase 2: generator produces output
             gen_prompt = self._build_gen_prompt(goal, contract, critique)
             gen_result = await self.generator.spawn(gen_prompt, depth=0)
-            output = gen_result.output if gen_result.success else f"[generator error] {gen_result.error}"
+            output = (
+                gen_result.output if gen_result.success else f"[generator error] {gen_result.error}"
+            )
 
             # Phase 3: evaluator judges output
             quality_result = await quality_gate.evaluate(output, contract.to_quality_contract())
@@ -191,6 +193,7 @@ class GeneratorEvaluatorLoop:
         if self.event_bus is None:
             return
         from ..types.events import CoordinationEvent
+
         topic = "sprint.passed" if result.passed else "sprint.failed"
         event = CoordinationEvent(
             id=str(uuid.uuid4()),

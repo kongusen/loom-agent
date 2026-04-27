@@ -14,15 +14,15 @@ from .plugin import Plugin, PluginLoader, PluginManifest
 from .skill import Skill, SkillLoader, SkillRegistry
 
 __all__ = [
-    'Skill',
-    'SkillRegistry',
-    'SkillLoader',
-    'Plugin',
-    'PluginLoader',
-    'PluginManifest',
-    'MCPServer',
-    'MCPBridge',
-    'MCPServerConfig',
-    'MCPTransportType',
-    'EcosystemManager',
+    "Skill",
+    "SkillRegistry",
+    "SkillLoader",
+    "Plugin",
+    "PluginLoader",
+    "PluginManifest",
+    "MCPServer",
+    "MCPBridge",
+    "MCPServerConfig",
+    "MCPTransportType",
+    "EcosystemManager",
 ]

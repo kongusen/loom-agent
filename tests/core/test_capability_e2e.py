@@ -44,9 +44,7 @@ class RestoreSmokeProvider(LLMProvider):
     async def _complete_request(self, request: CompletionRequest) -> CompletionResponse:
         self.requests.append(request)
         contents = [str(message["content"]) for message in request.messages]
-        assert any(
-            "Docs say Loom has runtime capabilities." in content for content in contents
-        )
+        assert any("Docs say Loom has runtime capabilities." in content for content in contents)
         return CompletionResponse(content="Restored transcript is visible.")
 
 
@@ -120,8 +118,8 @@ async def test_capability_runtime_chain_records_feedback_and_restores_session() 
     restored_agent._provider = restore_provider
     restored_agent._provider_resolved = True
 
-    restored = await restored_agent.session(
-        SessionConfig(id="capability-smoke")
-    ).run("Continue from the previous result")
+    restored = await restored_agent.session(SessionConfig(id="capability-smoke")).run(
+        "Continue from the previous result"
+    )
 
     assert restored.output == "Restored transcript is visible."

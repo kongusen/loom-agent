@@ -18,6 +18,7 @@ else:
 @dataclass
 class ToolCall:
     """Tool invocation request"""
+
     id: str
     name: str
     arguments: dict[str, Any]
@@ -26,6 +27,7 @@ class ToolCall:
 @dataclass
 class ToolResult:
     """Tool execution result"""
+
     tool_call_id: str
     content: str
     is_error: bool = False
@@ -49,6 +51,7 @@ class Message:
             ImageBlock(source={"type": "url", "url": "https://..."})
         ])
     """
+
     role: Literal["system", "user", "assistant", "tool"]
     content: str | list = ""  # MessageContent type, but using Union[str, list] for compatibility
     tool_calls: list[ToolCall] = field(default_factory=list)

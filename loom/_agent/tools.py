@@ -37,6 +37,5 @@ def _tool_spec_to_tool(spec: ToolSpec) -> Tool:
     return DeclaredTool()
 
 
-
 def _compile_tool_spec(spec: ToolSpec) -> Tool:
     return _tool_spec_to_tool(spec)

@@ -28,8 +28,7 @@ async def main():
 
     # Filter skills with advanced features
     advanced_skills = [
-        s for s in result["skills"]
-        if s.get("effort") or s.get("agent") or s.get("paths")
+        s for s in result["skills"] if s.get("effort") or s.get("agent") or s.get("paths")
     ]
 
     print(f"Found {len(advanced_skills)} skills with advanced features:\n")

@@ -10,6 +10,7 @@ from pathlib import Path
 @dataclass
 class MemoryEntry:
     """Memory entry with embedding"""
+
     content: str
     embedding: list[float] | None = None
     metadata: dict | None = None
@@ -29,7 +30,7 @@ class SemanticMemory:
         """Add memory entry, evicting oldest if over max_size."""
         self.entries.append(entry)
         if len(self.entries) > self.max_size:
-            self.entries = self.entries[-self.max_size:]
+            self.entries = self.entries[-self.max_size :]
         if self.persist_path:
             self._save(self.persist_path)
 
@@ -100,7 +101,9 @@ class SemanticMemory:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             self.entries = [
-                MemoryEntry(content=d["content"], embedding=d.get("embedding"), metadata=d.get("metadata"))
+                MemoryEntry(
+                    content=d["content"], embedding=d.get("embedding"), metadata=d.get("metadata")
+                )
                 for d in data
             ]
         except Exception:

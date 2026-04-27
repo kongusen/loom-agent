@@ -82,11 +82,17 @@ class Agent(EngineBuilderMixin, ProviderMixin):
     _coordinator: Any = field(default=None, init=False, repr=False)
     _last_engine: Any = field(default=None, init=False, repr=False)
     _hook_manager: Any = field(default=None, init=False, repr=False)
-    _event_handlers: dict[str, list[Callable[..., None]]] = field(default_factory=dict, init=False, repr=False)
-    _event_handlers_lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
+    _event_handlers: dict[str, list[Callable[..., None]]] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _event_handlers_lock: threading.RLock = field(
+        default_factory=threading.RLock, init=False, repr=False
+    )
     _session_store: SessionStore | None = field(default=None, init=False, repr=False)
     _pending_signals: list[RuntimeSignal] = field(default_factory=list, init=False, repr=False)
-    _pending_signals_lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
+    _pending_signals_lock: threading.RLock = field(
+        default_factory=threading.RLock, init=False, repr=False
+    )
 
     def __init__(
         self,
@@ -212,6 +218,7 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         """Lazily created EcosystemManager for plugins, skills, and MCP servers."""
         if self._ecosystem is None:
             from ..ecosystem.integration import EcosystemManager
+
             self._ecosystem = EcosystemManager()
         return self._ecosystem
 
@@ -234,6 +241,7 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         """Lazily created EvolutionEngine for tracking execution feedback."""
         if self._evolution_engine is None:
             from ..evolution.engine import EvolutionEngine
+
             self._evolution_engine = EvolutionEngine()
         return self._evolution_engine
 
@@ -262,6 +270,7 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         """
         if self._hook_manager is None:
             from ..safety.hooks import HookManager
+
             self._hook_manager = HookManager()
         return self._hook_manager
 
@@ -272,6 +281,7 @@ class Agent(EngineBuilderMixin, ProviderMixin):
             from ..orchestration.coordinator import Coordinator
             from ..orchestration.events import CoordinationEventBus
             from ..orchestration.subagent import SubAgentManager
+
             self._coordinator = Coordinator(CoordinationEventBus())
             self._coordinator.register_agent(
                 str(id(self)),
@@ -522,7 +532,11 @@ class Agent(EngineBuilderMixin, ProviderMixin):
             if provider is not None and not await self._ensure_provider_ready(provider):
                 provider = None
             if provider is None:
-                fallback = self.config.runtime.features.fallback if self.config.runtime else RuntimeFallback()
+                fallback = (
+                    self.config.runtime.features.fallback
+                    if self.config.runtime
+                    else RuntimeFallback()
+                )
                 if fallback.mode == RuntimeFallbackMode.ERROR:
                     result = {
                         "status": "provider_unavailable",
@@ -579,7 +593,9 @@ class Agent(EngineBuilderMixin, ProviderMixin):
                 goal=prompt,
                 instructions=self.config.instructions,
                 context=merged_context,
-                session_id=session_id if self.config.memory and self.config.memory.enabled else None,
+                session_id=session_id
+                if self.config.memory and self.config.memory.enabled
+                else None,
                 token_callback=token_callback,
                 history=history,
             )
@@ -646,7 +662,9 @@ def _coerce_model_ref(model: ModelRef | str) -> ModelRef:
     if isinstance(model, ModelRef):
         return model
     if not isinstance(model, str):
-        raise TypeError(f"model must be ModelRef or provider:model string, got {type(model).__name__}")
+        raise TypeError(
+            f"model must be ModelRef or provider:model string, got {type(model).__name__}"
+        )
 
     provider, separator, name = model.partition(":")
     if not separator or not provider or not name:
@@ -662,7 +680,9 @@ def _coerce_tool_entries(
     if isinstance(tools, Toolset):
         return [tools]
     if not isinstance(tools, list):
-        raise TypeError(f"tools must be list[ToolSpec | Toolset] or Toolset, got {type(tools).__name__}")
+        raise TypeError(
+            f"tools must be list[ToolSpec | Toolset] or Toolset, got {type(tools).__name__}"
+        )
     return list(tools)
 
 

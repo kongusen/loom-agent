@@ -19,6 +19,7 @@ from loom.types import ToolCall
 
 # ── EvolutionEngine ──
 
+
 class TestEvolutionEngine:
     def test_creation(self):
         engine = EvolutionEngine()
@@ -92,6 +93,7 @@ class TestEvolutionEngine:
     @pytest.mark.asyncio
     async def test_end_to_end_subscribe_and_evolve(self):
         """subscribe_to_engine() + evolve() collects real tool results."""
+
         class MockProvider(LLMProvider):
             async def _complete(self, messages, params=None):
                 return "ok"
@@ -99,6 +101,7 @@ class TestEvolutionEngine:
             def stream(self, messages, params=None):
                 async def _gen():
                     yield "ok"
+
                 return _gen()
 
         async def noop(**_):
@@ -137,6 +140,7 @@ class TestEvolutionEngine:
 
 
 # ── EvolutionStrategy ──
+
 
 class TestToolLearningStrategy:
     def test_is_strategy(self):
@@ -216,6 +220,7 @@ class TestPolicyOptimizationStrategy:
 
 # ── FeedbackLoop ──
 
+
 class TestFeedbackLoop:
     def test_creation(self):
         loop = FeedbackLoop()
@@ -258,12 +263,15 @@ class TestFeedbackLoop:
     @pytest.mark.asyncio
     async def test_feedback_loop_subscribes_to_engine_tool_events(self):
         class MockProvider(LLMProvider):
-            async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
+            async def _complete(
+                self, messages: list, params: CompletionParams | None = None
+            ) -> str:
                 return "ok"
 
             def stream(self, messages: list, params: CompletionParams | None = None):
                 async def _gen():
                     yield "ok"
+
                 return _gen()
 
         async def echo_handler(text: str) -> str:
@@ -285,7 +293,9 @@ class TestFeedbackLoop:
         loop = FeedbackLoop()
         loop.subscribe_to_engine(engine)
 
-        await engine._execute_tools([ToolCall(id="call_1", name="Echo", arguments={"text": "hello"})])
+        await engine._execute_tools(
+            [ToolCall(id="call_1", name="Echo", arguments={"text": "hello"})]
+        )
 
         assert len(loop.feedback) == 1
         assert loop.feedback[0]["tool"] == "Echo"

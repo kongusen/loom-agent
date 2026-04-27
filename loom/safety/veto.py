@@ -41,7 +41,9 @@ class VetoAuthority:
         """Register a veto rule."""
         self._rules.append(rule)
 
-    def check_tool(self, tool_name: str, arguments: dict[str, Any] | None = None) -> tuple[bool, str]:
+    def check_tool(
+        self, tool_name: str, arguments: dict[str, Any] | None = None
+    ) -> tuple[bool, str]:
         """Check tool call against all rules. Returns (vetoed, reason)."""
         if not self.enabled:
             return False, ""

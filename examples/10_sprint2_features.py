@@ -30,7 +30,7 @@ async def main():
         print()
 
         # Show first 500 chars of content
-        content = result['content']
+        content = result["content"]
         print("Content preview (first 500 chars):")
         print("-" * 50)
         print(content[:500])
@@ -47,15 +47,18 @@ async def main():
     print("-" * 50)
 
     # Check if shell commands were executed
-    if '!`' in result['content']:
+    if "!`" in result["content"]:
         print("⚠️  Shell commands not executed (still contains !` syntax)")
     else:
         print("✅ Shell commands executed successfully")
 
         # Extract some executed commands
-        lines = result['content'].split('\n')
+        lines = result["content"].split("\n")
         for line in lines:
-            if any(keyword in line for keyword in ['Current Directory', 'User', 'Date', 'Git Branch', 'Python']):
+            if any(
+                keyword in line
+                for keyword in ["Current Directory", "User", "Date", "Git Branch", "Python"]
+            ):
                 print(f"   {line.strip()}")
 
     # Test 3: Error Handling with Hooks

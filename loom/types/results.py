@@ -9,6 +9,7 @@ from .state import LoopState
 @dataclass
 class LoopResult:
     """L* loop execution result"""
+
     state: LoopState
     output: Any = None
     should_continue: bool = True
@@ -19,6 +20,7 @@ class LoopResult:
 @dataclass
 class SubAgentResult:
     """Sub-Agent execution result"""
+
     success: bool
     output: Any
     depth: int

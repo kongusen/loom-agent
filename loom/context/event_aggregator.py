@@ -28,12 +28,14 @@ class EventAggregator:
         for event_type, group in grouped.items():
             if len(group) > 3:
                 # 高频事件：生成摘要
-                aggregated.append({
-                    "type": event_type,
-                    "count": len(group),
-                    "summary": f"{len(group)} {event_type} events",
-                    "sample": group[0]
-                })
+                aggregated.append(
+                    {
+                        "type": event_type,
+                        "count": len(group),
+                        "summary": f"{len(group)} {event_type} events",
+                        "sample": group[0],
+                    }
+                )
             else:
                 # 低频事件：保留原样
                 aggregated.extend(group)

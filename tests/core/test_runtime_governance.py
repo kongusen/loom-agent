@@ -61,9 +61,7 @@ def test_governance_policy_denies_from_veto_authority() -> None:
 
 
 def test_governance_policy_denies_from_tool_governance() -> None:
-    tool_governance = ToolGovernance(
-        GovernanceConfig(deny_tools={"Bash"})
-    )
+    tool_governance = ToolGovernance(GovernanceConfig(deny_tools={"Bash"}))
     policy = GovernancePolicy.default(tool_governance=tool_governance)
 
     decision = policy.evaluate_tool(GovernanceRequest(tool_name="Bash"))
@@ -94,9 +92,7 @@ async def test_tool_executor_uses_runtime_governance_policy() -> None:
     policy = GovernancePolicy.deny_all("blocked by runtime policy")
     executor = ToolExecutor(registry, governance_policy=policy)
 
-    result = await executor.execute(
-        ToolCall(id="1", name="Bash", arguments={"text": "hello"})
-    )
+    result = await executor.execute(ToolCall(id="1", name="Bash", arguments={"text": "hello"}))
 
     assert result.is_error is True
     assert "blocked by runtime policy" in result.content
@@ -110,12 +106,8 @@ async def test_tool_executor_records_runtime_governance_success() -> None:
     policy = GovernancePolicy.default(tool_governance=tool_governance)
     executor = ToolExecutor(registry, governance_policy=policy)
 
-    first = await executor.execute(
-        ToolCall(id="1", name="Read", arguments={"text": "hello"})
-    )
-    second = await executor.execute(
-        ToolCall(id="2", name="Read", arguments={"text": "world"})
-    )
+    first = await executor.execute(ToolCall(id="1", name="Read", arguments={"text": "hello"}))
+    second = await executor.execute(ToolCall(id="2", name="Read", arguments={"text": "world"}))
 
     assert first.is_error is False
     assert second.is_error is True

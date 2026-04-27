@@ -14,6 +14,7 @@ from loom.types import ToolCall
 
 # ── ConstraintValidator ──
 
+
 class TestConstraintValidator:
     def test_creation(self):
         cv = ConstraintValidator()
@@ -21,8 +22,10 @@ class TestConstraintValidator:
 
     def test_add_constraint(self):
         cv = ConstraintValidator()
+
         def constraint(tc):
             return True
+
         cv.add_constraint("tool_1", constraint)
         assert "tool_1" in cv.constraints
         assert len(cv.constraints["tool_1"]) == 1
@@ -94,6 +97,7 @@ class TestConstraintValidator:
 
 # ── VetoAuthority ──
 
+
 class TestVetoAuthority:
     def test_creation(self):
         va = VetoAuthority()
@@ -128,7 +132,13 @@ class TestVetoAuthority:
 
     def test_veto_records_capture_context(self):
         va = VetoAuthority()
-        va.veto("dangerous action", tool="Bash", action="execute", context={"risk": "critical"}, source="policy")
+        va.veto(
+            "dangerous action",
+            tool="Bash",
+            action="execute",
+            context={"risk": "critical"},
+            source="policy",
+        )
 
         records = va.get_veto_records()
 
@@ -139,6 +149,7 @@ class TestVetoAuthority:
 
 
 # ── Safety HookManager ──
+
 
 class TestSafetyHookManager:
     def test_creation(self):
@@ -210,6 +221,7 @@ class TestSafetyHookManager:
 
 
 # ── Safety PermissionManager ──
+
 
 class TestSafetyPermissionManager:
     def test_creation(self):
@@ -339,6 +351,7 @@ class TestSafetyPermissionManager:
         assert decision.requires_approval is True
         assert decision.matched_permission is not None
 
+
 # ── Engine integration: hook → permission → veto pipeline ──
 
 
@@ -347,6 +360,7 @@ class TestEngineHookPermissionPipeline:
 
     def _make_engine(self, provider=None):
         from loom.runtime.engine import AgentEngine, EngineConfig
+
         mock_provider = provider or MagicMock()
         return AgentEngine(
             provider=mock_provider,
@@ -359,6 +373,7 @@ class TestEngineHookPermissionPipeline:
     def test_hook_manager_always_created(self):
         engine = self._make_engine()
         from loom.safety.hooks import HookManager
+
         assert isinstance(engine.hook_manager, HookManager)
 
     def test_permission_manager_none_by_default(self):
@@ -368,6 +383,7 @@ class TestEngineHookPermissionPipeline:
     def test_permission_manager_injectable(self):
         from loom.runtime.engine import AgentEngine, EngineConfig
         from loom.safety.permissions import PermissionManager, PermissionMode
+
         pm = PermissionManager(mode=PermissionMode.AUTO)
         engine = AgentEngine(
             provider=MagicMock(),
@@ -406,6 +422,7 @@ class TestEngineHookPermissionPipeline:
     @pytest.mark.asyncio
     async def test_permission_deny_blocks_execution(self):
         from loom.safety.permissions import PermissionManager, PermissionMode
+
         engine = self._make_engine()
         pm = PermissionManager(mode=PermissionMode.DEFAULT)
         pm.revoke("test_tool", "execute", note="not allowed")
@@ -420,6 +437,7 @@ class TestEngineHookPermissionPipeline:
     @pytest.mark.asyncio
     async def test_veto_still_works_after_hooks(self):
         from loom.safety.veto import VetoRule
+
         engine = self._make_engine()
         engine.veto_authority.add_rule(
             VetoRule(
@@ -438,6 +456,7 @@ class TestEngineHookPermissionPipeline:
     async def test_hook_deny_takes_priority_over_permission_and_veto(self):
         from loom.safety.permissions import PermissionManager, PermissionMode
         from loom.safety.veto import VetoRule
+
         engine = self._make_engine()
         # All three layers would deny — hook fires first
         engine.hook_manager.register(

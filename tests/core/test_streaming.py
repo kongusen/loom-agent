@@ -12,18 +12,21 @@ import pytest
 class TestStreamEventTypes:
     def test_text_delta(self):
         from loom.types.stream import TextDelta
+
         ev = TextDelta(delta="hello")
         assert ev.type == "text_delta"
         assert ev.delta == "hello"
 
     def test_thinking_delta(self):
         from loom.types.stream import ThinkingDelta
+
         ev = ThinkingDelta(delta="reasoning...")
         assert ev.type == "thinking"
         assert ev.delta == "reasoning..."
 
     def test_tool_call_event(self):
         from loom.types.stream import ToolCallEvent
+
         ev = ToolCallEvent(id="c1", name="search", arguments={"q": "python"})
         assert ev.type == "tool_call"
         assert ev.name == "search"
@@ -31,18 +34,21 @@ class TestStreamEventTypes:
 
     def test_tool_result_event(self):
         from loom.types.stream import ToolResultEvent
+
         ev = ToolResultEvent(tool_call_id="c1", name="search", content="results", is_error=False)
         assert ev.type == "tool_result"
         assert ev.is_error is False
 
     def test_done_event(self):
         from loom.types.stream import DoneEvent
+
         ev = DoneEvent(output="final answer", iterations=3, status="success")
         assert ev.type == "done"
         assert ev.iterations == 3
 
     def test_error_event(self):
         from loom.types.stream import ErrorEvent
+
         ev = ErrorEvent(message="something went wrong")
         assert ev.type == "error"
 
@@ -52,6 +58,7 @@ class TestStreamEventTypes:
             StreamEvent,
             TextDelta,
         )
+
         assert TextDelta is not None
         assert StreamEvent is not None
 
@@ -282,9 +289,7 @@ class TestAnthropicProviderStreamEvents:
             events.append(ev)
 
         tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
-        assert tc_events == [
-            ToolCallEvent(id="call_1", name="search", arguments={})
-        ]
+        assert tc_events == [ToolCallEvent(id="call_1", name="search", arguments={})]
 
 
 # ── OpenAIProvider stream_events ─────────────────────────────────────────────
@@ -325,7 +330,6 @@ class TestOpenAIProviderStreamEvents:
 
     @pytest.mark.asyncio
     async def test_tool_call_assembled_after_stream(self):
-
         from loom.providers.openai import OpenAIProvider
         from loom.types.stream import ToolCallEvent
 
@@ -371,7 +375,6 @@ class TestOpenAIProviderStreamEvents:
 
     @pytest.mark.asyncio
     async def test_malformed_tool_call_stream_is_recovered_and_nameless_call_ignored(self):
-
         from loom.providers.openai import OpenAIProvider
         from loom.types.stream import ToolCallEvent
 
@@ -406,9 +409,7 @@ class TestOpenAIProviderStreamEvents:
             events.append(ev)
 
         tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
-        assert tc_events == [
-            ToolCallEvent(id="call_1", name="search", arguments={})
-        ]
+        assert tc_events == [ToolCallEvent(id="call_1", name="search", arguments={})]
 
     @pytest.mark.asyncio
     async def test_thinking_delta_when_expose_reasoning(self):
@@ -461,22 +462,27 @@ class TestOpenAIProviderStreamEvents:
 class TestProviderReasoningExtKeys:
     def test_qwen_reasoning_key(self):
         from loom.providers.qwen import QwenProvider
+
         assert QwenProvider._reasoning_ext_key == "enable_thinking"
 
     def test_deepseek_reasoning_key(self):
         from loom.providers.deepseek import DeepSeekProvider
+
         assert DeepSeekProvider._reasoning_ext_key == "expose_reasoning"
 
     def test_minimax_reasoning_key(self):
         from loom.providers.minimax import MiniMaxProvider
+
         assert MiniMaxProvider._reasoning_ext_key == "expose_reasoning"
 
     def test_openai_no_reasoning_key(self):
         from loom.providers.openai import OpenAIProvider
+
         assert OpenAIProvider._reasoning_ext_key is None
 
     def test_ollama_inherits_no_reasoning_key(self):
         from loom.providers.ollama import OllamaProvider
+
         assert OllamaProvider._reasoning_ext_key is None
 
 
@@ -528,7 +534,11 @@ class TestEngineExecuteStreaming:
         async def _default_stream_events(messages, params=None):
             yield TextDelta(delta="final answer")
 
-        provider.stream_events = _default_stream_events if stream_events_side_effect is None else stream_events_side_effect
+        provider.stream_events = (
+            _default_stream_events
+            if stream_events_side_effect is None
+            else stream_events_side_effect
+        )
         provider.complete_response = AsyncMock()
         provider.complete_streaming = AsyncMock()
 
@@ -569,7 +579,6 @@ class TestEngineExecuteStreaming:
         provider.stream_events = _stream
         provider.complete_response = AsyncMock()
         provider.complete_streaming = AsyncMock()
-
 
         async def greet_handler(name: str = "") -> str:
             return f"Hello, {name}!"
@@ -628,6 +637,7 @@ class TestAgentRunStreaming:
 
         async def _stream_events(messages, params=None):
             from loom.types.stream import TextDelta
+
             yield TextDelta(delta="streamed answer")
 
         mock_provider = MagicMock()
@@ -638,9 +648,11 @@ class TestAgentRunStreaming:
         mock_provider._circuit = MagicMock()
         mock_provider._circuit.is_open.return_value = False
 
-        agent = Agent(config=AgentConfig(
-            model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
-        ))
+        agent = Agent(
+            config=AgentConfig(
+                model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+            )
+        )
         agent._provider = mock_provider
         agent._provider_resolved = True
         agent._provider_validated = True
@@ -660,9 +672,11 @@ class TestAgentRunStreaming:
         from loom.config import AgentConfig, ModelRef
         from loom.types.stream import ErrorEvent
 
-        agent = Agent(config=AgentConfig(
-            model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
-        ))
+        agent = Agent(
+            config=AgentConfig(
+                model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+            )
+        )
         # No provider set, no API key → provider will be None
         agent._provider = None
         agent._provider_resolved = True

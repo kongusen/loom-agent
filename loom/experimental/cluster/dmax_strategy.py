@@ -7,6 +7,7 @@ from typing import Literal
 
 TaskType = Literal["code", "research", "planning", "debugging", "default"]
 
+
 def get_dmax_for_task(task_type: TaskType) -> int:
     """根据任务类型返回最优 d_max
 
@@ -16,11 +17,5 @@ def get_dmax_for_task(task_type: TaskType) -> int:
     - planning: 3 (中等深度)
     - debugging: 5 (需要深入追踪)
     """
-    dmax_map = {
-        "code": 2,
-        "research": 5,
-        "planning": 3,
-        "debugging": 5,
-        "default": 3
-    }
+    dmax_map = {"code": 2, "research": 5, "planning": 3, "debugging": 5, "default": 3}
     return dmax_map.get(task_type, 3)

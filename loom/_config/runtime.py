@@ -105,7 +105,8 @@ class RuntimeConfig:
         from ..runtime.skills import SkillInjectionPolicy
 
         return cls(
-            limits=limits or RuntimeLimits(
+            limits=limits
+            or RuntimeLimits(
                 max_iterations=max_iterations,
                 max_context_tokens=max_context_tokens,
             ),
@@ -149,12 +150,14 @@ class RuntimeConfig:
 
         resolved_continuity = continuity or ContinuityPolicy.handoff()
         return cls(
-            limits=limits or RuntimeLimits(
+            limits=limits
+            or RuntimeLimits(
                 max_iterations=max_iterations,
                 max_context_tokens=max_context_tokens,
             ),
             features=features or RuntimeFeatures(),
-            context=context or ContextProtocol.manager(
+            context=context
+            or ContextProtocol.manager(
                 max_tokens=max_context_tokens,
                 continuity=resolved_continuity,
             ),
@@ -201,12 +204,14 @@ class RuntimeConfig:
 
         resolved_continuity = continuity or ContinuityPolicy.handoff()
         return cls(
-            limits=limits or RuntimeLimits(
+            limits=limits
+            or RuntimeLimits(
                 max_iterations=max_iterations,
                 max_context_tokens=max_context_tokens,
             ),
             features=features or RuntimeFeatures(),
-            context=context or ContextProtocol.manager(
+            context=context
+            or ContextProtocol.manager(
                 max_tokens=max_context_tokens,
                 continuity=resolved_continuity,
             ),
@@ -255,12 +260,14 @@ class RuntimeConfig:
 
         resolved_continuity = continuity or ContinuityPolicy.handoff()
         return cls(
-            limits=limits or RuntimeLimits(
+            limits=limits
+            or RuntimeLimits(
                 max_iterations=max_iterations,
                 max_context_tokens=max_context_tokens,
             ),
             features=features or RuntimeFeatures(),
-            context=context or ContextProtocol.manager(
+            context=context
+            or ContextProtocol.manager(
                 max_tokens=max_context_tokens,
                 continuity=resolved_continuity,
             ),
@@ -303,11 +310,7 @@ def _session_restore_summary(value: Any | None) -> dict[str, Any] | None:
         "max_runtime_items",
         "max_chars",
     )
-    return {
-        field: getattr(value, field)
-        for field in fields
-        if hasattr(value, field)
-    }
+    return {field: getattr(value, field) for field in fields if hasattr(value, field)}
 
 
 def _delegation_summary(value: Any | None) -> dict[str, Any] | None:

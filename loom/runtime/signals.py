@@ -19,11 +19,7 @@ SignalAction = Literal[
     "interrupt_now",
 ]
 SignalStringField = str | Callable[[Any], str | None] | None
-SignalPayloadField = (
-    Mapping[str, Any]
-    | Callable[[Any], Mapping[str, Any] | None]
-    | None
-)
+SignalPayloadField = Mapping[str, Any] | Callable[[Any], Mapping[str, Any] | None] | None
 
 
 @dataclass(slots=True)
@@ -102,8 +98,7 @@ class RuntimeSignal:
 class RuntimeSignalAdapter(Protocol):
     """Protocol for objects that normalize external events into runtime signals."""
 
-    def adapt(self, event: Any) -> RuntimeSignal:
-        ...
+    def adapt(self, event: Any) -> RuntimeSignal: ...
 
 
 @dataclass(slots=True)

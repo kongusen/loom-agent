@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WatchSource:
     """监控源配置"""
+
     type: str  # filesystem, process, mf_events, resource, external_signal
     config: dict[str, Any] = field(default_factory=dict)
 
@@ -21,14 +22,13 @@ class WatchSource:
 @dataclass
 class HeartbeatConfig:
     """H_b 配置 - 由 Ψ 在构建时设定"""
+
     T_hb: float = 5.0  # 心跳间隔（秒）
     delta_hb: float = 0.1  # 最小信息熵增量
     watch_sources: list[WatchSource] = field(default_factory=list)
-    interrupt_policy: dict[str, str] = field(default_factory=lambda: {
-        "low": "queue",
-        "high": "request",
-        "critical": "force"
-    })
+    interrupt_policy: dict[str, str] = field(
+        default_factory=lambda: {"low": "queue", "high": "request", "critical": "force"}
+    )
 
 
 class Heartbeat:
@@ -81,8 +81,7 @@ class Heartbeat:
             key = str(source.config)
             if key not in self._fs_monitors:
                 self._fs_monitors[key] = FilesystemMonitor(
-                    source.config.get("paths", []),
-                    source.config.get("method", "hash")
+                    source.config.get("paths", []), source.config.get("method", "hash")
                 )
             result = self._fs_monitors[key].check(timestamp)
             return result if isinstance(result, dict) or result is None else None
@@ -126,7 +125,9 @@ class Heartbeat:
         else:
             return "low"
 
-    def process_event(self, event: dict, urgency: str, dashboard_manager: Any | None = None) -> dict:
+    def process_event(
+        self, event: dict, urgency: str, dashboard_manager: Any | None = None
+    ) -> dict:
         """Standardize one heartbeat event and dispatch it."""
         event["urgency"] = urgency
 

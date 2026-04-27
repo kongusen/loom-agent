@@ -30,10 +30,11 @@ from loom.tools.builtin.web_operations import web_search
 
 # ── File Operations ──
 
+
 class TestReadFile:
     @pytest.mark.asyncio
     async def test_read_existing_file(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("line1\nline2\nline3\n")
             path = f.name
         try:
@@ -46,7 +47,7 @@ class TestReadFile:
 
     @pytest.mark.asyncio
     async def test_read_with_offset(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("line1\nline2\nline3\n")
             path = f.name
         try:
@@ -59,7 +60,7 @@ class TestReadFile:
 
     @pytest.mark.asyncio
     async def test_read_with_limit(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("line1\nline2\nline3\nline4\nline5\n")
             path = f.name
         try:
@@ -93,7 +94,7 @@ class TestWriteFile:
 
     @pytest.mark.asyncio
     async def test_overwrite_existing(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("old")
             path = f.name
         try:
@@ -106,7 +107,7 @@ class TestWriteFile:
 class TestEditFile:
     @pytest.mark.asyncio
     async def test_edit_replace(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("hello world")
             path = f.name
         try:
@@ -118,7 +119,7 @@ class TestEditFile:
 
     @pytest.mark.asyncio
     async def test_edit_replace_all(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("aaa bbb aaa")
             path = f.name
         try:
@@ -130,7 +131,7 @@ class TestEditFile:
 
     @pytest.mark.asyncio
     async def test_edit_multiple_without_replace_all(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("aaa bbb aaa")
             path = f.name
         try:
@@ -141,7 +142,7 @@ class TestEditFile:
 
     @pytest.mark.asyncio
     async def test_edit_string_not_found(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("hello")
             path = f.name
         try:
@@ -195,6 +196,7 @@ class TestGrepFiles:
 
 # ── Shell Operations ──
 
+
 class TestBash:
     @pytest.mark.asyncio
     async def test_simple_command(self):
@@ -221,11 +223,13 @@ class TestBash:
 
 # ── Task Operations ──
 
+
 class TestTaskOperations:
     @pytest.mark.asyncio
     async def test_task_create(self):
         # Reset global state
         import loom.tools.builtin.task_operations as task_mod
+
         task_mod._tasks.clear()
         task_mod._task_counter = 0
 
@@ -236,6 +240,7 @@ class TestTaskOperations:
     @pytest.mark.asyncio
     async def test_task_update(self):
         import loom.tools.builtin.task_operations as task_mod
+
         task_mod._tasks.clear()
         task_mod._task_counter = 0
 
@@ -247,6 +252,7 @@ class TestTaskOperations:
     @pytest.mark.asyncio
     async def test_task_update_not_found(self):
         import loom.tools.builtin.task_operations as task_mod
+
         task_mod._tasks.clear()
 
         with pytest.raises(ValueError, match="Task not found"):
@@ -255,6 +261,7 @@ class TestTaskOperations:
     @pytest.mark.asyncio
     async def test_task_list(self):
         import loom.tools.builtin.task_operations as task_mod
+
         task_mod._tasks.clear()
         task_mod._task_counter = 0
 
@@ -266,6 +273,7 @@ class TestTaskOperations:
     @pytest.mark.asyncio
     async def test_task_list_empty(self):
         import loom.tools.builtin.task_operations as task_mod
+
         task_mod._tasks.clear()
         task_mod._task_counter = 0
 
@@ -275,6 +283,7 @@ class TestTaskOperations:
     @pytest.mark.asyncio
     async def test_task_get(self):
         import loom.tools.builtin.task_operations as task_mod
+
         task_mod._tasks.clear()
         task_mod._task_counter = 0
 
@@ -288,6 +297,7 @@ class TestTaskOperations:
     @pytest.mark.asyncio
     async def test_task_get_not_found(self):
         import loom.tools.builtin.task_operations as task_mod
+
         task_mod._tasks.clear()
 
         with pytest.raises(ValueError, match="Task not found"):
@@ -295,6 +305,7 @@ class TestTaskOperations:
 
 
 # ── Web Operations ──
+
 
 class TestWebSearch:
     @pytest.mark.asyncio
@@ -305,6 +316,7 @@ class TestWebSearch:
 
 
 # ── Agent Operations ──
+
 
 class TestSpawnAgent:
     @pytest.mark.asyncio
@@ -325,6 +337,7 @@ class TestAskUser:
 
 
 # ── MCP Operations ──
+
 
 class TestMcpOperations:
     @pytest.mark.asyncio
@@ -348,6 +361,7 @@ class TestMcpOperations:
 
 # ── Skill Operations ──
 
+
 class TestSkillOperations:
     @pytest.mark.asyncio
     async def test_skill_invoke(self):
@@ -361,7 +375,9 @@ class TestSkillOperations:
             )
         )
 
-        with patch("loom.tools.builtin.skill_operations._get_or_create_registry", return_value=registry):
+        with patch(
+            "loom.tools.builtin.skill_operations._get_or_create_registry", return_value=registry
+        ):
             result = await skill_invoke("python_expert", args="debug this")
 
         assert result["success"] is True
@@ -383,7 +399,9 @@ class TestSkillOperations:
             )
         )
 
-        with patch("loom.tools.builtin.skill_operations._get_or_create_registry", return_value=registry):
+        with patch(
+            "loom.tools.builtin.skill_operations._get_or_create_registry", return_value=registry
+        ):
             result = await skill_discover()
 
         assert result["success"] is True
@@ -395,6 +413,7 @@ class TestSkillOperations:
 
 # ── Notebook Operations ──
 
+
 class TestNotebookEdit:
     @pytest.mark.asyncio
     async def test_edit_cell(self):
@@ -404,7 +423,7 @@ class TestNotebookEdit:
                 {"id": "cell_2", "source": ["other"], "cell_type": "markdown"},
             ]
         }
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.ipynb', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".ipynb", delete=False) as f:
             json.dump(notebook, f)
             path = f.name
 
@@ -422,7 +441,7 @@ class TestNotebookEdit:
     @pytest.mark.asyncio
     async def test_edit_cell_not_found(self):
         notebook = {"cells": [{"id": "cell_1", "source": ["code"]}]}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.ipynb', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".ipynb", delete=False) as f:
             json.dump(notebook, f)
             path = f.name
 

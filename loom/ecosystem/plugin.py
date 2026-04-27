@@ -16,6 +16,7 @@ from typing import Any
 @dataclass
 class PluginManifest:
     """Plugin manifest (plugin.json)"""
+
     name: str
     version: str
     description: str
@@ -38,6 +39,7 @@ class PluginManifest:
 @dataclass
 class Plugin:
     """Loaded plugin"""
+
     name: str
     manifest: PluginManifest
     path: Path
@@ -56,31 +58,32 @@ class PluginLoader:
 
     def load_manifest(self, plugin_dir: Path) -> PluginManifest | None:
         """Load plugin.json manifest"""
-        manifest_path = plugin_dir / 'plugin.json'
+        manifest_path = plugin_dir / "plugin.json"
         if not manifest_path.exists():
             return None
 
         import json
+
         try:
             data = json.loads(manifest_path.read_text())
             return PluginManifest(
-                name=data['name'],
-                version=data['version'],
-                description=data['description'],
-                author=data.get('author'),
-                skills=data.get('skills'),
-                commands=data.get('commands'),
-                hooks=data.get('hooks'),
-                mcp_servers=data.get('mcpServers'),
-                dependencies=data.get('dependencies', []),
-                repository=data.get('repository'),
-                enabled=data.get('enabled', True),
+                name=data["name"],
+                version=data["version"],
+                description=data["description"],
+                author=data.get("author"),
+                skills=data.get("skills"),
+                commands=data.get("commands"),
+                hooks=data.get("hooks"),
+                mcp_servers=data.get("mcpServers"),
+                dependencies=data.get("dependencies", []),
+                repository=data.get("repository"),
+                enabled=data.get("enabled", True),
             )
         except Exception as e:
             self.errors.append(f"Failed to load manifest from {plugin_dir}: {e}")
             return None
 
-    def load_plugin(self, plugin_dir: Path, source: str = 'local') -> Plugin | None:
+    def load_plugin(self, plugin_dir: Path, source: str = "local") -> Plugin | None:
         """Load plugin from directory"""
         manifest = self.load_manifest(plugin_dir)
         if not manifest:
@@ -141,6 +144,7 @@ class PluginLoader:
             mcp_bridge = getattr(agent, "mcp_bridge", None)
             if mcp_bridge is not None:
                 from .mcp import MCPServerConfig, MCPTransportType
+
                 for name, cfg in manifest.mcp_servers.items():
                     transport = MCPTransportType(cfg.get("type", "stdio"))
                     server_cfg = MCPServerConfig(
@@ -152,8 +156,9 @@ class PluginLoader:
                         instructions=cfg.get("instructions", ""),
                     )
                     scoped_name = f"plugin:{plugin_name}:{name}"
-                    mcp_bridge.register_server(scoped_name, server_cfg,
-                                               scope="plugin", plugin_source=plugin_name)
+                    mcp_bridge.register_server(
+                        scoped_name, server_cfg, scope="plugin", plugin_source=plugin_name
+                    )
 
         # Register hooks
         if manifest.hooks:

@@ -23,6 +23,7 @@ class ConstraintViolation:
 @dataclass
 class ParameterConstraint:
     """Parameter-level constraint for fine-grained control"""
+
     parameter_name: str
     constraint_type: str  # "regex", "range", "enum", "custom"
     constraint_value: Any
@@ -35,7 +36,9 @@ class ParameterConstraint:
                 return False, f"{self.parameter_name} must be string for regex validation"
             pattern = self.constraint_value
             if not re.match(pattern, value):
-                msg = self.error_message or f"{self.parameter_name} does not match pattern {pattern}"
+                msg = (
+                    self.error_message or f"{self.parameter_name} does not match pattern {pattern}"
+                )
                 return False, msg
 
         elif self.constraint_type == "range":
@@ -43,7 +46,10 @@ class ParameterConstraint:
             if not isinstance(value, int | float):
                 return False, f"{self.parameter_name} must be numeric for range validation"
             if not (min_val <= value <= max_val):
-                msg = self.error_message or f"{self.parameter_name} must be between {min_val} and {max_val}"
+                msg = (
+                    self.error_message
+                    or f"{self.parameter_name} must be between {min_val} and {max_val}"
+                )
                 return False, msg
 
         elif self.constraint_type == "enum":
@@ -85,6 +91,7 @@ class ParameterConstraint:
 @dataclass
 class ToolPolicy:
     """Tool-specific policy with parameter constraints"""
+
     tool_name: str
     parameter_constraints: list[ParameterConstraint] = field(default_factory=list)
     max_calls_per_minute: int | None = None  # Tool-specific rate limit
@@ -96,6 +103,7 @@ class ToolPolicy:
 @dataclass
 class GovernanceConfig:
     """Governance configuration with fine-grained control"""
+
     # Basic settings
     enable_rate_limit: bool = True
     enable_permission_check: bool = True
@@ -163,7 +171,10 @@ class ToolGovernance:
         tool_policy = self.config.tool_policies.get(tool_name)
         if tool_policy:
             # Check context restrictions
-            if tool_policy.allowed_contexts and self.config.current_context not in tool_policy.allowed_contexts:
+            if (
+                tool_policy.allowed_contexts
+                and self.config.current_context not in tool_policy.allowed_contexts
+            ):
                 return False, f"{tool_name} not allowed in context '{self.config.current_context}'"
 
             # Check parameter constraints
@@ -175,7 +186,9 @@ class ToolGovernance:
             # Check custom policy
             if tool_policy.custom_policy:
                 try:
-                    ok, reason = tool_policy.custom_policy(tool_name, arguments or {}, self.runtime_context)
+                    ok, reason = tool_policy.custom_policy(
+                        tool_name, arguments or {}, self.runtime_context
+                    )
                     if not ok:
                         return False, reason
                 except Exception as e:
@@ -185,10 +198,7 @@ class ToolGovernance:
         if self.config.context_policy and arguments:
             try:
                 ok, reason = self.config.context_policy(
-                    tool_name,
-                    self.config.current_context,
-                    arguments,
-                    self.runtime_context
+                    tool_name, self.config.current_context, arguments, self.runtime_context
                 )
                 if not ok:
                     return False, reason
@@ -204,10 +214,7 @@ class ToolGovernance:
         return True, ""
 
     def _validate_parameters(
-        self,
-        tool_name: str,
-        tool_policy: ToolPolicy,
-        arguments: dict[str, Any]
+        self, tool_name: str, tool_policy: ToolPolicy, arguments: dict[str, Any]
     ) -> tuple[bool, str]:
         """Validate parameters against constraints"""
         violations: list[ConstraintViolation] = []

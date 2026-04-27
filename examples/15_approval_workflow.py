@@ -11,7 +11,9 @@ from loom import Agent, Model, RunContext, SessionConfig
 
 
 def resolve_model():
-    provider = os.getenv("LOOM_PROVIDER", "openai" if os.getenv("OPENAI_API_KEY") else "anthropic").lower()
+    provider = os.getenv(
+        "LOOM_PROVIDER", "openai" if os.getenv("OPENAI_API_KEY") else "anthropic"
+    ).lower()
     model_name = os.getenv("LOOM_MODEL_NAME")
     if provider == "openai":
         return Model.openai(

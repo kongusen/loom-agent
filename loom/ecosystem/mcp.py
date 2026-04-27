@@ -16,6 +16,7 @@ from typing import Any
 
 class MCPTransportType(Enum):
     """MCP transport types"""
+
     STDIO = "stdio"
     SSE = "sse"
     HTTP = "http"
@@ -25,6 +26,7 @@ class MCPTransportType(Enum):
 @dataclass
 class MCPServerConfig:
     """MCP server configuration"""
+
     type: MCPTransportType = MCPTransportType.STDIO
 
     # stdio config
@@ -50,6 +52,7 @@ class MCPServerConfig:
 @dataclass
 class MCPServer:
     """MCP server instance"""
+
     name: str
     config: MCPServerConfig
     scope: str = "user"  # user | plugin | dynamic
@@ -74,8 +77,13 @@ class MCPBridge:
         self.servers: dict[str, MCPServer] = {}
         self._instructions_cache: dict[str, str] = {}
 
-    def register_server(self, name: str, config: MCPServerConfig,
-                       scope: str = "user", plugin_source: str | None = None):
+    def register_server(
+        self,
+        name: str,
+        config: MCPServerConfig,
+        scope: str = "user",
+        plugin_source: str | None = None,
+    ):
         """Register MCP server"""
         server = MCPServer(
             name=name,
@@ -94,14 +102,14 @@ class MCPBridge:
 
         # Replace ${CLAUDE_PLUGIN_ROOT}
         if plugin_path:
-            value = value.replace('${CLAUDE_PLUGIN_ROOT}', plugin_path)
+            value = value.replace("${CLAUDE_PLUGIN_ROOT}", plugin_path)
 
         # Replace ${VAR}
         def replace_var(match):
             var_name = match.group(1)
             return os.environ.get(var_name, match.group(0))
 
-        return re.sub(r'\$\{([^}]+)\}', replace_var, value)
+        return re.sub(r"\$\{([^}]+)\}", replace_var, value)
 
     def connect(self, server_name: str) -> bool:
         """Connect to MCP server (stdio subprocess or mock fallback)"""
@@ -139,8 +147,11 @@ class MCPBridge:
         cmd = [server.config.command] + (server.config.args or [])
         env = {**os.environ, **(server.config.env or {})}
         proc = subprocess.Popen(
-            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, env=env,
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=env,
         )
 
         def rpc(method: str, params: dict | None = None) -> dict:
@@ -154,6 +165,7 @@ class MCPBridge:
             proc.stdin.flush()
             # readline with timeout via select
             import select
+
             # Type guard: ensure stdout is not None
             if proc.stdout is None:
                 raise RuntimeError("MCP subprocess stdout is None")
@@ -222,6 +234,7 @@ class MCPBridge:
         if server_name in procs:
             import json
             import select
+
             proc = procs[server_name]
             # Reconnect if process has died
             if proc.poll() is not None:
@@ -232,8 +245,12 @@ class MCPBridge:
                     del self._stdio_procs[server_name]
                     proc = None
             if proc is not None:
-                msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                       "params": {"name": tool_name, "arguments": kwargs}}
+                msg = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": tool_name, "arguments": kwargs},
+                }
                 proc.stdin.write((json.dumps(msg) + "\n").encode())
                 proc.stdin.flush()
                 ready, _, _ = select.select([proc.stdout], [], [], self._RPC_TIMEOUT)

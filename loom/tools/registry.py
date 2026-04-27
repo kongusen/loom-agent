@@ -1,6 +1,5 @@
 """Tool registry"""
 
-
 from .schema import Tool, ToolDefinition
 
 

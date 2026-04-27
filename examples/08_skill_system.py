@@ -49,7 +49,7 @@ async def main():
         print(f"Allowed tools: {result['allowed_tools']}")
         print(f"Content length: {len(result['content'])} chars")
         print("\nFirst 200 chars of content:")
-        print(result['content'][:200] + "...")
+        print(result["content"][:200] + "...")
     else:
         print(f"Invocation failed: {result.get('error', 'Unknown error')}")
         if "available_skills" in result:

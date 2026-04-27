@@ -28,6 +28,7 @@ else:
 @dataclass
 class ShellConfig:
     """Shell configuration for inline execution"""
+
     command: str = "/bin/bash"
     args: list[str] = field(default_factory=lambda: ["-c"])
     env: dict[str, str] = field(default_factory=dict)
@@ -47,16 +48,16 @@ def get_effort_token_limit(effort: int | None) -> int:
         return 4000  # Default
 
     effort_map = {
-        1: 1000,    # 简单任务
-        2: 2000,    # 中等任务
-        3: 4000,    # 复杂任务（默认）
-        4: 8000,    # 困难任务
-        5: 16000,   # 极其复杂任务
+        1: 1000,  # 简单任务
+        2: 2000,  # 中等任务
+        3: 4000,  # 复杂任务（默认）
+        4: 8000,  # 困难任务
+        5: 16000,  # 极其复杂任务
     }
     return effort_map.get(effort, 4000)
 
 
-def estimate_skill_tokens(skill: 'Skill', load_content: bool = False) -> int:
+def estimate_skill_tokens(skill: "Skill", load_content: bool = False) -> int:
     """Estimate token consumption for a skill
 
     Args:
@@ -84,6 +85,7 @@ def estimate_skill_tokens(skill: 'Skill', load_content: bool = False) -> int:
 @dataclass
 class Skill:
     """Skill definition"""
+
     name: str
     description: str
     content: str  # Markdown content
@@ -103,10 +105,10 @@ class Skill:
     # Advanced features (P1)
     paths: list[str] | None = None  # [src/**, tests/**] - path restrictions
     version: str | None = None  # 1.0.0 - version control
-    hooks: 'SkillHooks | None' = None  # Lifecycle hooks
+    hooks: "SkillHooks | None" = None  # Lifecycle hooks
 
     # Sprint 3 features (P2)
-    shell: 'ShellConfig | None' = None  # Shell configuration
+    shell: "ShellConfig | None" = None  # Shell configuration
 
     # Metadata
     source: str = "user"  # user | plugin | bundled
@@ -117,7 +119,7 @@ class Skill:
         if not self.when_to_use:
             return False
         task_lower = task.lower()
-        keywords = [kw.strip() for kw in self.when_to_use.lower().split(',')]
+        keywords = [kw.strip() for kw in self.when_to_use.lower().split(",")]
         return any(kw in task_lower for kw in keywords)
 
 
@@ -174,35 +176,35 @@ class SkillLoader:
     @staticmethod
     def parse_frontmatter(content: str) -> tuple[dict, str]:
         """Parse YAML frontmatter from markdown (simple parser, no external deps)"""
-        if not content.startswith('---\n'):
+        if not content.startswith("---\n"):
             return {}, content
 
-        parts = content.split('---\n', 2)
+        parts = content.split("---\n", 2)
         if len(parts) < 3:
             return {}, content
 
         # Simple YAML parser for basic key: value and key: [list] syntax
         # Also supports nested objects with indentation
         frontmatter: dict[str, Any] = {}
-        lines = parts[1].split('\n')
+        lines = parts[1].split("\n")
         i = 0
 
         while i < len(lines):
             line = lines[i]
             stripped = line.strip()
 
-            if not stripped or stripped.startswith('#'):
+            if not stripped or stripped.startswith("#"):
                 i += 1
                 continue
 
-            if ':' not in stripped:
+            if ":" not in stripped:
                 i += 1
                 continue
 
             # Get indentation level
             indent = len(line) - len(line.lstrip())
 
-            key, value = stripped.split(':', 1)
+            key, value = stripped.split(":", 1)
             key = key.strip()
             value = value.strip()
 
@@ -225,12 +227,12 @@ class SkillLoader:
                             # Back to parent level
                             break
 
-                        if not nested_stripped or nested_stripped.startswith('#'):
+                        if not nested_stripped or nested_stripped.startswith("#"):
                             i += 1
                             continue
 
-                        if ':' in nested_stripped:
-                            nested_key, nested_value = nested_stripped.split(':', 1)
+                        if ":" in nested_stripped:
+                            nested_key, nested_value = nested_stripped.split(":", 1)
                             nested_key = nested_key.strip()
                             nested_value = nested_value.strip()
 
@@ -248,44 +250,60 @@ class SkillLoader:
                                     while i < len(lines):
                                         deeper_line = lines[i]
                                         deeper_stripped = deeper_line.strip()
-                                        deeper_indent_level = len(deeper_line) - len(deeper_line.lstrip())
+                                        deeper_indent_level = len(deeper_line) - len(
+                                            deeper_line.lstrip()
+                                        )
 
                                         if deeper_indent_level <= nested_indent:
                                             # Back to parent level
                                             break
 
-                                        if not deeper_stripped or deeper_stripped.startswith('#'):
+                                        if not deeper_stripped or deeper_stripped.startswith("#"):
                                             i += 1
                                             continue
 
-                                        if ':' in deeper_stripped:
-                                            deeper_key, deeper_value = deeper_stripped.split(':', 1)
+                                        if ":" in deeper_stripped:
+                                            deeper_key, deeper_value = deeper_stripped.split(":", 1)
                                             deeper_key = deeper_key.strip()
                                             deeper_value = deeper_value.strip()
 
                                             # Parse deeper value types
-                                            if deeper_value.startswith('[') and deeper_value.endswith(']'):
-                                                items = deeper_value[1:-1].split(',')
-                                                deeper_nested[deeper_key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
-                                            elif deeper_value.lower() in ('true', 'false'):
-                                                deeper_nested[deeper_key] = deeper_value.lower() == 'true'
+                                            if deeper_value.startswith(
+                                                "["
+                                            ) and deeper_value.endswith("]"):
+                                                items = deeper_value[1:-1].split(",")
+                                                deeper_nested[deeper_key] = [
+                                                    item.strip().strip('"').strip("'")
+                                                    for item in items
+                                                    if item.strip()
+                                                ]
+                                            elif deeper_value.lower() in ("true", "false"):
+                                                deeper_nested[deeper_key] = (
+                                                    deeper_value.lower() == "true"
+                                                )
                                             elif deeper_value.isdigit():
                                                 deeper_nested[deeper_key] = int(deeper_value)
                                             else:
-                                                deeper_nested[deeper_key] = deeper_value.strip('"').strip("'")
+                                                deeper_nested[deeper_key] = deeper_value.strip(
+                                                    '"'
+                                                ).strip("'")
 
                                         i += 1
 
                                     nested[nested_key] = deeper_nested
                                     continue
 
-                            if nested_value.startswith('[') and nested_value.endswith(']'):
+                            if nested_value.startswith("[") and nested_value.endswith("]"):
                                 # List
-                                items = nested_value[1:-1].split(',')
-                                nested[nested_key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
-                            elif nested_value.lower() in ('true', 'false'):
+                                items = nested_value[1:-1].split(",")
+                                nested[nested_key] = [
+                                    item.strip().strip('"').strip("'")
+                                    for item in items
+                                    if item.strip()
+                                ]
+                            elif nested_value.lower() in ("true", "false"):
                                 # Boolean
-                                nested[nested_key] = nested_value.lower() == 'true'
+                                nested[nested_key] = nested_value.lower() == "true"
                             elif nested_value.isdigit():
                                 # Integer
                                 nested[nested_key] = int(nested_value)
@@ -299,12 +317,14 @@ class SkillLoader:
                     continue
 
             # Handle lists: [item1, item2]
-            if value.startswith('[') and value.endswith(']'):
-                items = value[1:-1].split(',')
-                frontmatter[key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
+            if value.startswith("[") and value.endswith("]"):
+                items = value[1:-1].split(",")
+                frontmatter[key] = [
+                    item.strip().strip('"').strip("'") for item in items if item.strip()
+                ]
             # Handle booleans
-            elif value.lower() in ('true', 'false'):
-                frontmatter[key] = value.lower() == 'true'
+            elif value.lower() in ("true", "false"):
+                frontmatter[key] = value.lower() == "true"
             # Handle numbers
             elif value.isdigit():
                 frontmatter[key] = int(value)
@@ -320,11 +340,11 @@ class SkillLoader:
     @staticmethod
     def load_from_file(path: Path) -> Skill:
         """Load skill from markdown file"""
-        content = path.read_text(encoding='utf-8')
+        content = path.read_text(encoding="utf-8")
         frontmatter, body = SkillLoader.parse_frontmatter(content)
 
-        name = frontmatter.get('name', path.stem)
-        description = frontmatter.get('description', '')
+        name = frontmatter.get("name", path.stem)
+        description = frontmatter.get("description", "")
 
         # Parse hooks if available
         hooks = None
@@ -333,34 +353,34 @@ class SkillLoader:
 
         # Parse shell config if available
         shell = None
-        if 'shell' in frontmatter and isinstance(frontmatter['shell'], dict):
-            shell_data = frontmatter['shell']
+        if "shell" in frontmatter and isinstance(frontmatter["shell"], dict):
+            shell_data = frontmatter["shell"]
             shell = ShellConfig(
-                command=shell_data.get('command', '/bin/bash'),
-                args=shell_data.get('args', ['-c']),
-                env=shell_data.get('env', {}),
-                timeout=shell_data.get('timeout', 30),
+                command=shell_data.get("command", "/bin/bash"),
+                args=shell_data.get("args", ["-c"]),
+                env=shell_data.get("env", {}),
+                timeout=shell_data.get("timeout", 30),
             )
 
         return Skill(
             name=name,
             description=description,
             content=body,
-            when_to_use=frontmatter.get('whenToUse'),
-            allowed_tools=frontmatter.get('allowedTools', []),
-            argument_hint=frontmatter.get('argumentHint'),
-            model=frontmatter.get('model'),
-            user_invocable=frontmatter.get('userInvocable', True),
+            when_to_use=frontmatter.get("whenToUse"),
+            allowed_tools=frontmatter.get("allowedTools", []),
+            argument_hint=frontmatter.get("argumentHint"),
+            model=frontmatter.get("model"),
+            user_invocable=frontmatter.get("userInvocable", True),
             # Agent framework features
-            effort=frontmatter.get('effort'),
-            agent=frontmatter.get('agent'),
-            context=frontmatter.get('context', 'inline'),
-            paths=frontmatter.get('paths'),
-            version=frontmatter.get('version'),
+            effort=frontmatter.get("effort"),
+            agent=frontmatter.get("agent"),
+            context=frontmatter.get("context", "inline"),
+            paths=frontmatter.get("paths"),
+            version=frontmatter.get("version"),
             hooks=hooks,
             shell=shell,
             # Metadata
-            source='user',
+            source="user",
             file_path=str(path),
         )
 
@@ -370,14 +390,14 @@ class SkillLoader:
         if not directory.exists():
             return
 
-        for skill_file in directory.glob('**/*.md'):
+        for skill_file in directory.glob("**/*.md"):
             # Skip README files
-            if skill_file.name.upper() == 'README.MD':
+            if skill_file.name.upper() == "README.MD":
                 continue
 
             skill_name = skill_file.stem
             # Register lazy loader
             registry.register_lazy(
                 skill_name,
-                lambda p=skill_file: SkillLoader.load_from_file(p)  # type: ignore[misc]
+                lambda p=skill_file: SkillLoader.load_from_file(p),  # type: ignore[misc]
             )

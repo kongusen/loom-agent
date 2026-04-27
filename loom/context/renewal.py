@@ -39,46 +39,42 @@ class ContextRenewer:
         """Renew context by compressing and rebuilding"""
         # 1. Snapshot dashboard
         working_state = {
-            'rho': partitions.working.rho,
-            'token_budget': partitions.working.token_budget,
-            'goal_progress': partitions.working.goal_progress,
-            'error_count': partitions.working.error_count,
-            'depth': partitions.working.depth,
-            'last_signal_ts': partitions.working.last_signal_ts,
-            'last_hb_ts': partitions.working.last_hb_ts,
-            'interrupt_requested': partitions.working.interrupt_requested,
-            'scratchpad': partitions.working.scratchpad,
+            "rho": partitions.working.rho,
+            "token_budget": partitions.working.token_budget,
+            "goal_progress": partitions.working.goal_progress,
+            "error_count": partitions.working.error_count,
+            "depth": partitions.working.depth,
+            "last_signal_ts": partitions.working.last_signal_ts,
+            "last_hb_ts": partitions.working.last_hb_ts,
+            "interrupt_requested": partitions.working.interrupt_requested,
+            "scratchpad": partitions.working.scratchpad,
         }
-        self.persistent.save('working_state', working_state)
+        self.persistent.save("working_state", working_state)
 
         # 2. Snapshot plan
-        plan_state = {
-            'plan': partitions.working.plan,
-            'goal': goal
-        }
-        self.persistent.save('plan_state', plan_state)
+        plan_state = {"plan": partitions.working.plan, "goal": goal}
+        self.persistent.save("plan_state", plan_state)
 
         # 3. Snapshot event_surface (必须跨 renew 保留)
         event_state = {
-            'pending_events': partitions.working.event_surface.pending_events,
-            'active_risks': partitions.working.event_surface.active_risks,
-            'recent_event_decisions': partitions.working.event_surface.recent_event_decisions[-5:],  # 只保留最近5条
+            "pending_events": partitions.working.event_surface.pending_events,
+            "active_risks": partitions.working.event_surface.active_risks,
+            "recent_event_decisions": partitions.working.event_surface.recent_event_decisions[
+                -5:
+            ],  # 只保留最近5条
         }
-        self.persistent.save('event_state', event_state)
+        self.persistent.save("event_state", event_state)
 
         # 4. Snapshot knowledge_surface
         knowledge_state = {
-            'active_questions': partitions.working.knowledge_surface.active_questions,
-            'evidence_packs': partitions.working.knowledge_surface.evidence_packs,
-            'citations': partitions.working.knowledge_surface.citations,
+            "active_questions": partitions.working.knowledge_surface.active_questions,
+            "evidence_packs": partitions.working.knowledge_surface.evidence_packs,
+            "citations": partitions.working.knowledge_surface.citations,
         }
-        self.persistent.save('knowledge_state', knowledge_state)
+        self.persistent.save("knowledge_state", knowledge_state)
 
         # 5. Compress history
-        compressed_history = self.compressor.auto_compact(
-            partitions.history,
-            goal
-        )
+        compressed_history = self.compressor.auto_compact(partitions.history, goal)
 
         # 6. Rebuild new context
         new_partitions = ContextPartitions()
@@ -98,15 +94,14 @@ class ContextRenewer:
             goal=goal,
             sprint=sprint,
             progress_summary=str(
-                working_state.get('goal_progress', '')
-                or working_state.get('scratchpad', '')
+                working_state.get("goal_progress", "") or working_state.get("scratchpad", "")
             ),
             produced_artifacts={},
-            open_tasks=list(plan_state.get('plan', [])),
+            open_tasks=list(plan_state.get("plan", [])),
             context_snapshot={
-                'rho': working_state.get('rho', 0.0),
-                'error_count': working_state.get('error_count', 0),
-                'depth': working_state.get('depth', 0),
+                "rho": working_state.get("rho", 0.0),
+                "error_count": working_state.get("error_count", 0),
+                "depth": working_state.get("depth", 0),
             },
         )
 
@@ -121,24 +116,24 @@ class ContextRenewer:
     ) -> Dashboard:
         """Rebuild dashboard from snapshots so renew returns a clean working state."""
         return Dashboard(
-            rho=working_state.get('rho', 0.0),
-            token_budget=working_state.get('token_budget', 0),
-            goal_progress=working_state.get('goal_progress', ''),
-            error_count=working_state.get('error_count', 0),
-            depth=working_state.get('depth', 0),
-            last_signal_ts=working_state.get('last_signal_ts', ''),
-            last_hb_ts=working_state.get('last_hb_ts', ''),
-            interrupt_requested=working_state.get('interrupt_requested', False),
-            plan=deepcopy(plan_state.get('plan', [])),
+            rho=working_state.get("rho", 0.0),
+            token_budget=working_state.get("token_budget", 0),
+            goal_progress=working_state.get("goal_progress", ""),
+            error_count=working_state.get("error_count", 0),
+            depth=working_state.get("depth", 0),
+            last_signal_ts=working_state.get("last_signal_ts", ""),
+            last_hb_ts=working_state.get("last_hb_ts", ""),
+            interrupt_requested=working_state.get("interrupt_requested", False),
+            plan=deepcopy(plan_state.get("plan", [])),
             event_surface=EventSurface(
-                pending_events=deepcopy(event_state.get('pending_events', [])),
-                active_risks=deepcopy(event_state.get('active_risks', [])),
-                recent_event_decisions=deepcopy(event_state.get('recent_event_decisions', [])),
+                pending_events=deepcopy(event_state.get("pending_events", [])),
+                active_risks=deepcopy(event_state.get("active_risks", [])),
+                recent_event_decisions=deepcopy(event_state.get("recent_event_decisions", [])),
             ),
             knowledge_surface=KnowledgeSurface(
-                active_questions=deepcopy(knowledge_state.get('active_questions', [])),
-                evidence_packs=deepcopy(knowledge_state.get('evidence_packs', [])),
-                citations=deepcopy(knowledge_state.get('citations', [])),
+                active_questions=deepcopy(knowledge_state.get("active_questions", [])),
+                evidence_packs=deepcopy(knowledge_state.get("evidence_packs", [])),
+                citations=deepcopy(knowledge_state.get("citations", [])),
             ),
-            scratchpad=working_state.get('scratchpad', ''),
+            scratchpad=working_state.get("scratchpad", ""),
         )

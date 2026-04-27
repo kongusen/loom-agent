@@ -8,6 +8,7 @@ from typing import Any
 @dataclass
 class ToolMetadata:
     """工具元数据"""
+
     name: str
     description: str
     is_read_only: bool = False  # 默认 false，假设会写

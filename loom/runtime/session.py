@@ -331,9 +331,7 @@ class Run:
         )
 
     def _build_result(self, error: dict[str, Any] | None = None) -> RunResult:
-        duration_ms = int(
-            max(0.0, (self.updated_at - self.created_at).total_seconds()) * 1000
-        )
+        duration_ms = int(max(0.0, (self.updated_at - self.created_at).total_seconds()) * 1000)
         return RunResult(
             run_id=self.id,
             state=self.state,
@@ -521,9 +519,7 @@ class Session:
             )
 
         session_id = (
-            self.id
-            if (self.agent.config.memory and self.agent.config.memory.enabled)
-            else None
+            self.id if (self.agent.config.memory and self.agent.config.memory.enabled) else None
         )
 
         async for event in self._engine.execute_streaming(
@@ -745,7 +741,9 @@ def _normalize_knowledge_bundle(
     evidences: list[KnowledgeEvidence] = []
     for index, entry in enumerate(bundle.evidences):
         if not isinstance(entry, KnowledgeEvidence):
-            raise TypeError(f"{field_name}.evidences[{index}] must be KnowledgeEvidence, got {type(entry).__name__}")
+            raise TypeError(
+                f"{field_name}.evidences[{index}] must be KnowledgeEvidence, got {type(entry).__name__}"
+            )
         evidence_items: list[KnowledgeEvidenceItem] = []
         for item_index, item in enumerate(entry.items):
             if not isinstance(item, KnowledgeEvidenceItem):
@@ -794,20 +792,26 @@ def _normalize_knowledge_bundle(
                 )
             )
         evidences.append(
-                KnowledgeEvidence(
-                    query=normalized_query,
-                    items=evidence_items,
-                    citations=evidence_citations,
-                    relevance_score=entry.relevance_score,
-                    metadata=_normalize_mapping(entry.metadata, f"{field_name}.evidences[{index}].metadata"),
-                    extensions=_normalize_mapping(entry.extensions, f"{field_name}.evidences[{index}].extensions"),
+            KnowledgeEvidence(
+                query=normalized_query,
+                items=evidence_items,
+                citations=evidence_citations,
+                relevance_score=entry.relevance_score,
+                metadata=_normalize_mapping(
+                    entry.metadata, f"{field_name}.evidences[{index}].metadata"
+                ),
+                extensions=_normalize_mapping(
+                    entry.extensions, f"{field_name}.evidences[{index}].extensions"
+                ),
             )
         )
 
     items: list[KnowledgeEvidenceItem] = []
     for index, item in enumerate(bundle.items):
         if not isinstance(item, KnowledgeEvidenceItem):
-            raise TypeError(f"{field_name}.items[{index}] must be KnowledgeEvidenceItem, got {type(item).__name__}")
+            raise TypeError(
+                f"{field_name}.items[{index}] must be KnowledgeEvidenceItem, got {type(item).__name__}"
+            )
         items.append(
             KnowledgeEvidenceItem(
                 source_name=item.source_name,
@@ -816,22 +820,30 @@ def _normalize_knowledge_bundle(
                 uri=item.uri,
                 score=item.score,
                 metadata=_normalize_mapping(item.metadata, f"{field_name}.items[{index}].metadata"),
-                extensions=_normalize_mapping(item.extensions, f"{field_name}.items[{index}].extensions"),
+                extensions=_normalize_mapping(
+                    item.extensions, f"{field_name}.items[{index}].extensions"
+                ),
             )
         )
 
     citations: list[KnowledgeCitation] = []
     for index, citation in enumerate(bundle.citations):
         if not isinstance(citation, KnowledgeCitation):
-            raise TypeError(f"{field_name}.citations[{index}] must be KnowledgeCitation, got {type(citation).__name__}")
+            raise TypeError(
+                f"{field_name}.citations[{index}] must be KnowledgeCitation, got {type(citation).__name__}"
+            )
         citations.append(
             KnowledgeCitation(
                 source_name=citation.source_name,
                 title=citation.title,
                 uri=citation.uri,
                 snippet=citation.snippet,
-                metadata=_normalize_mapping(citation.metadata, f"{field_name}.citations[{index}].metadata"),
-                extensions=_normalize_mapping(citation.extensions, f"{field_name}.citations[{index}].extensions"),
+                metadata=_normalize_mapping(
+                    citation.metadata, f"{field_name}.citations[{index}].metadata"
+                ),
+                extensions=_normalize_mapping(
+                    citation.extensions, f"{field_name}.citations[{index}].extensions"
+                ),
             )
         )
 

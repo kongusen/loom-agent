@@ -18,6 +18,7 @@ class ContextPartitions:
     C_skill: 工具声明，动态换入/换出
     C_history: 执行历史，可压缩，优先级最低
     """
+
     system: list[Message] = field(default_factory=list)
     working: Dashboard = field(default_factory=Dashboard)
     memory: list[Message] = field(default_factory=list)

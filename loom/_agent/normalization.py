@@ -48,11 +48,15 @@ T = TypeVar("T")
 
 def _normalize_config(value: T, expected_type: type[T], field_name: str) -> T:
     if not isinstance(value, expected_type):
-        raise TypeError(f"{field_name} must be {expected_type.__name__}, got {type(value).__name__}")
+        raise TypeError(
+            f"{field_name} must be {expected_type.__name__}, got {type(value).__name__}"
+        )
     return value
 
 
-def _normalize_optional_config(value: T | None, expected_type: type[T], field_name: str) -> T | None:
+def _normalize_optional_config(
+    value: T | None, expected_type: type[T], field_name: str
+) -> T | None:
     if value is None:
         return None
     return _normalize_config(value, expected_type, field_name)
@@ -243,7 +247,9 @@ def _normalize_watch_sources(sources: list[WatchConfig]) -> list[WatchConfig]:
         normalized.append(
             replace(
                 source,
-                kind=_normalize_config(source.kind, WatchKind, f"heartbeat.watch_sources[{index}].kind"),
+                kind=_normalize_config(
+                    source.kind, WatchKind, f"heartbeat.watch_sources[{index}].kind"
+                ),
                 method=_normalize_optional_config(
                     source.method,
                     FilesystemWatchMethod,
@@ -323,7 +329,9 @@ def _normalize_runtime_fallback(value: RuntimeFallback) -> RuntimeFallback:
     fallback = _normalize_config(value, RuntimeFallback, "runtime.features.fallback")
     return replace(
         fallback,
-        mode=_normalize_config(fallback.mode, RuntimeFallbackMode, "runtime.features.fallback.mode"),
+        mode=_normalize_config(
+            fallback.mode, RuntimeFallbackMode, "runtime.features.fallback.mode"
+        ),
         extensions=_normalize_mapping(
             fallback.extensions,
             "runtime.features.fallback.extensions",
@@ -340,7 +348,9 @@ def _normalize_tool_specs(entries: list[ToolSpec | Toolset]) -> list[ToolSpec]:
         elif isinstance(entry, Toolset):
             flattened.extend(entry.tools)
         else:
-            raise TypeError(f"tools entries must be ToolSpec or Toolset, got {type(entry).__name__}")
+            raise TypeError(
+                f"tools entries must be ToolSpec or Toolset, got {type(entry).__name__}"
+            )
 
     for index, entry in enumerate(flattened):
         if isinstance(entry, ToolSpec):
@@ -434,7 +444,9 @@ def _normalize_safety_rules(rules: list[SafetyRule] | None) -> list[SafetyRule] 
             raise TypeError(f"safety_rules entries must be SafetyRule, got {type(rule).__name__}")
         evaluator = rule.evaluator
         if evaluator is not None:
-            evaluator = _normalize_config(evaluator, SafetyEvaluator, f"safety_rules[{index}].evaluator")
+            evaluator = _normalize_config(
+                evaluator, SafetyEvaluator, f"safety_rules[{index}].evaluator"
+            )
             evaluator = replace(
                 evaluator,
                 extensions=_normalize_mapping(
@@ -471,7 +483,9 @@ def _normalize_knowledge_sources(sources: list[KnowledgeSource] | None) -> list[
     normalized: list[KnowledgeSource] = []
     for index, source in enumerate(sources):
         if not isinstance(source, KnowledgeSource):
-            raise TypeError(f"knowledge entries must be KnowledgeSource, got {type(source).__name__}")
+            raise TypeError(
+                f"knowledge entries must be KnowledgeSource, got {type(source).__name__}"
+            )
         documents: list[KnowledgeDocument] = []
         for document_index, document in enumerate(source.documents):
             if not isinstance(document, KnowledgeDocument):
@@ -495,7 +509,9 @@ def _normalize_knowledge_sources(sources: list[KnowledgeSource] | None) -> list[
 
         resolver = source.resolver
         if resolver is not None:
-            resolver = _normalize_config(resolver, KnowledgeResolver, f"knowledge[{index}].resolver")
+            resolver = _normalize_config(
+                resolver, KnowledgeResolver, f"knowledge[{index}].resolver"
+            )
             resolver = replace(
                 resolver,
                 extensions=_normalize_mapping(

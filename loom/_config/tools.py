@@ -93,7 +93,9 @@ class ToolSpec:
         requires_permission: bool | None = None,
         extensions: dict[str, Any] | None = None,
     ) -> ToolSpec:
-        permission_required = requires_permission if requires_permission is not None else not read_only
+        permission_required = (
+            requires_permission if requires_permission is not None else not read_only
+        )
         return cls(
             name=name or func.__name__,
             description=description or (func.__doc__ or "").strip(),
@@ -246,7 +248,9 @@ def _flatten_toolset_entries(entries: tuple[ToolSpec | Toolset, ...]) -> list[To
         elif isinstance(entry, Toolset):
             tools.extend(entry.tools)
         else:
-            raise TypeError(f"toolset entries must be ToolSpec or Toolset, got {type(entry).__name__}")
+            raise TypeError(
+                f"toolset entries must be ToolSpec or Toolset, got {type(entry).__name__}"
+            )
     return tools
 
 

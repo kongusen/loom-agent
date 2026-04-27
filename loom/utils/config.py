@@ -6,6 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class LoomConfig:
     """Global Loom configuration"""
+
     max_tokens: int = 200000
     max_depth: int = 5
     rho_threshold: float = 1.0

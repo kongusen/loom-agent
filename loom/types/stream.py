@@ -86,11 +86,4 @@ class ErrorEvent:
 
 
 # Union alias used in type annotations throughout the framework.
-StreamEvent = (
-    ThinkingDelta
-    | TextDelta
-    | ToolCallEvent
-    | ToolResultEvent
-    | DoneEvent
-    | ErrorEvent
-)
+StreamEvent = ThinkingDelta | TextDelta | ToolCallEvent | ToolResultEvent | DoneEvent | ErrorEvent
