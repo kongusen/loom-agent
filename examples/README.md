@@ -14,6 +14,7 @@ Runnable examples that all use the current public `Agent` API.
 | [14_internal_docs_qa.py](14_internal_docs_qa.py) | End-to-end grounded docs QA pattern | No |
 | [15_approval_workflow.py](15_approval_workflow.py) | End-to-end approval workflow pattern | No |
 | [16_signal_adapters.py](16_signal_adapters.py) | Gateway/cron/heartbeat-style events normalized as `RuntimeSignal` | No |
+| [17_runtime_kernel_platform.py](17_runtime_kernel_platform.py) | Runtime kernel plus 7 mechanisms in one platform-style agent | Mixed |
 
 ## Public API Shape
 
@@ -39,6 +40,7 @@ python examples/13_repo_copilot.py
 python examples/14_internal_docs_qa.py
 python examples/15_approval_workflow.py
 python examples/16_signal_adapters.py
+python examples/17_runtime_kernel_platform.py
 
 # With a real provider:
 ANTHROPIC_API_KEY=sk-ant-... python examples/02_provider_config.py
@@ -64,6 +66,7 @@ ANTHROPIC_API_KEY=sk-ant-... python examples/02_provider_config.py
 | Repo copilot | [13_repo_copilot.py](13_repo_copilot.py) |
 | Internal docs QA | [14_internal_docs_qa.py](14_internal_docs_qa.py) |
 | Approval workflow | [15_approval_workflow.py](15_approval_workflow.py) |
+| Runtime kernel platform | [17_runtime_kernel_platform.py](17_runtime_kernel_platform.py) |
 
 ## Note
 
