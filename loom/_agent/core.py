@@ -891,9 +891,7 @@ def _normalize_schedule_jobs(jobs: list[ScheduledJob]) -> list[ScheduledJob]:
     normalized: list[ScheduledJob] = []
     for index, job in enumerate(jobs):
         if not isinstance(job, ScheduledJob):
-            raise TypeError(
-                f"schedule entries must be ScheduledJob, got {type(job).__name__}"
-            )
+            raise TypeError(f"schedule entries must be ScheduledJob, got {type(job).__name__}")
         if not isinstance(job.schedule, ScheduleConfig):
             raise TypeError(
                 f"schedule[{index}].schedule must be ScheduleConfig, "

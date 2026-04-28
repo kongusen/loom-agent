@@ -47,7 +47,9 @@ class RuntimeConfig:
     delegation: Any | None = None
     governance: Any | None = None
     feedback: Any | None = None
-    skill_injection: Any | None = None  # Deprecated: prefer ContextPolicy.manager(skill_injection=...)
+    skill_injection: Any | None = (
+        None  # Deprecated: prefer ContextPolicy.manager(skill_injection=...)
+    )
     session_restore: Any | None = None
     extensions: dict[str, Any] = field(default_factory=dict)
 

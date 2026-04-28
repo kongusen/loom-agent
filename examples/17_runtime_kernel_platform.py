@@ -160,7 +160,9 @@ def extract_memory(
         return []
     start = lowered.index(marker) + len(marker)
     content = user_content[start:].strip()
-    return [MemoryRecord(content=content, metadata={"kind": "explicit_preference"})] if content else []
+    return (
+        [MemoryRecord(content=content, metadata={"kind": "explicit_preference"})] if content else []
+    )
 
 
 def build_knowledge_source() -> KnowledgeSource:
@@ -356,7 +358,9 @@ async def main() -> None:
     print(f"Run state:          {result.state.value}")
     print(f"Output:             {result.output}")
 
-    recall = agent.config.memory.sources[0].prefetch("checkout deploy approval", session_id=session.id)
+    recall = agent.config.memory.sources[0].prefetch(
+        "checkout deploy approval", session_id=session.id
+    )
     print("\n=== Recalled Memory ===")
     print(recall or "(empty)")
 

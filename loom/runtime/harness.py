@@ -238,7 +238,9 @@ def _coerce_request(
         if context is None:
             raise TypeError("HarnessContext is required when running a harness with RuntimeTask")
         return HarnessRequest(task=request, context=context)
-    raise TypeError(f"harness request must be HarnessRequest or RuntimeTask, got {type(request).__name__}")
+    raise TypeError(
+        f"harness request must be HarnessRequest or RuntimeTask, got {type(request).__name__}"
+    )
 
 
 def _result_field(result: Any, key: str, default: Any) -> Any:

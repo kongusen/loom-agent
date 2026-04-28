@@ -412,7 +412,9 @@ class AgentEngine:
         )
         run = getattr(harness, "run", None)
         if not callable(run):
-            raise TypeError(f"runtime harness must provide async run(request), got {type(harness).__name__}")
+            raise TypeError(
+                f"runtime harness must provide async run(request), got {type(harness).__name__}"
+            )
 
         outcome = await run(request)
         if isinstance(outcome, str):

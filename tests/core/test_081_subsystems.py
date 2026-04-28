@@ -131,7 +131,9 @@ def test_inject_knowledge_writes_to_surface_not_memory() -> None:
 
     surface = engine.context_manager.dashboard.dashboard.knowledge_surface
     assert surface.evidence_packs[0]["content"] == "Loom has dashboard knowledge."
-    assert not any("Knowledge:" in message.content for message in engine.context_manager.partitions.memory)
+    assert not any(
+        "Knowledge:" in message.content for message in engine.context_manager.partitions.memory
+    )
 
 
 def test_dashboard_renders_evidence_content() -> None:
@@ -239,9 +241,7 @@ def test_memory_source_custom_resolver_and_extractor_are_runtime_providers() -> 
 
 
 def test_memory_resolver_callable_validates_records() -> None:
-    resolver = MemoryResolver.callable(
-        lambda query: [MemoryRecord(content=query.text, key="k")]
-    )
+    resolver = MemoryResolver.callable(lambda query: [MemoryRecord(content=query.text, key="k")])
 
     result = resolver.retrieve(MemoryQuery(text="needle", top_k=1))
 
@@ -287,9 +287,7 @@ async def test_memory_source_runs_through_agent_memory_lifecycle() -> None:
     result = await agent.session(SessionConfig(id="memory-source")).run("remember this")
 
     assert result.output == "stored answer"
-    assert store.records == [
-        MemoryRecord(content="extracted remember this -> stored answer")
-    ]
+    assert store.records == [MemoryRecord(content="extracted remember this -> stored answer")]
 
 
 def test_knowledge_resolver_factories(tmp_path) -> None:

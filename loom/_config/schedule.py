@@ -39,7 +39,9 @@ class ScheduleConfig:
         try:
             import_module("croniter")
         except ImportError as exc:  # pragma: no cover - depends on optional package
-            raise ImportError("ScheduleConfig.cron() requires optional dependency 'croniter'") from exc
+            raise ImportError(
+                "ScheduleConfig.cron() requires optional dependency 'croniter'"
+            ) from exc
         if not expr.strip():
             raise ValueError("cron expression must not be empty")
         return cls(kind="cron", cron_expr=expr)
@@ -64,12 +66,8 @@ class ScheduleConfig:
             try:
                 croniter_fn = import_module("croniter").croniter
             except ImportError as exc:  # pragma: no cover - depends on optional package
-                raise ImportError(
-                    "cron schedules require optional dependency 'croniter'"
-                ) from exc
-            next_run = croniter_fn(self.cron_expr, last_run_at or datetime.now()).get_next(
-                datetime
-            )
+                raise ImportError("cron schedules require optional dependency 'croniter'") from exc
+            next_run = croniter_fn(self.cron_expr, last_run_at or datetime.now()).get_next(datetime)
             if not isinstance(next_run, datetime):
                 raise TypeError("croniter returned a non-datetime next run")
             return next_run
