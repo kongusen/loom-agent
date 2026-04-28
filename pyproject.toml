@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.8.0"
+version = "0.8.1"
 description = "Python agent runtime framework — context management, multi-agent orchestration, and self-improvement for autonomous AI agents"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
@@ -11,7 +11,7 @@ homepage = "https://github.com/kongusen/loom-agent"
 repository = "https://github.com/kongusen/loom-agent"
 documentation = "https://github.com/kongusen/loom-agent#readme"
 
-keywords = ["ai", "llm", "agent", "multi-agent", "rag", "tooling", "asyncio", "vector-store", "graph-store", "skill-routing", "adapter"]
+keywords = ["ai", "llm", "agent", "agent-sdk", "agent-runtime", "multi-agent", "orchestration", "tool-calling", "rag", "memory", "asyncio", "vector-store", "graph-store", "skill-routing", "adapter", "workflow-automation"]
 
 classifiers = [
   "Development Status :: 3 - Alpha",                            # First release - Alpha stage

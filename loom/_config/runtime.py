@@ -47,7 +47,7 @@ class RuntimeConfig:
     delegation: Any | None = None
     governance: Any | None = None
     feedback: Any | None = None
-    skill_injection: Any | None = None
+    skill_injection: Any | None = None  # Deprecated: prefer ContextPolicy.manager(skill_injection=...)
     session_restore: Any | None = None
     extensions: dict[str, Any] = field(default_factory=dict)
 
@@ -102,7 +102,7 @@ class RuntimeConfig:
         from ..runtime.governance import GovernancePolicy
         from ..runtime.harness import Harness
         from ..runtime.session_restore import SessionRestorePolicy
-        from ..runtime.skills import SkillInjectionPolicy
+        from ..runtime.skills import SkillInjection
 
         return cls(
             limits=limits
@@ -114,7 +114,7 @@ class RuntimeConfig:
             harness=harness or Harness.single_run(),
             governance=governance or GovernancePolicy.default(),
             feedback=feedback or FeedbackPolicy.none(),
-            skill_injection=skill_injection or SkillInjectionPolicy.matching(),
+            skill_injection=skill_injection or SkillInjection.matching(),
             session_restore=session_restore or SessionRestorePolicy.transcript_only(),
             extensions=_profile_extensions("sdk", extensions),
         )
@@ -139,14 +139,14 @@ class RuntimeConfig:
         extensions: dict[str, Any] | None = None,
     ) -> RuntimeConfig:
         """Build a runtime profile for long-running SDK tasks."""
-        from ..runtime.context import ContextProtocol
+        from ..runtime.context import ContextPolicy
         from ..runtime.continuity import ContinuityPolicy
         from ..runtime.feedback import FeedbackPolicy
         from ..runtime.governance import GovernancePolicy
         from ..runtime.harness import Harness
         from ..runtime.quality import QualityGate
         from ..runtime.session_restore import SessionRestorePolicy
-        from ..runtime.skills import SkillInjectionPolicy
+        from ..runtime.skills import SkillInjection
 
         resolved_continuity = continuity or ContinuityPolicy.handoff()
         return cls(
@@ -157,7 +157,7 @@ class RuntimeConfig:
             ),
             features=features or RuntimeFeatures(),
             context=context
-            or ContextProtocol.manager(
+            or ContextPolicy.manager(
                 max_tokens=max_context_tokens,
                 continuity=resolved_continuity,
             ),
@@ -166,7 +166,7 @@ class RuntimeConfig:
             quality=quality or QualityGate.criteria(criteria or []),
             governance=governance or GovernancePolicy.default(),
             feedback=feedback or FeedbackPolicy.collector(),
-            skill_injection=skill_injection or SkillInjectionPolicy.matching(),
+            skill_injection=skill_injection or SkillInjection.matching(),
             session_restore=session_restore or SessionRestorePolicy.window(),
             extensions=_profile_extensions("long_running", extensions),
         )
@@ -192,7 +192,7 @@ class RuntimeConfig:
         extensions: dict[str, Any] | None = None,
     ) -> RuntimeConfig:
         """Build a runtime profile for quality-gated supervised work."""
-        from ..runtime.context import ContextProtocol
+        from ..runtime.context import ContextPolicy
         from ..runtime.continuity import ContinuityPolicy
         from ..runtime.delegation import DelegationPolicy
         from ..runtime.feedback import FeedbackPolicy
@@ -200,7 +200,7 @@ class RuntimeConfig:
         from ..runtime.harness import Harness
         from ..runtime.quality import QualityGate
         from ..runtime.session_restore import SessionRestorePolicy
-        from ..runtime.skills import SkillInjectionPolicy
+        from ..runtime.skills import SkillInjection
 
         resolved_continuity = continuity or ContinuityPolicy.handoff()
         return cls(
@@ -211,7 +211,7 @@ class RuntimeConfig:
             ),
             features=features or RuntimeFeatures(),
             context=context
-            or ContextProtocol.manager(
+            or ContextPolicy.manager(
                 max_tokens=max_context_tokens,
                 continuity=resolved_continuity,
             ),
@@ -221,7 +221,7 @@ class RuntimeConfig:
             delegation=delegation or DelegationPolicy.none(),
             governance=governance or GovernancePolicy.default(),
             feedback=feedback or FeedbackPolicy.collector(),
-            skill_injection=skill_injection or SkillInjectionPolicy.matching(),
+            skill_injection=skill_injection or SkillInjection.matching(),
             session_restore=session_restore or SessionRestorePolicy.window(),
             extensions=_profile_extensions("supervised", extensions),
         )
@@ -248,7 +248,7 @@ class RuntimeConfig:
         extensions: dict[str, Any] | None = None,
     ) -> RuntimeConfig:
         """Build a runtime profile for autonomous, depth-limited work."""
-        from ..runtime.context import ContextProtocol
+        from ..runtime.context import ContextPolicy
         from ..runtime.continuity import ContinuityPolicy
         from ..runtime.delegation import DelegationPolicy
         from ..runtime.feedback import FeedbackPolicy
@@ -256,7 +256,7 @@ class RuntimeConfig:
         from ..runtime.harness import Harness
         from ..runtime.quality import QualityGate
         from ..runtime.session_restore import SessionRestorePolicy
-        from ..runtime.skills import SkillInjectionPolicy
+        from ..runtime.skills import SkillInjection
 
         resolved_continuity = continuity or ContinuityPolicy.handoff()
         return cls(
@@ -267,7 +267,7 @@ class RuntimeConfig:
             ),
             features=features or RuntimeFeatures(),
             context=context
-            or ContextProtocol.manager(
+            or ContextPolicy.manager(
                 max_tokens=max_context_tokens,
                 continuity=resolved_continuity,
             ),
@@ -277,9 +277,137 @@ class RuntimeConfig:
             delegation=delegation or DelegationPolicy.depth_limited(max_depth),
             governance=governance or GovernancePolicy.default(),
             feedback=feedback or FeedbackPolicy.collector(),
-            skill_injection=skill_injection or SkillInjectionPolicy.matching(),
+            skill_injection=skill_injection or SkillInjection.matching(),
             session_restore=session_restore or SessionRestorePolicy.window(),
             extensions=_profile_extensions("autonomous", extensions),
+        )
+
+    @classmethod
+    def orchestrated(
+        cls,
+        *,
+        max_depth: int = 3,
+        planner: bool = True,
+        gen_eval: bool = False,
+        max_iterations: int = 200,
+        max_context_tokens: int = 200000,
+        limits: RuntimeLimits | None = None,
+        features: RuntimeFeatures | None = None,
+        context: Any | None = None,
+        continuity: Any | None = None,
+        harness: Any | None = None,
+        quality: Any | None = None,
+        delegation: Any | None = None,
+        governance: Any | None = None,
+        feedback: Any | None = None,
+        skill_injection: Any | None = None,
+        session_restore: Any | None = None,
+        extensions: dict[str, Any] | None = None,
+    ) -> RuntimeConfig:
+        """Build a runtime profile with orchestration shortcuts enabled."""
+        from ..runtime.context import ContextPolicy
+        from ..runtime.continuity import ContinuityPolicy
+        from ..runtime.delegation import DelegationPolicy
+        from ..runtime.feedback import FeedbackPolicy
+        from ..runtime.governance import GovernancePolicy
+        from ..runtime.harness import Harness
+        from ..runtime.quality import QualityGate
+        from ..runtime.session_restore import SessionRestorePolicy
+        from ..runtime.skills import SkillInjection
+
+        resolved_continuity = continuity or ContinuityPolicy.handoff()
+        resolved_harness = harness
+        if resolved_harness is None:
+            if gen_eval:
+                resolved_harness = Harness.generator_evaluator(generator=None)
+            else:
+                resolved_harness = Harness.single_run()
+        return cls(
+            limits=limits
+            or RuntimeLimits(
+                max_iterations=max_iterations,
+                max_context_tokens=max_context_tokens,
+            ),
+            features=features or RuntimeFeatures(),
+            context=context
+            or ContextPolicy.manager(
+                max_tokens=max_context_tokens,
+                continuity=resolved_continuity,
+            ),
+            continuity=resolved_continuity,
+            harness=resolved_harness,
+            quality=quality or QualityGate.criteria([]),
+            delegation=delegation or DelegationPolicy.depth_limited(max_depth),
+            governance=governance or GovernancePolicy.default(),
+            feedback=feedback or FeedbackPolicy.collector(),
+            skill_injection=skill_injection or SkillInjection.matching(),
+            session_restore=session_restore or SessionRestorePolicy.window(),
+            extensions=_profile_extensions(
+                "orchestrated",
+                {
+                    "orchestration": {
+                        "max_depth": max_depth,
+                        "planner": planner,
+                        "gen_eval": gen_eval,
+                    },
+                    **dict(extensions or {}),
+                },
+            ),
+        )
+
+    @classmethod
+    def scheduled(
+        cls,
+        *,
+        max_iterations: int = 128,
+        max_context_tokens: int = 200000,
+        limits: RuntimeLimits | None = None,
+        features: RuntimeFeatures | None = None,
+        context: Any | None = None,
+        continuity: Any | None = None,
+        harness: Any | None = None,
+        quality: Any | None = None,
+        delegation: Any | None = None,
+        governance: Any | None = None,
+        feedback: Any | None = None,
+        skill_injection: Any | None = None,
+        session_restore: Any | None = None,
+        extensions: dict[str, Any] | None = None,
+    ) -> RuntimeConfig:
+        """Build a runtime profile for explicitly started scheduled jobs."""
+        from ..runtime.context import ContextPolicy
+        from ..runtime.continuity import ContinuityPolicy
+        from ..runtime.feedback import FeedbackPolicy
+        from ..runtime.governance import GovernancePolicy
+        from ..runtime.harness import Harness
+        from ..runtime.session_restore import SessionRestorePolicy
+        from ..runtime.skills import SkillInjection
+
+        resolved_continuity = continuity or ContinuityPolicy.handoff()
+        return cls(
+            limits=limits
+            or RuntimeLimits(
+                max_iterations=max_iterations,
+                max_context_tokens=max_context_tokens,
+            ),
+            features=features or RuntimeFeatures(),
+            context=context
+            or ContextPolicy.manager(
+                max_tokens=max_context_tokens,
+                continuity=resolved_continuity,
+            ),
+            continuity=resolved_continuity,
+            harness=harness or Harness.single_run(),
+            quality=quality,
+            delegation=delegation,
+            governance=governance or GovernancePolicy.default(),
+            feedback=feedback or FeedbackPolicy.collector(),
+            skill_injection=skill_injection or SkillInjection.matching(),
+            session_restore=session_restore or SessionRestorePolicy.window(),
+            extensions=_profile_extensions(
+                "scheduled",
+                {"schedule": {"enabled": True}, **dict(extensions or {})},
+            ),
         )
 
 

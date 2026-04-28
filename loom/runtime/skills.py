@@ -11,8 +11,13 @@ from ..utils import count_tokens
 
 
 @dataclass(slots=True)
-class SkillInjectionPolicy:
-    """Select and render skills into the runtime ``C_skill`` partition."""
+class SkillInjection:
+    """Select and render skills into the runtime ``C_skill`` partition.
+
+    This is a sub-configuration of ``ContextPolicy``, not a standalone Policy.
+    Use ``ContextPolicy.manager(skill_injection=SkillInjection.matching(...))``
+    or pass directly to ``Runtime(skill_injection=...)``.
+    """
 
     max_skills: int = 3
     max_tokens: int = 4000
@@ -25,7 +30,7 @@ class SkillInjectionPolicy:
         max_skills: int = 3,
         max_tokens: int = 4000,
         include_metadata: bool = True,
-    ) -> SkillInjectionPolicy:
+    ) -> SkillInjection:
         """Inject explicitly selected or task-matched skills."""
         return cls(
             max_skills=max_skills,
@@ -34,7 +39,7 @@ class SkillInjectionPolicy:
         )
 
     @classmethod
-    def none(cls) -> SkillInjectionPolicy:
+    def none(cls) -> SkillInjection:
         """Disable runtime skill injection."""
         return cls(max_skills=0, max_tokens=0)
 
@@ -147,4 +152,7 @@ def _truncate_to_token_budget(text: str, budget_tokens: int) -> str:
     return text[: max_chars - 1].rstrip() + "..."
 
 
-__all__ = ["SkillInjectionPolicy"]
+# Backward-compatible alias — kept through 0.8.x
+SkillInjectionPolicy = SkillInjection
+
+__all__ = ["SkillInjection", "SkillInjectionPolicy"]

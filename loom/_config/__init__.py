@@ -21,11 +21,24 @@ from .knowledge import (
     KnowledgeResolver,
     KnowledgeSource,
 )
-from .memory import MemoryBackend, MemoryConfig, MemoryProvider
+from .memory import (
+    MemoryBackend,
+    MemoryConfig,
+    MemoryExtractor,
+    MemoryProvider,
+    MemoryQuery,
+    MemoryRecall,
+    MemoryRecord,
+    MemoryResolver,
+    MemorySource,
+    MemoryStore,
+)
 from .model import ModelRef
+from .orchestration import OrchestrationConfig
 from .policy import PolicyConfig, PolicyContext
 from .runtime import RuntimeConfig, RuntimeFallback, RuntimeFeatures, RuntimeLimits
 from .safety import SafetyEvaluator, SafetyRule
+from .schedule import ScheduleConfig, ScheduledJob
 from .tools import (
     ToolAccessPolicy,
     ToolHandler,
@@ -58,6 +71,13 @@ __all__ = [
     "PolicyConfig",
     "MemoryBackend",
     "MemoryConfig",
+    "MemoryQuery",
+    "MemoryRecord",
+    "MemoryRecall",
+    "MemoryStore",
+    "MemoryResolver",
+    "MemoryExtractor",
+    "MemorySource",
     "MemoryProvider",
     "Memory",
     "WatchKind",
@@ -72,6 +92,9 @@ __all__ = [
     "RuntimeFeatures",
     "RuntimeConfig",
     "Runtime",
+    "OrchestrationConfig",
+    "ScheduleConfig",
+    "ScheduledJob",
     "SafetyEvaluator",
     "SafetyRule",
     "KnowledgeDocument",

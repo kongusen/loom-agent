@@ -16,7 +16,11 @@ from ..config import (
     KnowledgeSource,
     MemoryBackend,
     MemoryConfig,
+    MemoryExtractor,
     MemoryProvider,
+    MemoryResolver,
+    MemorySource,
+    MemoryStore,
     ModelRef,
     PolicyConfig,
     PolicyContext,
@@ -98,6 +102,28 @@ def _normalize_memory_config(value: MemoryConfig | None) -> MemoryConfig | None:
     memory = _normalize_optional_config(value, MemoryConfig, "memory")
     if memory is None:
         return None
+    sources: list[MemorySource] = []
+    for index, source in enumerate(memory.sources):
+        if not isinstance(source, MemorySource):
+            raise TypeError(
+                f"memory.sources[{index}] must be MemorySource, got {type(source).__name__}"
+            )
+        if not isinstance(source.resolver, MemoryResolver):
+            raise TypeError(
+                f"memory.sources[{index}].resolver must be MemoryResolver, "
+                f"got {type(source.resolver).__name__}"
+            )
+        if not isinstance(source.extractor, MemoryExtractor):
+            raise TypeError(
+                f"memory.sources[{index}].extractor must be MemoryExtractor, "
+                f"got {type(source.extractor).__name__}"
+            )
+        if source.store is not None and not isinstance(source.store, MemoryStore):
+            raise TypeError(
+                f"memory.sources[{index}].store must be MemoryStore, "
+                f"got {type(source.store).__name__}"
+            )
+        sources.append(source)
     providers: list[MemoryProvider] = []
     for index, provider in enumerate(memory.providers):
         if not isinstance(provider, MemoryProvider):
@@ -108,6 +134,7 @@ def _normalize_memory_config(value: MemoryConfig | None) -> MemoryConfig | None:
     return replace(
         memory,
         backend=_normalize_memory_backend(memory.backend),
+        sources=sources,
         providers=providers,
         extensions=_normalize_mapping(memory.extensions, "memory.extensions"),
     )

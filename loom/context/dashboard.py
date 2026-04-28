@@ -106,6 +106,21 @@ class DashboardManager:
     def add_evidence(self, evidence: dict):
         """Add evidence pack to knowledge_surface"""
         with self._lock:
+            key = (
+                evidence.get("source"),
+                evidence.get("title"),
+                hash(str(evidence.get("content", ""))[:200]),
+            )
+            existing_keys = {
+                (
+                    item.get("source"),
+                    item.get("title"),
+                    hash(str(item.get("content", ""))[:200]),
+                )
+                for item in self.dashboard.knowledge_surface.evidence_packs
+            }
+            if key in existing_keys:
+                return
             self.dashboard.knowledge_surface.evidence_packs.append(evidence)
             citation = evidence.get("citation") or evidence.get("source")
             if citation and citation not in self.dashboard.knowledge_surface.citations:

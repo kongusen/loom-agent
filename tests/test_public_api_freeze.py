@@ -10,8 +10,15 @@ def test_top_level_stable_sdk_exports() -> None:
         "Agent",
         "Model",
         "Runtime",
+        "OrchestrationConfig",
+        "ScheduleConfig",
+        "ScheduledJob",
         "Generation",
         "Memory",
+        "MemorySource",
+        "MemoryResolver",
+        "MemoryExtractor",
+        "MemoryStore",
         "Toolset",
         "Capability",
         "RuntimeTask",
@@ -24,15 +31,20 @@ def test_top_level_stable_sdk_exports() -> None:
         "FileSessionStore",
         "InMemorySessionStore",
         "SessionRestorePolicy",
+        "SkillInjection",
         "SkillInjectionPolicy",
+        "ContextPolicy",
         "ContextProtocol",
         "ContinuityPolicy",
         "Harness",
+        "HarnessRequest",
+        "HarnessCandidate",
         "QualityGate",
         "DelegationPolicy",
         "GovernancePolicy",
         "FeedbackPolicy",
         "tool",
+        "KnowledgeResolver",
     }
 
     assert stable <= set(loom.__all__)
@@ -73,3 +85,5 @@ def test_runtime_facade_contains_runtime_mechanism_contracts() -> None:
     assert "SignalQueue" in exported
     assert "AgentLoop" in exported
     assert "Capability" in exported
+    assert "JobRegistry" in exported
+    assert "ScheduleTicker" in exported

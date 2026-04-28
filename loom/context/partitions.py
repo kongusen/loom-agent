@@ -99,6 +99,20 @@ class ContextPartitions:
             for question in self.working.knowledge_surface.active_questions:
                 sections.append(f"- {question}")
 
+        if self.working.knowledge_surface.evidence_packs:
+            sections.append("\n## Knowledge Evidence")
+            for pack in self.working.knowledge_surface.evidence_packs[:10]:
+                source = str(pack.get("source") or "")
+                title = str(pack.get("title") or "")
+                content = str(pack.get("content") or "")
+                header = f"[{source}]" if source else ""
+                if title:
+                    header = f"{header} {title}".strip()
+                if header:
+                    sections.append(f"\n### {header}")
+                if content:
+                    sections.append(content)
+
         if self.working.knowledge_surface.citations:
             sections.append("\n## Knowledge Citations")
             for citation in self.working.knowledge_surface.citations[:5]:  # 最多显示5个

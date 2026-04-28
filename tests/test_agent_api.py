@@ -220,7 +220,7 @@ def test_runtime_profile_snapshots_are_stable() -> None:
                 "delegation": None,
                 "governance": "DefaultGovernancePolicy",
                 "feedback": "NoopFeedbackPolicy",
-                "skill_injection": "SkillInjectionPolicy",
+                "skill_injection": "SkillInjection",
                 "session_restore": "SessionRestorePolicy",
             },
             "session_restore": {
@@ -241,14 +241,14 @@ def test_runtime_profile_snapshots_are_stable() -> None:
             "limits": {"max_iterations": 128, "max_context_tokens": 200000},
             "features": {"enable_safety": True, "fallback": "local_summary"},
             "policies": {
-                "context": "ManagedContextProtocol",
+                "context": "ManagedContextAdapter",
                 "continuity": "HandoffContinuityPolicy",
                 "harness": "SingleRunHarness",
                 "quality": "CriteriaQualityGate",
                 "delegation": None,
                 "governance": "DefaultGovernancePolicy",
                 "feedback": "CollectingFeedbackPolicy",
-                "skill_injection": "SkillInjectionPolicy",
+                "skill_injection": "SkillInjection",
                 "session_restore": "SessionRestorePolicy",
             },
             "session_restore": {
@@ -269,14 +269,14 @@ def test_runtime_profile_snapshots_are_stable() -> None:
             "limits": {"max_iterations": 80, "max_context_tokens": 120000},
             "features": {"enable_safety": True, "fallback": "local_summary"},
             "policies": {
-                "context": "ManagedContextProtocol",
+                "context": "ManagedContextAdapter",
                 "continuity": "HandoffContinuityPolicy",
                 "harness": "SingleRunHarness",
                 "quality": "CriteriaQualityGate",
                 "delegation": "NoopDelegationPolicy",
                 "governance": "DefaultGovernancePolicy",
                 "feedback": "CollectingFeedbackPolicy",
-                "skill_injection": "SkillInjectionPolicy",
+                "skill_injection": "SkillInjection",
                 "session_restore": "SessionRestorePolicy",
             },
             "session_restore": {
@@ -297,14 +297,14 @@ def test_runtime_profile_snapshots_are_stable() -> None:
             "limits": {"max_iterations": 200, "max_context_tokens": 200000},
             "features": {"enable_safety": True, "fallback": "local_summary"},
             "policies": {
-                "context": "ManagedContextProtocol",
+                "context": "ManagedContextAdapter",
                 "continuity": "HandoffContinuityPolicy",
                 "harness": "SingleRunHarness",
                 "quality": "CriteriaQualityGate",
                 "delegation": "DepthLimitedDelegationPolicy",
                 "governance": "DefaultGovernancePolicy",
                 "feedback": "CollectingFeedbackPolicy",
-                "skill_injection": "SkillInjectionPolicy",
+                "skill_injection": "SkillInjection",
                 "session_restore": "SessionRestorePolicy",
             },
             "session_restore": {
@@ -1256,7 +1256,7 @@ def test_legacy_compat_surface_has_removal_window():
     from loom.compat.v0 import AgentConfig as LegacyAgentConfig
     from loom.compat.v0 import ModelRef as LegacyModelRef
 
-    assert __version__ == "0.8.0"
+    assert __version__ == "0.8.1"
     assert LEGACY_PUBLIC_API_COMPAT_UNTIL == "0.8.x"
     assert LEGACY_PUBLIC_API_REMOVAL_VERSION == "0.9.0"
     assert LegacyAgentConfig is AgentConfig

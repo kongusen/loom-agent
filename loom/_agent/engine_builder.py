@@ -71,7 +71,7 @@ class EngineBuilderMixin:
             ),
             tools=[self._convert_tool_to_schema(tool) for tool in self._compiled_tools],
             memory_providers=(
-                list(self.config.memory.providers)
+                [*self.config.memory.sources, *self.config.memory.providers]
                 if self.config.memory and self.config.memory.enabled
                 else []
             ),
@@ -80,6 +80,8 @@ class EngineBuilderMixin:
         self._configure_governance(engine)
         self._configure_heartbeat(engine)
         self._configure_safety(engine)
+        self._configure_knowledge(engine)
+        self._configure_orchestration(engine)
         self._configure_hooks(engine)
         self._configure_runtime_events(engine)
         self._configure_ecosystem(engine)
@@ -87,6 +89,100 @@ class EngineBuilderMixin:
         self._attach_pending_signals(engine)
         self._last_engine = engine
         return engine
+
+    def _configure_knowledge(self, engine: AgentEngine) -> None:
+        sources = getattr(self.config, "knowledge", None)
+        if not sources:
+            return
+        existing = getattr(engine.context_manager, "_knowledge_sources", None)
+        if existing is None:
+            return
+        existing_names = {getattr(source, "name", None) for source in existing}
+        for source in sources:
+            if source.name not in existing_names:
+                existing.append(source)
+                existing_names.add(source.name)
+        self._register_retrieve_knowledge_tool(engine)
+
+    def _register_retrieve_knowledge_tool(self, engine: AgentEngine) -> None:
+        from ..config import KnowledgeQuery, KnowledgeSource
+        from ..tools.schema import Tool as ToolSchema
+        from ..tools.schema import ToolDefinition, ToolParameter
+
+        async def _retrieve_knowledge(question: str) -> str:
+            sources = getattr(engine.context_manager, "_knowledge_sources", None)
+            if not sources:
+                return "No knowledge sources configured."
+            query = KnowledgeQuery(
+                text=question,
+                goal=engine.context_manager.current_goal or question,
+            )
+            engine.context_manager.dashboard.add_question(question)
+            results: list[str] = []
+            for source in sources:
+                if not isinstance(source, KnowledgeSource):
+                    continue
+                evidence = source.resolve(query)
+                for item in evidence.items:
+                    engine.context_manager.dashboard.add_evidence(
+                        {
+                            "source": source.name,
+                            "title": item.title or "",
+                            "content": item.content,
+                            "uri": item.uri or "",
+                            "score": item.score,
+                        }
+                    )
+                    title = f" {item.title}" if item.title else ""
+                    results.append(f"[{source.name}]{title}: {item.content[:200]}")
+            engine._evict_knowledge_overflow()
+            return "\n---\n".join(results) if results else "No relevant evidence found."
+
+        engine.tool_registry.register(
+            ToolSchema(
+                definition=ToolDefinition(
+                    name="retrieve_knowledge",
+                    description="Search configured knowledge sources for relevant information.",
+                    parameters=[
+                        ToolParameter(
+                            name="question",
+                            type="string",
+                            description="Query to search for",
+                            required=True,
+                        )
+                    ],
+                    is_read_only=True,
+                    is_destructive=False,
+                    is_concurrency_safe=False,
+                ),
+                handler=_retrieve_knowledge,
+            )
+        )
+
+    def _configure_orchestration(self, engine: AgentEngine) -> None:
+        delegation = getattr(engine.config, "delegation_policy", None)
+        if delegation is None or not hasattr(delegation, "delegate_policy"):
+            return
+
+        from ..runtime.delegation import DelegationPolicy, NoopDelegationPolicy
+        from ..runtime.harness import GeneratorEvaluatorHarness
+
+        if isinstance(getattr(delegation, "delegate_policy", None), NoopDelegationPolicy):
+            from ..orchestration.subagent import SubAgentManager
+
+            max_depth = getattr(delegation, "max_depth", 5)
+            delegation.delegate_policy = DelegationPolicy.subagents(
+                SubAgentManager(parent=self, max_depth=max_depth)
+            )
+
+        harness = getattr(engine.config, "harness", None)
+        if isinstance(harness, GeneratorEvaluatorHarness) and harness.generator is None:
+            from ..orchestration.subagent import SubAgentManager
+
+            manager = SubAgentManager(parent=self, max_depth=getattr(delegation, "max_depth", 5))
+            harness.generator = manager
+            if harness.evaluator is None:
+                harness.evaluator = manager
 
     def _configure_governance(self, engine: AgentEngine) -> None:
         policy = self.config.policy or PolicyConfig()

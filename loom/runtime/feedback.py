@@ -1,4 +1,13 @@
-"""Runtime feedback policy contracts."""
+"""Runtime feedback policy contracts.
+
+Feedback is **read-only observation** of runtime events.  Feedback policies
+record what happened (tool results, LLM outputs, context operations) but never
+modify, block, or influence the execution flow.
+
+For **control-plane** decisions — vetoing tool calls, requesting human
+confirmation, or enforcing governance rules — use hooks
+(``agent.on("before_*", ...)``) or ``GovernancePolicy``.
+"""
 
 from __future__ import annotations
 

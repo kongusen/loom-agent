@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 from collections.abc import AsyncIterator, Callable
@@ -19,11 +20,14 @@ from ..config import (
     KnowledgeSource,
     MemoryConfig,
     ModelRef,
+    OrchestrationConfig,
     PolicyConfig,
     RuntimeConfig,
     RuntimeFallback,
     RuntimeFallbackMode,
     SafetyRule,
+    ScheduleConfig,
+    ScheduledJob,
     Toolset,
     ToolSpec,
 )
@@ -93,6 +97,8 @@ class Agent(EngineBuilderMixin, ProviderMixin):
     _pending_signals_lock: threading.RLock = field(
         default_factory=threading.RLock, init=False, repr=False
     )
+    _schedule_registry: Any = field(default=None, init=False, repr=False)
+    _schedule_ticker: Any = field(default=None, init=False, repr=False)
 
     def __init__(
         self,
@@ -107,6 +113,8 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         memory: MemoryConfig | bool | None = None,
         heartbeat: HeartbeatConfig | None = None,
         runtime: RuntimeConfig | None = None,
+        orchestration: bool | OrchestrationConfig | None = None,
+        schedule: list[ScheduledJob] | None = None,
         safety_rules: list[SafetyRule] | None = None,
         knowledge: list[KnowledgeSource] | None = None,
         session_store: SessionStore | None = None,
@@ -129,6 +137,8 @@ class Agent(EngineBuilderMixin, ProviderMixin):
                 "memory": memory,
                 "heartbeat": heartbeat,
                 "runtime": runtime,
+                "orchestration": orchestration,
+                "schedule": schedule,
                 "safety_rules": safety_rules,
                 "knowledge": knowledge,
             }
@@ -144,6 +154,8 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         else:
             if model is None:
                 raise TypeError("Agent() missing required argument: 'model'")
+            if runtime is not None and orchestration is not None:
+                raise TypeError("Agent() accepts runtime= or orchestration=, not both")
             self.config = AgentConfig(
                 model=_coerce_model_ref(model),
                 instructions=instructions,
@@ -153,7 +165,8 @@ class Agent(EngineBuilderMixin, ProviderMixin):
                 policy=policy,
                 memory=_coerce_memory_config(memory),
                 heartbeat=heartbeat,
-                runtime=runtime,
+                runtime=runtime or _coerce_orchestration_to_runtime(orchestration),
+                schedule=list(schedule or []),
                 safety_rules=list(safety_rules) if safety_rules is not None else None,
                 knowledge=list(knowledge or []),
             )
@@ -176,6 +189,8 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         self._session_store = session_store
         self._pending_signals = []
         self._pending_signals_lock = threading.RLock()
+        self._schedule_registry = None
+        self._schedule_ticker = None
         self.__post_init__()
 
     @classmethod
@@ -195,6 +210,10 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         capability_tool_entries: list[ToolSpec | Toolset] = list(capability_tools)
         declared_tools = [*declared_tools, *_normalize_tool_specs(capability_tool_entries)]
         normalized_tools: list[ToolSpec | Toolset] = list(declared_tools)
+        orchestration = _coerce_orchestration_config(config.orchestration)
+        if config.runtime is not None and orchestration is not None:
+            raise TypeError("AgentConfig accepts runtime or orchestration, not both")
+        runtime = config.runtime or _coerce_orchestration_to_runtime(orchestration)
         config = replace(
             config,
             model=_normalize_model_ref(config.model),
@@ -204,7 +223,9 @@ class Agent(EngineBuilderMixin, ProviderMixin):
             memory=_normalize_memory_config(config.memory),
             heartbeat=_normalize_heartbeat_config(config.heartbeat),
             generation=_normalize_generation_config(config.generation),
-            runtime=_normalize_runtime_config(config.runtime),
+            runtime=_normalize_runtime_config(runtime),
+            orchestration=orchestration,
+            schedule=_normalize_schedule_jobs(config.schedule),
             knowledge=_normalize_knowledge_sources(config.knowledge),
             safety_rules=_normalize_safety_rules(config.safety_rules),
         )
@@ -508,6 +529,141 @@ class Agent(EngineBuilderMixin, ProviderMixin):
             )
         return evicted
 
+    def start_scheduler(self, *, interval_seconds: float = 1.0) -> Any:
+        """Start the explicit in-process scheduler for configured jobs."""
+        from ..runtime.cron import JobRegistry, ScheduleTicker
+
+        if not self.config.schedule:
+            raise ValueError("Agent.start_scheduler() requires at least one scheduled job")
+
+        if self._schedule_ticker is not None and self._schedule_ticker.running:
+            return self._schedule_ticker
+
+        registry = JobRegistry()
+        for job in self.config.schedule:
+            registry.add(job)
+
+        ticker = ScheduleTicker(registry, interval_seconds=interval_seconds)
+        ticker.start(self._dispatch_scheduled_job)
+        self._schedule_registry = registry
+        self._schedule_ticker = ticker
+        return ticker
+
+    def stop_scheduler(self) -> None:
+        """Stop the explicit in-process scheduler if it is running."""
+        if self._schedule_ticker is not None:
+            self._schedule_ticker.stop()
+
+    def _dispatch_scheduled_job(self, job: ScheduledJob) -> None:
+        next_run = job.next_run_at.isoformat() if job.next_run_at else ""
+        session_id = f"scheduled:{job.id}"
+        session = self.session(
+            SessionConfig(
+                id=session_id,
+                metadata={"scheduled_job_id": job.id, **dict(job.metadata)},
+            )
+        )
+        signal = RuntimeSignal.create(
+            job.prompt,
+            source="cron",
+            type="scheduled_job",
+            urgency="normal",
+            payload={
+                "job_id": job.id,
+                "job_name": job.name,
+                "prompt": job.prompt,
+                "metadata": dict(job.metadata),
+            },
+            session_id=session_id,
+            dedupe_key=f"cron:{job.id}:{next_run}",
+        )
+
+        async def _run_job() -> None:
+            decision = await session.signal(signal)
+            if decision.action != "run":
+                return
+            await session.run(job.prompt)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(_run_job())
+        else:
+            loop.create_task(_run_job())
+
+    def schedule(
+        self,
+        id: str,
+        *,
+        prompt: str,
+        every: ScheduleConfig,
+        name: str = "",
+        enabled: bool = True,
+        repeat: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ScheduledJob:
+        """Append a scheduled prompt to this agent."""
+        if not isinstance(every, ScheduleConfig):
+            raise TypeError(f"every must be ScheduleConfig, got {type(every).__name__}")
+        job = ScheduledJob(
+            id=id,
+            prompt=prompt,
+            schedule=every,
+            name=name,
+            enabled=enabled,
+            repeat=repeat,
+            metadata=dict(metadata or {}),
+        )
+        self.config.schedule.append(job)
+        if self._schedule_ticker is not None and self._schedule_ticker.running:
+            self._schedule_registry.add(job)
+        return job
+
+    def every(
+        self,
+        *,
+        id: str,
+        prompt: str,
+        minutes: int = 0,
+        hours: int = 0,
+        days: int = 0,
+        name: str = "",
+        enabled: bool = True,
+        repeat: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ScheduledJob:
+        """Append an interval scheduled prompt to this agent."""
+        return self.schedule(
+            id,
+            prompt=prompt,
+            every=ScheduleConfig.interval(minutes=minutes, hours=hours, days=days),
+            name=name,
+            enabled=enabled,
+            repeat=repeat,
+            metadata=metadata,
+        )
+
+    def once(
+        self,
+        run_at: str | datetime,
+        *,
+        id: str,
+        prompt: str,
+        name: str = "",
+        enabled: bool = True,
+        metadata: dict[str, Any] | None = None,
+    ) -> ScheduledJob:
+        """Append a one-shot scheduled prompt to this agent."""
+        return self.schedule(
+            id,
+            prompt=prompt,
+            every=ScheduleConfig.once(run_at),
+            name=name,
+            enabled=enabled,
+            repeat=1,
+            metadata=metadata,
+        )
+
     async def _execute(
         self,
         prompt: str,
@@ -700,3 +856,48 @@ def _coerce_memory_config(memory: MemoryConfig | bool | None) -> MemoryConfig | 
     if isinstance(memory, bool):
         return MemoryConfig(enabled=memory) if memory else None
     raise TypeError(f"memory must be MemoryConfig, bool, or None, got {type(memory).__name__}")
+
+
+def _coerce_orchestration_config(
+    orchestration: bool | OrchestrationConfig | None,
+) -> OrchestrationConfig | None:
+    if orchestration is None or orchestration is False:
+        return None
+    if orchestration is True:
+        return OrchestrationConfig.default()
+    if isinstance(orchestration, OrchestrationConfig):
+        return orchestration
+    raise TypeError(
+        "orchestration must be bool, OrchestrationConfig, or None, "
+        f"got {type(orchestration).__name__}"
+    )
+
+
+def _coerce_orchestration_to_runtime(
+    orchestration: bool | OrchestrationConfig | None,
+) -> RuntimeConfig | None:
+    config = _coerce_orchestration_config(orchestration)
+    if config is None:
+        return None
+    return RuntimeConfig.orchestrated(
+        max_depth=config.max_depth,
+        planner=config.planner,
+        gen_eval=config.gen_eval,
+        delegation=config.delegation,
+    )
+
+
+def _normalize_schedule_jobs(jobs: list[ScheduledJob]) -> list[ScheduledJob]:
+    normalized: list[ScheduledJob] = []
+    for index, job in enumerate(jobs):
+        if not isinstance(job, ScheduledJob):
+            raise TypeError(
+                f"schedule entries must be ScheduledJob, got {type(job).__name__}"
+            )
+        if not isinstance(job.schedule, ScheduleConfig):
+            raise TypeError(
+                f"schedule[{index}].schedule must be ScheduleConfig, "
+                f"got {type(job.schedule).__name__}"
+            )
+        normalized.append(job)
+    return normalized

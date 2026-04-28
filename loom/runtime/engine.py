@@ -15,7 +15,6 @@ from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
-from ..config import MemoryProvider
 from ..context import CompressionPolicy
 from ..memory import InMemoryStore, MemoryStore
 from ..memory.semantic import MemoryEntry, SemanticMemory
@@ -27,7 +26,7 @@ from ..providers.base import (
     ProviderToolParameter,
     ProviderToolSpec,
 )
-from ..runtime.context import ContextProtocol
+from ..runtime.context import ContextPolicy
 from ..runtime.feedback import FeedbackPolicy
 from ..runtime.governance import GovernancePolicy
 from ..runtime.heartbeat import Heartbeat, HeartbeatConfig
@@ -52,6 +51,8 @@ if TYPE_CHECKING:
     from ..ecosystem.integration import EcosystemManager
 
 logger = logging.getLogger(__name__)
+
+MAX_EVIDENCE_PACKS = 10
 
 
 @dataclass
@@ -102,6 +103,18 @@ class _LoopDone:
     iterations: int
 
 
+@dataclass(slots=True)
+class _HarnessLoopRunner:
+    """Runner exposed to harnesses for one raw L* loop execution."""
+
+    engine: "AgentEngine"
+    token_callback: Callable[[str], Any] | None = None
+
+    async def run(self, task: Any) -> dict[str, Any]:
+        goal = getattr(task, "goal", task)
+        return await self.engine._run_loop(str(goal), token_callback=self.token_callback)
+
+
 class AgentEngine:
     """Agent execution engine integrating all Loom components"""
 
@@ -112,20 +125,20 @@ class AgentEngine:
         tools: list[Tool] | None = None,
         permission_manager: PermissionManager | None = None,
         ecosystem_manager: "EcosystemManager | None" = None,
-        memory_providers: list[MemoryProvider] | None = None,
+        memory_providers: list[Any] | None = None,
     ):
         self.provider = provider
         self.config = config or EngineConfig()
 
         # Core components
-        self.context_protocol = self.config.context_protocol or ContextProtocol.manager(
+        self.context_protocol = self.config.context_protocol or ContextPolicy.manager(
             max_tokens=self.config.max_tokens,
             compression_policy=self.config.compression_policy,
             continuity=self.config.continuity_policy,
         )
         self.context_manager = self.context_protocol
         self.memory_store: MemoryStore = InMemoryStore()
-        self.memory_providers = list(memory_providers or [])
+        self.memory_providers: list[Any] = list(memory_providers or [])
         self.semantic_memory: SemanticMemory | None = (
             SemanticMemory() if self.config.enable_memory else None
         )
@@ -343,8 +356,14 @@ class AgentEngine:
             self.heartbeat.start(self._on_heartbeat_event)
 
         try:
-            # Execute L* loop
-            result = await self._run_loop(goal, token_callback=token_callback)
+            # Execute through the configured harness strategy.
+            result = await self._run_with_harness(
+                goal,
+                instructions=instructions,
+                context=context,
+                session_id=session_id,
+                token_callback=token_callback,
+            )
 
             # Save session memory
             if session_id and self.config.enable_memory:
@@ -357,6 +376,78 @@ class AgentEngine:
             # Stop heartbeat
             if self.heartbeat:
                 self.heartbeat.stop()
+
+    async def _run_with_harness(
+        self,
+        goal: str,
+        *,
+        instructions: str,
+        context: dict | None,
+        session_id: str | None,
+        token_callback: "Callable[[str], Any] | None" = None,
+    ) -> dict[str, Any]:
+        """Run the configured harness strategy, falling back to the raw L* loop."""
+        harness = self.config.harness
+        if harness is None:
+            return await self._run_loop(goal, token_callback=token_callback)
+
+        from .harness import HarnessContext, HarnessOutcome, HarnessRequest
+        from .task import RuntimeTask
+
+        task = RuntimeTask(
+            goal=goal,
+            input=context or {},
+            metadata={"instructions": instructions},
+        )
+        request = HarnessRequest(
+            task=task,
+            context=HarnessContext(
+                runner=_HarnessLoopRunner(self, token_callback),
+                session_id=session_id,
+                metadata={
+                    "instructions": instructions,
+                    "context": context or {},
+                },
+            ),
+        )
+        run = getattr(harness, "run", None)
+        if not callable(run):
+            raise TypeError(f"runtime harness must provide async run(request), got {type(harness).__name__}")
+
+        outcome = await run(request)
+        if isinstance(outcome, str):
+            outcome = HarnessOutcome(output=outcome)
+        if not isinstance(outcome, HarnessOutcome):
+            raise TypeError(
+                f"runtime harness must return HarnessOutcome or str, got {type(outcome).__name__}"
+            )
+
+        return {
+            "status": "success" if outcome.passed else "harness_failed",
+            "output": outcome.output,
+            "events": [
+                {
+                    "type": "harness.completed",
+                    "harness": outcome.metadata.get("harness", type(harness).__name__),
+                    "passed": outcome.passed,
+                    "candidates": len(outcome.candidates),
+                    "selected_candidate_id": outcome.selected_candidate_id,
+                }
+            ],
+            "iterations": outcome.iterations,
+            "harness": outcome.metadata,
+            "candidates": [
+                {
+                    "id": candidate.id,
+                    "content": candidate.content,
+                    "score": candidate.score,
+                    "rationale": candidate.rationale,
+                    "metadata": candidate.metadata,
+                }
+                for candidate in outcome.candidates
+            ],
+            "selected_candidate_id": outcome.selected_candidate_id,
+        }
 
     async def _run_loop(
         self,
@@ -634,7 +725,59 @@ class AgentEngine:
         if context:
             context_str = "\n".join(f"{k}: {v}" for k, v in context.items())
             partitions.memory.append(Message(role="system", content=f"Context:\n{context_str}"))
+        self._inject_knowledge(goal, context)
         self._inject_runtime_skills(goal, context)
+
+    def _inject_knowledge(self, goal: str, _context: dict | None) -> None:
+        """Auto-resolve knowledge sources attached to the context policy."""
+        sources = getattr(self.context_manager, "_knowledge_sources", None)
+        if not sources:
+            return
+
+        from ..config import KnowledgeQuery, KnowledgeSource
+
+        query = KnowledgeQuery(text=goal, goal=goal)
+        total_items = 0
+        self.context_manager.dashboard.add_question(goal)
+        for source in sources:
+            if not isinstance(source, KnowledgeSource):
+                continue
+            evidence = source.resolve(query)
+            for item in evidence.items:
+                self.context_manager.dashboard.add_evidence(
+                    {
+                        "source": source.name,
+                        "title": item.title or "",
+                        "content": item.content,
+                        "uri": item.uri or "",
+                        "score": item.score,
+                    }
+                )
+                total_items += 1
+            for citation in evidence.citations:
+                if citation.uri or citation.title:
+                    self.context_manager.dashboard.add_evidence(
+                        {
+                            "source": source.name,
+                            "title": citation.title or "",
+                            "content": citation.snippet or "",
+                            "uri": citation.uri or "",
+                            "citation": citation.uri or citation.title or source.name,
+                        }
+                    )
+        if total_items:
+            self._evict_knowledge_overflow()
+            self.emit("knowledge_injected", sources=len(sources), items=total_items)
+
+    def _evict_knowledge_overflow(self, max_packs: int = MAX_EVIDENCE_PACKS) -> None:
+        """Evict lowest-score evidence when the dashboard surface exceeds capacity."""
+        packs = self.context_manager.dashboard.dashboard.knowledge_surface.evidence_packs
+        if len(packs) <= max_packs:
+            return
+        packs.sort(key=lambda pack: pack.get("score") or 0.0, reverse=True)
+        evicted = packs[max_packs:]
+        del packs[max_packs:]
+        self.emit("knowledge_evicted", count=len(evicted))
 
     def _inject_runtime_skills(self, goal: str, context: dict | None) -> None:
         """Refresh the C_skill partition for the current run."""
@@ -642,9 +785,11 @@ class AgentEngine:
         if self.ecosystem_manager is None:
             return
 
-        from ..runtime.skills import SkillInjectionPolicy
+        from ..runtime.skills import SkillInjection
 
-        policy = self.skill_injection_policy or SkillInjectionPolicy.matching()
+        # Prefer skill_injection from context_policy, fall back to engine-level, then default
+        ctx_injection = getattr(self.context_manager, "_skill_injection", None)
+        policy = ctx_injection or self.skill_injection_policy or SkillInjection.matching()
         selected = policy.select(
             self.ecosystem_manager.skill_registry,
             goal=goal,
@@ -1114,16 +1259,16 @@ class AgentEngine:
             except Exception as exc:
                 self._log_memory_provider_error(provider, "sync_turn", exc)
 
-    def _is_memory_provider_available(self, provider: MemoryProvider) -> bool:
+    def _is_memory_provider_available(self, provider: Any) -> bool:
         try:
-            return provider.is_available()
+            return bool(provider.is_available())
         except Exception as exc:
             self._log_memory_provider_error(provider, "is_available", exc)
             return False
 
     def _log_memory_provider_error(
         self,
-        provider: MemoryProvider,
+        provider: Any,
         operation: str,
         exc: Exception,
     ) -> None:
@@ -1134,7 +1279,7 @@ class AgentEngine:
             exc,
         )
 
-    def _memory_provider_name(self, provider: MemoryProvider) -> str:
+    def _memory_provider_name(self, provider: Any) -> str:
         try:
             return str(getattr(provider, "name", type(provider).__name__))
         except Exception:

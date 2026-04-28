@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+import inspect
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from .task import RuntimeTask
+
+
+@dataclass(slots=True)
+class HarnessCandidate:
+    """One possible output considered by a harness strategy."""
+
+    content: str
+    id: str = ""
+    score: float | None = None
+    rationale: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -24,7 +37,36 @@ class HarnessOutcome:
     output: str
     passed: bool = True
     iterations: int = 1
+    candidates: list[HarnessCandidate] = field(default_factory=list)
+    selected_candidate_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class HarnessRequest:
+    """Semantic request passed to user-defined runtime harnesses."""
+
+    task: RuntimeTask
+    context: HarnessContext
+
+    @property
+    def runner(self) -> Any:
+        return self.context.runner
+
+    @property
+    def session_id(self) -> str | None:
+        return self.context.session_id
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return self.context.metadata
+
+    async def run_once(self, task: RuntimeTask | None = None) -> Any:
+        """Run the underlying runtime once, bypassing the harness strategy."""
+        run = getattr(self.runner, "run", None)
+        if not callable(run):
+            raise TypeError("HarnessRequest.runner must provide an async run(task) method")
+        return await run(task or self.task)
 
 
 class RuntimeHarness(Protocol):
@@ -32,8 +74,7 @@ class RuntimeHarness(Protocol):
 
     async def run(
         self,
-        task: RuntimeTask,
-        context: HarnessContext,
+        request: HarnessRequest,
     ) -> HarnessOutcome: ...
 
 
@@ -45,9 +86,17 @@ class Harness:
         return SingleRunHarness()
 
     @staticmethod
+    def custom(
+        handler: Callable[[HarnessRequest], HarnessOutcome | str | Awaitable[HarnessOutcome | str]],
+        *,
+        name: str = "custom",
+    ) -> CustomHarness:
+        return CustomHarness(handler=handler, name=name)
+
+    @staticmethod
     def generator_evaluator(
         *,
-        generator: Any,
+        generator: Any | None = None,
         evaluator: Any | None = None,
         planner: Any | None = None,
         quality_gate: Any | None = None,
@@ -69,23 +118,53 @@ class SingleRunHarness:
 
     async def run(
         self,
-        task: RuntimeTask,
-        context: HarnessContext,
+        request: HarnessRequest | RuntimeTask,
+        context: HarnessContext | None = None,
     ) -> HarnessOutcome:
-        runner = context.runner
+        request = _coerce_request(request, context)
+        task = request.task
+        runner = request.runner
         run = getattr(runner, "run", None)
         if not callable(run):
             raise TypeError("HarnessContext.runner must provide an async run(task) method")
         result = await run(task)
-        output = getattr(result, "output", result)
-        state = str(getattr(result, "state", "")).lower()
+        output = _result_field(result, "output", result)
+        state = str(_result_field(result, "state", _result_field(result, "status", ""))).lower()
+        iterations = _result_field(result, "iterations", 1)
         passed = "failed" not in state and "cancelled" not in state
         return HarnessOutcome(
             output=str(output),
             passed=passed,
-            iterations=1,
+            iterations=int(iterations or 1),
             metadata={"harness": "single_run"},
         )
+
+
+class CustomHarness:
+    """Adapter for user-defined runtime harness strategies."""
+
+    def __init__(
+        self,
+        handler: Callable[[HarnessRequest], HarnessOutcome | str | Awaitable[HarnessOutcome | str]],
+        *,
+        name: str = "custom",
+    ) -> None:
+        self.handler = handler
+        self.name = name
+
+    async def run(
+        self,
+        request: HarnessRequest | RuntimeTask,
+        context: HarnessContext | None = None,
+    ) -> HarnessOutcome:
+        resolved = _coerce_request(request, context)
+        result = self.handler(resolved)
+        if inspect.isawaitable(result):
+            result = await result
+        if isinstance(result, HarnessOutcome):
+            result.metadata.setdefault("harness", self.name)
+            return result
+        return HarnessOutcome(output=str(result), metadata={"harness": self.name})
 
 
 class GeneratorEvaluatorHarness:
@@ -110,11 +189,13 @@ class GeneratorEvaluatorHarness:
 
     async def run(
         self,
-        task: RuntimeTask,
-        context: HarnessContext,
+        request: HarnessRequest | RuntimeTask,
+        context: HarnessContext | None = None,
     ) -> HarnessOutcome:
         from ..orchestration.harness import AgentHarness
 
+        request = _coerce_request(request, context)
+        task = request.task
         _ = context
         result = await AgentHarness(
             generator=self.generator,
@@ -128,6 +209,16 @@ class GeneratorEvaluatorHarness:
             output=result.output,
             passed=result.passed,
             iterations=result.sprints,
+            candidates=[
+                HarnessCandidate(
+                    id=f"sprint-{sprint.sprint}",
+                    content=sprint.output,
+                    score=1.0 if sprint.passed else 0.0,
+                    rationale=sprint.critique,
+                    metadata={"passed": sprint.passed},
+                )
+                for sprint in result.sprint_results
+            ],
             metadata={
                 "harness": "generator_evaluator",
                 "critique": result.critique,
@@ -135,3 +226,22 @@ class GeneratorEvaluatorHarness:
                 "sprint_results": result.sprint_results,
             },
         )
+
+
+def _coerce_request(
+    request: HarnessRequest | RuntimeTask,
+    context: HarnessContext | None,
+) -> HarnessRequest:
+    if isinstance(request, HarnessRequest):
+        return request
+    if isinstance(request, RuntimeTask):
+        if context is None:
+            raise TypeError("HarnessContext is required when running a harness with RuntimeTask")
+        return HarnessRequest(task=request, context=context)
+    raise TypeError(f"harness request must be HarnessRequest or RuntimeTask, got {type(request).__name__}")
+
+
+def _result_field(result: Any, key: str, default: Any) -> Any:
+    if isinstance(result, dict):
+        return result.get(key, default)
+    return getattr(result, key, default)

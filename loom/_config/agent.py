@@ -10,9 +10,11 @@ from .heartbeat import HeartbeatConfig
 from .knowledge import KnowledgeSource
 from .memory import MemoryConfig
 from .model import ModelRef
+from .orchestration import OrchestrationConfig
 from .policy import PolicyConfig
 from .runtime import RuntimeConfig
 from .safety import SafetyRule
+from .schedule import ScheduledJob
 from .tools import Toolset, ToolSpec
 
 
@@ -29,5 +31,7 @@ class AgentConfig:
     memory: MemoryConfig | None = None
     heartbeat: HeartbeatConfig | None = None
     runtime: RuntimeConfig | None = None
+    orchestration: OrchestrationConfig | None = None
+    schedule: list[ScheduledJob] = field(default_factory=list)
     safety_rules: list[SafetyRule] | None = None
     knowledge: list[KnowledgeSource] = field(default_factory=list)

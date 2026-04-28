@@ -1,13 +1,26 @@
-"""Tests for runtime context protocol adapters."""
+"""Tests for runtime context policy adapters."""
 
-from loom import Agent, ContextMetrics, ContextProtocol, ContextSnapshot, Model, Runtime
+from loom import (
+    Agent,
+    ContextMetrics,
+    ContextPolicy,
+    ContextProtocol,
+    ContextSnapshot,
+    Model,
+    Runtime,
+)
 from loom.context import ContextManager, ContextPartitions
 from loom.runtime import RuntimeTask
 from loom.types import Message
 
 
-def test_context_protocol_manager_renders_task_goal() -> None:
-    context = ContextProtocol.manager(max_tokens=10_000)
+def test_context_policy_is_context_protocol() -> None:
+    """ContextProtocol is a backward-compatible alias for ContextPolicy."""
+    assert ContextProtocol is ContextPolicy
+
+
+def test_context_policy_manager_renders_task_goal() -> None:
+    context = ContextPolicy.manager(max_tokens=10_000)
     context.partitions.system.append(Message(role="system", content="system rules"))
 
     messages = context.render(RuntimeTask(goal="build context protocol"))
@@ -17,8 +30,8 @@ def test_context_protocol_manager_renders_task_goal() -> None:
     assert messages[-1].content == "build context protocol"
 
 
-def test_context_protocol_measures_and_snapshots_context() -> None:
-    context = ContextProtocol.manager(max_tokens=10_000)
+def test_context_policy_measures_and_snapshots_context() -> None:
+    context = ContextPolicy.manager(max_tokens=10_000)
     context.partitions.history.append(Message(role="assistant", content="done"))
 
     metrics = context.measure()
@@ -32,7 +45,7 @@ def test_context_protocol_measures_and_snapshots_context() -> None:
     assert snapshot.metadata == {"source": "test"}
 
 
-def test_context_protocol_compact_and_renew_wrap_existing_manager() -> None:
+def test_context_policy_compact_and_renew_wrap_existing_manager() -> None:
     manager = ContextManager(max_tokens=10_000)
     manager.partitions.working.goal_progress = "Implemented protocol"
     manager.partitions.working.plan = ["wire engine"]
@@ -40,7 +53,7 @@ def test_context_protocol_compact_and_renew_wrap_existing_manager() -> None:
         Message(role="user", content=f"message {idx}") for idx in range(20)
     )
 
-    context = ContextProtocol.from_manager(manager)
+    context = ContextPolicy.from_manager(manager)
     compacted = context.compact("snip")
     renewed = context.renew("finish runtime context")
 
@@ -52,14 +65,14 @@ def test_context_protocol_compact_and_renew_wrap_existing_manager() -> None:
     assert context.partitions.working.plan == ["wire engine"]
 
 
-def test_agent_runtime_accepts_context_protocol() -> None:
+def test_agent_runtime_accepts_context_policy() -> None:
     from loom.providers.base import CompletionRequest, CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
         async def _complete_request(self, request: CompletionRequest) -> CompletionResponse:
             return CompletionResponse(content="ok")
 
-    context = ContextProtocol.manager(max_tokens=12_345)
+    context = ContextPolicy.manager(max_tokens=12_345)
     agent = Agent(
         model=Model.openai("gpt-test"),
         runtime=Runtime(context=context),
@@ -73,8 +86,15 @@ def test_agent_runtime_accepts_context_protocol() -> None:
     assert engine.context_manager.measure().max_tokens == 12_345
 
 
-def test_context_protocol_keeps_context_partitions_shape() -> None:
-    context = ContextProtocol.manager()
+def test_context_metrics_utilization_alias() -> None:
+    context = ContextPolicy.manager(max_tokens=10_000)
+    context.partitions.history.append(Message(role="assistant", content="done"))
+    metrics = context.measure()
+    assert metrics.utilization == metrics.rho
+
+
+def test_context_policy_keeps_context_partitions_shape() -> None:
+    context = ContextPolicy.manager()
 
     assert isinstance(context.partitions, ContextPartitions)
     assert context.snapshot().partitions.get_all_messages()

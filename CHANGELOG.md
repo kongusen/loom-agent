@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.8.1] - 2026-04-28
+
+### 子系统补齐与 API 语义收口
+
+`0.8.1` 补齐 7 个子系统与 runtime kernel 的用户侧连接方式，并把扩展点统一收敛到 kernel contract：
+
+- Gateway / Orchestration：新增 `OrchestrationConfig`、`Runtime.orchestrated()` 和 `Agent(orchestration=...)` 快捷入口
+- Knowledge：修复 evidence 注入位置，改为写入 `C_working.knowledge_surface`；新增目录 resolver 和按需检索路径
+- Cron：新增 `ScheduleConfig`、`ScheduledJob`、进程内 scheduler，以及 `agent.every()` / `agent.once()` / `agent.schedule()` 快捷 API
+- Memory：新增推荐的 `MemorySource` / `MemoryResolver` / `MemoryExtractor` / `MemoryStore` 合约，`MemoryProvider` 保留为 `0.8.x` 兼容桥接层
+- Harness：新增 `HarnessRequest` / `HarnessCandidate` / `HarnessOutcome` 语义合约和 `Harness.custom(...)`，支持用户自定义 long-task strategy 与多候选选择
+- Runtime docs：补充 Tool Use、Memory、Skills、Harness、Gateway/Orchestration、Knowledge、Cron 与 runtime kernel 的依赖关系和协作流程
+
+### Validation
+
+- `poetry run ruff check loom tests`
+- `poetry run mypy loom`
+- `poetry run pytest -q`
+- 当前回归结果：`565 passed`
+
+---
+
 ## [0.8.0] - 2026-04-27
 
 ### SDK Runtime Kernel 稳定线

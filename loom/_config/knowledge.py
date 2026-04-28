@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -183,6 +184,108 @@ class KnowledgeResolver:
             extensions=dict(extensions or {}),
         )
 
+    @classmethod
+    def static(
+        cls,
+        documents: list[str] | list[KnowledgeDocument],
+        *,
+        description: str = "",
+        extensions: dict[str, Any] | None = None,
+    ) -> KnowledgeResolver:
+        normalized_documents = _normalize_documents(documents)
+
+        def _handler(query: KnowledgeQuery) -> KnowledgeEvidence:
+            source_name = query.source_names[0] if query.source_names else "static"
+            items = [
+                KnowledgeEvidenceItem(
+                    source_name=source_name,
+                    content=document.content,
+                    title=document.title,
+                    uri=document.uri,
+                    metadata=dict(document.metadata),
+                    extensions=dict(document.extensions),
+                )
+                for document in normalized_documents[: query.top_k]
+            ]
+            citations = [
+                KnowledgeCitation(
+                    source_name=source_name,
+                    title=item.title,
+                    uri=item.uri,
+                    metadata=dict(item.metadata),
+                )
+                for item in items
+            ]
+            return KnowledgeEvidence(
+                query=query,
+                items=items,
+                citations=citations,
+                relevance_score=1.0 if items else 0.0,
+            )
+
+        return cls(
+            handler=_handler,
+            mode="static",
+            description=description,
+            extensions=dict(extensions or {}),
+        )
+
+    @classmethod
+    def from_directory(
+        cls,
+        path: str | Path,
+        glob: str = "**/*.md",
+        *,
+        description: str = "",
+        encoding: str = "utf-8",
+        extensions: dict[str, Any] | None = None,
+    ) -> KnowledgeResolver:
+        root = Path(path)
+
+        def _handler(query: KnowledgeQuery) -> KnowledgeEvidence:
+            source_name = query.source_names[0] if query.source_names else root.name or "directory"
+            items: list[KnowledgeEvidenceItem] = []
+            if not root.exists():
+                return KnowledgeEvidence(query=query, relevance_score=0.0)
+            for file_path in sorted(root.glob(glob)):
+                if not file_path.is_file():
+                    continue
+                try:
+                    content = file_path.read_text(encoding=encoding)
+                except UnicodeDecodeError:
+                    continue
+                items.append(
+                    KnowledgeEvidenceItem(
+                        source_name=source_name,
+                        content=content,
+                        title=file_path.name,
+                        uri=str(file_path),
+                    )
+                )
+                if len(items) >= query.top_k:
+                    break
+            citations = [
+                KnowledgeCitation(
+                    source_name=source_name,
+                    title=item.title,
+                    uri=item.uri,
+                )
+                for item in items
+            ]
+            return KnowledgeEvidence(
+                query=query,
+                items=items,
+                citations=citations,
+                relevance_score=1.0 if items else 0.0,
+            )
+
+        return cls(
+            handler=_handler,
+            mode="directory",
+            description=description or f"Files from {root}",
+            extensions={"path": str(root), "glob": glob, **dict(extensions or {})},
+        )
+
     def resolve(self, query: KnowledgeQuery) -> KnowledgeEvidence:
         evidence = self.handler(query)
         if not isinstance(evidence, KnowledgeEvidence):
@@ -221,12 +324,7 @@ class KnowledgeSource:
         metadata: dict[str, Any] | None = None,
         extensions: dict[str, Any] | None = None,
     ) -> KnowledgeSource:
-        normalized_documents: list[KnowledgeDocument] = []
-        for document in documents:
-            if isinstance(document, KnowledgeDocument):
-                normalized_documents.append(document)
-            else:
-                normalized_documents.append(KnowledgeDocument(content=document))
+        normalized_documents = _normalize_documents(documents)
         return cls(
             name=name,
             description=description,
@@ -253,12 +351,42 @@ class KnowledgeSource:
             extensions=dict(extensions or {}),
         )
 
+    @classmethod
+    def from_directory(
+        cls,
+        name: str,
+        path: str | Path,
+        glob: str = "**/*.md",
+        *,
+        description: str = "",
+        metadata: dict[str, Any] | None = None,
+        extensions: dict[str, Any] | None = None,
+    ) -> KnowledgeSource:
+        return cls.dynamic(
+            name,
+            KnowledgeResolver.from_directory(path, glob, description=description),
+            description=description,
+            metadata=metadata,
+            extensions=extensions,
+        )
+
     def resolve(self, query: KnowledgeQuery) -> KnowledgeEvidence:
         if query.source_names and self.name not in query.source_names:
             return KnowledgeEvidence(query=query)
 
         if self.resolver is not None:
-            return self.resolver.resolve(query)
+            scoped_query = query
+            if not query.source_names:
+                scoped_query = KnowledgeQuery(
+                    text=query.text,
+                    goal=query.goal,
+                    top_k=query.top_k,
+                    source_names=[self.name],
+                    metadata=dict(query.metadata),
+                    extensions=dict(query.extensions),
+                )
+            evidence = self.resolver.resolve(scoped_query)
+            return _with_source_name(evidence, self.name, query)
 
         items = [
             KnowledgeEvidenceItem(
@@ -301,3 +429,53 @@ class KnowledgeSource:
         if self.resolver is not None:
             payload["resolver"] = self.resolver.to_context_payload()
         return payload
+
+
+def _normalize_documents(
+    documents: list[str] | list[KnowledgeDocument],
+) -> list[KnowledgeDocument]:
+    normalized_documents: list[KnowledgeDocument] = []
+    for document in documents:
+        if isinstance(document, KnowledgeDocument):
+            normalized_documents.append(document)
+        else:
+            normalized_documents.append(KnowledgeDocument(content=document))
+    return normalized_documents
+
+
+def _with_source_name(
+    evidence: KnowledgeEvidence,
+    source_name: str,
+    original_query: KnowledgeQuery,
+) -> KnowledgeEvidence:
+    items = [
+        KnowledgeEvidenceItem(
+            source_name=source_name,
+            content=item.content,
+            title=item.title,
+            uri=item.uri,
+            score=item.score,
+            metadata=dict(item.metadata),
+            extensions=dict(item.extensions),
+        )
+        for item in evidence.items
+    ]
+    citations = [
+        KnowledgeCitation(
+            source_name=source_name,
+            title=citation.title,
+            uri=citation.uri,
+            snippet=citation.snippet,
+            metadata=dict(citation.metadata),
+            extensions=dict(citation.extensions),
+        )
+        for citation in evidence.citations
+    ]
+    return KnowledgeEvidence(
+        query=original_query,
+        items=items,
+        citations=citations,
+        relevance_score=evidence.relevance_score,
+        metadata=dict(evidence.metadata),
+        extensions=dict(evidence.extensions),
+    )

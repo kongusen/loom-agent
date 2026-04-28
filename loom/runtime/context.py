@@ -27,6 +27,11 @@ class ContextMetrics:
     should_renew: bool
     compression_strategy: str | None = None
 
+    @property
+    def utilization(self) -> float:
+        """Context utilization ratio — alias for ``rho``."""
+        return self.rho
+
 
 @dataclass(slots=True)
 class ContextSnapshot:
@@ -38,8 +43,8 @@ class ContextSnapshot:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class RuntimeContextProtocol(TypingProtocol):
-    """Protocol implemented by runtime context engines."""
+class RuntimeContextPolicy(TypingProtocol):
+    """typing.Protocol interface for runtime context engines (internal)."""
 
     partitions: ContextPartitions
     current_goal: str
@@ -68,8 +73,12 @@ class RuntimeContextProtocol(TypingProtocol):
     ) -> None: ...
 
 
-class ContextProtocol:
-    """Factory for built-in runtime context protocol implementations."""
+class ContextPolicy:
+    """Factory for built-in runtime context policy implementations.
+
+    Aligns with the other eight Policy factories (GovernancePolicy,
+    FeedbackPolicy, DelegationPolicy, …).
+    """
 
     @staticmethod
     def manager(
@@ -77,24 +86,40 @@ class ContextProtocol:
         max_tokens: int = 200000,
         compression_policy: CompressionPolicy | None = None,
         continuity: Any | None = None,
-    ) -> ManagedContextProtocol:
+        skill_injection: Any | None = None,
+        knowledge_sources: list[Any] | None = None,
+    ) -> ManagedContextAdapter:
         manager = ContextManager(
             max_tokens=max_tokens,
             compression_policy=compression_policy,
             continuity_policy=continuity,
         )
-        return ManagedContextProtocol(manager)
+        adapter = ManagedContextAdapter(manager)
+        if skill_injection is not None:
+            adapter._skill_injection = skill_injection
+        if knowledge_sources is not None:
+            adapter._knowledge_sources = list(knowledge_sources)
+        return adapter
 
     @staticmethod
-    def from_manager(manager: ContextManager) -> ManagedContextProtocol:
-        return ManagedContextProtocol(manager)
+    def from_manager(manager: ContextManager) -> ManagedContextAdapter:
+        return ManagedContextAdapter(manager)
 
 
-class ManagedContextProtocol:
+# Backward-compatible alias — kept through 0.8.x
+ContextProtocol = ContextPolicy
+
+
+class ManagedContextAdapter:
     """Runtime context adapter backed by the existing ContextManager."""
+
+    _skill_injection: Any | None
+    _knowledge_sources: list[Any]
 
     def __init__(self, manager: ContextManager) -> None:
         self.manager = manager
+        self._skill_injection = None
+        self._knowledge_sources = []
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.manager, name)
@@ -178,3 +203,8 @@ class ManagedContextProtocol:
         decision: SignalDecision | None = None,
     ) -> None:
         self.manager.ingest_signal(signal, decision)
+
+
+# Backward-compatible aliases — kept through 0.8.x
+ManagedContextProtocol = ManagedContextAdapter
+RuntimeContextProtocol = RuntimeContextPolicy

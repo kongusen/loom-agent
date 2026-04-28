@@ -46,6 +46,29 @@ from ..config import (
     WatchKind,
 )
 
+# --- 0.8 compatibility aliases (renamed in 0.8.0) ---
+# Context three-layer rename:
+#   ContextProtocol → ContextPolicy
+#   RuntimeContextProtocol → RuntimeContextPolicy
+#   ManagedContextProtocol → ManagedContextAdapter
+# These aliases are re-exported from loom.runtime.context so existing imports
+# continue to work.  Will be removed in 0.9.0.
+from ..runtime.context import (
+    ContextPolicy,  # noqa: F401
+    ManagedContextAdapter,  # noqa: F401
+    RuntimeContextPolicy,  # noqa: F401
+)
+
+# SkillInjectionPolicy → SkillInjection
+# The old name is kept as an alias in loom.runtime.skills.
+from ..runtime.skills import SkillInjection  # noqa: F401
+
+# Backward-compatible re-exports under old names
+ContextProtocol = ContextPolicy
+ManagedContextProtocol = ManagedContextAdapter
+RuntimeContextProtocol = RuntimeContextPolicy
+SkillInjectionPolicy = SkillInjection
+
 __all__ = [
     "Agent",
     "create_agent",
@@ -85,4 +108,14 @@ __all__ = [
     "KnowledgeBundle",
     "KnowledgeResolver",
     "KnowledgeSource",
+    # 0.8 compat aliases (old names)
+    "ContextProtocol",
+    "ManagedContextProtocol",
+    "RuntimeContextProtocol",
+    "SkillInjectionPolicy",
+    # 0.8 new names
+    "ContextPolicy",
+    "ManagedContextAdapter",
+    "RuntimeContextPolicy",
+    "SkillInjection",
 ]

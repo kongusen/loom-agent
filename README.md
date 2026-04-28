@@ -19,7 +19,7 @@
 
 ---
 
-Loom is an embeddable Agent SDK. It is not a gateway product, cron service, dashboard, or skill marketplace. The kernel gives application developers a stable language for building agent runtimes:
+Loom is an embeddable Agent SDK that helps developers build agent platform capabilities similar to [Hermes](https://github.com/nousresearch/hermes-agent) and [OpenClaw](https://github.com/openclaw/openclaw) with less overhead. It is not a gateway product, cron service, dashboard, or skill marketplace. The kernel gives application developers a stable language for building agent runtimes:
 
 ```text
 Agent + Runtime + Capability
@@ -28,7 +28,80 @@ Agent + Runtime + Capability
     -> Context / Continuity / Harness / Quality / Governance / Feedback
 ```
 
-The `0.8.0` line stabilizes this runtime kernel. Legacy 0.x compatibility imports remain available through `0.8.x` and are scheduled for removal in `0.9.0`.
+The `0.8.0` line stabilizes this runtime kernel. The `0.8.1` line completes the subsystem shortcuts for orchestration, knowledge, cron, and the new `MemorySource` API. Legacy 0.x compatibility imports remain available through `0.8.x` and are scheduled for removal in `0.9.0`.
+
+## Search Keywords
+
+Loom is designed for teams searching for:
+
+- Python agent SDK
+- agent runtime framework
+- embeddable AI agent framework
+- Hermes alternative architecture
+- OpenClaw-style agent platform composition
+
+## Loom Vs Hermes / OpenClaw
+
+- Loom is an SDK/runtime kernel, not a full hosted agent product.
+- You compose gateway, cron, dashboard, and skill market with adapters.
+- This separation helps teams ship custom agent platforms with less lock-in.
+- Existing Hermes/OpenClaw-style event flows can be normalized into `RuntimeSignal`.
+
+## FAQ
+
+**Is Loom a full agent platform like Hermes or OpenClaw?**
+No. Loom focuses on the runtime kernel and SDK contracts used to build those platform capabilities inside your own product.
+
+**Can I still build gateway, cron, and dashboard experiences with Loom?**
+Yes. Loom is designed for that: external systems are adapted into runtime signals and governed capability paths.
+
+**Can I migrate existing Hermes/OpenClaw-style flows?**
+Usually yes. Event-driven orchestration can be mapped to `RuntimeSignal`, and policy decisions can be centralized in `Runtime`.
+
+**Who is Loom best for?**
+Teams that need an embeddable Python agent SDK with modular orchestration, memory, tools, and safety boundaries.
+
+## Use Cases
+
+- Build a customer support agent platform with your own gateway, routing, and quality controls.
+- Build an internal engineering copilot with governed tool use, code search, and memory continuity.
+- Build workflow automation agents that react to cron schedules and external runtime signals.
+- Build enterprise knowledge agents that combine retrieval, citations, and policy-driven execution.
+
+## Runtime Kernel And Subsystems
+
+The runtime kernel is the shared execution boundary for Loom subsystems. Each subsystem is configured from the user-side `Agent(...)` API, normalized into `Runtime` and `Capability` objects, and then executed through the same run/session loop:
+
+```text
+Agent API
+    -> RuntimeConfig + CapabilitySpec + Source configs
+    -> AgentEngine
+    -> Context partitions + RuntimeSignal + governed tools
+    -> Harness / Quality / Continuity / Feedback
+```
+
+The seven user-facing subsystems depend on the kernel in different ways:
+
+| Subsystem | Kernel dependency | Capability provided |
+|---|---|---|
+| Tool Use | `Capability`, tool registry, `GovernancePolicy` | Exposes Python tools, shell, files, web, MCP, and builtin tools behind permission, read-only, rate-limit, and veto checks. |
+| Memory | `ContextProtocol`, memory partition, session restore, `MemorySource` lifecycle | Recalls durable application memory at run start and writes extracted memories at run end, separate from session history. |
+| Skills | `Capability.skill(...)`, ecosystem loader, tool registry | Loads task-specific instructions and tools progressively without making every skill part of the base prompt. |
+| Harness | `Runtime.harness`, `HarnessRequest`, `HarnessOutcome`, `QualityGate` | Controls how a run is attempted: single pass, generator/evaluator loops, custom candidate generation, human gates, or external workflows. |
+| Gateway / Orchestration | `RuntimeSignal`, `AttentionPolicy`, `DelegationPolicy`, coordinator | Normalizes external events and subtask delegation into the same signal and runtime decision path. |
+| Knowledge | `KnowledgeSource`, `KnowledgeResolver`, `C_working.knowledge_surface` | Injects run-scoped evidence, active questions, citations, and on-demand retrieval without polluting long-term memory. |
+| Cron | `ScheduleConfig`, `ScheduledJob`, `RuntimeSignal(source="cron")` | Turns due scheduled prompts into runtime signals so attention policy decides whether they run, queue, or get ignored. |
+
+At run time these subsystems cooperate through the same loop:
+
+1. The agent receives a `RuntimeTask` or `RuntimeSignal`.
+2. Runtime policies decide context shape, attention behavior, allowed capabilities, and harness strategy.
+3. Memory and knowledge populate the context partitions before the model call.
+4. Tool use, skills, MCP, and delegation execute through the governed capability path.
+5. Harness, quality, continuity, and feedback decide whether the run is complete, should continue, or should renew context.
+6. Session history and long-term memory are written back through their separate stores.
+
+This keeps integrations modular: new gateways, schedulers, retrievers, memory stores, or skills do not bypass the kernel; they adapt into the kernel contracts.
 
 ## Install
 
@@ -78,10 +151,26 @@ Use `from loom import ...` for normal application code:
 from loom import (
     Agent,
     Capability,
+    Harness,
+    HarnessCandidate,
+    HarnessOutcome,
+    HarnessRequest,
+    KnowledgeResolver,
+    KnowledgeSource,
+    MemoryConfig,
+    MemoryExtractor,
+    MemoryQuery,
+    MemoryRecord,
+    MemoryResolver,
+    MemorySource,
+    MemoryStore,
     Model,
+    OrchestrationConfig,
     Runtime,
     RuntimeSignal,
     RuntimeTask,
+    ScheduleConfig,
+    ScheduledJob,
     SessionConfig,
     SignalAdapter,
     RunContext,
@@ -163,7 +252,76 @@ Runtime.sdk()
 Runtime.long_running(criteria=["tests stay green"])
 Runtime.supervised(criteria=["human approval before release"])
 Runtime.autonomous(max_depth=5, max_iterations=200)
+Runtime.orchestrated(max_depth=3)
+Runtime.scheduled()
 ```
+
+## Harness
+
+`Harness` is the execution strategy for a run. It is separate from `QualityGate`: the harness decides how work is attempted, while the quality gate defines how an answer is judged.
+
+The default strategy is a single raw runtime loop:
+
+```python
+from loom import Harness, Runtime
+
+runtime = Runtime.sdk(harness=Harness.single_run())
+```
+
+Custom harnesses can generate multiple possibilities, evaluate them with application logic, and return the selected output:
+
+```python
+from loom import Harness, HarnessCandidate, HarnessOutcome, HarnessRequest, Runtime
+
+
+async def choose_best(request: HarnessRequest) -> HarnessOutcome:
+    baseline = await request.run_once()
+    candidates = [
+        HarnessCandidate(
+            id="baseline",
+            content=str(baseline["output"]),
+            score=0.4,
+            rationale="raw runtime output",
+        ),
+        HarnessCandidate(
+            id="expanded",
+            content=f"{baseline['output']}\n\nChecked against release criteria.",
+            score=0.9,
+            rationale="application-specific evaluator preferred this candidate",
+        ),
+    ]
+    return HarnessOutcome(
+        output=candidates[1].content,
+        candidates=candidates,
+        selected_candidate_id="expanded",
+    )
+
+
+runtime = Runtime.long_running(
+    criteria=["tests stay green"],
+    harness=Harness.custom(choose_best, name="release-review"),
+)
+```
+
+## Orchestration
+
+Use `orchestration=True` when an agent should be allowed to plan and delegate without manually wiring coordinator internals:
+
+```python
+from loom import Agent, Model, OrchestrationConfig
+
+agent = Agent(
+    model=Model.openai("gpt-4o"),
+    orchestration=True,
+)
+
+advanced = Agent(
+    model=Model.openai("gpt-4o"),
+    orchestration=OrchestrationConfig(max_depth=5, gen_eval=True),
+)
+```
+
+`orchestration=` is a shortcut for an orchestrated runtime profile with depth-limited delegation and lazy sub-agent wiring. It is mutually exclusive with `runtime=`.
 
 ## Capabilities
 
@@ -235,6 +393,30 @@ await agent.receive(
 
 Signals are projected into the runtime dashboard context (`C_working`) as pending events and active risks.
 
+## Scheduling
+
+Declare scheduled prompts on the agent, then explicitly start and stop the in-process scheduler:
+
+```python
+from loom import Agent, Model, ScheduleConfig
+
+agent = Agent(model=Model.openai("gpt-4o"))
+
+agent.every(id="ci", prompt="Check CI status", minutes=30)
+agent.once("2026-04-29T09:00:00", id="daily", prompt="Summarize inbox")
+agent.schedule(
+    "custom",
+    prompt="Run scheduled maintenance",
+    every=ScheduleConfig.interval(hours=1),
+)
+
+agent.start_scheduler()
+# ...
+agent.stop_scheduler()
+```
+
+Scheduled jobs are converted to `RuntimeSignal(source="cron", type="scheduled_job")` before execution. The runtime attention policy decides whether a due job should run, be observed, or be ignored. `Agent(...)` never starts background work by itself.
+
 ## Sessions And Restore
 
 Use `session()` when the application needs continuity across runs:
@@ -272,9 +454,85 @@ agent = Agent(
 
 `FileSessionStore` persists session metadata, run summaries, transcripts, events, artifacts, and run context. `SessionRestorePolicy` controls what enters the next run.
 
+## Memory
+
+Memory has two separate responsibilities:
+
+- `SessionStore` + `SessionRestorePolicy` persist and restore runtime history.
+- `MemorySource` retrieves and updates long-term application memory.
+
+For new integrations, prefer `MemorySource`, `MemoryResolver`, `MemoryExtractor`, and `MemoryStore`:
+
+```python
+from loom import (
+    Agent,
+    MemoryConfig,
+    MemoryExtractor,
+    MemoryQuery,
+    MemoryRecord,
+    MemorySource,
+    MemoryStore,
+    Model,
+)
+
+
+class VectorMemoryStore(MemoryStore):
+    def search(self, query: MemoryQuery) -> list[MemoryRecord]:
+        hits = vector_db.search(
+            query.text,
+            top_k=query.top_k,
+            filter={"session_id": query.session_id},
+        )
+        return [
+            MemoryRecord(
+                key=hit.id,
+                content=hit.text,
+                score=hit.score,
+                metadata=hit.metadata,
+            )
+            for hit in hits
+        ]
+
+    def upsert(self, record: MemoryRecord, query: MemoryQuery | None = None) -> None:
+        vector_db.upsert(
+            id=record.key or None,
+            text=record.content,
+            metadata={**record.metadata, "session_id": query.session_id if query else None},
+        )
+
+
+memory = MemorySource.long_term(
+    "project",
+    store=VectorMemoryStore(),
+    extractor=MemoryExtractor.callable(
+        lambda user, assistant, session_id=None: [
+            MemoryRecord(
+                content=f"{user} -> {assistant}",
+                metadata={"session_id": session_id},
+            )
+        ]
+    ),
+    instructions="Use durable project memory when relevant.",
+)
+
+agent = Agent(
+    model=Model.openai("gpt-4o"),
+    memory=MemoryConfig(sources=[memory]),
+)
+```
+
+At run start, each `MemorySource` retrieves records and injects them into the memory partition. At run end, its extractor can produce records and write them through the store. `MemoryProvider` remains available as a legacy compatibility bridge in `0.8.x`; new code should use `MemorySource`.
+
 ## Hooks And Events
 
-Runtime hooks expose semantic lifecycle points for logging, UI updates, audit trails, or custom feedback:
+Runtime hooks expose semantic lifecycle points for logging, UI updates, audit trails, or custom feedback.
+
+> **Hooks vs Feedback** — hooks are the *control plane*: `before_*` hooks can
+> `DENY` or `ASK` to block/confirm an action, while `after_*`/`on_*` hooks
+> observe without intervention.  `FeedbackPolicy` is the *data plane*: it
+> records execution events for metrics, evolution, and audit but never alters
+> the runtime flow.  Use hooks when you need to *influence* behaviour; use
+> feedback when you need to *observe* it.
 
 ```python
 agent.on("before_run", lambda **event: print("starting", event["run_id"]))
@@ -299,7 +557,57 @@ artifacts = await run.artifacts()
 
 ## Knowledge
 
-Resolve stable evidence first, then attach it to a run:
+Declare knowledge sources on the agent and they are automatically resolved and injected at run time:
+
+```python
+from loom import Agent, KnowledgeSource, Model
+
+agent = Agent(
+    model=Model.anthropic("claude-sonnet-4"),
+    knowledge=[
+        KnowledgeSource.inline("docs", ["Deployment must use release controls."]),
+        KnowledgeSource.from_directory("repo-docs", "./docs", glob="**/*.md"),
+    ],
+)
+result = await agent.run("Summarize deployment policy")
+```
+
+For custom retrieval, provide a `KnowledgeResolver`:
+
+```python
+from loom import (
+    KnowledgeEvidence,
+    KnowledgeEvidenceItem,
+    KnowledgeQuery,
+    KnowledgeResolver,
+    KnowledgeSource,
+)
+
+
+def retrieve_docs(query: KnowledgeQuery) -> KnowledgeEvidence:
+    hits = search_index.search(query.text, top_k=query.top_k)
+    return KnowledgeEvidence(
+        query=query,
+        items=[
+            KnowledgeEvidenceItem(
+                source_name="search",
+                title=hit.title,
+                content=hit.text,
+                uri=hit.url,
+                score=hit.score,
+            )
+            for hit in hits
+        ],
+    )
+
+
+source = KnowledgeSource.dynamic(
+    "search",
+    KnowledgeResolver.callable(retrieve_docs),
+)
+```
+
+For advanced one-off use cases, resolve knowledge manually and pass it via `RunContext`:
 
 ```python
 from loom import KnowledgeQuery, RunContext
@@ -355,6 +663,7 @@ The kernel concepts are:
 ## Version Policy
 
 - `0.8.0` is the public API stabilization line for the SDK runtime kernel.
+- `0.8.1` completes the seven subsystem integration layer: Tool Use, Memory, Skills, Harness, Gateway/Orchestration, Knowledge, and Cron.
 - `0.8.x` keeps compatibility exports for existing applications.
 - `loom.compat.v0` is the explicit legacy compatibility namespace.
 - `0.9.0` removes the legacy compatibility surface.
@@ -369,7 +678,7 @@ poetry run mypy loom
 poetry run pytest -q
 ```
 
-Latest full suite during the 0.8.0 hardening pass: `540 passed`.
+Latest full suite during the 0.8.1 subsystem pass: `565 passed`.
 
 ## License
 

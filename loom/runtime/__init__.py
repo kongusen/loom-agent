@@ -9,12 +9,16 @@ from .capability import (
 )
 from .context import (
     ContextMetrics,
+    ContextPolicy,
     ContextProtocol,
     ContextSnapshot,
+    ManagedContextAdapter,
     ManagedContextProtocol,
+    RuntimeContextPolicy,
     RuntimeContextProtocol,
 )
 from .continuity import ContinuityPolicy, ContinuityResult, HandoffContinuityPolicy
+from .cron import JobRegistry, ScheduleTicker
 from .delegation import (
     DelegationPolicy,
     DelegationRequest,
@@ -33,7 +37,15 @@ from .governance import (
     GovernanceRequest,
     RuntimeGovernancePolicy,
 )
-from .harness import Harness, HarnessContext, HarnessOutcome, RuntimeHarness
+from .harness import (
+    CustomHarness,
+    Harness,
+    HarnessCandidate,
+    HarnessContext,
+    HarnessOutcome,
+    HarnessRequest,
+    RuntimeHarness,
+)
 from .heartbeat import Heartbeat, HeartbeatConfig, WatchSource
 from .loop import AgentLoop, LoopConfig
 from .quality import (
@@ -74,7 +86,7 @@ from .signals import (
     SignalDecision,
     SignalQueue,
 )
-from .skills import SkillInjectionPolicy
+from .skills import SkillInjection, SkillInjectionPolicy
 from .task import RuntimeTask
 
 __all__ = [
@@ -85,10 +97,13 @@ __all__ = [
     "CapabilitySource",
     "CapabilityRegistry",
     "RuntimeCapabilityProvider",
+    "ContextPolicy",
     "ContextProtocol",
     "ContextMetrics",
     "ContextSnapshot",
+    "RuntimeContextPolicy",
     "RuntimeContextProtocol",
+    "ManagedContextAdapter",
     "ManagedContextProtocol",
     "DelegationPolicy",
     "DelegationRequest",
@@ -102,6 +117,8 @@ __all__ = [
     "GovernanceRequest",
     "GovernanceDecision",
     "RuntimeGovernancePolicy",
+    "JobRegistry",
+    "ScheduleTicker",
     "QualityGate",
     "QualityContract",
     "QualityResult",
@@ -134,14 +151,18 @@ __all__ = [
     "SignalDecision",
     "AttentionPolicy",
     "SignalQueue",
+    "SkillInjection",
     "SkillInjectionPolicy",
     "RuntimeTask",
     "ContinuityPolicy",
     "ContinuityResult",
     "HandoffContinuityPolicy",
     "Harness",
+    "HarnessCandidate",
     "HarnessContext",
+    "HarnessRequest",
     "HarnessOutcome",
+    "CustomHarness",
     "RuntimeHarness",
     "generate_id",
 ]

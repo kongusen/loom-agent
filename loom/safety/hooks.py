@@ -1,4 +1,16 @@
-"""Hook mechanism - 三层防护的第二层
+"""Hook mechanism — control-plane lifecycle interception.
+
+Hooks are the **control plane** of the agent runtime.  They run at named
+lifecycle points and can influence execution:
+
+- ``before_*`` hooks are **control points**: returning ``DENY`` blocks the
+  action; returning ``ASK`` requests human confirmation.
+- ``after_*`` / ``on_*`` hooks are **observation points**: they receive
+  the event but cannot change the outcome.
+
+For **read-only data recording** (metrics, audit logs, evolution feedback)
+use ``FeedbackPolicy`` instead — it subscribes to the same event bus but
+is guaranteed never to alter the execution path.
 
 Hook 规则：
 - Hook deny 直接生效
