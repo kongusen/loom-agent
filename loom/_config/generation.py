@@ -7,7 +7,7 @@ from typing import Any
 
 
 @dataclass(slots=True)
-class GenerationConfig:
+class Generation:
     """Stable model generation controls."""
 
     temperature: float = 0.7

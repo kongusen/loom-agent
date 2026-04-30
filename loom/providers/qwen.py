@@ -2,23 +2,21 @@
 
 Supports:
 - Standard Qwen models (qwen-plus, qwen-turbo, qwen-max, qwen2.5-*)
-- Qwen3 thinking models (enable_thinking via GenerationConfig.extensions)
+- Qwen3 thinking models (enable_thinking via Generation.extensions)
 - Tool calling through the OpenAI-compatible endpoint
 - reasoning_content extraction from thinking responses
 
 Usage example::
 
-    agent = create_agent(AgentConfig(
-        model=ModelRef.qwen("qwen3-235b-a22b"),
-        generation=GenerationConfig(
-            extensions={"enable_thinking": True, "thinking_budget": 8000}
-        ),
-    ))
+    agent = Agent(
+        model=Model.qwen("qwen3-235b-a22b"),
+        generation=Generation(extensions={"enable_thinking": True, "thinking_budget": 8000}),
+    )
 """
 
 from typing import Any
 
-from .base import CompletionParams, CompletionResponse, TokenUsage
+from .base import CompletionParams, CompletionRequest, CompletionResponse, TokenUsage
 from .openai import OpenAIProvider
 
 _DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -31,7 +29,7 @@ class QwenProvider(OpenAIProvider):
         api_key: DashScope API key (https://dashscope.console.aliyun.com/).
         base_url: Override the DashScope endpoint (e.g. for a proxy).
 
-    Provider-specific GenerationConfig.extensions keys:
+    Provider-specific Generation.extensions keys:
 
     - ``enable_thinking`` (bool): Enable chain-of-thought for Qwen3 models.
       Defaults to ``False``.  When enabled, the model returns
@@ -49,8 +47,15 @@ class QwenProvider(OpenAIProvider):
         self,
         api_key: str,
         base_url: str = _DASHSCOPE_BASE_URL,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
-        super().__init__(api_key=api_key, base_url=base_url)
+        super().__init__(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
 
     # ------------------------------------------------------------------
     # Request building
@@ -90,66 +95,13 @@ class QwenProvider(OpenAIProvider):
     # Response parsing
     # ------------------------------------------------------------------
 
-    async def stream(
+    async def _complete_request(
         self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ):
-        """Stream completion chunks, yielding thinking tokens when enabled.
-
-        When ``enable_thinking`` is set in extensions, thinking tokens
-        (``delta.reasoning_content``) are yielded first wrapped in
-        ``<think>…</think>`` tags, followed by the regular content tokens.
-        """
-        request = self._build_request(messages, params)
-        ext = (params.extensions if params is not None else None) or {}
-        expose = ext.get("enable_thinking", False)
-
-        stream = await self.client.chat.completions.create(**request, stream=True)
-        in_thinking = False
-        async for chunk in stream:
-            choices = getattr(chunk, "choices", [])
-            if not choices:
-                continue
-            delta = getattr(choices[0], "delta", None)
-            if delta is None:
-                continue
-
-            # Thinking delta (Qwen3)
-            if expose:
-                reasoning = getattr(delta, "reasoning_content", None)
-                if reasoning:
-                    if not in_thinking:
-                        yield "<think>\n"
-                        in_thinking = True
-                    yield reasoning
-                    continue
-                if in_thinking:
-                    yield "\n</think>\n\n"
-                    in_thinking = False
-
-            # Regular content delta
-            content = getattr(delta, "content", None)
-            if not content:
-                continue
-            if isinstance(content, list):
-                text = "".join(
-                    part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
-                    for part in content
-                )
-                if text:
-                    yield text
-            else:
-                yield content
-
-    async def _complete_response(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
+        request: CompletionRequest,
     ) -> CompletionResponse:
         """Parse response including Qwen3 reasoning_content."""
-        request = self._build_request(messages, params)
-        response = await self.client.chat.completions.create(**request)
+        payload = self._build_request(request.messages, request.params)
+        response = await self.client.chat.completions.create(**payload)
         choice = response.choices[0]
         message = getattr(choice, "message", None)
 

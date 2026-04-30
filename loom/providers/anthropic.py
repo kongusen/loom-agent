@@ -2,7 +2,7 @@
 
 import inspect
 import threading
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from ..types import ToolCall
@@ -20,19 +20,23 @@ from .base import (
 class AnthropicProvider(LLMProvider):
     """Anthropic messages API provider."""
 
-    _shared_clients: dict[tuple[str, str | None], Any] = {}
+    _shared_clients: dict[tuple[str, str | None, float | None, int | None], Any] = {}
     _pool_lock = threading.RLock()
 
     def __init__(
         self,
         api_key: str,
         base_url: str | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
         client: Any | None = None,
         use_client_pool: bool = True,
     ):
         super().__init__()
         self.api_key = api_key
         self.base_url = base_url
+        self.timeout = timeout
+        self.max_retries = max_retries
         self._client = client
         self._use_client_pool = use_client_pool
 
@@ -55,38 +59,28 @@ class AnthropicProvider(LLMProvider):
                     "Install loom-agent with the anthropic extra or add anthropic manually."
                 ) from exc
 
-            self._client = AsyncAnthropic(
-                api_key=self.api_key,
-                base_url=self.base_url,
-            )
+            client_kwargs: dict[str, Any] = {
+                "api_key": self.api_key,
+                "base_url": self.base_url,
+            }
+            if self.timeout is not None:
+                client_kwargs["timeout"] = self.timeout
+            if self.max_retries is not None:
+                client_kwargs["max_retries"] = self.max_retries
+            self._client = AsyncAnthropic(**client_kwargs)
             if self._use_client_pool:
                 with self._pool_lock:
                     self._shared_clients[self._pool_key()] = self._client
 
         return self._client
 
-    def _pool_key(self) -> tuple[str, str | None]:
-        return (self.api_key, self.base_url)
+    def _pool_key(self) -> tuple[str, str | None, float | None, int | None]:
+        return (self.api_key, self.base_url, self.timeout, self.max_retries)
 
     @classmethod
     def clear_client_pool(cls) -> None:
         with cls._pool_lock:
             cls._shared_clients.clear()
-
-    async def _complete(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> str:
-        response = await self._complete_request(CompletionRequest.create(messages, params))
-        return response.content
-
-    async def _complete_response(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> CompletionResponse:
-        return await self._complete_request(CompletionRequest.create(messages, params))
 
     async def _complete_request(
         self,
@@ -107,17 +101,6 @@ class AnthropicProvider(LLMProvider):
             if usage is not None
             else None,
             raw=response,
-        )
-
-    async def complete_streaming(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-        on_token: Any | None = None,
-    ) -> CompletionResponse:
-        return await self._complete_request_streaming(
-            CompletionRequest.create(messages, params),
-            on_token,
         )
 
     async def _complete_request_streaming(
@@ -191,31 +174,6 @@ class AnthropicProvider(LLMProvider):
             content="".join(text_parts),
             tool_calls=tool_calls,
         )
-
-    async def stream(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> AsyncIterator[str]:
-        """Stream completion chunks from Anthropic messages API."""
-        request = self._build_request(messages, params)
-        stream = await self.client.messages.create(**request, stream=True)
-
-        async for event in stream:
-            event_type = getattr(event, "type", "")
-            if event_type == "content_block_delta":
-                delta = getattr(event, "delta", None)
-                text = getattr(delta, "text", "") if delta is not None else ""
-                if text:
-                    yield text
-
-    async def stream_events(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> AsyncGenerator["Any", None]:
-        async for event in self._stream_request_events(CompletionRequest.create(messages, params)):
-            yield event
 
     async def _stream_request_events(
         self,
@@ -382,7 +340,7 @@ class AnthropicProvider(LLMProvider):
 
             # Convert content to Anthropic format
             if isinstance(content, str):
-                # Simple text content (backward compatible)
+                # Plain text content.
                 converted.append({"role": role, "content": content})
             elif isinstance(content, list):
                 # Multimodal content with ContentBlocks

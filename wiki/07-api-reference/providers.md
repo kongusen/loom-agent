@@ -34,8 +34,6 @@ Loom resolves the provider lazily on first execution based on `Model`.
 | Qwen | `Model.qwen(name)` | `DASHSCOPE_API_KEY` | provider default endpoint |
 | Ollama | `Model.ollama(name)` | not required | `api_base` or `OLLAMA_BASE_URL`, default `http://localhost:11434` |
 
-`ModelRef` remains as a compatibility alias for `Model`.
-
 ## 3. OpenAI-Compatible Endpoints
 
 If you are using an OpenAI-compatible gateway:
@@ -208,6 +206,12 @@ If you are extending Loom internals, look at:
 - `loom.providers.openai.OpenAIProvider`
 - `loom.providers.anthropic.AnthropicProvider`
 - `loom.providers.gemini.GeminiProvider`
+
+Provider subclasses implement `_complete_request(CompletionRequest) -> CompletionResponse`.
+Streaming providers override `_complete_request_streaming(request, on_token)` and/or
+`_stream_request_events(request)`. Runtime code calls only the request-native public
+methods: `complete_request(...)`, `complete_request_streaming(...)`, and
+`stream_request_events(...)`.
 
 Most application developers do not need to depend on these classes directly.
 

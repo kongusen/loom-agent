@@ -141,24 +141,25 @@ class PluginLoader:
 
         # Register MCP servers
         if manifest.mcp_servers:
-            mcp_bridge = getattr(agent, "mcp_bridge", None)
-            if mcp_bridge is not None:
-                from .mcp import MCPServerConfig, MCPTransportType
+            ecosystem = getattr(agent, "ecosystem", None)
+            if ecosystem is None:
+                return False
+            from .mcp import MCPServerConfig, MCPTransportType
 
-                for name, cfg in manifest.mcp_servers.items():
-                    transport = MCPTransportType(cfg.get("type", "stdio"))
-                    server_cfg = MCPServerConfig(
-                        type=transport,
-                        command=cfg.get("command"),
-                        args=cfg.get("args"),
-                        env=cfg.get("env"),
-                        url=cfg.get("url"),
-                        instructions=cfg.get("instructions", ""),
-                    )
-                    scoped_name = f"plugin:{plugin_name}:{name}"
-                    mcp_bridge.register_server(
-                        scoped_name, server_cfg, scope="plugin", plugin_source=plugin_name
-                    )
+            for name, cfg in manifest.mcp_servers.items():
+                transport = MCPTransportType(cfg.get("type", "stdio"))
+                server_cfg = MCPServerConfig(
+                    type=transport,
+                    command=cfg.get("command"),
+                    args=cfg.get("args"),
+                    env=cfg.get("env"),
+                    url=cfg.get("url"),
+                    instructions=cfg.get("instructions", ""),
+                )
+                scoped_name = f"plugin:{plugin_name}:{name}"
+                ecosystem.mcp_bridge.register_server(
+                    scoped_name, server_cfg, scope="plugin", plugin_source=plugin_name
+                )
 
         # Register hooks
         if manifest.hooks:

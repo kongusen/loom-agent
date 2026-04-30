@@ -16,6 +16,7 @@ from ..providers.base import LLMProvider
 from ..runtime.engine import AgentEngine, EngineConfig
 from ..runtime.heartbeat import Heartbeat, WatchSource
 from ..runtime.heartbeat import HeartbeatConfig as RuntimeHeartbeatConfig
+from ..runtime.mcp_tool_registrar import MCPToolRegistrar
 from ..tools.base import Tool
 from ..tools.governance import GovernanceConfig
 from .normalization import _resolve_compression_policy
@@ -71,7 +72,7 @@ class EngineBuilderMixin:
             ),
             tools=[self._convert_tool_to_schema(tool) for tool in self._compiled_tools],
             memory_providers=(
-                [*self.config.memory.sources, *self.config.memory.providers]
+                list(self.config.memory.sources)
                 if self.config.memory and self.config.memory.enabled
                 else []
             ),
@@ -135,7 +136,7 @@ class EngineBuilderMixin:
                     )
                     title = f" {item.title}" if item.title else ""
                     results.append(f"[{source.name}]{title}: {item.content[:200]}")
-            engine._evict_knowledge_overflow()
+            engine.context_runtime.evict_knowledge_overflow()
             return "\n---\n".join(results) if results else "No relevant evidence found."
 
         engine.tool_registry.register(
@@ -300,15 +301,13 @@ class EngineBuilderMixin:
 
         Only activates when ``agent.ecosystem`` has been touched (lazy-created)
         or when the agent's mcp_bridge has servers registered.  MCP server
-        instructions are injected into the system prompt inside
-        ``engine.execute()``, and connected server tools are registered in
-        the ToolRegistry at engine construction time via
-        ``engine._register_mcp_tools()``.
+        instructions are injected into the system prompt during run lifecycle,
+        and connected server tools are registered in the ToolRegistry.
         """
         if self._ecosystem is None:
             return
         engine.ecosystem_manager = self._ecosystem
-        engine._register_mcp_tools(self._ecosystem)
+        MCPToolRegistrar(engine.tool_registry).register(self._ecosystem)
 
     def _configure_evolution(self, engine: AgentEngine) -> None:
         """Subscribe the EvolutionEngine to the AgentEngine's event bus.

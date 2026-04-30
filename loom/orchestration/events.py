@@ -39,7 +39,3 @@ class CoordinationEventBus:
         """Unsubscribe from topic"""
         if topic in self._subscribers:
             self._subscribers[topic].remove(callback)
-
-
-# Backward-compatible alias for existing orchestration imports.
-EventBus = CoordinationEventBus

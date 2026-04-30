@@ -4,13 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from ..config import AgentConfig, ToolSpec
-from .core import Agent
-
-
-def create_agent(config: AgentConfig) -> Agent:
-    """Construct a public Loom agent from one top-level config object."""
-    return Agent(config=config)
+from ..config import ToolSpec
 
 
 def tool(

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from loom.context.dashboard import DashboardManager
-from loom.orchestration.events import EventBus as OrchestrationEventBus
+from loom.orchestration.events import CoordinationEventBus
 from loom.runtime.heartbeat import Heartbeat, HeartbeatConfig, WatchSource
 from loom.runtime.loop import AgentLoop, LoopConfig
 from loom.runtime.monitors import (
@@ -15,8 +15,7 @@ from loom.runtime.monitors import (
     ProcessMonitor,
     ResourceMonitor,
 )
-from loom.types import Event as OrchestrationEvent
-from loom.types import LoopState
+from loom.types import CoordinationEvent, LoopState
 
 # ── LoopConfig ──
 
@@ -286,9 +285,9 @@ class TestHeartbeat:
 
     def test_check_source_mf_events(self):
         """Test MF events monitor source."""
-        bus = OrchestrationEventBus()
+        bus = CoordinationEventBus()
         bus.publish(
-            OrchestrationEvent(
+            CoordinationEvent(
                 id="evt_1",
                 sender="agent",
                 topic="test",
@@ -455,13 +454,13 @@ class TestResourceMonitor:
 
 class TestMFEventsMonitor:
     def test_reads_published_events(self):
-        bus = OrchestrationEventBus()
+        bus = CoordinationEventBus()
         monitor = MFEventsMonitor(topics=["test"], event_bus=bus)
 
         assert monitor.check("2024-01-01T00:00:00") is None
 
         bus.publish(
-            OrchestrationEvent(
+            CoordinationEvent(
                 id="evt_2",
                 sender="agent",
                 topic="test",
@@ -477,10 +476,10 @@ class TestMFEventsMonitor:
         assert result["delta_H"] == 0.5
 
     def test_filters_topics(self):
-        bus = OrchestrationEventBus()
+        bus = CoordinationEventBus()
         monitor = MFEventsMonitor(topics=["wanted"], event_bus=bus)
         bus.publish(
-            OrchestrationEvent(
+            CoordinationEvent(
                 id="evt_3",
                 sender="agent",
                 topic="other",

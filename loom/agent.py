@@ -6,7 +6,7 @@ under ``loom._agent`` so the runtime-facing pieces can evolve independently.
 
 from __future__ import annotations
 
-from ._agent import Agent, create_agent, tool
+from ._agent import Agent, tool
 from ._agent.providers import _resolve_provider as _resolve_provider
 
-__all__ = ["Agent", "create_agent", "tool"]
+__all__ = ["Agent", "tool"]

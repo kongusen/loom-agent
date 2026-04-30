@@ -17,6 +17,13 @@ class OllamaProvider(OpenAIProvider):
     def __init__(
         self,
         base_url: str = _OLLAMA_BASE_URL,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
         # Ollama does not require a real API key
-        super().__init__(api_key="ollama", base_url=base_url)
+        super().__init__(
+            api_key="ollama",
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+        )

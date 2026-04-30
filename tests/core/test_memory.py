@@ -86,7 +86,7 @@ class TestSemanticMemoryEngineIntegration:
 
         engine = AgentEngine(provider=MagicMock(), config=EngineConfig(enable_memory=True))
         engine.semantic_memory.add(MemoryEntry(content="Python is a programming language"))
-        engine._inject_semantic_memories("What programming language should I use?")
+        engine.memory_runtime.inject_semantic_memories("What programming language should I use?")
         contents = [
             m.content
             for m in engine.context_manager.partitions.memory
@@ -99,7 +99,7 @@ class TestSemanticMemoryEngineIntegration:
 
         engine = AgentEngine(provider=MagicMock(), config=EngineConfig(enable_memory=True))
         before = len(engine.context_manager.partitions.memory)
-        engine._inject_semantic_memories("some goal")
+        engine.memory_runtime.inject_semantic_memories("some goal")
         assert len(engine.context_manager.partitions.memory) == before
 
 
@@ -126,23 +126,23 @@ class TestWorkingMemoryEngineIntegration:
 
     def test_agent_working_memory_none_before_build(self):
         from loom.agent import Agent
-        from loom.config import AgentConfig, ModelRef
+        from loom.config import AgentConfig, Model
 
         agent = Agent(
             config=AgentConfig(
-                model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+                model=Model(provider="anthropic", name="claude-3-5-sonnet-20241022"),
             )
         )
         assert agent.working_memory is None
 
     def test_agent_working_memory_available_after_build(self):
         from loom.agent import Agent
-        from loom.config import AgentConfig, ModelRef
+        from loom.config import AgentConfig, Model
         from loom.memory.working import WorkingMemory
 
         agent = Agent(
             config=AgentConfig(
-                model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+                model=Model(provider="anthropic", name="claude-3-5-sonnet-20241022"),
             )
         )
         agent._build_engine(MagicMock())

@@ -3,14 +3,14 @@
 ## 1. Create An Agent
 
 ```python
-from loom import Agent, Capability, Model, Runtime
+from loom import Agent, Files, Model, Runtime, Web
 
 agent = Agent(
     model=Model.anthropic("claude-sonnet-4"),
     instructions="Analyze repositories and summarize what matters.",
     capabilities=[
-        Capability.files(read_only=True),
-        Capability.web(),
+        Files(read_only=True),
+        Web.enabled(),
     ],
     runtime=Runtime.sdk(),
 )

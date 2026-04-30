@@ -4,13 +4,13 @@ import pytest
 
 from loom import (
     Agent,
-    Capability,
     InMemorySessionStore,
     Model,
     Runtime,
     SessionConfig,
 )
 from loom.providers.base import CompletionRequest, CompletionResponse, LLMProvider
+from loom.runtime import Capability
 from loom.types import ToolCall
 
 

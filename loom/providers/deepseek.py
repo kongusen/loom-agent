@@ -9,16 +9,12 @@ Supports:
 Usage example::
 
     # Standard chat model with tools
-    agent = create_agent(AgentConfig(
-        model=ModelRef.deepseek("deepseek-chat"),
-    ))
+    agent = Agent(model=Model.deepseek("deepseek-chat"))
 
     # Reasoner / R1 for deep analysis (no tool calls)
-    agent = create_agent(AgentConfig(
-        model=ModelRef.deepseek("deepseek-reasoner"),
-    ))
+    agent = Agent(model=Model.deepseek("deepseek-reasoner"))
 
-Provider-specific GenerationConfig.extensions keys:
+Provider-specific Generation.extensions keys:
 
 - ``expose_reasoning`` (bool): When ``True``, prepend the chain-of-thought
   block to the returned ``content`` so downstream agents can see it.
@@ -28,7 +24,7 @@ Provider-specific GenerationConfig.extensions keys:
 
 from typing import Any
 
-from .base import CompletionParams, CompletionResponse, TokenUsage
+from .base import CompletionParams, CompletionRequest, CompletionResponse, TokenUsage
 from .openai import OpenAIProvider
 
 _DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
@@ -53,8 +49,15 @@ class DeepSeekProvider(OpenAIProvider):
         self,
         api_key: str,
         base_url: str = _DEEPSEEK_BASE_URL,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
-        super().__init__(api_key=api_key, base_url=base_url)
+        super().__init__(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
 
     # ------------------------------------------------------------------
     # Request building
@@ -80,14 +83,13 @@ class DeepSeekProvider(OpenAIProvider):
     # Response parsing
     # ------------------------------------------------------------------
 
-    async def _complete_response(
+    async def _complete_request(
         self,
-        messages: list,
-        params: CompletionParams | None = None,
+        request: CompletionRequest,
     ) -> CompletionResponse:
         """Parse response and optionally surface reasoning_content."""
-        request = self._build_request(messages, params)
-        response = await self.client.chat.completions.create(**request)
+        payload = self._build_request(request.messages, request.params)
+        response = await self.client.chat.completions.create(**payload)
         choice = response.choices[0]
         message = getattr(choice, "message", None)
 
@@ -95,7 +97,7 @@ class DeepSeekProvider(OpenAIProvider):
         # reasoning_content is the internal scratchpad from R1/Reasoner
         reasoning = getattr(message, "reasoning_content", None) or ""
 
-        ext = (params.extensions if params is not None else None) or {}
+        ext = request.params.extensions or {}
         if ext.get("expose_reasoning") and reasoning:
             # Prepend <think>…</think> so the agent can optionally use it
             content = f"<think>\n{reasoning}\n</think>\n\n{content}".strip()
@@ -115,57 +117,6 @@ class DeepSeekProvider(OpenAIProvider):
             else None,
             raw=response,
         )
-
-    async def stream(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ):
-        """Stream completion chunks.
-
-        For ``deepseek-reasoner``, thinking tokens (``delta.reasoning_content``)
-        are yielded wrapped in ``<think>…</think>`` tags when
-        ``expose_reasoning=True`` is set in extensions.  Regular content
-        tokens are always yielded.
-        """
-        request = self._build_request(messages, params)
-        ext = (params.extensions if params is not None else None) or {}
-        expose = ext.get("expose_reasoning", False)
-
-        stream = await self.client.chat.completions.create(**request, stream=True)
-        in_thinking = False
-        async for chunk in stream:
-            choices = getattr(chunk, "choices", [])
-            if not choices:
-                continue
-            delta = getattr(choices[0], "delta", None)
-            if delta is None:
-                continue
-
-            if expose:
-                reasoning = getattr(delta, "reasoning_content", None)
-                if reasoning:
-                    if not in_thinking:
-                        yield "<think>\n"
-                        in_thinking = True
-                    yield reasoning
-                    continue
-                if in_thinking:
-                    yield "\n</think>\n\n"
-                    in_thinking = False
-
-            content = getattr(delta, "content", None)
-            if not content:
-                continue
-            if isinstance(content, list):
-                text = "".join(
-                    part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
-                    for part in content
-                )
-                if text:
-                    yield text
-            else:
-                yield content
 
     # ------------------------------------------------------------------
     # Context assembly

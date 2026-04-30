@@ -8,9 +8,9 @@ This layer is intended for advanced orchestration and framework extension work. 
 
 ```python
 from loom.orchestration.coordinator import Coordinator
-from loom.orchestration.events import EventBus
+from loom.orchestration.events import CoordinationEventBus
 
-bus = EventBus()
+bus = CoordinationEventBus()
 coord = Coordinator(bus)
 coord.register_agent("worker", manager)
 

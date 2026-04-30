@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .generation import GenerationConfig
+from .generation import Generation
 from .heartbeat import HeartbeatConfig
 from .knowledge import KnowledgeSource
 from .memory import MemoryConfig
-from .model import ModelRef
+from .model import Model
 from .orchestration import OrchestrationConfig
 from .policy import PolicyConfig
 from .runtime import RuntimeConfig
@@ -22,9 +22,9 @@ from .tools import Toolset, ToolSpec
 class AgentConfig:
     """Top-level public configuration for one Loom agent."""
 
-    model: ModelRef
+    model: Model
     instructions: str = ""
-    generation: GenerationConfig = field(default_factory=GenerationConfig)
+    generation: Generation = field(default_factory=Generation)
     tools: list[ToolSpec | Toolset] = field(default_factory=list)
     capabilities: list[Any] = field(default_factory=list)
     policy: PolicyConfig | None = None
@@ -35,3 +35,4 @@ class AgentConfig:
     schedule: list[ScheduledJob] = field(default_factory=list)
     safety_rules: list[SafetyRule] | None = None
     knowledge: list[KnowledgeSource] = field(default_factory=list)
+    gateways: list[Any] = field(default_factory=list)

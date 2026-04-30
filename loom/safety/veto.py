@@ -77,10 +77,6 @@ class VetoAuthority:
             return True
         return False
 
-    def get_veto_history(self) -> list[str]:
-        """Get veto history as reason strings for compatibility."""
-        return [record.reason for record in self.veto_log]
-
     def get_veto_records(self) -> list[VetoRecord]:
         """Get structured veto records."""
         return list(self.veto_log)

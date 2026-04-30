@@ -87,10 +87,6 @@ class RunEvent:
     visibility: str = "user"
     payload: dict[str, Any] = field(default_factory=dict)
 
-
-Event = RunEvent
-
-
 @dataclass
 class Artifact:
     """Stable execution artifact."""

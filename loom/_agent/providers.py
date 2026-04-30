@@ -7,8 +7,8 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-from ..config import AgentConfig, ModelRef
-from ..providers.base import CompletionParams, LLMProvider
+from .._config import AgentConfig, Model
+from ..providers.base import CompletionParams, CompletionRequest, LLMProvider
 from ..runtime import RunContext
 from .normalization import _is_provider_health_check_enabled
 
@@ -43,13 +43,15 @@ class ProviderMixin:
             return True
 
         try:
-            await provider.complete_response(
-                [{"role": "user", "content": "ping"}],
-                CompletionParams(
-                    model=self.config.model.name,
-                    max_tokens=1,
-                    temperature=0.0,
-                ),
+            await provider.complete_request(
+                CompletionRequest.create(
+                    [{"role": "user", "content": "ping"}],
+                    CompletionParams(
+                        model=self.config.model.name,
+                        max_tokens=1,
+                        temperature=0.0,
+                    ),
+                )
             )
         except Exception as exc:
             logger.warning(
@@ -70,20 +72,26 @@ class ProviderMixin:
         return f"Completed goal: {prompt}"
 
 
-def _resolve_provider(model: ModelRef) -> LLMProvider | None:
+def _resolve_provider(model: Model) -> LLMProvider | None:
     provider_name = model.provider.lower()
+    explicit_api_key = model.extensions.get("api_key")
+    provider_options = _provider_options(model)
 
     try:
         if provider_name == "anthropic":
-            api_key = os.getenv(model.api_key_env or "ANTHROPIC_API_KEY")
+            api_key = explicit_api_key or os.getenv(model.api_key_env or "ANTHROPIC_API_KEY")
             if not api_key:
                 raise ValueError(f"{model.api_key_env or 'ANTHROPIC_API_KEY'} not set")
             from ..providers.anthropic import AnthropicProvider
 
-            return AnthropicProvider(api_key=api_key, base_url=model.api_base)
+            return AnthropicProvider(
+                api_key=api_key,
+                base_url=model.api_base,
+                **provider_options,
+            )
 
         if provider_name == "openai":
-            api_key = os.getenv(model.api_key_env or "OPENAI_API_KEY")
+            api_key = explicit_api_key or os.getenv(model.api_key_env or "OPENAI_API_KEY")
             if not api_key:
                 raise ValueError(f"{model.api_key_env or 'OPENAI_API_KEY'} not set")
             from ..providers.openai import OpenAIProvider
@@ -92,14 +100,16 @@ def _resolve_provider(model: ModelRef) -> LLMProvider | None:
                 api_key=api_key,
                 base_url=model.api_base or os.getenv("OPENAI_BASE_URL"),
                 organization=model.organization,
+                **provider_options,
             )
 
         if provider_name == "gemini":
             api_env = model.api_key_env
             api_key = (
-                os.getenv(api_env)
+                explicit_api_key
+                or os.getenv(api_env)
                 if api_env
-                else os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+                else explicit_api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
             )
             if not api_key:
                 raise ValueError(f"{api_env or 'GEMINI_API_KEY or GOOGLE_API_KEY'} not set")
@@ -108,35 +118,38 @@ def _resolve_provider(model: ModelRef) -> LLMProvider | None:
             return GeminiProvider(api_key=api_key)
 
         if provider_name == "qwen":
-            api_key = os.getenv(model.api_key_env or "DASHSCOPE_API_KEY")
+            api_key = explicit_api_key or os.getenv(model.api_key_env or "DASHSCOPE_API_KEY")
             if not api_key:
                 raise ValueError(f"{model.api_key_env or 'DASHSCOPE_API_KEY'} not set")
             from ..providers.qwen import QwenProvider
 
             return QwenProvider(
                 api_key=api_key,
+                **provider_options,
                 **({"base_url": model.api_base} if model.api_base else {}),
             )
 
         if provider_name == "deepseek":
-            api_key = os.getenv(model.api_key_env or "DEEPSEEK_API_KEY")
+            api_key = explicit_api_key or os.getenv(model.api_key_env or "DEEPSEEK_API_KEY")
             if not api_key:
                 raise ValueError(f"{model.api_key_env or 'DEEPSEEK_API_KEY'} not set")
             from ..providers.deepseek import DeepSeekProvider
 
             return DeepSeekProvider(
                 api_key=api_key,
+                **provider_options,
                 **({"base_url": model.api_base} if model.api_base else {}),
             )
 
         if provider_name == "minimax":
-            api_key = os.getenv(model.api_key_env or "MINIMAX_API_KEY")
+            api_key = explicit_api_key or os.getenv(model.api_key_env or "MINIMAX_API_KEY")
             if not api_key:
                 raise ValueError(f"{model.api_key_env or 'MINIMAX_API_KEY'} not set")
             from ..providers.minimax import MiniMaxProvider
 
             return MiniMaxProvider(
                 api_key=api_key,
+                **provider_options,
                 **({"base_url": model.api_base} if model.api_base else {}),
             )
 
@@ -144,10 +157,20 @@ def _resolve_provider(model: ModelRef) -> LLMProvider | None:
             from ..providers.ollama import OllamaProvider
 
             return OllamaProvider(
-                base_url=model.api_base or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
+                base_url=model.api_base or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434",
+                **provider_options,
             )
 
         raise ValueError(f"Unknown provider: {provider_name}")
     except Exception as exc:
         logger.warning("Failed to initialize provider %s: %s", provider_name, exc)
         return None
+
+
+def _provider_options(model: Model) -> dict[str, float | int]:
+    options: dict[str, float | int] = {}
+    if "timeout" in model.extensions and model.extensions["timeout"] is not None:
+        options["timeout"] = float(model.extensions["timeout"])
+    if "max_retries" in model.extensions and model.extensions["max_retries"] is not None:
+        options["max_retries"] = int(model.extensions["max_retries"])
+    return options

@@ -12,7 +12,7 @@ Use this pattern when the agent can call tools and some actions must be constrai
 ## Shape
 
 ```python
-from loom import Agent, Capability, Model, Runtime, tool
+from loom import Agent, Files, Model, Runtime, Shell, tool
 
 
 @tool(description="Read deployment status", read_only=True)
@@ -25,8 +25,8 @@ agent = Agent(
     instructions="Help with repository and deployment maintenance.",
     tools=[deployment_status],
     capabilities=[
-        Capability.files(read_only=True),
-        Capability.shell(require_approval=True),
+        Files(read_only=True),
+        Shell.approval_required(),
     ],
     runtime=Runtime.supervised(criteria=["no destructive action without approval"]),
 )
@@ -38,8 +38,8 @@ Use capabilities for what the agent can reach and runtime governance for how tho
 
 In practice:
 
-- `Capability.files(read_only=True)` is the default for analysis
-- `Capability.shell(require_approval=True)` keeps shell access explicit
+- `Files(read_only=True)` is the default for analysis
+- `Shell.approval_required()` keeps shell access explicit
 - `Runtime.supervised(...)` adds a quality and approval-oriented runtime profile
 - custom safety rules and advanced policy objects remain available through `loom.config`
 

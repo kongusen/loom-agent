@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.8.2] - 2026-04-30
+
+### Public User API 收口与 runtime 架构拆分
+
+`0.8.2` 把用户 API 和架构 API 明确分层：普通应用代码使用直觉命名的用户入口，runtime 机制对象留在 `loom.runtime`。
+
+- Public User API：新增并导出 `Instructions`、`Files`、`Web`、`Shell`、`MCP`、`Skill`、`Knowledge`、`Gateway`、`Cron`
+- Agent 构造：支持 `skills=`、`gateways=`、`harness=`、`quality=`、`governance=`、`delegation=`、`feedback=`，并归一到既有 runtime contract
+- Capabilities：`Files` / `Web` / `Shell` / `MCP` 作为 `capabilities=[...]` 的用户入口；`Skill` 作为 `skills=[...]` 的用户入口
+- 架构 API：`Capability`、`CapabilitySpec`、`CapabilitySource`、`CapabilityRegistry`、`RuntimeCapabilityProvider` 不再从顶层 `loom` 导出，保留在 `loom.runtime`
+- Runtime 拆分：`AgentEngine` 执行细节收敛到 `ContextRuntime`、`MemoryRuntime`、`SignalRuntime`、`ToolRuntime`、`ProviderRuntime`、`LoopRunner`、`HarnessRunner`、`RunLifecycle` 等内部组件
+- Capability compiler：显式编译 `tools + capabilities`，并检测重复 tool name
+- Provider 配置：`Model.*(..., api_key=..., timeout=..., max_retries=...)` 继续由 `Model` 作为 provider 配置入口，并传递到 OpenAI、Anthropic、OpenAI-compatible 和 Ollama provider
+- 兼容层：移除 `loom.compat.v0` 和旧兼容导出路径，降低后续 API 迭代成本
+- 文档：README、wiki、cookbook 和 API reference 改为 `Agent + Model + Runtime` 及 `Files/Web/Shell/MCP/Skill` 用户路径
+
+### Validation
+
+- `poetry run ruff check .`
+- `poetry run pytest -q`
+- 当前回归结果：`588 passed`
+
+---
+
 ## [0.8.1] - 2026-04-28
 
 ### 子系统补齐与 API 语义收口
@@ -93,10 +117,9 @@ agent = Agent(
 
 ### Compatibility Policy
 
-- `0.8.x` 保留 legacy public API compatibility surface
-- `loom.compat.v0` 支持到 `0.8.x`
-- `0.9.0` 计划移除旧兼容层
-- 新文档和示例以 `from loom import Agent, Model, Runtime, Capability` 为主路径
+- `0.8.0` 发布时保留 legacy public API compatibility surface
+- `loom.compat.v0` 在 `0.8.0` / `0.8.1` 中作为过渡层存在
+- `0.8.2` 已移除旧兼容层，并把新文档和示例收敛到 `Agent + Model + Runtime` 与 `Files/Web/Shell/MCP/Skill` 用户路径
 
 ### Validation
 

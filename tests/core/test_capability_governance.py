@@ -2,22 +2,22 @@
 
 import pytest
 
-from loom import Agent, Capability, Model, Runtime
+from loom import Agent, Model, Runtime
 from loom.config import (
     PolicyConfig,
     ToolAccessPolicy,
     ToolPolicy,
     ToolRateLimitPolicy,
 )
-from loom.providers.base import CompletionParams, LLMProvider
-from loom.runtime import GovernancePolicy
+from loom.providers.base import CompletionResponse, LLMProvider
+from loom.runtime import Capability, GovernancePolicy
 from loom.tools.governance import GovernanceConfig, ToolGovernance
 from loom.types import ToolCall
 
 
 class MockProvider(LLMProvider):
-    async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-        return "ok"
+    async def _complete_request(self, request):
+        return CompletionResponse(content="ok")
 
 
 def build_engine(agent: Agent):
@@ -39,7 +39,7 @@ async def test_governance_denylist_blocks_builtin_capability_tool() -> None:
     )
     engine = build_engine(agent)
 
-    [result] = await engine._execute_tools(
+    [result] = await engine.tool_runtime.execute_tools(
         [ToolCall(id="call_1", name="Bash", arguments={"command": "echo blocked"})]
     )
 
@@ -59,7 +59,7 @@ async def test_governance_read_only_mode_blocks_write_capability_tool() -> None:
     )
     engine = build_engine(agent)
 
-    [result] = await engine._execute_tools(
+    [result] = await engine.tool_runtime.execute_tools(
         [
             ToolCall(
                 id="call_1",
@@ -85,7 +85,7 @@ async def test_governance_rate_limit_applies_to_capability_tools() -> None:
     )
     engine = build_engine(agent)
 
-    first = await engine._execute_tools(
+    first = await engine.tool_runtime.execute_tools(
         [
             ToolCall(
                 id="call_1",
@@ -94,7 +94,7 @@ async def test_governance_rate_limit_applies_to_capability_tools() -> None:
             )
         ]
     )
-    second = await engine._execute_tools(
+    second = await engine.tool_runtime.execute_tools(
         [
             ToolCall(
                 id="call_2",
@@ -138,7 +138,7 @@ async def test_mcp_capability_read_only_metadata_allows_read_only_policy() -> No
     )
     engine = build_engine(agent)
 
-    [result] = await engine._execute_tools(
+    [result] = await engine.tool_runtime.execute_tools(
         [
             ToolCall(
                 id="call_1",
@@ -178,7 +178,7 @@ async def test_mcp_capability_destructive_metadata_is_governed() -> None:
     )
     engine = build_engine(agent)
 
-    [result] = await engine._execute_tools(
+    [result] = await engine.tool_runtime.execute_tools(
         [
             ToolCall(
                 id="call_1",
@@ -219,7 +219,7 @@ async def test_custom_governance_policy_can_veto_capability_tool() -> None:
     )
     engine = build_engine(agent)
 
-    [result] = await engine._execute_tools(
+    [result] = await engine.tool_runtime.execute_tools(
         [
             ToolCall(
                 id="call_1",

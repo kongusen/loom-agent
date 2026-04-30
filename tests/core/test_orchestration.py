@@ -7,11 +7,11 @@ import pytest
 
 from loom.orchestration.communication import CommunicationProtocol
 from loom.orchestration.coordinator import Coordinator
-from loom.orchestration.events import EventBus
+from loom.orchestration.events import CoordinationEventBus
 from loom.orchestration.planner import Task, TaskPlanner
 from loom.orchestration.subagent import SubAgentManager
 from loom.runtime import DelegationRequest, DelegationResult
-from loom.types import Event
+from loom.types import CoordinationEvent
 from loom.types.results import SubAgentResult
 
 # ── Task (planner) ──
@@ -133,22 +133,22 @@ class TestTaskPlanner:
         assert planner.all_completed() is True
 
 
-# ── EventBus (orchestration) ──
+# ── CoordinationEventBus (orchestration) ──
 
 
 class TestOrchestrationEventBus:
     def test_creation(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         assert bus.delta_min == 0.1
         assert bus.published_events == []
 
     def test_custom_delta_min(self):
-        bus = EventBus(delta_min=0.5)
+        bus = CoordinationEventBus(delta_min=0.5)
         assert bus.delta_min == 0.5
 
     def test_publish_high_delta(self):
-        bus = EventBus(delta_min=0.1)
-        event = Event(
+        bus = CoordinationEventBus(delta_min=0.1)
+        event = CoordinationEvent(
             id="e1",
             sender="agent_1",
             topic="task",
@@ -160,8 +160,8 @@ class TestOrchestrationEventBus:
         assert len(bus.published_events) == 1
 
     def test_publish_low_delta_filtered(self):
-        bus = EventBus(delta_min=0.5)
-        event = Event(
+        bus = CoordinationEventBus(delta_min=0.5)
+        event = CoordinationEvent(
             id="e2",
             sender="agent_1",
             topic="task",
@@ -173,11 +173,11 @@ class TestOrchestrationEventBus:
         assert len(bus.published_events) == 0
 
     def test_subscribe_and_notify(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         received = []
         bus.subscribe("task", lambda e: received.append(e))
 
-        event = Event(
+        event = CoordinationEvent(
             id="e3", sender="agent_1", topic="task", payload={}, delta_h=0.3, priority="medium"
         )
         bus.publish(event)
@@ -185,18 +185,18 @@ class TestOrchestrationEventBus:
         assert received[0].id == "e3"
 
     def test_subscribe_different_topic(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         received = []
         bus.subscribe("other", lambda e: received.append(e))
 
-        event = Event(
+        event = CoordinationEvent(
             id="e4", sender="agent_1", topic="task", payload={}, delta_h=0.3, priority="medium"
         )
         bus.publish(event)
         assert len(received) == 0
 
     def test_unsubscribe(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         received = []
 
         def callback(e):
@@ -205,19 +205,19 @@ class TestOrchestrationEventBus:
         bus.subscribe("task", callback)
         bus.unsubscribe("task", callback)
 
-        event = Event(
+        event = CoordinationEvent(
             id="e5", sender="agent_1", topic="task", payload={}, delta_h=0.3, priority="medium"
         )
         bus.publish(event)
         assert len(received) == 0
 
     def test_multiple_subscribers(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         r1, r2 = [], []
         bus.subscribe("task", lambda e: r1.append(e))
         bus.subscribe("task", lambda e: r2.append(e))
 
-        event = Event(id="e6", sender="a", topic="task", payload={}, delta_h=0.3, priority="medium")
+        event = CoordinationEvent(id="e6", sender="a", topic="task", payload={}, delta_h=0.3, priority="medium")
         bus.publish(event)
         assert len(r1) == 1
         assert len(r2) == 1
@@ -233,7 +233,7 @@ class TestCommunicationProtocol:
 
     def test_send(self):
         proto = CommunicationProtocol()
-        event = Event(
+        event = CoordinationEvent(
             id="e1", sender="a", topic="test", payload={"data": 1}, delta_h=0.5, priority="high"
         )
         proto.send(event)
@@ -241,9 +241,9 @@ class TestCommunicationProtocol:
 
     def test_receive_by_topic(self):
         proto = CommunicationProtocol()
-        e1 = Event(id="e1", sender="a", topic="topic_a", payload={}, delta_h=0.5, priority="high")
-        e2 = Event(id="e2", sender="b", topic="topic_b", payload={}, delta_h=0.5, priority="high")
-        e3 = Event(id="e3", sender="c", topic="topic_a", payload={}, delta_h=0.5, priority="high")
+        e1 = CoordinationEvent(id="e1", sender="a", topic="topic_a", payload={}, delta_h=0.5, priority="high")
+        e2 = CoordinationEvent(id="e2", sender="b", topic="topic_b", payload={}, delta_h=0.5, priority="high")
+        e3 = CoordinationEvent(id="e3", sender="c", topic="topic_a", payload={}, delta_h=0.5, priority="high")
 
         proto.send(e1)
         proto.send(e2)
@@ -256,7 +256,7 @@ class TestCommunicationProtocol:
 
     def test_receive_no_match(self):
         proto = CommunicationProtocol()
-        e = Event(id="e1", sender="a", topic="x", payload={}, delta_h=0.5, priority="high")
+        e = CoordinationEvent(id="e1", sender="a", topic="x", payload={}, delta_h=0.5, priority="high")
         proto.send(e)
 
         result = proto.receive("y")
@@ -273,13 +273,13 @@ class TestCommunicationProtocol:
 
 class TestCoordinator:
     def test_creation(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         coord = Coordinator(bus)
         assert coord.event_bus is bus
         assert coord.agents == {}
 
     def test_register_agent(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         coord = Coordinator(bus)
 
         from unittest.mock import MagicMock
@@ -290,7 +290,7 @@ class TestCoordinator:
         assert coord.agents["agent_1"] is manager
 
     def test_register_multiple(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         coord = Coordinator(bus)
 
         from unittest.mock import MagicMock
@@ -301,7 +301,7 @@ class TestCoordinator:
         assert len(coord.agents) == 2
 
     def test_unregister_agent(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         coord = Coordinator(bus)
 
         from unittest.mock import MagicMock
@@ -312,14 +312,14 @@ class TestCoordinator:
         assert "agent_1" not in coord.agents
 
     def test_unregister_nonexistent(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         coord = Coordinator(bus)
         # Should not raise
         coord.unregister_agent("nonexistent")
 
     @pytest.mark.asyncio
     async def test_execute_plan_and_aggregate(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         coord = Coordinator(bus)
 
         class StubManager:
@@ -347,7 +347,7 @@ class TestCoordinator:
 
     @pytest.mark.asyncio
     async def test_execute_plan_accepts_runtime_delegation_policy(self):
-        bus = EventBus()
+        bus = CoordinationEventBus()
         coord = Coordinator(bus)
 
         class StubPolicy:

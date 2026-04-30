@@ -5,12 +5,13 @@ from unittest.mock import patch
 
 import pytest
 
-from loom import AgentConfig, ModelRef, RunContext, SessionConfig, create_agent
+from loom import Agent, Model, RunContext, SessionConfig
+from loom.config import AgentConfig
 from loom.runtime import RunState, Session
 
 
 def test_session_reuse_by_id():
-    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+    agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
 
     first = agent.session(SessionConfig(id="demo"))
     second = agent.session(SessionConfig(id="demo"))
@@ -22,7 +23,7 @@ def test_session_reuse_by_id():
 @pytest.mark.asyncio
 async def test_session_run_tracks_runs():
     with patch("loom.agent._resolve_provider", return_value=None):
-        agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+        agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
         session = agent.session(SessionConfig(id="demo"))
 
         result_one = await session.run("First task")
@@ -39,7 +40,7 @@ async def test_session_run_tracks_runs():
 @pytest.mark.asyncio
 async def test_run_transcript_includes_output():
     with patch("loom.agent._resolve_provider", return_value=None):
-        agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+        agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
         run = agent.session(SessionConfig(id="demo")).start("Inspect the codebase")
 
         await run.wait()
@@ -51,7 +52,7 @@ async def test_run_transcript_includes_output():
 
 
 def test_session_reuse_merges_metadata():
-    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+    agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
 
     first = agent.session(SessionConfig(id="demo", metadata={"tenant": "acme"}))
     second = agent.session(SessionConfig(id="demo", metadata={"plan": "pro"}))
@@ -61,7 +62,7 @@ def test_session_reuse_merges_metadata():
 
 
 def test_session_ttl_evicts_expired_session():
-    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+    agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
 
     stale = agent.session(SessionConfig(id="stale"))
     stale.created_at = datetime.now() - timedelta(hours=30)
@@ -74,7 +75,7 @@ def test_session_ttl_evicts_expired_session():
 
 
 def test_session_rebuilds_after_ttl_eviction():
-    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+    agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
 
     first = agent.session(SessionConfig(id="demo"))
     first.created_at = datetime.now() - timedelta(hours=30)

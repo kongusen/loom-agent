@@ -12,7 +12,7 @@ Use this pattern when the app watches system state and recommends or performs op
 ## Shape
 
 ```python
-from loom import Agent, Capability, Model, Runtime, RuntimeSignal, SessionConfig, tool
+from loom import Agent, Model, Runtime, RuntimeSignal, SessionConfig, Shell, tool
 
 
 @tool(description="Restart a service")
@@ -25,7 +25,7 @@ agent = Agent(
     instructions="Monitor operational state and propose safe remediations.",
     tools=[restart_service],
     capabilities=[
-        Capability.shell(require_approval=True),
+        Shell.approval_required(),
     ],
     runtime=Runtime.supervised(criteria=["critical services require approval"]),
 )

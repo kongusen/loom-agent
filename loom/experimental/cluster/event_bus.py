@@ -62,8 +62,3 @@ class ClusterEventBus:
             data = json.loads(event_file.read_text())
             events.append(ClusterEvent(**data))
         return events
-
-
-# Backward-compatible aliases for older cluster imports.
-Event = ClusterEvent
-EventBus = ClusterEventBus

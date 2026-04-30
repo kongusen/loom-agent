@@ -7,7 +7,7 @@ import pytest
 from loom import Agent, Model, Runtime
 from loom.evolution.engine import EvolutionEngine
 from loom.evolution.strategies import ToolLearningStrategy
-from loom.providers.base import CompletionParams, LLMProvider
+from loom.providers.base import CompletionResponse, LLMProvider
 from loom.runtime import FeedbackEvent, FeedbackPolicy
 from loom.runtime.engine import AgentEngine, EngineConfig
 from loom.tools.schema import Tool, ToolDefinition, ToolParameter
@@ -19,14 +19,8 @@ async def echo_handler(text: str) -> str:
 
 
 class MockProvider(LLMProvider):
-    async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-        return "ok"
-
-    def stream(self, messages: list, params: CompletionParams | None = None):
-        async def _gen():
-            yield "ok"
-
-        return _gen()
+    async def _complete_request(self, request):
+        return CompletionResponse(content="ok")
 
 
 def make_tool() -> Tool:
@@ -83,7 +77,7 @@ async def test_feedback_policy_attaches_to_runtime_tool_events() -> None:
         tools=[make_tool()],
     )
 
-    await engine._execute_tools([ToolCall(id="call_1", name="Echo", arguments={"text": "hello"})])
+    await engine.tool_runtime.execute_tools([ToolCall(id="call_1", name="Echo", arguments={"text": "hello"})])
 
     feedback = policy.get_feedback()
     assert len(feedback) == 1

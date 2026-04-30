@@ -1,14 +1,14 @@
 # Configuration
 
-This page describes Loom's advanced configuration and compatibility objects.
+This page describes Loom's advanced configuration objects.
 
 For new application code, start from:
 
 ```python
-from loom import Agent, Capability, Model, Runtime
+from loom import Agent, Files, Model, Runtime, Web
 ```
 
-Use `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` when maintaining existing `0.8.x` applications or when you need the lower-level config object vocabulary directly.
+Use `AgentConfig` and the lower-level config object vocabulary only when direct `Agent(...)` keyword construction is not enough.
 
 Two rules define the surface:
 
@@ -18,13 +18,13 @@ Two rules define the surface:
 ## 1. `AgentConfig`
 
 ```python
-from loom import AgentConfig, ModelRef
-from loom.config import GenerationConfig, MemoryConfig, PolicyConfig, RuntimeConfig
+from loom import Agent, Model
+from loom.config import AgentConfig, Generation, MemoryConfig, PolicyConfig, RuntimeConfig
 
 config = AgentConfig(
-    model=ModelRef.openai("gpt-4.1-mini"),
+    model=Model.openai("gpt-4.1-mini"),
     instructions="You are a platform assistant.",
-    generation=GenerationConfig(temperature=0.2, max_output_tokens=512),
+    generation=Generation(temperature=0.2, max_output_tokens=512),
     tools=[],
     policy=PolicyConfig(),
     memory=MemoryConfig(),
@@ -33,15 +33,17 @@ config = AgentConfig(
     safety_rules=[],
     knowledge=[],
 )
+
+agent = Agent(config=config)
 ```
 
 Field overview:
 
 | Field | Type | Description |
 |---|---|---|
-| `model` | `ModelRef` | Required model and provider definition |
+| `model` | `Model` | Required model and provider definition |
 | `instructions` | `str` | System instructions |
-| `generation` | `GenerationConfig` | Generation controls |
+| `generation` | `Generation` | Generation controls |
 | `tools` | `list[ToolSpec]` | Tool declarations |
 | `policy` | `PolicyConfig \| None` | Tool governance policy |
 | `memory` | `MemoryConfig \| None` | Session memory configuration |
@@ -50,18 +52,18 @@ Field overview:
 | `safety_rules` | `list[SafetyRule] \| None` | Safety rules |
 | `knowledge` | `list[KnowledgeSource]` | Knowledge sources |
 
-## 2. `ModelRef`
+## 2. `Model`
 
-`ModelRef` is the stable model reference object and the provider selection entry point.
+`Model` is the stable model reference object and the provider selection entry point.
 
 ```python
-from loom import ModelRef
+from loom import Model
 
-anthropic = ModelRef.anthropic("claude-sonnet-4")
-openai = ModelRef.openai("gpt-4.1-mini")
-gemini = ModelRef.gemini("gemini-2.5-flash")
-qwen = ModelRef.qwen("qwen-max")
-ollama = ModelRef.ollama("llama3")
+anthropic = Model.anthropic("claude-sonnet-4")
+openai = Model.openai("gpt-4.1-mini")
+gemini = Model.gemini("gemini-2.5-flash")
+qwen = Model.qwen("qwen-max")
+ollama = Model.ollama("llama3")
 ```
 
 ### Common fields
@@ -82,9 +84,9 @@ If you are targeting an OpenAI-compatible gateway:
 ```python
 import os
 
-from loom import ModelRef
+from loom import Model
 
-model = ModelRef.openai(
+model = Model.openai(
     "gpt-4.1-mini",
     api_base=os.getenv("OPENAI_BASE_URL"),
 )
@@ -95,19 +97,19 @@ By default, the API key is loaded from `OPENAI_API_KEY`.
 If your gateway uses a different environment variable name:
 
 ```python
-model = ModelRef.openai(
+model = Model.openai(
     "my-model",
     api_base=os.getenv("MY_LLM_BASE_URL"),
     api_key_env="MY_LLM_API_KEY",
 )
 ```
 
-## 3. `GenerationConfig`
+## 3. `Generation`
 
 ```python
-from loom.config import GenerationConfig
+from loom import Generation
 
-generation = GenerationConfig(
+generation = Generation(
     temperature=0.2,
     max_output_tokens=512,
     extensions={"top_p": 0.95},
@@ -516,14 +518,15 @@ Use it to:
 
 Do not push core control logic into `extensions`, or the API will drift back toward an opaque dictionary surface.
 
-## 12. Full Compatibility Configuration Example
+## 12. Full Advanced Configuration Example
 
-This example shows the lower-level compatibility path for existing applications. New applications should usually prefer `Agent(model=Model..., runtime=Runtime..., capabilities=[...])`.
+This example shows the lower-level configuration path. New applications should usually prefer `Agent(model=Model..., runtime=Runtime..., capabilities=[...])`.
 
 ```python
-from loom import AgentConfig, ModelRef, create_agent, tool
+from loom import Agent, Model, tool
 from loom.config import (
-    GenerationConfig,
+    AgentConfig,
+    Generation,
     HeartbeatConfig,
     MemoryBackend,
     MemoryConfig,
@@ -544,11 +547,11 @@ def search_docs(query: str) -> str:
     return f"results for {query}"
 
 
-agent = create_agent(
-    AgentConfig(
-        model=ModelRef.openai("gpt-4.1-mini"),
+agent = Agent(
+    config=AgentConfig(
+        model=Model.openai("gpt-4.1-mini"),
         instructions="You are a platform engineering assistant.",
-        generation=GenerationConfig(
+        generation=Generation(
             temperature=0.2,
             max_output_tokens=512,
         ),

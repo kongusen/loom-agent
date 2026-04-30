@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .agent import AgentConfig
 from .enums import FilesystemWatchMethod, RuntimeFallbackMode, WatchKind
-from .generation import GenerationConfig
+from .generation import Generation
 from .heartbeat import (
     HeartbeatConfig,
     HeartbeatInterruptPolicy,
@@ -25,7 +25,6 @@ from .memory import (
     MemoryBackend,
     MemoryConfig,
     MemoryExtractor,
-    MemoryProvider,
     MemoryQuery,
     MemoryRecall,
     MemoryRecord,
@@ -33,7 +32,7 @@ from .memory import (
     MemorySource,
     MemoryStore,
 )
-from .model import ModelRef
+from .model import Model
 from .orchestration import OrchestrationConfig
 from .policy import PolicyConfig, PolicyContext
 from .runtime import RuntimeConfig, RuntimeFallback, RuntimeFeatures, RuntimeLimits
@@ -48,17 +47,13 @@ from .tools import (
     Toolset,
     ToolSpec,
 )
+from .user_api import MCP, Cron, Files, Gateway, Instructions, Knowledge, Shell, Skill, Web
 
-Model = ModelRef
-Generation = GenerationConfig
 Memory = MemoryConfig
 Runtime = RuntimeConfig
-AgentSpec = AgentConfig
 
 __all__ = [
-    "ModelRef",
     "Model",
-    "GenerationConfig",
     "Generation",
     "ToolParameterSpec",
     "ToolHandler",
@@ -78,7 +73,6 @@ __all__ = [
     "MemoryResolver",
     "MemoryExtractor",
     "MemorySource",
-    "MemoryProvider",
     "Memory",
     "WatchKind",
     "FilesystemWatchMethod",
@@ -106,5 +100,13 @@ __all__ = [
     "KnowledgeResolver",
     "KnowledgeSource",
     "AgentConfig",
-    "AgentSpec",
+    "Instructions",
+    "Files",
+    "Web",
+    "Shell",
+    "MCP",
+    "Skill",
+    "Knowledge",
+    "Gateway",
+    "Cron",
 ]

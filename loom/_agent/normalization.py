@@ -6,9 +6,9 @@ import logging
 from dataclasses import replace
 from typing import Any, TypeVar
 
+from .._config import Generation, Model
 from ..config import (
     FilesystemWatchMethod,
-    GenerationConfig,
     HeartbeatConfig,
     HeartbeatInterruptPolicy,
     KnowledgeDocument,
@@ -17,11 +17,9 @@ from ..config import (
     MemoryBackend,
     MemoryConfig,
     MemoryExtractor,
-    MemoryProvider,
     MemoryResolver,
     MemorySource,
     MemoryStore,
-    ModelRef,
     PolicyConfig,
     PolicyContext,
     ResourceThresholds,
@@ -90,8 +88,8 @@ def _normalize_policy_config(value: PolicyConfig | None) -> PolicyConfig | None:
     )
 
 
-def _normalize_model_ref(value: ModelRef) -> ModelRef:
-    model = _normalize_config(value, ModelRef, "model")
+def _normalize_model(value: Model) -> Model:
+    model = _normalize_config(value, Model, "model")
     return replace(
         model,
         extensions=_normalize_mapping(model.extensions, "model.extensions"),
@@ -124,18 +122,10 @@ def _normalize_memory_config(value: MemoryConfig | None) -> MemoryConfig | None:
                 f"got {type(source.store).__name__}"
             )
         sources.append(source)
-    providers: list[MemoryProvider] = []
-    for index, provider in enumerate(memory.providers):
-        if not isinstance(provider, MemoryProvider):
-            raise TypeError(
-                f"memory.providers[{index}] must be MemoryProvider, got {type(provider).__name__}"
-            )
-        providers.append(provider)
     return replace(
         memory,
         backend=_normalize_memory_backend(memory.backend),
         sources=sources,
-        providers=providers,
         extensions=_normalize_mapping(memory.extensions, "memory.extensions"),
     )
 
@@ -222,8 +212,8 @@ def _resolve_compression_policy(runtime: RuntimeConfig | None) -> CompressionPol
         return None
 
 
-def _normalize_generation_config(value: GenerationConfig) -> GenerationConfig:
-    generation = _normalize_config(value, GenerationConfig, "generation")
+def _normalize_generation(value: Generation) -> Generation:
+    generation = _normalize_config(value, Generation, "generation")
     return replace(
         generation,
         extensions=_normalize_mapping(generation.extensions, "generation.extensions"),

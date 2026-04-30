@@ -10,16 +10,17 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any, cast
 
+from .._config import AgentConfig, Generation, Model
 from ..config import (
-    AgentConfig,
-    GenerationConfig,
+    Gateway,
     HeartbeatConfig,
+    Instructions,
+    Knowledge,
     KnowledgeBundle,
     KnowledgeEvidence,
     KnowledgeQuery,
     KnowledgeSource,
     MemoryConfig,
-    ModelRef,
     OrchestrationConfig,
     PolicyConfig,
     RuntimeConfig,
@@ -34,12 +35,14 @@ from ..config import (
 from ..providers.base import LLMProvider
 from ..runtime import RunContext, RunEvent, RunResult, Session, SessionConfig, SessionStore
 from ..runtime.capability import CapabilitySource, activate_capabilities
+from ..runtime.capability_compiler import CapabilityCompiler
 from ..runtime.engine import AgentEngine
 from ..runtime.feedback import FeedbackEvent
 from ..runtime.signals import (
     AttentionPolicy,
     RuntimeSignal,
     RuntimeSignalAdapter,
+    SignalAdapter,
     SignalDecision,
     adapt_signal,
     coerce_signal,
@@ -51,11 +54,11 @@ from .knowledge import _build_knowledge_bundle
 from .normalization import (
     _normalize_capability_specs,
     _normalize_config,
-    _normalize_generation_config,
+    _normalize_generation,
     _normalize_heartbeat_config,
     _normalize_knowledge_sources,
     _normalize_memory_config,
-    _normalize_model_ref,
+    _normalize_model,
     _normalize_policy_config,
     _normalize_runtime_config,
     _normalize_safety_rules,
@@ -99,32 +102,42 @@ class Agent(EngineBuilderMixin, ProviderMixin):
     )
     _schedule_registry: Any = field(default=None, init=False, repr=False)
     _schedule_ticker: Any = field(default=None, init=False, repr=False)
+    _gateways: dict[str, RuntimeSignalAdapter] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __init__(
         self,
         config: AgentConfig | None = None,
         *,
-        model: ModelRef | str | None = None,
-        instructions: str = "",
-        generation: GenerationConfig | None = None,
+        model: Model | str | None = None,
+        instructions: str | Instructions = "",
+        generation: Generation | None = None,
         tools: list[ToolSpec | Toolset] | Toolset | None = None,
         capabilities: list[Any] | Any | None = None,
+        skills: list[Any] | Any | None = None,
         policy: PolicyConfig | None = None,
         memory: MemoryConfig | bool | None = None,
         heartbeat: HeartbeatConfig | None = None,
         runtime: RuntimeConfig | None = None,
         orchestration: bool | OrchestrationConfig | None = None,
         schedule: list[ScheduledJob] | None = None,
+        gateways: list[Any] | Any | None = None,
         safety_rules: list[SafetyRule] | None = None,
-        knowledge: list[KnowledgeSource] | None = None,
+        knowledge: list[KnowledgeSource] | KnowledgeSource | Knowledge | None = None,
+        harness: Any | None = None,
+        quality: Any | None = None,
+        governance: Any | None = None,
+        delegation: Any | None = None,
+        feedback: Any | None = None,
         session_store: SessionStore | None = None,
     ) -> None:
         """Create an Agent from either a full config or the primary user API.
 
         Preferred:
-            ``Agent(model=ModelRef.openai("gpt-5.1"), instructions="...")``
+            ``Agent(model=Model.openai("gpt-5.1"), instructions="...")``
 
-        Compatibility:
+        Advanced configuration:
             ``Agent(config=AgentConfig(...))``
         """
         if config is not None:
@@ -133,14 +146,21 @@ class Agent(EngineBuilderMixin, ProviderMixin):
                 "generation": generation,
                 "tools": tools,
                 "capabilities": capabilities,
+                "skills": skills,
                 "policy": policy,
                 "memory": memory,
                 "heartbeat": heartbeat,
                 "runtime": runtime,
                 "orchestration": orchestration,
                 "schedule": schedule,
+                "gateways": gateways,
                 "safety_rules": safety_rules,
                 "knowledge": knowledge,
+                "harness": harness,
+                "quality": quality,
+                "governance": governance,
+                "delegation": delegation,
+                "feedback": feedback,
             }
             provided = [name for name, value in explicit_fields.items() if value is not None]
             if instructions:
@@ -156,19 +176,31 @@ class Agent(EngineBuilderMixin, ProviderMixin):
                 raise TypeError("Agent() missing required argument: 'model'")
             if runtime is not None and orchestration is not None:
                 raise TypeError("Agent() accepts runtime= or orchestration=, not both")
+            runtime = _coerce_runtime_policies(
+                runtime or _coerce_orchestration_to_runtime(orchestration),
+                harness=harness,
+                quality=quality,
+                governance=governance,
+                delegation=delegation,
+                feedback=feedback,
+            )
             self.config = AgentConfig(
-                model=_coerce_model_ref(model),
-                instructions=instructions,
-                generation=generation or GenerationConfig(),
+                model=_coerce_model(model),
+                instructions=_coerce_instructions(instructions),
+                generation=generation or Generation(),
                 tools=_coerce_tool_entries(tools),
-                capabilities=_coerce_capability_entries(capabilities),
+                capabilities=[
+                    *_coerce_capability_entries(capabilities),
+                    *_coerce_capability_entries(skills),
+                ],
                 policy=policy,
                 memory=_coerce_memory_config(memory),
                 heartbeat=heartbeat,
-                runtime=runtime or _coerce_orchestration_to_runtime(orchestration),
+                runtime=runtime,
                 schedule=list(schedule or []),
                 safety_rules=list(safety_rules) if safety_rules is not None else None,
-                knowledge=list(knowledge or []),
+                knowledge=_coerce_knowledge_entries(knowledge),
+                gateways=_coerce_gateway_entries(gateways),
             )
 
         self._sessions = {}
@@ -191,6 +223,7 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         self._pending_signals_lock = threading.RLock()
         self._schedule_registry = None
         self._schedule_ticker = None
+        self._gateways = {}
         self.__post_init__()
 
     @classmethod
@@ -198,17 +231,15 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         """Create an Agent from a reusable config/spec object."""
         return cls(config=config)
 
-    from_spec = from_config
-
     def __post_init__(self) -> None:
         config = _normalize_config(self.config, AgentConfig, "config")
         declared_tools = _normalize_tool_specs(config.tools)
         capabilities = _normalize_capability_specs(config.capabilities)
-        capability_tools: list[ToolSpec] = []
-        for capability in capabilities:
-            capability_tools.extend(capability.to_tools())
-        capability_tool_entries: list[ToolSpec | Toolset] = list(capability_tools)
-        declared_tools = [*declared_tools, *_normalize_tool_specs(capability_tool_entries)]
+        compiled_capabilities = CapabilityCompiler().compile(
+            tools=declared_tools,
+            capabilities=capabilities,
+        )
+        declared_tools = compiled_capabilities.tool_specs
         normalized_tools: list[ToolSpec | Toolset] = list(declared_tools)
         orchestration = _coerce_orchestration_config(config.orchestration)
         if config.runtime is not None and orchestration is not None:
@@ -216,13 +247,13 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         runtime = config.runtime or _coerce_orchestration_to_runtime(orchestration)
         config = replace(
             config,
-            model=_normalize_model_ref(config.model),
+            model=_normalize_model(config.model),
             tools=normalized_tools,
             capabilities=capabilities,
             policy=_normalize_policy_config(config.policy),
             memory=_normalize_memory_config(config.memory),
             heartbeat=_normalize_heartbeat_config(config.heartbeat),
-            generation=_normalize_generation_config(config.generation),
+            generation=_normalize_generation(config.generation),
             runtime=_normalize_runtime_config(runtime),
             orchestration=orchestration,
             schedule=_normalize_schedule_jobs(config.schedule),
@@ -230,6 +261,7 @@ class Agent(EngineBuilderMixin, ProviderMixin):
             safety_rules=_normalize_safety_rules(config.safety_rules),
         )
         self.config = config
+        self._gateways = _index_gateways(config.gateways)
         self._activate_configured_capabilities(capabilities)
         self._compiled_tools = [_compile_tool_spec(tool) for tool in declared_tools]
         self._session_ttl_hours = _resolve_session_ttl_hours(config.runtime)
@@ -251,11 +283,6 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         ):
             return
         activate_capabilities(capabilities, self.ecosystem)
-
-    @property
-    def mcp_bridge(self) -> Any:
-        """MCPBridge exposed directly for convenient MCP server registration."""
-        return self.ecosystem.mcp_bridge
 
     @property
     def evolution(self) -> Any:
@@ -404,6 +431,7 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         event: Any,
         *,
         adapter: RuntimeSignalAdapter | None = None,
+        gateway: str | Gateway | RuntimeSignalAdapter | None = None,
         source: str | None = None,
         type: str | None = None,
         urgency: str | None = None,
@@ -413,6 +441,8 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         dedupe_key: str | None = None,
     ) -> SignalDecision:
         """Receive an external event through an optional signal adapter."""
+        if adapter is None and gateway is not None:
+            adapter = _resolve_gateway_adapter(gateway, self._gateways)
         normalized = adapt_signal(
             event,
             adapter=adapter,
@@ -498,6 +528,13 @@ class Agent(EngineBuilderMixin, ProviderMixin):
             session = Session(self, config=config)
             self._sessions[session.id] = session
         return session
+
+    def gateway(self, name: str) -> RuntimeSignalAdapter:
+        """Return a configured gateway signal adapter by name."""
+        try:
+            return self._gateways[name]
+        except KeyError as exc:
+            raise KeyError(f"unknown gateway {name!r}") from exc
 
     def _evict_old_sessions(self, ttl_hours: float | None = None) -> int:
         """Evict sessions older than TTL to prevent unbounded growth."""
@@ -814,18 +851,28 @@ class Agent(EngineBuilderMixin, ProviderMixin):
         )
 
 
-def _coerce_model_ref(model: ModelRef | str) -> ModelRef:
-    if isinstance(model, ModelRef):
+def _coerce_model(model: Model | str) -> Model:
+    if isinstance(model, Model):
         return model
     if not isinstance(model, str):
         raise TypeError(
-            f"model must be ModelRef or provider:model string, got {type(model).__name__}"
+            f"model must be Model or provider:model string, got {type(model).__name__}"
         )
 
     provider, separator, name = model.partition(":")
     if not separator or not provider or not name:
         raise ValueError("model string must use 'provider:model-name' format")
-    return ModelRef(provider=provider, name=name)
+    return Model(provider=provider, name=name)
+
+
+def _coerce_instructions(instructions: str | Instructions) -> str:
+    if isinstance(instructions, Instructions):
+        return instructions.render()
+    if isinstance(instructions, str):
+        return instructions
+    raise TypeError(
+        f"instructions must be str or Instructions, got {type(instructions).__name__}"
+    )
 
 
 def _coerce_tool_entries(
@@ -856,6 +903,93 @@ def _coerce_memory_config(memory: MemoryConfig | bool | None) -> MemoryConfig | 
     if isinstance(memory, bool):
         return MemoryConfig(enabled=memory) if memory else None
     raise TypeError(f"memory must be MemoryConfig, bool, or None, got {type(memory).__name__}")
+
+
+def _coerce_knowledge_entries(
+    knowledge: list[KnowledgeSource] | KnowledgeSource | Knowledge | None,
+) -> list[KnowledgeSource]:
+    if knowledge is None:
+        return []
+    if isinstance(knowledge, Knowledge):
+        return knowledge.to_sources()
+    if isinstance(knowledge, KnowledgeSource):
+        return [knowledge]
+    if not isinstance(knowledge, list):
+        raise TypeError(
+            "knowledge must be Knowledge, KnowledgeSource, list[KnowledgeSource], or None, "
+            f"got {type(knowledge).__name__}"
+        )
+    return list(knowledge)
+
+
+def _coerce_gateway_entries(gateways: list[Any] | Any | None) -> list[Any]:
+    if gateways is None:
+        return []
+    if isinstance(gateways, list):
+        return list(gateways)
+    return [gateways]
+
+
+def _index_gateways(gateways: list[Any]) -> dict[str, RuntimeSignalAdapter]:
+    indexed: dict[str, RuntimeSignalAdapter] = {}
+    for gateway in gateways:
+        if isinstance(gateway, Gateway):
+            indexed[gateway.name] = gateway.adapter
+            continue
+        if isinstance(gateway, SignalAdapter):
+            indexed[gateway.source] = gateway
+            continue
+        adapt = getattr(gateway, "adapt", None)
+        name = getattr(gateway, "name", None)
+        if callable(adapt) and isinstance(name, str):
+            indexed[name] = cast("RuntimeSignalAdapter", gateway)
+            continue
+        raise TypeError(
+            "gateways entries must be Gateway or RuntimeSignalAdapter with a name, "
+            f"got {type(gateway).__name__}"
+        )
+    return indexed
+
+
+def _resolve_gateway_adapter(
+    gateway: str | Gateway | RuntimeSignalAdapter,
+    gateways: dict[str, RuntimeSignalAdapter],
+) -> RuntimeSignalAdapter:
+    if isinstance(gateway, str):
+        try:
+            return gateways[gateway]
+        except KeyError as exc:
+            raise KeyError(f"unknown gateway {gateway!r}") from exc
+    if isinstance(gateway, Gateway):
+        return gateway.adapter
+    adapt = getattr(gateway, "adapt", None)
+    if callable(adapt):
+        return gateway
+    raise TypeError("gateway must be str, Gateway, or RuntimeSignalAdapter")
+
+
+def _coerce_runtime_policies(
+    runtime: RuntimeConfig | None,
+    *,
+    harness: Any | None = None,
+    quality: Any | None = None,
+    governance: Any | None = None,
+    delegation: Any | None = None,
+    feedback: Any | None = None,
+) -> RuntimeConfig | None:
+    if not any(
+        value is not None for value in (harness, quality, governance, delegation, feedback)
+    ):
+        return runtime
+    resolved = runtime or RuntimeConfig.sdk()
+    return replace(
+        resolved,
+        harness=harness if harness is not None else resolved.harness,
+        quality=quality if quality is not None else resolved.quality,
+        governance=governance if governance is not None else resolved.governance,
+        delegation=delegation if delegation is not None else resolved.delegation,
+        feedback=feedback if feedback is not None else resolved.feedback,
+    )
 
 
 def _coerce_orchestration_config(

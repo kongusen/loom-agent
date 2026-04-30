@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "loom-agent"
-version = "0.8.1"
+version = "0.8.2"
 description = "Python agent runtime framework — context management, multi-agent orchestration, and self-improvement for autonomous AI agents"
 authors = ["kongusen <wanghaishan0210@gmail.com>"]
 readme = "README.md"
@@ -118,3 +118,7 @@ plugins = ["pydantic.mypy"]
 init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

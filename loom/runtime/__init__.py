@@ -10,12 +10,9 @@ from .capability import (
 from .context import (
     ContextMetrics,
     ContextPolicy,
-    ContextProtocol,
     ContextSnapshot,
     ManagedContextAdapter,
-    ManagedContextProtocol,
     RuntimeContextPolicy,
-    RuntimeContextProtocol,
 )
 from .continuity import ContinuityPolicy, ContinuityResult, HandoffContinuityPolicy
 from .cron import JobRegistry, ScheduleTicker
@@ -59,7 +56,6 @@ from .quality import (
 )
 from .session import (
     Artifact,
-    Event,
     Run,
     RunContext,
     RunEvent,
@@ -86,7 +82,7 @@ from .signals import (
     SignalDecision,
     SignalQueue,
 )
-from .skills import SkillInjection, SkillInjectionPolicy
+from .skills import SkillInjection
 from .task import RuntimeTask
 
 __all__ = [
@@ -98,13 +94,10 @@ __all__ = [
     "CapabilityRegistry",
     "RuntimeCapabilityProvider",
     "ContextPolicy",
-    "ContextProtocol",
     "ContextMetrics",
     "ContextSnapshot",
     "RuntimeContextPolicy",
-    "RuntimeContextProtocol",
     "ManagedContextAdapter",
-    "ManagedContextProtocol",
     "DelegationPolicy",
     "DelegationRequest",
     "DelegationResult",
@@ -136,7 +129,6 @@ __all__ = [
     "RunState",
     "RunResult",
     "RunEvent",
-    "Event",
     "Artifact",
     "SessionStore",
     "FileSessionStore",
@@ -152,7 +144,6 @@ __all__ = [
     "AttentionPolicy",
     "SignalQueue",
     "SkillInjection",
-    "SkillInjectionPolicy",
     "RuntimeTask",
     "ContinuityPolicy",
     "ContinuityResult",

@@ -44,12 +44,12 @@ That keeps the kernel simple:
 - heartbeat adapters emit `RuntimeSignal`
 - gateway and cron adapters emit the same contract
 - `AttentionPolicy` decides whether a signal should cause execution
-- tools and remediation still go through `Capability` and `GovernancePolicy`
+- tools and remediation still go through user-facing ability declarations and `GovernancePolicy`
 
 ## What To Add Next
 
 - combine with `SignalAdapter` for real heartbeat, webhook, or gateway event shapes
-- combine with `Capability.shell(require_approval=True)` when remediation is allowed
+- combine with `Shell.approval_required()` when remediation is allowed
 - use `Runtime.supervised(...)` when human review is required
 
 ## Runnable Example

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from loom.experimental.cluster.event_bus import Event, EventBus
+from loom.experimental.cluster.event_bus import ClusterEvent, ClusterEventBus
 from loom.experimental.cluster.fork import AgentFork, SubAgentConfig
 from loom.experimental.cluster.shared_memory import SharedMemory
 
@@ -82,12 +82,12 @@ class TestAgentFork:
         assert result is None
 
 
-# ── Event (cluster) ──
+# ── ClusterEvent (cluster) ──
 
 
 class TestClusterEvent:
     def test_event_creation(self):
-        event = Event(
+        event = ClusterEvent(
             event_id="evt_001",
             source="test",
             data={"key": "value"},
@@ -100,19 +100,19 @@ class TestClusterEvent:
         assert event.delta_H == 0.5
 
 
-# ── EventBus (cluster) ──
+# ── ClusterEventBus (cluster) ──
 
 
 class TestClusterEventBus:
     def test_creation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            bus = EventBus(Path(tmpdir) / "events")
+            bus = ClusterEventBus(Path(tmpdir) / "events")
             assert bus.subscribers == {}
 
     def test_publish_and_read(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            bus = EventBus(Path(tmpdir) / "events")
-            event = Event(
+            bus = ClusterEventBus(Path(tmpdir) / "events")
+            event = ClusterEvent(
                 event_id="evt_001",
                 source="agent_1",
                 data={"action": "complete"},
@@ -130,12 +130,12 @@ class TestClusterEventBus:
 
     def test_publish_with_subscriber(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            bus = EventBus(Path(tmpdir) / "events")
+            bus = ClusterEventBus(Path(tmpdir) / "events")
             received = []
 
             bus.subscribe("agent_1", lambda e: received.append(e))
 
-            event = Event(
+            event = ClusterEvent(
                 event_id="evt_002",
                 source="agent_1",
                 data={},
@@ -148,12 +148,12 @@ class TestClusterEventBus:
 
     def test_subscribe_no_callback_for_other_source(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            bus = EventBus(Path(tmpdir) / "events")
+            bus = ClusterEventBus(Path(tmpdir) / "events")
             received = []
 
             bus.subscribe("agent_1", lambda e: received.append(e))
 
-            event = Event(
+            event = ClusterEvent(
                 event_id="evt_003",
                 source="agent_2",
                 data={},
@@ -165,10 +165,10 @@ class TestClusterEventBus:
 
     def test_read_events_since(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            bus = EventBus(Path(tmpdir) / "events")
+            bus = ClusterEventBus(Path(tmpdir) / "events")
 
             for i in range(3):
-                event = Event(
+                event = ClusterEvent(
                     event_id=f"evt_{i}",
                     source="src",
                     data={"i": i},
@@ -183,7 +183,7 @@ class TestClusterEventBus:
     def test_creates_directory(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             new_path = Path(tmpdir) / "new" / "sub" / "dir"
-            EventBus(new_path)
+            ClusterEventBus(new_path)
             assert new_path.exists()
 
 

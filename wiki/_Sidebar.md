@@ -34,6 +34,8 @@
 
 **API Reference**
 - [Overview](07-api-reference/README)
+- [Public API System](07-api-reference/public-api-system)
+- [Public User API Taxonomy](07-api-reference/public-user-api-taxonomy)
 - [Agent API](07-api-reference/agent-api)
 - [Configuration](07-api-reference/configuration)
 - [Providers](07-api-reference/providers)
@@ -56,4 +58,3 @@
 
 ---
 - [Architecture](Architecture)
-- [Design Spec](hernss-agent-framework)

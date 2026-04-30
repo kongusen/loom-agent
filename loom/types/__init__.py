@@ -11,7 +11,7 @@ from .content import (
     create_image_block_from_url,
     create_text_block,
 )
-from .events import CoordinationEvent, Event, HeartbeatEvent
+from .events import CoordinationEvent, HeartbeatEvent
 from .handoff import HandoffArtifact
 from .messages import Message, ToolCall, ToolResult
 from .results import LoopResult, SubAgentResult
@@ -36,7 +36,6 @@ __all__ = [
     "EventSurface",
     "KnowledgeSurface",
     "CoordinationEvent",
-    "Event",
     "HeartbeatEvent",
     "LoopResult",
     "SubAgentResult",

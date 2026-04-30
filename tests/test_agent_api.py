@@ -6,33 +6,36 @@ import pytest
 
 import loom.config as loom_config
 from loom import (
+    MCP,
     Agent,
-    AgentConfig,
-    AgentSpec,
     AttentionPolicy,
-    Capability,
-    CapabilityRegistry,
-    CapabilitySource,
+    Cron,
     DelegationPolicy,
     DelegationRequest,
     DelegationResult,
     FeedbackDecision,
     FeedbackEvent,
     FeedbackPolicy,
+    Files,
     FileSessionStore,
+    Gateway,
     Generation,
-    GenerationConfig,
     GovernanceDecision,
     GovernancePolicy,
     GovernanceRequest,
+    Harness,
     InMemorySessionStore,
+    Instructions,
+    Knowledge,
     KnowledgeDocument,
     KnowledgeQuery,
     KnowledgeSource,
     Memory,
-    MemoryProvider,
+    MemoryExtractor,
+    MemoryRecord,
+    MemoryResolver,
+    MemorySource,
     Model,
-    ModelRef,
     QualityContract,
     QualityGate,
     QualityResult,
@@ -42,12 +45,15 @@ from loom import (
     RuntimeTask,
     SessionConfig,
     SessionStore,
+    Shell,
+    Skill,
     Toolset,
     TranscriptRecord,
-    create_agent,
+    Web,
     tool,
 )
 from loom.config import (
+    AgentConfig,
     FilesystemWatchMethod,
     HeartbeatConfig,
     HeartbeatInterruptPolicy,
@@ -78,13 +84,13 @@ from loom.config import (
 from loom.config import (
     Toolset as ConfigToolset,
 )
-from loom.runtime import RunState
+from loom.runtime import Capability, CapabilityRegistry, CapabilitySource, RunState
 
 
 def test_agent_creation():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
+    agent = Agent(
+        config=AgentConfig(
+            model=Model.anthropic("claude-sonnet-4"),
             instructions="Test agent",
             policy=PolicyConfig(
                 tools=ToolPolicy(
@@ -133,6 +139,143 @@ def test_agent_creation():
     assert agent.config.heartbeat.interval == 5.0
     assert agent.config.heartbeat.watch_sources[0].paths == ["./src"]
     assert agent.config.runtime.limits.max_iterations == 12
+
+
+def test_user_api_taxonomy_facades_normalize_into_runtime_contracts() -> None:
+    agent = Agent(
+        model=Model.openai("gpt-test", base_url="https://api.example.test/v1"),
+        instructions=Instructions(
+            role="repo reviewer",
+            style="concise",
+            constraints=["cite files"],
+        ),
+        memory=Memory.session(namespace="repo"),
+        knowledge=Knowledge.sources(["Loom has a public user API."]),
+        capabilities=[
+            Files(read_only=True),
+            Web.enabled(),
+            Shell.approval_required(),
+            MCP.server("github", mock_tools=[{"name": "list_issues"}]),
+        ],
+        skills=[
+            Skill.inline(
+                "repo-review",
+                content="Check correctness risks.",
+                when_to_use="review,diff",
+                allowed_tools=["Read", "Grep"],
+            )
+        ],
+        gateways=[
+            Gateway.webhook(
+                "slack",
+                summary=lambda event: event["text"],
+                payload=lambda event: {"channel": event["channel"]},
+            )
+        ],
+        schedule=[Cron.interval("health-check", every="5m", prompt="Check health")],
+        harness=Harness.single_run(),
+        quality=QualityGate.criteria(["tests pass"]),
+        governance=GovernancePolicy.default(),
+        delegation=DelegationPolicy.none(),
+        feedback=FeedbackPolicy.none(),
+    )
+
+    assert agent.config.model.api_base == "https://api.example.test/v1"
+    assert "Role: repo reviewer" in agent.config.instructions
+    assert agent.config.memory is not None
+    assert agent.config.memory.namespace == "repo"
+    assert [source.name for source in agent.config.knowledge] == ["knowledge"]
+    assert [capability.name for capability in agent.config.capabilities] == [
+        "files",
+        "web",
+        "shell",
+        "mcp:github",
+        "skill:repo-review",
+    ]
+    assert agent.ecosystem.skill_registry.get("repo-review") is not None
+    assert agent.gateway("slack").adapt({"text": "Deploy failed", "channel": "ops"}).summary == (
+        "Deploy failed"
+    )
+    assert agent.config.schedule[0].schedule.interval_minutes == 5
+    assert agent.config.runtime.harness is not None
+    assert agent.config.runtime.quality is not None
+    assert agent.config.runtime.governance is not None
+    assert agent.config.runtime.delegation is not None
+    assert agent.config.runtime.feedback is not None
+
+
+@pytest.mark.asyncio
+async def test_agent_receive_uses_configured_gateway_name() -> None:
+    agent = Agent(
+        model=Model.openai("gpt-test"),
+        gateways=[
+            Gateway.webhook(
+                "slack",
+                type="message",
+                summary=lambda event: event["text"],
+                payload=lambda event: {"channel": event["channel"]},
+                session_id=lambda event: event["session"],
+            )
+        ],
+    )
+
+    decision = await agent.receive(
+        {"text": "Deploy failed", "channel": "ops", "session": "ops"},
+        gateway="slack",
+    )
+
+    session = agent.session(SessionConfig(id="ops"))
+    assert decision.action == "run"
+    assert session._pending_signals[0].source == "gateway:slack"
+    assert session._pending_signals[0].type == "message"
+    assert session._pending_signals[0].summary == "Deploy failed"
+    assert session._pending_signals[0].payload == {
+        "channel": "ops",
+        "content": "Deploy failed",
+    }
+
+
+def test_cron_user_api_builds_scheduled_jobs_without_runtime_start() -> None:
+    daily = Cron.daily("standup", at="09:30", prompt="Summarize standup")
+    interval = Cron.interval("health", every="5m", prompt="Check health")
+
+    assert daily.prompt == "Summarize standup"
+    assert daily.schedule.kind == "cron"
+    assert daily.schedule.cron_expr == "30 9 * * *"
+    assert interval.schedule.kind == "interval"
+    assert interval.schedule.interval_minutes == 5
+
+
+def test_model_provider_config_keeps_model_as_provider_entrypoint() -> None:
+    model = Model.openai(
+        "gpt-test",
+        base_url="https://api.example.test/v1",
+        api_key="secret",
+        timeout=30,
+        max_retries=2,
+    )
+
+    assert model.api_base == "https://api.example.test/v1"
+    assert model.extensions["api_key"] == "secret"
+    assert model.extensions["timeout"] == 30
+    assert model.extensions["max_retries"] == 2
+
+
+def test_model_provider_runtime_options_reach_openai_compatible_provider() -> None:
+    from loom._agent.providers import _resolve_provider
+
+    provider = _resolve_provider(
+        Model.openai(
+            "gpt-test",
+            api_key="secret",
+            timeout=30,
+            max_retries=2,
+        )
+    )
+
+    assert provider is not None
+    assert provider.timeout == 30
+    assert provider.max_retries == 2
 
 
 def test_runtime_accepts_delegation_policy() -> None:
@@ -327,7 +470,7 @@ def test_runtime_context_limit_reaches_engine_config() -> None:
     from loom.providers.base import CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
-        async def _complete_response(self, messages, params=None):
+        async def _complete_request(self, request):
             return CompletionResponse(content="ok")
 
     agent = Agent(
@@ -478,8 +621,8 @@ def test_agent_direct_constructor_accepts_capabilities():
 
 
 def test_agent_config_accepts_capabilities():
-    agent = create_agent(
-        AgentConfig(
+    agent = Agent(
+        config=AgentConfig(
             model=Model.openai("gpt-test"),
             capabilities=[Capability.files(read_only=True)],
         )
@@ -487,6 +630,30 @@ def test_agent_config_accepts_capabilities():
 
     assert [capability.name for capability in agent.config.capabilities] == ["files"]
     assert [tool.name for tool in agent.config.tools] == ["Read", "Glob", "Grep"]
+
+
+def test_agent_capability_compiler_rejects_duplicate_tool_names():
+    duplicate = Capability.of(
+        "dup",
+        ToolSpec.from_function(lambda path: path, name="Read", read_only=True),
+    )
+
+    with pytest.raises(ValueError, match="Duplicate tool name 'Read' from capability 'dup'"):
+        Agent(
+            model=Model.openai("gpt-test"),
+            capabilities=[Capability.files(read_only=True), duplicate],
+        )
+
+
+def test_agent_capability_compiler_rejects_duplicate_explicit_tool_names():
+    first = ToolSpec.from_function(lambda query: query, name="search", read_only=True)
+    second = ToolSpec.from_function(lambda query: query, name="search", read_only=True)
+
+    with pytest.raises(ValueError, match="Duplicate tool name 'search' from explicit tools"):
+        Agent(
+            model=Model.openai("gpt-test"),
+            tools=[first, second],
+        )
 
 
 def test_capability_registry_compiles_registered_capabilities():
@@ -503,11 +670,11 @@ def test_capability_registry_compiles_registered_capabilities():
 
 
 def test_mcp_capability_activates_explicit_server_into_runtime_engine():
-    from loom.providers.base import LLMProvider
+    from loom.providers.base import CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
-        async def _complete(self, prompt: str, **kwargs):
-            return {"content": "ok"}
+        async def _complete_request(self, request):
+            return CompletionResponse(content="ok")
 
     agent = Agent(
         model=Model.openai("gpt-test"),
@@ -712,17 +879,17 @@ def test_agent_direct_constructor_accepts_model_string_and_memory_false():
     assert agent.config.memory is None
 
 
-def test_agent_from_config_and_from_spec_keep_config_path():
-    spec = AgentSpec(model=Model.openai("gpt-test"), instructions="Reusable")
+def test_agent_from_config_keeps_config_path():
+    spec = AgentConfig(model=Model.openai("gpt-test"), instructions="Reusable")
 
     assert Agent.from_config(spec).config.instructions == "Reusable"
-    assert Agent.from_spec(spec).config.model.identifier == "openai:gpt-test"
+    assert not hasattr(Agent, "from_spec")
 
 
 def test_agent_constructor_rejects_ambiguous_config_and_direct_fields():
     with pytest.raises(TypeError):
         Agent(
-            config=AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")),
+            config=AgentConfig(model=Model.anthropic("claude-sonnet-4")),
             model=Model.openai("gpt-test"),
         )
 
@@ -731,9 +898,9 @@ def test_agent_constructor_rejects_ambiguous_config_and_direct_fields():
 
 
 def test_agent_config_is_single_source_of_truth():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
+    agent = Agent(
+        config=AgentConfig(
+            model=Model.anthropic("claude-sonnet-4"),
             instructions="Configured once",
             tools=[
                 ToolSpec.from_function(
@@ -765,39 +932,26 @@ def test_agent_config_is_single_source_of_truth():
 
 
 @pytest.mark.asyncio
-async def test_memory_provider_prefetch_and_sync_turn():
-    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+async def test_memory_source_prefetch_and_sync_turn():
+    from loom.providers.base import CompletionResponse, LLMProvider
 
-    class RecorderMemory(MemoryProvider):
-        name = "recorder"
-
+    class RecorderMemory:
         def __init__(self) -> None:
             self.synced: list[tuple[str, str, str | None]] = []
 
-        def system_prompt(self) -> str:
-            return "Use recalled memory carefully."
-
-        def prefetch(self, query: str, *, session_id: str | None = None) -> str:
-            return f"recalled for {query} in {session_id}"
-
-        def sync_turn(
+        def extract(
             self,
             user_content: str,
             assistant_content: str,
             *,
             session_id: str | None = None,
-        ) -> None:
+        ) -> list[MemoryRecord]:
             self.synced.append((user_content, assistant_content, session_id))
+            return []
 
     class MockProvider(LLMProvider):
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return ""
-
-        async def _complete_response(
-            self,
-            messages: list,
-            params: CompletionParams | None = None,
-        ) -> CompletionResponse:
+        async def _complete_request(self, request) -> CompletionResponse:
+            messages = request.messages
             assert any(
                 message["role"] == "system"
                 and "Use recalled memory carefully." in str(message["content"])
@@ -809,16 +963,16 @@ async def test_memory_provider_prefetch_and_sync_turn():
             )
             return CompletionResponse(content="remembered")
 
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "remembered"
-
-            return _gen()
-
     memory = RecorderMemory()
+    source = MemorySource(
+        name="recorder",
+        resolver=MemoryResolver.static(["recalled for remember me in memory-session"]),
+        extractor=MemoryExtractor.callable(memory.extract),
+        instructions="Use recalled memory carefully.",
+    )
     agent = Agent(
         model=Model.openai("gpt-test"),
-        memory=MemoryConfig(providers=[memory]),
+        memory=MemoryConfig(sources=[source]),
     )
     agent._provider = MockProvider()
     agent._provider_resolved = True
@@ -830,29 +984,24 @@ async def test_memory_provider_prefetch_and_sync_turn():
 
 
 @pytest.mark.asyncio
-async def test_memory_provider_errors_are_isolated(caplog):
-    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+async def test_memory_source_errors_are_isolated(caplog):
+    from loom.providers.base import CompletionResponse, LLMProvider
 
-    class BrokenMemory(MemoryProvider):
-        name = "broken"
+    class GoodMemory:
+        def __init__(self) -> None:
+            self.synced: list[tuple[str, str, str | None]] = []
 
-        def system_prompt(self) -> str:
-            raise RuntimeError("system prompt failed")
-
-        def prefetch(self, query: str, *, session_id: str | None = None) -> str:
-            raise RuntimeError("prefetch failed")
-
-        def sync_turn(
+        def extract(
             self,
             user_content: str,
             assistant_content: str,
             *,
             session_id: str | None = None,
-        ) -> None:
-            raise RuntimeError("sync failed")
+        ) -> list[MemoryRecord]:
+            self.synced.append((user_content, assistant_content, session_id))
+            return []
 
-    class UnavailableMemory(MemoryProvider):
-        name = "off"
+    class UnavailableMemorySource(MemorySource):
         called = False
 
         def is_available(self) -> bool:
@@ -862,18 +1011,16 @@ async def test_memory_provider_errors_are_isolated(caplog):
             self.called = True
             return "should not appear"
 
-    class GoodMemory(MemoryProvider):
-        name = "good"
+    class BrokenAvailabilitySource(MemorySource):
+        def is_available(self) -> bool:
+            raise RuntimeError("availability failed")
 
-        def __init__(self) -> None:
-            self.synced: list[tuple[str, str, str | None]] = []
-
-        def system_prompt(self) -> str:
-            return "Use good memory."
-
+    class BrokenPrefetchSource(MemorySource):
         def prefetch(self, query: str, *, session_id: str | None = None) -> str:
-            return f"good recall for {query} in {session_id}"
+            _ = query, session_id
+            raise RuntimeError("prefetch failed")
 
+    class BrokenSyncSource(MemorySource):
         def sync_turn(
             self,
             user_content: str,
@@ -881,34 +1028,52 @@ async def test_memory_provider_errors_are_isolated(caplog):
             *,
             session_id: str | None = None,
         ) -> None:
-            self.synced.append((user_content, assistant_content, session_id))
+            _ = user_content, assistant_content, session_id
+            raise RuntimeError("sync failed")
 
     class MockProvider(LLMProvider):
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return ""
-
-        async def _complete_response(
-            self,
-            messages: list,
-            params: CompletionParams | None = None,
-        ) -> CompletionResponse:
+        async def _complete_request(self, request) -> CompletionResponse:
+            messages = request.messages
             text = "\n".join(str(message["content"]) for message in messages)
             assert "Use good memory." in text
             assert "good recall for remember safely in safe-session" in text
             assert "should not appear" not in text
             return CompletionResponse(content="safe")
 
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "safe"
-
-            return _gen()
-
-    unavailable = UnavailableMemory()
     good = GoodMemory()
+    unavailable = UnavailableMemorySource(
+        name="off",
+        resolver=MemoryResolver.static(["should not appear"]),
+    )
+    broken_availability = BrokenAvailabilitySource(
+        name="broken-availability",
+        resolver=MemoryResolver.static([]),
+    )
+    broken_prefetch = BrokenPrefetchSource(
+        name="broken-prefetch",
+        resolver=MemoryResolver.static([]),
+    )
+    broken_sync = BrokenSyncSource(
+        name="broken-sync",
+        resolver=MemoryResolver.static([]),
+    )
+    good_source = MemorySource(
+        name="good",
+        resolver=MemoryResolver.static(["good recall for remember safely in safe-session"]),
+        extractor=MemoryExtractor.callable(good.extract),
+        instructions="Use good memory.",
+    )
     agent = Agent(
         model=Model.openai("gpt-test"),
-        memory=MemoryConfig(providers=[BrokenMemory(), unavailable, good]),
+        memory=MemoryConfig(
+            sources=[
+                broken_availability,
+                broken_prefetch,
+                broken_sync,
+                unavailable,
+                good_source,
+            ]
+        ),
     )
     agent._provider = MockProvider()
     agent._provider_resolved = True
@@ -919,31 +1084,18 @@ async def test_memory_provider_errors_are_isolated(caplog):
     assert result.output == "safe"
     assert unavailable.called is False
     assert good.synced == [("remember safely", "safe", "safe-session")]
-    assert "Memory provider broken failed during system_prompt" in caplog.text
-    assert "Memory provider broken failed during prefetch" in caplog.text
-    assert "Memory provider broken failed during sync_turn" in caplog.text
+    assert "Memory provider broken-availability failed during is_available" in caplog.text
+    assert "Memory provider broken-prefetch failed during prefetch" in caplog.text
+    assert "Memory provider broken-sync failed during sync_turn" in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_session_store_records_session_and_run():
-    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+    from loom.providers.base import CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return ""
-
-        async def _complete_response(
-            self,
-            messages: list,
-            params: CompletionParams | None = None,
-        ) -> CompletionResponse:
+        async def _complete_request(self, request) -> CompletionResponse:
             return CompletionResponse(content="stored")
-
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "stored"
-
-            return _gen()
 
     store = InMemorySessionStore()
     agent = Agent(
@@ -968,24 +1120,11 @@ async def test_session_store_records_session_and_run():
 
 @pytest.mark.asyncio
 async def test_file_session_store_persists_sessions_and_runs(tmp_path):
-    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+    from loom.providers.base import CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return ""
-
-        async def _complete_response(
-            self,
-            messages: list,
-            params: CompletionParams | None = None,
-        ) -> CompletionResponse:
+        async def _complete_request(self, request) -> CompletionResponse:
             return CompletionResponse(content="stored on disk")
-
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "stored on disk"
-
-            return _gen()
 
     path = tmp_path / "sessions.json"
     store = FileSessionStore(path)
@@ -1187,11 +1326,11 @@ async def test_session_restore_policy_limits_restored_transcript_window():
     assert rendered[-1] == "latest"
 
 
-def test_generation_config_is_stable_object():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
-            generation=GenerationConfig(
+def test_generation_is_stable_object():
+    agent = Agent(
+        config=AgentConfig(
+            model=Model.anthropic("claude-sonnet-4"),
+            generation=Generation(
                 temperature=0.2,
                 max_output_tokens=512,
             ),
@@ -1203,7 +1342,7 @@ def test_generation_config_is_stable_object():
 
 
 def test_session_requires_session_config():
-    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+    agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
 
     session = agent.session(SessionConfig(id="demo", metadata={"tenant": "acme"}))
 
@@ -1218,22 +1357,23 @@ def test_config_module_exports_only_configuration_vocabulary():
     exported = set(loom_config.__all__)
 
     assert "AgentConfig" in exported
-    assert "AgentSpec" in exported
-    assert "ModelRef" in exported
+    assert "AgentSpec" not in exported
+    assert "ModelRef" not in exported
     assert "Model" in exported
+    assert "GenerationConfig" not in exported
+    assert "Generation" in exported
     assert "RuntimeConfig" in exported
     assert "Runtime" in exported
-    assert "MemoryProvider" in exported
+    assert "MemoryProvider" not in exported
     assert "Toolset" in exported
     assert "KnowledgeSource" in exported
     assert "SessionConfig" not in exported
     assert "RunContext" not in exported
 
 
-def test_new_configuration_aliases_preserve_existing_contracts():
-    assert AgentSpec is AgentConfig
-    assert Model is ModelRef
-    assert Generation is GenerationConfig
+def test_primary_configuration_contracts_are_consistent():
+    assert loom_config.Model is Model
+    assert loom_config.Generation is Generation
     assert Memory is MemoryConfig
     assert Runtime is RuntimeConfig
     assert Toolset is ConfigToolset
@@ -1247,74 +1387,58 @@ def test_new_configuration_aliases_preserve_existing_contracts():
     assert Runtime(feedback=FeedbackPolicy.none()).feedback is not None
 
 
-def test_legacy_compat_surface_has_removal_window():
-    from loom import __version__
-    from loom.compat import (
-        LEGACY_PUBLIC_API_COMPAT_UNTIL,
-        LEGACY_PUBLIC_API_REMOVAL_VERSION,
-    )
-    from loom.compat.v0 import AgentConfig as LegacyAgentConfig
-    from loom.compat.v0 import ModelRef as LegacyModelRef
-
-    assert __version__ == "0.8.1"
-    assert LEGACY_PUBLIC_API_COMPAT_UNTIL == "0.8.x"
-    assert LEGACY_PUBLIC_API_REMOVAL_VERSION == "0.9.0"
-    assert LegacyAgentConfig is AgentConfig
-    assert LegacyModelRef is ModelRef
-
-
 def test_rejects_legacy_dict_configs():
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
+        Agent(
+            config=AgentConfig(
                 model="anthropic:claude-sonnet-4",  # type: ignore[arg-type]
             )
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 generation={"temperature": 0.1},  # type: ignore[arg-type]
             )
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 heartbeat={"interval": 5.0},  # type: ignore[arg-type]
             )
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 safety_rules=[{"name": "no_delete"}],  # type: ignore[list-item]
             )
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 tools=[lambda query: query],  # type: ignore[list-item]
             )
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 knowledge=["docs"],  # type: ignore[list-item]
             )
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 knowledge=[
                     KnowledgeSource.dynamic(
                         "repo",
@@ -1325,9 +1449,9 @@ def test_rejects_legacy_dict_configs():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 knowledge=[
                     KnowledgeSource(
                         name="repo",
@@ -1338,9 +1462,9 @@ def test_rejects_legacy_dict_configs():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 safety_rules=[
                     SafetyRule.custom(
                         name="custom",
@@ -1352,17 +1476,17 @@ def test_rejects_legacy_dict_configs():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 memory=MemoryConfig(backend="in_memory"),  # type: ignore[arg-type]
             )
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 policy=PolicyConfig(
                     tools={"access": {"allow": ["read_file"]}},  # type: ignore[arg-type]
                 ),
@@ -1370,9 +1494,9 @@ def test_rejects_legacy_dict_configs():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 policy=PolicyConfig(
                     context="default",  # type: ignore[arg-type]
                 ),
@@ -1380,9 +1504,9 @@ def test_rejects_legacy_dict_configs():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 heartbeat=HeartbeatConfig(
                     interrupt_policy={"low": "queue"},  # type: ignore[arg-type]
                 ),
@@ -1390,9 +1514,9 @@ def test_rejects_legacy_dict_configs():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 heartbeat=HeartbeatConfig(
                     watch_sources=[WatchConfig.filesystem(paths=["./src"], method="hash")],  # type: ignore[arg-type]
                 ),
@@ -1400,9 +1524,9 @@ def test_rejects_legacy_dict_configs():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 heartbeat=HeartbeatConfig(
                     watch_sources=[
                         WatchConfig(
@@ -1417,9 +1541,9 @@ def test_rejects_legacy_dict_configs():
     from loom.safety.veto import VetoRule
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 safety_rules=[
                     VetoRule(
                         name="legacy_rule",
@@ -1434,9 +1558,9 @@ def test_rejects_legacy_dict_configs():
 @pytest.mark.asyncio
 async def test_run_without_provider_uses_local_fallback():
     with patch("loom.agent._resolve_provider", return_value=None):
-        agent = create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        agent = Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 knowledge=[KnowledgeSource.inline("repo", ["Loom framework"])],
                 heartbeat=HeartbeatConfig(
                     watch_sources=[
@@ -1513,9 +1637,9 @@ def test_knowledge_payload_uses_metadata_field():
 
 
 def test_agent_resolves_knowledge_into_stable_bundle():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
+    agent = Agent(
+        config=AgentConfig(
+            model=Model.anthropic("claude-sonnet-4"),
             knowledge=[
                 KnowledgeSource.inline(
                     "repo",
@@ -1629,9 +1753,9 @@ def test_custom_safety_rule_uses_evaluator_adapter():
 
 def test_rejects_legacy_runtime_objects():
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 runtime=RuntimeConfig(
                     limits={"max_iterations": 8},  # type: ignore[arg-type]
                 ),
@@ -1639,9 +1763,9 @@ def test_rejects_legacy_runtime_objects():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 policy=PolicyConfig(
                     tools=ToolPolicy(
                         access={"allow": ["read_file"]},  # type: ignore[arg-type]
@@ -1651,9 +1775,9 @@ def test_rejects_legacy_runtime_objects():
         )
 
     with pytest.raises(TypeError):
-        create_agent(
-            AgentConfig(
-                model=ModelRef.anthropic("claude-sonnet-4"),
+        Agent(
+            config=AgentConfig(
+                model=Model.anthropic("claude-sonnet-4"),
                 runtime=RuntimeConfig(
                     features=RuntimeFeatures(
                         fallback="local_summary",  # type: ignore[arg-type]
@@ -1665,9 +1789,9 @@ def test_rejects_legacy_runtime_objects():
 
 @pytest.mark.asyncio
 async def test_runtime_fallback_mode_can_fail_closed():
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.anthropic("claude-sonnet-4"),
+    agent = Agent(
+        config=AgentConfig(
+            model=Model.anthropic("claude-sonnet-4"),
             runtime=RuntimeConfig(
                 features=RuntimeFeatures(
                     fallback=RuntimeFallback(mode=RuntimeFallbackMode.ERROR),
@@ -1684,7 +1808,7 @@ async def test_runtime_fallback_mode_can_fail_closed():
 
 @pytest.mark.asyncio
 async def test_stream_executes_run_and_emits_terminal_event():
-    agent = create_agent(AgentConfig(model=ModelRef.anthropic("claude-sonnet-4")))
+    agent = Agent(config=AgentConfig(model=Model.anthropic("claude-sonnet-4")))
 
     received = []
     async for event in agent.stream("Inspect the project layout"):
@@ -1696,18 +1820,12 @@ async def test_stream_executes_run_and_emits_terminal_event():
 
 @pytest.mark.asyncio
 async def test_engine_finalizes_plain_provider_response_without_completion_phrase():
-    from loom.providers.base import CompletionParams, LLMProvider
+    from loom.providers.base import CompletionResponse, LLMProvider
     from loom.runtime.engine import AgentEngine, EngineConfig
 
     class MockProvider(LLMProvider):
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return "provider smoke test ok"
-
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "provider smoke test ok"
-
-            return _gen()
+        async def _complete_request(self, request) -> CompletionResponse:
+            return CompletionResponse(content="provider smoke test ok")
 
     engine = AgentEngine(
         provider=MockProvider(),
@@ -1726,7 +1844,6 @@ async def test_engine_finalizes_plain_provider_response_without_completion_phras
 @pytest.mark.asyncio
 async def test_agent_run_executes_tool_call_round_trip():
     from loom.providers.base import (
-        CompletionParams,
         CompletionRequest,
         CompletionResponse,
         LLMProvider,
@@ -1743,14 +1860,7 @@ async def test_agent_run_executes_tool_call_round_trip():
             self.calls = 0
             self.requests: list[CompletionRequest] = []
 
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return ""
-
-        async def _complete_response(
-            self,
-            messages: list,
-            params: CompletionParams | None = None,
-        ) -> CompletionResponse:
+        async def _complete_request(self, request: CompletionRequest) -> CompletionResponse:
             raise AssertionError("engine should use complete_request")
 
         async def complete_request(self, request: CompletionRequest) -> CompletionResponse:
@@ -1783,15 +1893,9 @@ async def test_agent_run_executes_tool_call_round_trip():
             )
             return CompletionResponse(content="The answer is 5.")
 
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "The answer is 5."
-
-            return _gen()
-
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.openai("gpt-test"),
+    agent = Agent(
+        config=AgentConfig(
+            model=Model.openai("gpt-test"),
             instructions="Use tools when needed.",
             tools=[add],
         )
@@ -1883,31 +1987,19 @@ async def test_agent_runtime_exposes_semantic_hooks():
 
 @pytest.mark.asyncio
 async def test_provider_health_check_failure_triggers_fallback_error():
-    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+    from loom.providers.base import CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return ""
-
-        async def _complete_response(
-            self,
-            messages: list,
-            params: CompletionParams | None = None,
-        ) -> CompletionResponse:
+        async def _complete_request(self, request) -> CompletionResponse:
+            params = request.params
             if params is not None and params.max_tokens == 1:
                 raise RuntimeError("provider ping failed")
             return CompletionResponse(content="ok")
 
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "ok"
-
-            return _gen()
-
     with patch("loom.agent._resolve_provider", return_value=MockProvider()):
-        agent = create_agent(
-            AgentConfig(
-                model=ModelRef.openai("gpt-test"),
+        agent = Agent(
+            config=AgentConfig(
+                model=Model.openai("gpt-test"),
                 runtime=RuntimeConfig(
                     features=RuntimeFeatures(
                         fallback=RuntimeFallback(mode=RuntimeFallbackMode.ERROR),
@@ -1923,35 +2015,22 @@ async def test_provider_health_check_failure_triggers_fallback_error():
 
 @pytest.mark.asyncio
 async def test_provider_health_check_can_be_disabled_via_runtime_extensions():
-    from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
+    from loom.providers.base import CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
 
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return ""
-
-        async def _complete_response(
-            self,
-            messages: list,
-            params: CompletionParams | None = None,
-        ) -> CompletionResponse:
+        async def _complete_request(self, request) -> CompletionResponse:
             self.calls += 1
             return CompletionResponse(content="provider smoke test ok")
 
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "provider smoke test ok"
-
-            return _gen()
-
     provider = MockProvider()
     with patch("loom.agent._resolve_provider", return_value=provider):
-        agent = create_agent(
-            AgentConfig(
-                model=ModelRef.openai("gpt-test"),
+        agent = Agent(
+            config=AgentConfig(
+                model=Model.openai("gpt-test"),
                 runtime=RuntimeConfig(
                     extensions={"provider_health_check": False},
                 ),
@@ -1964,21 +2043,15 @@ async def test_provider_health_check_can_be_disabled_via_runtime_extensions():
 
 
 def test_runtime_compression_policy_is_propagated_to_engine():
-    from loom.providers.base import CompletionParams, LLMProvider
+    from loom.providers.base import CompletionResponse, LLMProvider
 
     class MockProvider(LLMProvider):
-        async def _complete(self, messages: list, params: CompletionParams | None = None) -> str:
-            return "ok"
+        async def _complete_request(self, request) -> CompletionResponse:
+            return CompletionResponse(content="ok")
 
-        def stream(self, messages: list, params: CompletionParams | None = None):
-            async def _gen():
-                yield "ok"
-
-            return _gen()
-
-    agent = create_agent(
-        AgentConfig(
-            model=ModelRef.openai("gpt-test"),
+    agent = Agent(
+        config=AgentConfig(
+            model=Model.openai("gpt-test"),
             runtime=RuntimeConfig(
                 extensions={
                     "compression_policy": {

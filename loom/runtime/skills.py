@@ -152,7 +152,4 @@ def _truncate_to_token_budget(text: str, budget_tokens: int) -> str:
     return text[: max_chars - 1].rstrip() + "..."
 
 
-# Backward-compatible alias — kept through 0.8.x
-SkillInjectionPolicy = SkillInjection
-
-__all__ = ["SkillInjection", "SkillInjectionPolicy"]
+__all__ = ["SkillInjection"]

@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -213,43 +213,6 @@ class MemoryExtractor:
         return records
 
 
-class MemoryProvider(ABC):
-    """Legacy pluggable long-term memory provider.
-
-    Providers can contribute recalled context before a run and observe the
-    completed user/assistant turn after the run.  Methods are synchronous for
-    now to keep the provider contract simple.
-
-    Compatibility: prefer ``MemorySource`` for new integrations.  This provider
-    contract remains as a 0.8.x bridge and can be removed in a later major line.
-    """
-
-    name: ClassVar[str] = "custom"
-
-    def is_available(self) -> bool:
-        """Return whether this provider is configured and ready."""
-        return True
-
-    def system_prompt(self) -> str:
-        """Optional static memory guidance appended to the system prompt."""
-        return ""
-
-    def prefetch(self, query: str, *, session_id: str | None = None) -> str:
-        """Return recalled context for the next run."""
-        _ = query, session_id
-        return ""
-
-    def sync_turn(
-        self,
-        user_content: str,
-        assistant_content: str,
-        *,
-        session_id: str | None = None,
-    ) -> None:
-        """Persist or learn from one completed turn."""
-        _ = user_content, assistant_content, session_id
-
-
 @dataclass(slots=True)
 class MemorySource:
     """Declarative long-term memory source for user-facing configuration."""
@@ -356,8 +319,71 @@ class MemoryConfig:
     backend: MemoryBackend = field(default_factory=MemoryBackend.in_memory)
     namespace: str | None = None
     sources: list[MemorySource] = field(default_factory=list)
-    providers: list[MemoryProvider] = field(default_factory=list)
     extensions: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def none(cls) -> MemoryConfig:
+        """Disable runtime memory."""
+        return cls(enabled=False)
+
+    @classmethod
+    def session(
+        cls,
+        *,
+        backend: MemoryBackend | None = None,
+        namespace: str | None = None,
+        extensions: dict[str, Any] | None = None,
+    ) -> MemoryConfig:
+        """Enable session-scoped memory."""
+        return cls(
+            enabled=True,
+            backend=backend or MemoryBackend.in_memory(),
+            namespace=namespace,
+            extensions=dict(extensions or {}),
+        )
+
+    @classmethod
+    def with_sources(
+        cls,
+        sources: list[MemorySource],
+        *,
+        backend: MemoryBackend | None = None,
+        namespace: str | None = None,
+        extensions: dict[str, Any] | None = None,
+    ) -> MemoryConfig:
+        """Enable memory with explicit long-term memory sources."""
+        return cls(
+            enabled=True,
+            backend=backend or MemoryBackend.in_memory(),
+            namespace=namespace,
+            sources=list(sources),
+            extensions=dict(extensions or {}),
+        )
+
+    @classmethod
+    def semantic(
+        cls,
+        store: MemoryStore,
+        *,
+        name: str = "semantic",
+        resolver: MemoryResolver | None = None,
+        extractor: MemoryExtractor | None = None,
+        instructions: str = "",
+        top_k: int = 5,
+    ) -> MemoryConfig:
+        """Enable semantic memory backed by a memory store."""
+        return cls.with_sources(
+            [
+                MemorySource.long_term(
+                    name,
+                    resolver=resolver,
+                    extractor=extractor,
+                    store=store,
+                    instructions=instructions,
+                    top_k=top_k,
+                )
+            ]
+        )
 
 
 def _normalize_memory_records(records: list[str] | list[MemoryRecord]) -> list[MemoryRecord]:

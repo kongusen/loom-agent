@@ -22,13 +22,15 @@
 Loom is an embeddable Agent SDK that helps developers build agent platform capabilities similar to [Hermes](https://github.com/nousresearch/hermes-agent) and [OpenClaw](https://github.com/openclaw/openclaw) with less overhead. It is not a gateway product, cron service, dashboard, or skill marketplace. The kernel gives application developers a stable language for building agent runtimes:
 
 ```text
-Agent + Runtime + Capability
+Agent + Model + Runtime
+    + capabilities=[Files/Web/Shell/MCP]
+    + skills=[Skill]
     -> Run / Session
     -> RuntimeTask / RuntimeSignal
     -> Context / Continuity / Harness / Quality / Governance / Feedback
 ```
 
-The `0.8.0` line stabilizes this runtime kernel. The `0.8.1` line completes the subsystem shortcuts for orchestration, knowledge, cron, and the new `MemorySource` API. Legacy 0.x compatibility imports remain available through `0.8.x` and are scheduled for removal in `0.9.0`.
+The `0.8.x` line centers the public SDK on this runtime kernel and its subsystem shortcuts for orchestration, knowledge, cron, and `MemorySource`.
 
 ## Search Keywords
 
@@ -70,23 +72,36 @@ Teams that need an embeddable Python agent SDK with modular orchestration, memor
 
 ## Runtime Kernel And Subsystems
 
-The runtime kernel is the shared execution boundary for Loom subsystems. Each subsystem is configured from the user-side `Agent(...)` API, normalized into `Runtime` and `Capability` objects, and then executed through the same run/session loop:
+The runtime kernel is the shared execution boundary for Loom subsystems. Loom keeps a strict three-layer shape:
 
 ```text
-Agent API
-    -> RuntimeConfig + CapabilitySpec + Source configs
+Public SDK Layer
+    Agent / Session / Run / RuntimeTask / RuntimeSignal
+
+Assembly Layer
+    config normalization / provider resolution / tool compilation / ecosystem activation
+
+Runtime Kernel
+    AgentEngine / Context / L* loop / governed tools / policies / state
+```
+
+Each subsystem is configured from the user-side `Agent(...)` API, normalized into `Runtime`, `Capability`, and source objects, and then executed through the same run/session loop:
+
+```text
+Agent(...)
+    -> RuntimeConfig + CapabilitySpec + source configs
     -> AgentEngine
-    -> Context partitions + RuntimeSignal + governed tools
+    -> Context partitions + RuntimeSignal + governed capability path
     -> Harness / Quality / Continuity / Feedback
 ```
 
-The seven user-facing subsystems depend on the kernel in different ways:
+The user-facing subsystems depend on the kernel in different ways:
 
 | Subsystem | Kernel dependency | Capability provided |
 |---|---|---|
 | Tool Use | `Capability`, tool registry, `GovernancePolicy` | Exposes Python tools, shell, files, web, MCP, and builtin tools behind permission, read-only, rate-limit, and veto checks. |
-| Memory | `ContextProtocol`, memory partition, session restore, `MemorySource` lifecycle | Recalls durable application memory at run start and writes extracted memories at run end, separate from session history. |
-| Skills | `Capability.skill(...)`, ecosystem loader, tool registry | Loads task-specific instructions and tools progressively without making every skill part of the base prompt. |
+| Memory | `ContextPolicy`, memory partition, session restore, `MemorySource` lifecycle | Recalls durable application memory at run start and writes extracted memories at run end, separate from session history. |
+| Skills | `Skill`, ecosystem loader, tool registry | Loads task-specific instructions and tools progressively without making every skill part of the base prompt. |
 | Harness | `Runtime.harness`, `HarnessRequest`, `HarnessOutcome`, `QualityGate` | Controls how a run is attempted: single pass, generator/evaluator loops, custom candidate generation, human gates, or external workflows. |
 | Gateway / Orchestration | `RuntimeSignal`, `AttentionPolicy`, `DelegationPolicy`, coordinator | Normalizes external events and subtask delegation into the same signal and runtime decision path. |
 | Knowledge | `KnowledgeSource`, `KnowledgeResolver`, `C_working.knowledge_surface` | Injects run-scoped evidence, active questions, citations, and on-demand retrieval without polluting long-term memory. |
@@ -103,6 +118,14 @@ At run time these subsystems cooperate through the same loop:
 
 This keeps integrations modular: new gateways, schedulers, retrievers, memory stores, or skills do not bypass the kernel; they adapt into the kernel contracts.
 
+The governed capability path is intentionally explicit:
+
+```text
+Tool request -> Hook -> Permission -> Veto -> Rate limit -> Execute -> Observe
+```
+
+`tools` are precise Python function tools. `capabilities` are higher-level declarations such as files, web, shell, MCP, skills, or plugins. Both compile into the same governed tool path.
+
 ## Install
 
 ```bash
@@ -115,7 +138,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```python
 import asyncio
 
-from loom import Agent, Capability, Generation, Model, Runtime, tool
+from loom import Agent, Files, Generation, Model, Runtime, Web, tool
 
 
 @tool(description="Search documentation", read_only=True)
@@ -129,8 +152,8 @@ async def main():
         instructions="You are a concise coding assistant.",
         tools=[search_docs],
         capabilities=[
-            Capability.files(read_only=True),
-            Capability.web(),
+            Files(read_only=True),
+            Web.enabled(),
         ],
         generation=Generation(max_output_tokens=512),
         runtime=Runtime.sdk(),
@@ -150,13 +173,19 @@ Use `from loom import ...` for normal application code:
 ```python
 from loom import (
     Agent,
-    Capability,
+    Cron,
+    Files,
+    Gateway,
     Harness,
     HarnessCandidate,
     HarnessOutcome,
     HarnessRequest,
+    Instructions,
+    Knowledge,
     KnowledgeResolver,
     KnowledgeSource,
+    MCP,
+    Memory,
     MemoryConfig,
     MemoryExtractor,
     MemoryQuery,
@@ -172,8 +201,11 @@ from loom import (
     ScheduleConfig,
     ScheduledJob,
     SessionConfig,
+    Shell,
     SignalAdapter,
+    Skill,
     RunContext,
+    Web,
     tool,
 )
 ```
@@ -192,9 +224,11 @@ Agent(...)
 
 Advanced configuration objects still live behind the same public facade or `loom.config`:
 
-- `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain available through `0.8.x`.
-- New docs and examples prefer `Agent`, `Model`, `Generation`, `Runtime`, and `Capability`.
-- `loom.compat.v0` is the explicit legacy compatibility surface and is planned for removal in `0.9.0`.
+- Application code should start from `Agent(...)`.
+- New docs and examples use `Agent`, `Model`, `Generation`, `Runtime`, `Memory`,
+  `Knowledge`, `Skill`, `Gateway`, `Cron`, and capability entries such as
+  `Files`, `Web`, `Shell`, and `MCP`.
+- Lower-level configuration objects remain available through `loom.config`.
 
 ## Runtime Language
 
@@ -222,7 +256,7 @@ Runtime policies are composed through `Runtime`:
 
 ```python
 from loom import (
-    ContextProtocol,
+    ContextPolicy,
     ContinuityPolicy,
     DelegationPolicy,
     FeedbackPolicy,
@@ -234,7 +268,7 @@ from loom import (
 )
 
 runtime = Runtime(
-    context=ContextProtocol.manager(max_tokens=120000),
+    context=ContextPolicy.manager(max_tokens=120000),
     continuity=ContinuityPolicy.handoff(),
     harness=Harness.single_run(),
     quality=QualityGate.criteria(["tests stay green"]),
@@ -325,17 +359,20 @@ advanced = Agent(
 
 ## Capabilities
 
-`Capability` is the user-side language for what an agent can do. Built-in capabilities compile into the same governed tool path as explicit function tools.
+Use direct capability entries for common ability surfaces. They compile into the
+same governed tool path as explicit function tools.
 
 ```python
 agent = Agent(
     model=Model.openai("gpt-5.1"),
     capabilities=[
-        Capability.files(read_only=True),
-        Capability.web(),
-        Capability.shell(require_approval=True),
-        Capability.mcp("github", command="github-mcp", connect=False),
-        Capability.skill(
+        Files(read_only=True),
+        Web.enabled(),
+        Shell.approval_required(),
+        MCP.server("github", command="github-mcp", connect=False),
+    ],
+    skills=[
+        Skill.inline(
             "repo-review",
             content="# Review\nCheck diffs, risks, and test results.",
             when_to_use="review,diff",
@@ -346,6 +383,20 @@ agent = Agent(
 ```
 
 Capability use is checked by `GovernancePolicy`, including permission, veto, rate-limit, read-only, and destructive-operation boundaries.
+
+Use `tools=` when you already have a concrete Python callable to register. Use `capabilities=` when you want to grant a class of abilities that Loom compiles into tools at runtime.
+
+| Input | User intent | Runtime result |
+|---|---|---|
+| `tools=[fn]` | Add one exact function tool | `ToolSpec -> ToolRegistry` |
+| `Files(read_only=True)` | Grant file access | Built-in file toolset |
+| `Web.enabled()` | Grant web research | Built-in web toolset |
+| `Shell.approval_required()` | Grant shell execution | Shell toolset with approval policy |
+| `MCP.server("github")` | Attach external MCP tools | MCP activation + scoped tools |
+| `Skill.inline("review", ...)` | Add task-specific behavior | Skill activation + optional tools/context |
+
+`Capability` remains available from `loom.runtime` for advanced architecture-level
+declarations, but the documented user path uses the direct domain names above.
 
 ## Runtime Signals
 
@@ -521,7 +572,7 @@ agent = Agent(
 )
 ```
 
-At run start, each `MemorySource` retrieves records and injects them into the memory partition. At run end, its extractor can produce records and write them through the store. `MemoryProvider` remains available as a legacy compatibility bridge in `0.8.x`; new code should use `MemorySource`.
+At run start, each `MemorySource` retrieves records and injects them into the memory partition. At run end, its extractor can produce records and write them through the store. `MemorySource` is the single public extension point for durable memory integrations.
 
 ## Hooks And Events
 
@@ -629,8 +680,8 @@ result = await agent.run(
 ## Architecture
 
 ```text
-loom/agent.py              public Agent API and compatibility factory
-loom/config.py             public config facade and 0.8 aliases
+loom/agent.py              public Agent API
+loom/config.py             public advanced config facade
 loom/runtime/              runs, sessions, engine, signals, policies
 loom/context/              partitions, compression, renewal, handoff
 loom/tools/                tool registry, execution, governance path
@@ -651,12 +702,12 @@ The kernel concepts are:
 | `RuntimeTask` | Structured work request |
 | `RuntimeSignal` | External input from gateways, cron, heartbeat, apps |
 | `AttentionPolicy` | Decides how signals affect execution |
-| `ContextProtocol` | Context partitioning, rendering, compaction, renewal |
+| `ContextPolicy` | Context partitioning, rendering, compaction, renewal |
 | `ContinuityPolicy` | Continuation after reset or compaction |
 | `Harness` | Long-task execution strategy |
 | `QualityGate` | Acceptance criteria and PASS/FAIL evaluation |
 | `DelegationPolicy` | Subtask and sub-agent dispatch boundary |
-| `Capability` | Tools, Toolsets, MCP, skills, and future ability sources |
+| `Files` / `Web` / `Shell` / `MCP` / `Skill` | User-facing ability and skill declarations |
 | `GovernancePolicy` | Permission, veto, rate limit, read-only/destructive checks |
 | `FeedbackPolicy` | Runtime feedback collection and evolution input |
 
@@ -664,9 +715,8 @@ The kernel concepts are:
 
 - `0.8.0` is the public API stabilization line for the SDK runtime kernel.
 - `0.8.1` completes the seven subsystem integration layer: Tool Use, Memory, Skills, Harness, Gateway/Orchestration, Knowledge, and Cron.
-- `0.8.x` keeps compatibility exports for existing applications.
-- `loom.compat.v0` is the explicit legacy compatibility namespace.
-- `0.9.0` removes the legacy compatibility surface.
+- `0.8.2` separates the intuitive public user API from runtime mechanism APIs and removes the old compat layer.
+- Public docs and examples stay centered on `Agent + Model + Runtime` with direct user-facing ability declarations.
 
 ## Validation
 
@@ -678,7 +728,7 @@ poetry run mypy loom
 poetry run pytest -q
 ```
 
-Latest full suite during the 0.8.1 subsystem pass: `565 passed`.
+Latest full suite during the 0.8.2 API convergence pass: `588 passed`.
 
 ## License
 

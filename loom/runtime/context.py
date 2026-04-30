@@ -27,12 +27,6 @@ class ContextMetrics:
     should_renew: bool
     compression_strategy: str | None = None
 
-    @property
-    def utilization(self) -> float:
-        """Context utilization ratio — alias for ``rho``."""
-        return self.rho
-
-
 @dataclass(slots=True)
 class ContextSnapshot:
     """Point-in-time view of the runtime context."""
@@ -104,10 +98,6 @@ class ContextPolicy:
     @staticmethod
     def from_manager(manager: ContextManager) -> ManagedContextAdapter:
         return ManagedContextAdapter(manager)
-
-
-# Backward-compatible alias — kept through 0.8.x
-ContextProtocol = ContextPolicy
 
 
 class ManagedContextAdapter:
@@ -203,8 +193,3 @@ class ManagedContextAdapter:
         decision: SignalDecision | None = None,
     ) -> None:
         self.manager.ingest_signal(signal, decision)
-
-
-# Backward-compatible aliases — kept through 0.8.x
-ManagedContextProtocol = ManagedContextAdapter
-RuntimeContextProtocol = RuntimeContextPolicy

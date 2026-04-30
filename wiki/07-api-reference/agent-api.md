@@ -9,21 +9,21 @@ Agent(...)
     -> Run / Session
 ```
 
-`AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain available for compatibility and advanced configuration, but new application code should start from `Agent(...)`.
+Lower-level configuration objects remain available from `loom.config` for advanced use, but application code should start from `Agent(...)`.
 
 ## 1. `Agent`
 
 `Agent` is the top-level execution object.
 
 ```python
-from loom import Agent, Capability, Model, Runtime
+from loom import Agent, Files, Model, Runtime, Web
 
 agent = Agent(
     model=Model.openai("gpt-5.1"),
     instructions="You are a code assistant.",
     capabilities=[
-        Capability.files(read_only=True),
-        Capability.web(),
+        Files(read_only=True),
+        Web.enabled(),
     ],
     runtime=Runtime.sdk(),
 )
@@ -36,7 +36,8 @@ Common constructor fields:
 | `model` | Provider-backed model reference, usually `Model.openai(...)`, `Model.anthropic(...)`, etc. |
 | `instructions` | Stable behavior instructions |
 | `tools` | Explicit Python tools declared with `@tool` |
-| `capabilities` | Files, web, shell, MCP, skill, or custom capability sources |
+| `capabilities` | Files, web, shell, MCP, or custom capability sources |
+| `skills` | Task-specific skill declarations |
 | `generation` | Model generation controls |
 | `runtime` | Runtime profile or custom policy composition |
 | `session_store` | Optional durable session persistence |
@@ -305,7 +306,7 @@ Common parameters:
 ```python
 import asyncio
 
-from loom import Agent, Capability, Generation, Model, RunContext, Runtime, SessionConfig, tool
+from loom import Agent, Files, Generation, Model, RunContext, Runtime, SessionConfig, tool
 
 
 @tool(description="Search repository docs", read_only=True)
@@ -319,7 +320,7 @@ async def main():
         instructions="You are a repository assistant.",
         generation=Generation(temperature=0.2, max_output_tokens=512),
         tools=[search_docs],
-        capabilities=[Capability.files(read_only=True)],
+        capabilities=[Files(read_only=True)],
         runtime=Runtime.long_running(criteria=["answers cite repo evidence"]),
     )
 

@@ -4,7 +4,6 @@ from loom import (
     Agent,
     ContextMetrics,
     ContextPolicy,
-    ContextProtocol,
     ContextSnapshot,
     Model,
     Runtime,
@@ -12,11 +11,6 @@ from loom import (
 from loom.context import ContextManager, ContextPartitions
 from loom.runtime import RuntimeTask
 from loom.types import Message
-
-
-def test_context_policy_is_context_protocol() -> None:
-    """ContextProtocol is a backward-compatible alias for ContextPolicy."""
-    assert ContextProtocol is ContextPolicy
 
 
 def test_context_policy_manager_renders_task_goal() -> None:
@@ -84,13 +78,6 @@ def test_agent_runtime_accepts_context_policy() -> None:
     assert engine.context_protocol is context
     assert engine.context_manager is context
     assert engine.context_manager.measure().max_tokens == 12_345
-
-
-def test_context_metrics_utilization_alias() -> None:
-    context = ContextPolicy.manager(max_tokens=10_000)
-    context.partitions.history.append(Message(role="assistant", content="done"))
-    metrics = context.measure()
-    assert metrics.utilization == metrics.rho
 
 
 def test_context_policy_keeps_context_partitions_shape() -> None:

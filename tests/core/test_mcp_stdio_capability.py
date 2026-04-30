@@ -8,10 +8,10 @@ from typing import Any
 
 import pytest
 
-from loom import Agent, Capability, Model, Runtime, SessionConfig
+from loom import Agent, Model, Runtime, SessionConfig
 from loom.config import PolicyConfig, ToolAccessPolicy, ToolPolicy
 from loom.providers.base import CompletionRequest, CompletionResponse, LLMProvider
-from loom.runtime import GovernancePolicy
+from loom.runtime import Capability, GovernancePolicy
 from loom.types import ToolCall
 
 

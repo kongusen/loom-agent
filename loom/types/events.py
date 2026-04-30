@@ -34,7 +34,3 @@ class HeartbeatEvent:
     def __post_init__(self):
         if self.timestamp == 0.0:
             self.timestamp = time.time()
-
-
-# Backward-compatible alias for multi-agent communication events.
-Event = CoordinationEvent

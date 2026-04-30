@@ -1,20 +1,23 @@
 """Stable configuration vocabulary for the Loom agent API.
 
-This module is a public compatibility facade.  The implementation lives in
-``loom._config`` so configuration contracts can evolve by domain without
-growing one oversized module.
+The implementation lives in ``loom._config`` so configuration contracts can
+evolve by domain without growing one oversized module.
 """
 
 from __future__ import annotations
 
 from ._config import (
+    MCP,
     AgentConfig,
-    AgentSpec,
+    Cron,
+    Files,
     FilesystemWatchMethod,
+    Gateway,
     Generation,
-    GenerationConfig,
     HeartbeatConfig,
     HeartbeatInterruptPolicy,
+    Instructions,
+    Knowledge,
     KnowledgeBundle,
     KnowledgeCitation,
     KnowledgeDocument,
@@ -27,7 +30,6 @@ from ._config import (
     MemoryBackend,
     MemoryConfig,
     MemoryExtractor,
-    MemoryProvider,
     MemoryQuery,
     MemoryRecall,
     MemoryRecord,
@@ -35,7 +37,6 @@ from ._config import (
     MemorySource,
     MemoryStore,
     Model,
-    ModelRef,
     OrchestrationConfig,
     PolicyConfig,
     PolicyContext,
@@ -50,6 +51,8 @@ from ._config import (
     SafetyRule,
     ScheduleConfig,
     ScheduledJob,
+    Shell,
+    Skill,
     ToolAccessPolicy,
     ToolHandler,
     ToolParameterSpec,
@@ -59,12 +62,11 @@ from ._config import (
     ToolSpec,
     WatchConfig,
     WatchKind,
+    Web,
 )
 
 __all__ = [
-    "ModelRef",
     "Model",
-    "GenerationConfig",
     "Generation",
     "ToolParameterSpec",
     "ToolHandler",
@@ -84,7 +86,6 @@ __all__ = [
     "MemoryResolver",
     "MemoryExtractor",
     "MemorySource",
-    "MemoryProvider",
     "Memory",
     "WatchKind",
     "FilesystemWatchMethod",
@@ -112,5 +113,13 @@ __all__ = [
     "KnowledgeResolver",
     "KnowledgeSource",
     "AgentConfig",
-    "AgentSpec",
+    "Instructions",
+    "Files",
+    "Web",
+    "Shell",
+    "MCP",
+    "Skill",
+    "Knowledge",
+    "Gateway",
+    "Cron",
 ]

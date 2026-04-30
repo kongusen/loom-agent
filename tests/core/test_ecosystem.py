@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from loom.agent import Agent
-from loom.config import AgentConfig, ModelRef
+from loom.config import AgentConfig, Model
 from loom.ecosystem.integration import EcosystemManager
 from loom.ecosystem.mcp import (
     MCPBridge,
@@ -201,7 +201,7 @@ class TestMCPOperations:
 def _make_agent(**kwargs):
     return Agent(
         config=AgentConfig(
-            model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+            model=Model(provider="anthropic", name="claude-3-5-sonnet-20241022"),
             **kwargs,
         )
     )
@@ -217,9 +217,10 @@ class TestAgentEcosystemIntegration:
         assert eco is not None
         assert eco is agent.ecosystem  # singleton
 
-    def test_mcp_bridge_delegates_to_ecosystem(self):
+    def test_mcp_bridge_is_owned_by_ecosystem(self):
         agent = _make_agent()
-        assert agent.mcp_bridge is agent.ecosystem.mcp_bridge
+        assert not hasattr(agent, "mcp_bridge")
+        assert agent.ecosystem.mcp_bridge is not None
 
     def test_configure_ecosystem_noop_when_untouched(self):
         agent = _make_agent()

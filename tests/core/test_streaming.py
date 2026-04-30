@@ -1,10 +1,17 @@
-"""Tests for Mode B streaming (typed StreamEvent pipeline)."""
+"""Tests for request-native typed streaming."""
 
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+
+def _request(messages=None, params=None):
+    from loom.providers.base import CompletionRequest
+
+    return CompletionRequest.create(messages or [], params)
+
 
 # ── StreamEvent type tests ────────────────────────────────────────────────────
 
@@ -63,12 +70,12 @@ class TestStreamEventTypes:
         assert StreamEvent is not None
 
 
-# ── Provider base stream_events fallback ─────────────────────────────────────
+# ── Provider base request streaming fallback ─────────────────────────────────
 
 
-class TestProviderBaseStreamEvents:
+class TestProviderBaseRequestStreaming:
     @pytest.mark.asyncio
-    async def test_completion_request_delegates_to_legacy_provider_methods(self):
+    async def test_completion_request_uses_request_native_provider_method(self):
         from loom.providers.base import (
             CompletionParams,
             CompletionRequest,
@@ -77,17 +84,13 @@ class TestProviderBaseStreamEvents:
         )
 
         class MockProvider(LLMProvider):
-            async def _complete(self, messages, params=None):
-                return "unused"
-
-            async def _complete_response(self, messages, params=None):
+            async def _complete_request(self, request):
+                messages = request.messages
+                params = request.params
                 assert messages == [{"role": "user", "content": "hi"}]
                 assert params is not None
                 assert params.model == "gpt-test"
                 return CompletionResponse(content="ok")
-
-            async def stream(self, messages, params=None):
-                yield "ok"
 
         provider = MockProvider()
         request = CompletionRequest.create(
@@ -102,7 +105,7 @@ class TestProviderBaseStreamEvents:
         assert request.metadata["run_id"] == "r1"
 
     @pytest.mark.asyncio
-    async def test_default_stream_events_yields_text_and_tool_calls(self):
+    async def test_default_stream_request_events_yields_text_and_tool_calls(self):
         from loom.providers.base import (
             CompletionParams,
             CompletionResponse,
@@ -112,21 +115,15 @@ class TestProviderBaseStreamEvents:
         from loom.types.stream import TextDelta, ToolCallEvent
 
         class MockProvider(LLMProvider):
-            async def _complete(self, messages, params=None):
-                return "hello"
-
-            async def _complete_response(self, messages, params=None):
+            async def _complete_request(self, request):
                 return CompletionResponse(
                     content="hello world",
                     tool_calls=[ToolCall(id="c1", name="search", arguments={"q": "test"})],
                 )
 
-            async def stream(self, messages, params=None):
-                yield "hello world"
-
         provider = MockProvider()
         events = []
-        async for ev in provider.stream_events([], CompletionParams()):
+        async for ev in provider.stream_request_events(_request([], CompletionParams())):
             events.append(ev)
 
         assert any(isinstance(ev, TextDelta) for ev in events)
@@ -137,31 +134,24 @@ class TestProviderBaseStreamEvents:
         assert tool_ev.name == "search"
 
     @pytest.mark.asyncio
-    async def test_default_stream_events_empty_content(self):
+    async def test_default_stream_request_events_empty_content(self):
         from loom.providers.base import CompletionParams, CompletionResponse, LLMProvider
 
         class EmptyProvider(LLMProvider):
-            async def _complete(self, messages, params=None):
-                return ""
-
-            async def _complete_response(self, messages, params=None):
+            async def _complete_request(self, request):
                 return CompletionResponse(content="", tool_calls=[])
-
-            async def stream(self, messages, params=None):
-                return
-                yield
 
         provider = EmptyProvider()
         events = []
-        async for ev in provider.stream_events([], CompletionParams()):
+        async for ev in provider.stream_request_events(_request([], CompletionParams())):
             events.append(ev)
         assert events == []
 
 
-# ── AnthropicProvider stream_events ──────────────────────────────────────────
+# ── AnthropicProvider stream_request_events ──────────────────────────────────
 
 
-class TestAnthropicProviderStreamEvents:
+class TestAnthropicProviderStreamRequestEvents:
     def _make_event(self, type_str: str, **kwargs):
         obj = MagicMock()
         obj.type = type_str
@@ -186,7 +176,7 @@ class TestAnthropicProviderStreamEvents:
         provider = AnthropicProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "hi"}]):
+        async for ev in provider.stream_request_events(_request([{"role": "user", "content": "hi"}])):
             events.append(ev)
 
         assert any(isinstance(ev, TextDelta) and ev.delta == "hello" for ev in events)
@@ -218,7 +208,9 @@ class TestAnthropicProviderStreamEvents:
         provider = AnthropicProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "search"}]):
+        async for ev in provider.stream_request_events(
+            _request([{"role": "user", "content": "search"}])
+        ):
             events.append(ev)
 
         tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
@@ -243,7 +235,9 @@ class TestAnthropicProviderStreamEvents:
         provider = AnthropicProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "think"}]):
+        async for ev in provider.stream_request_events(
+            _request([{"role": "user", "content": "think"}])
+        ):
             events.append(ev)
 
         thinking = [e for e in events if isinstance(e, ThinkingDelta)]
@@ -285,17 +279,19 @@ class TestAnthropicProviderStreamEvents:
         provider = AnthropicProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "search"}]):
+        async for ev in provider.stream_request_events(
+            _request([{"role": "user", "content": "search"}])
+        ):
             events.append(ev)
 
         tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
         assert tc_events == [ToolCallEvent(id="call_1", name="search", arguments={})]
 
 
-# ── OpenAIProvider stream_events ─────────────────────────────────────────────
+# ── OpenAIProvider stream_request_events ─────────────────────────────────────
 
 
-class TestOpenAIProviderStreamEvents:
+class TestOpenAIProviderStreamRequestEvents:
     def _make_chunk(self, content=None, tool_calls=None, reasoning=None):
         chunk = MagicMock()
         delta = MagicMock()
@@ -321,7 +317,7 @@ class TestOpenAIProviderStreamEvents:
         provider = OpenAIProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "hi"}]):
+        async for ev in provider.stream_request_events(_request([{"role": "user", "content": "hi"}])):
             events.append(ev)
 
         text_events = [e for e in events if isinstance(e, TextDelta)]
@@ -364,7 +360,9 @@ class TestOpenAIProviderStreamEvents:
         provider = OpenAIProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "search"}]):
+        async for ev in provider.stream_request_events(
+            _request([{"role": "user", "content": "search"}])
+        ):
             events.append(ev)
 
         tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
@@ -405,7 +403,9 @@ class TestOpenAIProviderStreamEvents:
         provider = OpenAIProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "search"}]):
+        async for ev in provider.stream_request_events(
+            _request([{"role": "user", "content": "search"}])
+        ):
             events.append(ev)
 
         tc_events = [e for e in events if isinstance(e, ToolCallEvent)]
@@ -429,7 +429,9 @@ class TestOpenAIProviderStreamEvents:
 
         params = CompletionParams(extensions={"expose_reasoning": True})
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "think"}], params):
+        async for ev in provider.stream_request_events(
+            _request([{"role": "user", "content": "think"}], params)
+        ):
             events.append(ev)
 
         thinking = [e for e in events if isinstance(e, ThinkingDelta)]
@@ -452,7 +454,7 @@ class TestOpenAIProviderStreamEvents:
         provider = OpenAIProvider(api_key="test", client=mock_client)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "hi"}]):
+        async for ev in provider.stream_request_events(_request([{"role": "user", "content": "hi"}])):
             events.append(ev)
 
         # No ThinkingDelta — reasoning_ext_key is None on base OpenAIProvider
@@ -486,10 +488,10 @@ class TestProviderReasoningExtKeys:
         assert OllamaProvider._reasoning_ext_key is None
 
 
-# ── GeminiProvider stream_events ─────────────────────────────────────────────
+# ── GeminiProvider stream_request_events ─────────────────────────────────────
 
 
-class TestGeminiProviderStreamEvents:
+class TestGeminiProviderStreamRequestEvents:
     @pytest.mark.asyncio
     async def test_text_delta_events(self):
         from loom.providers.gemini import GeminiProvider
@@ -513,7 +515,7 @@ class TestGeminiProviderStreamEvents:
         provider = GeminiProvider(api_key="test", client=mock_genai)
 
         events = []
-        async for ev in provider.stream_events([{"role": "user", "content": "hi"}]):
+        async for ev in provider.stream_request_events(_request([{"role": "user", "content": "hi"}])):
             events.append(ev)
 
         text_events = [e for e in events if isinstance(e, TextDelta)]
@@ -525,22 +527,22 @@ class TestGeminiProviderStreamEvents:
 
 
 class TestEngineExecuteStreaming:
-    def _make_engine(self, stream_events_side_effect=None):
+    def _make_engine(self, stream_request_events_side_effect=None):
         from loom.runtime.engine import AgentEngine, EngineConfig
         from loom.types.stream import TextDelta
 
         provider = MagicMock()
 
-        async def _default_stream_events(messages, params=None):
+        async def _default_stream_request_events(request):
             yield TextDelta(delta="final answer")
 
-        provider.stream_events = (
-            _default_stream_events
-            if stream_events_side_effect is None
-            else stream_events_side_effect
+        provider.stream_request_events = (
+            _default_stream_request_events
+            if stream_request_events_side_effect is None
+            else stream_request_events_side_effect
         )
-        provider.complete_response = AsyncMock()
-        provider.complete_streaming = AsyncMock()
+        provider.complete_request = AsyncMock()
+        provider.complete_request_streaming = AsyncMock()
 
         return AgentEngine(provider=provider, config=EngineConfig(enable_memory=False))
 
@@ -566,7 +568,7 @@ class TestEngineExecuteStreaming:
 
         call_count = [0]
 
-        async def _stream(messages, params=None):
+        async def _stream(request):
             if call_count[0] == 0:
                 # First call: emit a tool call
                 yield ToolCallEvent(id="c1", name="greet", arguments={"name": "world"})
@@ -576,9 +578,9 @@ class TestEngineExecuteStreaming:
             call_count[0] += 1
 
         provider = MagicMock()
-        provider.stream_events = _stream
-        provider.complete_response = AsyncMock()
-        provider.complete_streaming = AsyncMock()
+        provider.stream_request_events = _stream
+        provider.complete_request = AsyncMock()
+        provider.complete_request_streaming = AsyncMock()
 
         async def greet_handler(name: str = "") -> str:
             return f"Hello, {name}!"
@@ -607,13 +609,13 @@ class TestEngineExecuteStreaming:
         from loom.runtime.engine import AgentEngine, EngineConfig
         from loom.types.stream import ErrorEvent
 
-        async def _failing_stream(messages, params=None):
+        async def _failing_stream(request):
             raise RuntimeError("provider exploded")
             yield  # make it a generator
 
         provider = MagicMock()
-        provider.stream_events = _failing_stream
-        provider.complete_response = AsyncMock()
+        provider.stream_request_events = _failing_stream
+        provider.complete_request = AsyncMock()
 
         engine = AgentEngine(provider=provider, config=EngineConfig(enable_memory=False))
         events = []
@@ -632,25 +634,25 @@ class TestAgentRunStreaming:
     @pytest.mark.asyncio
     async def test_run_streaming_yields_events(self):
         from loom.agent import Agent
-        from loom.config import AgentConfig, ModelRef
+        from loom.config import AgentConfig, Model
         from loom.types.stream import DoneEvent, TextDelta
 
-        async def _stream_events(messages, params=None):
+        async def _stream_request_events(request):
             from loom.types.stream import TextDelta
 
             yield TextDelta(delta="streamed answer")
 
         mock_provider = MagicMock()
-        mock_provider.stream_events = _stream_events
-        mock_provider.complete_response = AsyncMock()
-        mock_provider.complete_streaming = AsyncMock()
+        mock_provider.stream_request_events = _stream_request_events
+        mock_provider.complete_request = AsyncMock()
+        mock_provider.complete_request_streaming = AsyncMock()
         mock_provider._retry = MagicMock()
         mock_provider._circuit = MagicMock()
         mock_provider._circuit.is_open.return_value = False
 
         agent = Agent(
             config=AgentConfig(
-                model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+                model=Model(provider="anthropic", name="claude-3-5-sonnet-20241022"),
             )
         )
         agent._provider = mock_provider
@@ -669,12 +671,12 @@ class TestAgentRunStreaming:
     @pytest.mark.asyncio
     async def test_run_streaming_provider_unavailable(self):
         from loom.agent import Agent
-        from loom.config import AgentConfig, ModelRef
+        from loom.config import AgentConfig, Model
         from loom.types.stream import ErrorEvent
 
         agent = Agent(
             config=AgentConfig(
-                model=ModelRef(provider="anthropic", name="claude-3-5-sonnet-20241022"),
+                model=Model(provider="anthropic", name="claude-3-5-sonnet-20241022"),
             )
         )
         # No provider set, no API key → provider will be None

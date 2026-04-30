@@ -1,40 +1,12 @@
-"""Tests for GeneratorEvaluatorLoop and SprintContract."""
+"""Tests for GeneratorEvaluatorLoop."""
 
 import pytest
 
 from loom.orchestration.events import CoordinationEventBus
-from loom.orchestration.gen_eval import (
-    GeneratorEvaluatorLoop,
-    SprintContract,
-)
+from loom.orchestration.gen_eval import GeneratorEvaluatorLoop
 from loom.runtime.quality import QualityContract, QualityResult
 from loom.runtime.task import RuntimeTask
 from loom.types.results import SubAgentResult
-
-# ── SprintContract ──────────────────────────────────────────────────────────
-
-
-class TestSprintContract:
-    def test_creation(self):
-        contract = SprintContract(
-            sprint=1,
-            goal="build a thing",
-            criteria=["criterion A", "criterion B"],
-        )
-        assert contract.sprint == 1
-        assert contract.goal == "build a thing"
-        assert len(contract.criteria) == 2
-        assert contract.eval_tools == []
-
-    def test_with_eval_tools(self):
-        contract = SprintContract(
-            sprint=2,
-            goal="test something",
-            criteria=["passes all checks"],
-            eval_tools=["playwright", "pytest"],
-        )
-        assert contract.eval_tools == ["playwright", "pytest"]
-
 
 # ── Stubs ────────────────────────────────────────────────────────────────────
 

@@ -6,14 +6,13 @@ import pytest
 
 from loom import (
     Agent,
-    Capability,
     Model,
     Runtime,
     RuntimeTask,
     SkillInjection,
-    SkillInjectionPolicy,
 )
 from loom.providers.base import CompletionRequest, CompletionResponse, LLMProvider
+from loom.runtime import Capability
 
 
 class CapturingProvider(LLMProvider):
@@ -137,7 +136,3 @@ async def test_unmatched_skill_does_not_pollute_later_runs_in_same_session() -> 
     second_contents = [str(message["content"]) for message in provider.requests[1].messages]
     assert any("Only use this for reviews." in content for content in first_contents)
     assert not any("Only use this for reviews." in content for content in second_contents)
-
-
-def test_skill_injection_policy_is_skill_injection_alias() -> None:
-    assert SkillInjectionPolicy is SkillInjection

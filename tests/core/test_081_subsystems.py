@@ -127,7 +127,7 @@ def test_inject_knowledge_writes_to_surface_not_memory() -> None:
     )
     engine = agent._build_engine(MockProvider())
 
-    engine._inject_knowledge("dashboard", None)
+    engine.context_runtime.inject_knowledge("dashboard", None)
 
     surface = engine.context_manager.dashboard.dashboard.knowledge_surface
     assert surface.evidence_packs[0]["content"] == "Loom has dashboard knowledge."
@@ -143,7 +143,7 @@ def test_dashboard_renders_evidence_content() -> None:
     )
     engine = agent._build_engine(MockProvider())
 
-    engine._inject_knowledge("render", None)
+    engine.context_runtime.inject_knowledge("render", None)
     content = engine.context_manager.partitions._format_dashboard().content
 
     assert "## Knowledge Evidence" in content
@@ -168,7 +168,7 @@ def test_knowledge_surface_deduplicates_and_evicts_overflow() -> None:
                 "score": float(index),
             }
         )
-    engine._evict_knowledge_overflow()
+    engine.context_runtime.evict_knowledge_overflow()
 
     packs = dashboard.dashboard.knowledge_surface.evidence_packs
     assert len(packs) == 10

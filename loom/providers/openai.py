@@ -3,7 +3,7 @@
 import inspect
 import json
 import threading
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from ..types import ToolCall
@@ -21,7 +21,7 @@ from .base import (  # noqa: F401 (re-exported)
 class OpenAIProvider(LLMProvider):
     """OpenAI chat-completions provider."""
 
-    _shared_clients: dict[tuple[str, str | None, str | None], Any] = {}
+    _shared_clients: dict[tuple[str, str | None, str | None, float | None, int | None], Any] = {}
     _pool_lock = threading.RLock()
 
     # Subclasses set this to the extensions key that enables thinking tokens
@@ -34,6 +34,8 @@ class OpenAIProvider(LLMProvider):
         api_key: str,
         base_url: str | None = None,
         organization: str | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
         client: Any | None = None,
         use_client_pool: bool = True,
     ):
@@ -41,6 +43,8 @@ class OpenAIProvider(LLMProvider):
         self.api_key = api_key
         self.base_url = base_url
         self.organization = organization
+        self.timeout = timeout
+        self.max_retries = max_retries
         self._client = client
         self._use_client_pool = use_client_pool
 
@@ -63,39 +67,35 @@ class OpenAIProvider(LLMProvider):
                     "Install loom-agent with the openai extra or add openai manually."
                 ) from exc
 
-            self._client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                organization=self.organization,
-            )
+            client_kwargs: dict[str, Any] = {
+                "api_key": self.api_key,
+                "base_url": self.base_url,
+                "organization": self.organization,
+            }
+            if self.timeout is not None:
+                client_kwargs["timeout"] = self.timeout
+            if self.max_retries is not None:
+                client_kwargs["max_retries"] = self.max_retries
+            self._client = AsyncOpenAI(**client_kwargs)
             if self._use_client_pool:
                 with self._pool_lock:
                     self._shared_clients[self._pool_key()] = self._client
 
         return self._client
 
-    def _pool_key(self) -> tuple[str, str | None, str | None]:
-        return (self.api_key, self.base_url, self.organization)
+    def _pool_key(self) -> tuple[str, str | None, str | None, float | None, int | None]:
+        return (
+            self.api_key,
+            self.base_url,
+            self.organization,
+            self.timeout,
+            self.max_retries,
+        )
 
     @classmethod
     def clear_client_pool(cls) -> None:
         with cls._pool_lock:
             cls._shared_clients.clear()
-
-    async def _complete(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> str:
-        response = await self._complete_request(CompletionRequest.create(messages, params))
-        return response.content
-
-    async def _complete_response(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> CompletionResponse:
-        return await self._complete_request(CompletionRequest.create(messages, params))
 
     async def _complete_request(
         self,
@@ -118,17 +118,6 @@ class OpenAIProvider(LLMProvider):
             if usage is not None
             else None,
             raw=response,
-        )
-
-    async def complete_streaming(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-        on_token: Any | None = None,
-    ) -> CompletionResponse:
-        return await self._complete_request_streaming(
-            CompletionRequest.create(messages, params),
-            on_token,
         )
 
     async def _complete_request_streaming(
@@ -200,45 +189,6 @@ class OpenAIProvider(LLMProvider):
             if tool_call is not None:
                 tool_calls.append(tool_call)
         return tool_calls
-
-    async def stream(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> AsyncIterator[str]:
-        """Stream completion chunks from OpenAI chat completions."""
-        request = self._build_request(messages, params)
-        stream = await self.client.chat.completions.create(**request, stream=True)
-        async for chunk in stream:
-            choices = getattr(chunk, "choices", [])
-            if not choices:
-                continue
-
-            delta = getattr(choices[0], "delta", None)
-            if delta is None:
-                continue
-
-            content = getattr(delta, "content", None)
-            if not content:
-                continue
-
-            if isinstance(content, list):
-                text = "".join(
-                    part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
-                    for part in content
-                )
-                if text:
-                    yield text
-            else:
-                yield content
-
-    async def stream_events(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> AsyncGenerator[Any, None]:
-        async for event in self._stream_request_events(CompletionRequest.create(messages, params)):
-            yield event
 
     async def _stream_request_events(
         self,
@@ -378,7 +328,7 @@ class OpenAIProvider(LLMProvider):
                 continue
 
             if isinstance(content, str):
-                # Simple text content (backward compatible)
+                # Plain text content.
                 converted.append({"role": role, "content": content})
             elif isinstance(content, list):
                 # Multimodal content with ContentBlocks

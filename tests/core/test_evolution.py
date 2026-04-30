@@ -12,7 +12,7 @@ from loom.evolution.strategies import (
     PolicyOptimizationStrategy,
     ToolLearningStrategy,
 )
-from loom.providers.base import CompletionParams, LLMProvider
+from loom.providers.base import CompletionResponse, LLMProvider
 from loom.runtime.engine import AgentEngine, EngineConfig
 from loom.tools.schema import Tool, ToolDefinition, ToolParameter
 from loom.types import ToolCall
@@ -95,14 +95,8 @@ class TestEvolutionEngine:
         """subscribe_to_engine() + evolve() collects real tool results."""
 
         class MockProvider(LLMProvider):
-            async def _complete(self, messages, params=None):
-                return "ok"
-
-            def stream(self, messages, params=None):
-                async def _gen():
-                    yield "ok"
-
-                return _gen()
+            async def _complete_request(self, request):
+                return CompletionResponse(content="ok")
 
         async def noop(**_):
             return "done"
@@ -126,7 +120,7 @@ class TestEvolutionEngine:
         evo = EvolutionEngine()
         evo.subscribe_to_engine(runtime)
 
-        await runtime._execute_tools([ToolCall(id="c1", name="Noop", arguments={"x": "1"})])
+        await runtime.tool_runtime.execute_tools([ToolCall(id="c1", name="Noop", arguments={"x": "1"})])
 
         assert len(evo.feedback_loop.feedback) == 1
         assert evo.feedback_loop.feedback[0]["tool"] == "Noop"
@@ -263,16 +257,10 @@ class TestFeedbackLoop:
     @pytest.mark.asyncio
     async def test_feedback_loop_subscribes_to_engine_tool_events(self):
         class MockProvider(LLMProvider):
-            async def _complete(
-                self, messages: list, params: CompletionParams | None = None
-            ) -> str:
-                return "ok"
-
-            def stream(self, messages: list, params: CompletionParams | None = None):
-                async def _gen():
-                    yield "ok"
-
-                return _gen()
+            async def _complete_request(
+                self, request
+                ):
+                return CompletionResponse(content="ok")
 
         async def echo_handler(text: str) -> str:
             return text
@@ -293,7 +281,7 @@ class TestFeedbackLoop:
         loop = FeedbackLoop()
         loop.subscribe_to_engine(engine)
 
-        await engine._execute_tools(
+        await engine.tool_runtime.execute_tools(
             [ToolCall(id="call_1", name="Echo", arguments={"text": "hello"})]
         )
 

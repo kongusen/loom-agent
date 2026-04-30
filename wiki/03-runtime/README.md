@@ -5,7 +5,9 @@ The runtime is the execution layer behind the public `Agent` SDK.
 For application developers, the public path is:
 
 ```text
-Agent + Runtime + Capability
+Agent + Model + Runtime
+    + capabilities=[Files/Web/Shell/MCP]
+    + skills=[Skill]
     -> Session / Run
     -> RuntimeTask / RuntimeSignal
 ```
@@ -60,7 +62,7 @@ gateway / cron / heartbeat / webhook / app callback
 | Policy | Responsibility |
 |---|---|
 | `AttentionPolicy` | Decide whether a signal should observe, run, or interrupt |
-| `ContextProtocol` | Context partitioning, render, compact, renew, snapshot |
+| `ContextPolicy` | Context partitioning, render, compact, renew, snapshot |
 | `ContinuityPolicy` | Preserve work across compaction/reset |
 | `Harness` | Long-task execution strategy |
 | `QualityGate` | Acceptance criteria and PASS/FAIL evaluation |
@@ -68,7 +70,7 @@ gateway / cron / heartbeat / webhook / app callback
 | `GovernancePolicy` | Tool permissions, veto, rate limits, read-only/destructive checks |
 | `FeedbackPolicy` | Runtime feedback for dashboards and evolution |
 | `SessionRestorePolicy` | Restore transcript/runtime state into later runs |
-| `SkillInjectionPolicy` | Inject matching skill content into runtime context |
+| `SkillInjection` | Inject matching skill content into runtime context |
 
 ## Pages
 

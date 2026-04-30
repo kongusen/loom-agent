@@ -36,7 +36,7 @@ class TaskPlanner:
 
     async def _llm_plan(self, goal: str, provider: Any, max_tasks: int) -> list[Task]:
         """Ask LLM to decompose goal into numbered steps."""
-        from ..providers.base import CompletionParams
+        from ..providers.base import CompletionParams, CompletionRequest
 
         params = CompletionParams(max_tokens=512, temperature=0.3)
         messages = [
@@ -48,9 +48,9 @@ class TaskPlanner:
             },
             {"role": "user", "content": goal},
         ]
-        response = await provider.complete(messages, params)
+        response = await provider.complete_request(CompletionRequest.create(messages, params))
         steps = []
-        for line in response.splitlines():
+        for line in response.content.splitlines():
             line = line.strip().lstrip("0123456789.-) ").strip()
             if line:
                 steps.append(line)

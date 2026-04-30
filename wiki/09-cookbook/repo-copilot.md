@@ -12,7 +12,7 @@ Use this pattern when the agent acts as a coding or repository assistant for one
 ## Shape
 
 ```python
-from loom import Agent, Capability, Model, RunContext, Runtime, SessionConfig
+from loom import Agent, Files, Model, RunContext, Runtime, SessionConfig, Web
 
 agent = Agent(
     model=Model.anthropic("claude-sonnet-4"),
@@ -21,8 +21,8 @@ agent = Agent(
         "Prefer concrete, code-aware answers and keep changes scoped."
     ),
     capabilities=[
-        Capability.files(read_only=True),
-        Capability.web(),
+        Files(read_only=True),
+        Web.enabled(),
     ],
     runtime=Runtime.long_running(criteria=["answers are grounded in repository evidence"]),
 )
@@ -44,7 +44,7 @@ That usually means:
 
 - repository identity belongs in instructions or session metadata
 - current question-specific facts belong in `RunContext`
-- broad permissions belong in `Capability`
+- broad ability declarations belong in `capabilities=[Files/Web/Shell/MCP]`
 - runtime behavior belongs in `Runtime`
 
 ## Good Defaults

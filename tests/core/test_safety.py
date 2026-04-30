@@ -117,18 +117,18 @@ class TestVetoAuthority:
         assert result is False
         assert len(va.veto_log) == 0
 
-    def test_veto_history(self):
+    def test_veto_records(self):
         va = VetoAuthority()
         va.veto("reason 1")
         va.veto("reason 2")
-        history = va.get_veto_history()
-        assert len(history) == 2
-        assert history[0] == "reason 1"
-        assert history[1] == "reason 2"
+        records = va.get_veto_records()
+        assert len(records) == 2
+        assert records[0].reason == "reason 1"
+        assert records[1].reason == "reason 2"
 
-    def test_veto_empty_history(self):
+    def test_veto_empty_records(self):
         va = VetoAuthority()
-        assert va.get_veto_history() == []
+        assert va.get_veto_records() == []
 
     def test_veto_records_capture_context(self):
         va = VetoAuthority()
@@ -161,31 +161,31 @@ class TestSafetyHookManager:
         hm.register("tool_use", lambda ctx: HookDecision.ALLOW)
         assert "tool_use" in hm.hooks
 
-    def test_trigger_allow(self):
+    def test_evaluate_allow(self):
         hm = SafetyHookManager()
         hm.register("tool_use", lambda ctx: HookDecision.ALLOW)
-        decision, msg = hm.trigger("tool_use", {})
-        assert decision == HookDecision.ALLOW
-        assert msg == ""
+        outcome = hm.evaluate("tool_use", {})
+        assert outcome.decision == HookDecision.ALLOW
+        assert outcome.message == ""
 
-    def test_trigger_deny(self):
+    def test_evaluate_deny(self):
         hm = SafetyHookManager()
         hm.register("tool_use", lambda ctx: HookDecision.DENY)
-        decision, msg = hm.trigger("tool_use", {})
-        assert decision == HookDecision.DENY
+        outcome = hm.evaluate("tool_use", {})
+        assert outcome.decision == HookDecision.DENY
 
-    def test_trigger_ask(self):
+    def test_evaluate_ask(self):
         hm = SafetyHookManager()
         hm.register("tool_use", lambda ctx: HookDecision.ASK)
-        decision, msg = hm.trigger("tool_use", {})
-        assert decision == HookDecision.ASK
+        outcome = hm.evaluate("tool_use", {})
+        assert outcome.decision == HookDecision.ASK
 
-    def test_trigger_no_hooks(self):
+    def test_evaluate_no_hooks(self):
         hm = SafetyHookManager()
-        decision, msg = hm.trigger("unknown", {})
-        assert decision == HookDecision.ALLOW
+        outcome = hm.evaluate("unknown", {})
+        assert outcome.decision == HookDecision.ALLOW
 
-    def test_trigger_deny_short_circuits(self):
+    def test_evaluate_deny_short_circuits(self):
         hm = SafetyHookManager()
         call_count = {"n": 0}
 
@@ -198,8 +198,8 @@ class TestSafetyHookManager:
 
         hm.register("event", deny_hook)
         hm.register("event", counting_hook)
-        decision, _ = hm.trigger("event", {})
-        assert decision == HookDecision.DENY
+        outcome = hm.evaluate("event", {})
+        assert outcome.decision == HookDecision.DENY
         assert call_count["n"] == 0
 
     def test_evaluate_merges_context_updates(self):
@@ -400,7 +400,7 @@ class TestEngineHookPermissionPipeline:
             lambda ctx: (HookDecision.DENY, "blocked by test"),
         )
         call = self._make_tool_call()
-        results = await engine._execute_tools([call])
+        results = await engine.tool_runtime.execute_tools([call])
         assert len(results) == 1
         assert results[0].is_error
         assert "Hook denied" in results[0].content
@@ -414,7 +414,7 @@ class TestEngineHookPermissionPipeline:
         )
         # Tool not registered → executor returns error, but hook itself allowed
         call = self._make_tool_call()
-        results = await engine._execute_tools([call])
+        results = await engine.tool_runtime.execute_tools([call])
         assert len(results) == 1
         # Error comes from missing tool, not from hook denial
         assert "Hook denied" not in results[0].content
@@ -427,9 +427,10 @@ class TestEngineHookPermissionPipeline:
         pm = PermissionManager(mode=PermissionMode.DEFAULT)
         pm.revoke("test_tool", "execute", note="not allowed")
         engine.permission_manager = pm
+        engine.runtime_wiring.refresh_tool_runtime()
 
         call = self._make_tool_call()
-        results = await engine._execute_tools([call])
+        results = await engine.tool_runtime.execute_tools([call])
         assert len(results) == 1
         assert results[0].is_error
         assert "Permission denied" in results[0].content
@@ -447,7 +448,7 @@ class TestEngineHookPermissionPipeline:
             )
         )
         call = self._make_tool_call()
-        results = await engine._execute_tools([call])
+        results = await engine.tool_runtime.execute_tools([call])
         assert len(results) == 1
         assert results[0].is_error
         assert "Vetoed" in results[0].content
@@ -466,11 +467,12 @@ class TestEngineHookPermissionPipeline:
         pm = PermissionManager(mode=PermissionMode.DEFAULT)
         pm.revoke("test_tool", "execute")
         engine.permission_manager = pm
+        engine.runtime_wiring.refresh_tool_runtime()
         engine.veto_authority.add_rule(
             VetoRule(name="block", predicate=lambda n, a: True, reason="vetoed")
         )
         call = self._make_tool_call()
-        results = await engine._execute_tools([call])
+        results = await engine.tool_runtime.execute_tools([call])
         assert "Hook denied" in results[0].content
 
     def test_current_iteration_tracked(self):

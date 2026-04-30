@@ -30,7 +30,7 @@ L* behavior is controlled indirectly through:
 
 - `RuntimeConfig.limits`
 - `RuntimeConfig.features`
-- `GenerationConfig`
+- `Generation`
 - `HeartbeatConfig`
 - `SafetyRule`
 

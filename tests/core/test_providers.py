@@ -65,7 +65,7 @@ class TestProviders:
         assert round_trip.tool_specs() == [tool]
 
     @pytest.mark.asyncio
-    async def test_request_native_provider_can_skip_legacy_methods(self):
+    async def test_request_native_provider_drives_request_apis(self):
         from loom.types.stream import TextDelta
 
         class NativeProvider(LLMProvider):
@@ -81,19 +81,9 @@ class TestProviders:
         )
 
         response = await provider.complete_request(request)
-        compat_response = await provider.complete_response(
-            [{"role": "user", "content": "hello"}],
-            CompletionParams(model="native-test"),
-        )
-        text = await provider.complete(
-            [{"role": "user", "content": "hello"}],
-            CompletionParams(model="native-test"),
-        )
         events = [event async for event in provider.stream_request_events(request)]
 
         assert response.content == "native response"
-        assert compat_response.content == "native response"
-        assert text == "native response"
         assert any(
             isinstance(event, TextDelta) and event.delta == "native response" for event in events
         )
@@ -164,8 +154,8 @@ class TestProviders:
             )
 
     @pytest.mark.asyncio
-    async def test_openai_provider_complete(self):
-        """Test OpenAI provider complete with injected client."""
+    async def test_openai_provider_complete_request(self):
+        """Test OpenAI provider request completion with injected client."""
 
         class FakeCompletions:
             async def create(self, **kwargs):
@@ -177,24 +167,30 @@ class TestProviders:
 
         fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
         provider = OpenAIProvider(api_key="test", client=fake_client)
-        result = await provider.complete(
-            [{"role": "user", "content": "hello"}],
-            CompletionParams(model="gpt-test", max_tokens=16, temperature=0.2),
+        response = await provider.complete_request(
+            CompletionRequest.create(
+                [{"role": "user", "content": "hello"}],
+                CompletionParams(model="gpt-test", max_tokens=16, temperature=0.2),
+            )
         )
-        assert result == "hi there"
+        assert response.content == "hi there"
 
     def test_concrete_providers_use_request_native_contract(self):
-        fake_client = SimpleNamespace()
+        assert "_complete_request" in OpenAIProvider.__dict__
+        assert "_complete_request" in AnthropicProvider.__dict__
+        assert "_complete_request" in GeminiProvider.__dict__
 
-        assert OpenAIProvider(api_key="test", client=fake_client)._uses_request_native_completion()
-        assert AnthropicProvider(
-            api_key="test", client=fake_client
-        )._uses_request_native_completion()
-        assert GeminiProvider(api_key="test", client=fake_client)._uses_request_native_completion()
+    def test_provider_contract_excludes_message_list_completion_helpers(self):
+        assert not hasattr(LLMProvider, "complete")
+        assert not hasattr(LLMProvider, "complete_response")
+        assert not hasattr(LLMProvider, "complete_streaming")
+        assert not hasattr(LLMProvider, "stream")
+        assert not hasattr(LLMProvider, "stream_events")
 
     @pytest.mark.asyncio
-    async def test_openai_provider_stream(self):
-        """Test OpenAI provider stream with injected client."""
+    async def test_openai_provider_stream_request_events(self):
+        """Test OpenAI provider request-native stream events with injected client."""
+        from loom.types.stream import TextDelta
 
         class FakeStream:
             def __init__(self, chunks):
@@ -225,17 +221,21 @@ class TestProviders:
 
         fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
         provider = OpenAIProvider(api_key="test", client=fake_client)
-        chunks = []
-        async for chunk in provider.stream(
-            [{"role": "user", "content": "hello"}],
-            CompletionParams(model="gpt-test"),
-        ):
-            chunks.append(chunk)
+        events = [
+            event
+            async for event in provider.stream_request_events(
+                CompletionRequest.create(
+                    [{"role": "user", "content": "hello"}],
+                    CompletionParams(model="gpt-test"),
+                )
+            )
+        ]
 
+        chunks = [event.delta for event in events if isinstance(event, TextDelta)]
         assert chunks == ["hi", " there"]
 
     @pytest.mark.asyncio
-    async def test_openai_provider_complete_response_supports_tool_calls(self):
+    async def test_openai_provider_complete_request_supports_tool_calls(self):
         """Test OpenAI provider structured tool-call response."""
 
         class FakeCompletions:
@@ -276,22 +276,24 @@ class TestProviders:
 
         fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
         provider = OpenAIProvider(api_key="test", client=fake_client)
-        result = await provider.complete_response(
-            [{"role": "user", "content": "find loom docs"}],
-            CompletionParams(
-                model="gpt-test",
-                tools=[
-                    {
-                        "name": "search_docs",
-                        "description": "Search docs",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {"query": {"type": "string"}},
-                            "required": ["query"],
-                        },
-                    }
-                ],
-            ),
+        result = await provider.complete_request(
+            CompletionRequest.create(
+                [{"role": "user", "content": "find loom docs"}],
+                CompletionParams(
+                    model="gpt-test",
+                    tools=[
+                        {
+                            "name": "search_docs",
+                            "description": "Search docs",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"query": {"type": "string"}},
+                                "required": ["query"],
+                            },
+                        }
+                    ],
+                ),
+            )
         )
 
         assert isinstance(result, CompletionResponse)
@@ -370,8 +372,8 @@ class TestProviders:
         assert "openai package is required" in str(exc.value)
 
     @pytest.mark.asyncio
-    async def test_anthropic_provider_complete(self):
-        """Test Anthropic provider complete with injected client."""
+    async def test_anthropic_provider_complete_request(self):
+        """Test Anthropic provider request completion with injected client."""
 
         class FakeMessages:
             async def create(self, **kwargs):
@@ -384,18 +386,21 @@ class TestProviders:
 
         fake_client = SimpleNamespace(messages=FakeMessages())
         provider = AnthropicProvider(api_key="test", client=fake_client)
-        result = await provider.complete(
-            [
-                {"role": "system", "content": "system prompt"},
-                {"role": "user", "content": "hello"},
-            ],
-            CompletionParams(model="claude-test", max_tokens=64, temperature=0.1),
+        response = await provider.complete_request(
+            CompletionRequest.create(
+                [
+                    {"role": "system", "content": "system prompt"},
+                    {"role": "user", "content": "hello"},
+                ],
+                CompletionParams(model="claude-test", max_tokens=64, temperature=0.1),
+            )
         )
-        assert result == "anthropic response"
+        assert response.content == "anthropic response"
 
     @pytest.mark.asyncio
-    async def test_anthropic_provider_stream(self):
-        """Test Anthropic provider stream with injected client."""
+    async def test_anthropic_provider_stream_request_events(self):
+        """Test Anthropic provider request-native stream events with injected client."""
+        from loom.types.stream import TextDelta
 
         class FakeStream:
             def __init__(self, chunks):
@@ -417,28 +422,32 @@ class TestProviders:
                     [
                         SimpleNamespace(
                             type="content_block_delta",
-                            delta=SimpleNamespace(text="hello"),
+                            delta=SimpleNamespace(type="text_delta", text="hello"),
                         ),
                         SimpleNamespace(
                             type="content_block_delta",
-                            delta=SimpleNamespace(text=" world"),
+                            delta=SimpleNamespace(type="text_delta", text=" world"),
                         ),
                     ]
                 )
 
         fake_client = SimpleNamespace(messages=FakeMessages())
         provider = AnthropicProvider(api_key="test", client=fake_client)
-        chunks = []
-        async for chunk in provider.stream(
-            [{"role": "user", "content": "hello"}],
-            CompletionParams(model="claude-test"),
-        ):
-            chunks.append(chunk)
+        events = [
+            event
+            async for event in provider.stream_request_events(
+                CompletionRequest.create(
+                    [{"role": "user", "content": "hello"}],
+                    CompletionParams(model="claude-test"),
+                )
+            )
+        ]
 
+        chunks = [event.delta for event in events if isinstance(event, TextDelta)]
         assert chunks == ["hello", " world"]
 
     @pytest.mark.asyncio
-    async def test_anthropic_provider_complete_response_supports_tool_calls(self):
+    async def test_anthropic_provider_complete_request_supports_tool_calls(self):
         """Test Anthropic provider structured tool-call response."""
 
         class FakeMessages:
@@ -468,22 +477,24 @@ class TestProviders:
 
         fake_client = SimpleNamespace(messages=FakeMessages())
         provider = AnthropicProvider(api_key="test", client=fake_client)
-        result = await provider.complete_response(
-            [{"role": "user", "content": "find loom docs"}],
-            CompletionParams(
-                model="claude-test",
-                tools=[
-                    {
-                        "name": "search_docs",
-                        "description": "Search docs",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {"query": {"type": "string"}},
-                            "required": ["query"],
-                        },
-                    }
-                ],
-            ),
+        result = await provider.complete_request(
+            CompletionRequest.create(
+                [{"role": "user", "content": "find loom docs"}],
+                CompletionParams(
+                    model="claude-test",
+                    tools=[
+                        {
+                            "name": "search_docs",
+                            "description": "Search docs",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"query": {"type": "string"}},
+                                "required": ["query"],
+                            },
+                        }
+                    ],
+                ),
+            )
         )
 
         assert isinstance(result, CompletionResponse)
@@ -563,7 +574,7 @@ class TestProviders:
         assert "anthropic package is required" in str(exc.value)
 
     @pytest.mark.asyncio
-    async def test_gemini_provider_complete_response_supports_tool_calls(self):
+    async def test_gemini_provider_complete_request_supports_tool_calls(self):
         """Test Gemini provider structured tool-call response."""
 
         class FakePart:
@@ -619,37 +630,43 @@ class TestProviders:
 
         fake_client = SimpleNamespace(GenerativeModel=lambda model: FakeModel())
         provider = GeminiProvider(api_key="test", client=fake_client)
-        result = await provider.complete_response(
-            [
-                {"role": "user", "content": "find loom docs"},
-                {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        {"id": "call_1", "name": "search_docs", "arguments": {"query": "loom"}}
-                    ],
-                },
-                {
-                    "role": "tool",
-                    "name": "search_docs",
-                    "tool_call_id": "call_1",
-                    "content": "found docs",
-                },
-            ],
-            CompletionParams(
-                model="gemini-test",
-                tools=[
+        result = await provider.complete_request(
+            CompletionRequest.create(
+                [
+                    {"role": "user", "content": "find loom docs"},
                     {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "name": "search_docs",
+                                "arguments": {"query": "loom"},
+                            }
+                        ],
+                    },
+                    {
+                        "role": "tool",
                         "name": "search_docs",
-                        "description": "Search docs",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {"query": {"type": "string"}},
-                            "required": ["query"],
-                        },
-                    }
+                        "tool_call_id": "call_1",
+                        "content": "found docs",
+                    },
                 ],
-            ),
+                CompletionParams(
+                    model="gemini-test",
+                    tools=[
+                        {
+                            "name": "search_docs",
+                            "description": "Search docs",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"query": {"type": "string"}},
+                                "required": ["query"],
+                            },
+                        }
+                    ],
+                ),
+            )
         )
 
         assert isinstance(result, CompletionResponse)
@@ -716,48 +733,38 @@ class TestProviders:
     @pytest.mark.asyncio
     async def test_provider_base_maps_429_to_rate_limit_error(self):
         class FlakyProvider(LLMProvider):
-            async def _complete(
-                self, messages: list, params: CompletionParams | None = None
-            ) -> str:
+            async def _complete_request(self, request):
                 raise RuntimeError("429 rate limit exceeded")
-
-            def stream(self, messages: list, params: CompletionParams | None = None):
-                async def _gen():
-                    yield ""
-
-                return _gen()
 
         provider = FlakyProvider()
         with pytest.raises(RateLimitError):
-            await provider.complete([{"role": "user", "content": "hello"}])
+            await provider.complete_request(
+                CompletionRequest.create([{"role": "user", "content": "hello"}])
+            )
 
     @pytest.mark.asyncio
     async def test_provider_base_uses_provider_unavailable_error_when_circuit_open(self):
         class DownProvider(LLMProvider):
-            async def _complete(
-                self, messages: list, params: CompletionParams | None = None
-            ) -> str:
+            async def _complete_request(self, request):
                 raise RuntimeError("network down")
-
-            def stream(self, messages: list, params: CompletionParams | None = None):
-                async def _gen():
-                    yield ""
-
-                return _gen()
 
         provider = DownProvider()
         provider._retry.max_retries = 1
         provider._retry.circuit_open_after = 1
 
         with pytest.raises(ProviderUnavailableError):
-            await provider.complete([{"role": "user", "content": "hello"}])
+            await provider.complete_request(
+                CompletionRequest.create([{"role": "user", "content": "hello"}])
+            )
         with pytest.raises(ProviderUnavailableError):
-            await provider.complete([{"role": "user", "content": "hello again"}])
+            await provider.complete_request(
+                CompletionRequest.create([{"role": "user", "content": "hello again"}])
+            )
 
     def test_openai_provider_client_pool_reused_across_instances(self):
         pooled_client = object()
         OpenAIProvider.clear_client_pool()
-        OpenAIProvider._shared_clients[("shared-key", None, None)] = pooled_client
+        OpenAIProvider._shared_clients[("shared-key", None, None, None, None)] = pooled_client
         try:
             provider = OpenAIProvider(api_key="shared-key")
             assert provider.client is pooled_client
@@ -767,7 +774,7 @@ class TestProviders:
     def test_anthropic_provider_client_pool_reused_across_instances(self):
         pooled_client = object()
         AnthropicProvider.clear_client_pool()
-        AnthropicProvider._shared_clients[("shared-key", None)] = pooled_client
+        AnthropicProvider._shared_clients[("shared-key", None, None, None)] = pooled_client
         try:
             provider = AnthropicProvider(api_key="shared-key")
             assert provider.client is pooled_client

@@ -1,17 +1,11 @@
 """Google Gemini provider."""
 
 import threading
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from ..types import ToolCall
-from .base import (
-    CompletionParams,
-    CompletionRequest,
-    CompletionResponse,
-    LLMProvider,
-    normalize_tool_call,
-)
+from .base import CompletionRequest, CompletionResponse, LLMProvider, normalize_tool_call
 
 
 class GeminiProvider(LLMProvider):
@@ -66,21 +60,6 @@ class GeminiProvider(LLMProvider):
         with cls._pool_lock:
             cls._shared_clients.clear()
 
-    async def _complete(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> str:
-        response = await self._complete_request(CompletionRequest.create(messages, params))
-        return response.content
-
-    async def _complete_response(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> CompletionResponse:
-        return await self._complete_request(CompletionRequest.create(messages, params))
-
     async def _complete_request(
         self,
         request: CompletionRequest,
@@ -115,49 +94,6 @@ class GeminiProvider(LLMProvider):
             tool_calls=self._extract_tool_calls(response),
             raw=response,
         )
-
-    async def stream(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> AsyncIterator[str]:
-        """Stream completion chunks from Google Gemini API."""
-        resolved = params or CompletionParams()
-
-        # Convert messages to Gemini format
-        contents = self._convert_messages(messages)
-
-        # Create model
-        model = self.client.GenerativeModel(resolved.model)
-
-        # Stream content
-        payload: dict[str, Any] = {
-            "contents": contents,
-            "generation_config": {
-                "temperature": resolved.temperature,
-                "max_output_tokens": resolved.max_tokens,
-            },
-            "stream": True,
-        }
-        tools = resolved.tool_dicts()
-        if tools:
-            payload["tools"] = self._build_tools(tools)
-            if tool_config := self._build_tool_config(resolved.tool_choice):
-                payload["tool_config"] = tool_config
-
-        response = await model.generate_content_async(**payload)
-
-        async for chunk in response:
-            if chunk.text:
-                yield chunk.text
-
-    async def stream_events(
-        self,
-        messages: list,
-        params: CompletionParams | None = None,
-    ) -> AsyncGenerator[Any, None]:
-        async for event in self._stream_request_events(CompletionRequest.create(messages, params)):
-            yield event
 
     async def _stream_request_events(
         self,

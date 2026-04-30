@@ -80,13 +80,6 @@ class HookManager:
             self.hooks[event] = []
         self.hooks[event].append(callback)
 
-    def trigger(
-        self, event: str, context: dict, agent_context: AgentContext | None = None
-    ) -> tuple[HookDecision, str]:
-        """Trigger hooks, returning the legacy tuple API."""
-        outcome = self.evaluate(event, context, agent_context)
-        return outcome.decision, outcome.message
-
     def evaluate(
         self, event: str, context: dict[str, Any], agent_context: AgentContext | None = None
     ) -> HookOutcome:

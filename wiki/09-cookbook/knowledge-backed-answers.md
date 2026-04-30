@@ -67,7 +67,7 @@ That makes the knowledge boundary inspectable even before deeper retrieval inter
 
 - use `KnowledgeSource.dynamic(...)` for external retrieval adapters
 - keep citations in the bundle when downstream UX needs evidence display
-- add `Capability.web()` only when the app should actively use web tools
+- add `Web.enabled()` only when the app should actively use web tools
 
 ## Runnable Example
 

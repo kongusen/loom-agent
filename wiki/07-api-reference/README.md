@@ -3,7 +3,9 @@
 Loom exposes one public SDK path for application developers:
 
 ```text
-Agent + Model + Runtime + Capability
+Agent + Model + Runtime
+    + capabilities=[Files/Web/Shell/MCP]
+    + skills=[Skill]
     -> Run / Session
     -> RuntimeTask / RuntimeSignal
 ```
@@ -13,7 +15,7 @@ If you are integrating Loom for the first time, focus on these steps:
 1. Assemble an `Agent(...)`
 2. Select a model with `Model.openai(...)`, `Model.anthropic(...)`, or another provider constructor
 3. Choose a `Runtime` profile
-4. Declare abilities with `Capability`
+4. Declare abilities with `Files`, `Web`, `Shell`, `MCP`, and `Skill`
 5. Use `agent.run()` for simple flows
 6. Use `agent.session()` when you need stateful multi-run workflows
 7. Use `agent.receive()` or `session.receive()` for external signal input
@@ -23,9 +25,9 @@ If you are integrating Loom for the first time, focus on these steps:
 - There is one main application API, centered on `Agent`.
 - Runtime behavior is composed through policy objects, not through product-specific gateway or cron classes.
 - Gateway, cron, heartbeat, webhook, and app events normalize into `RuntimeSignal`.
-- Tools, Toolsets, MCP, and skills normalize into `Capability`.
+- Tools, file/web/shell/MCP abilities, and skills normalize into runtime capability specs.
 - Governance is applied at the runtime boundary before tools execute.
-- `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain compatibility/advanced paths through `0.8.x`.
+- Advanced configuration remains under `loom.config`.
 
 ## 30-Second Start
 
@@ -68,7 +70,7 @@ from loom import (
 )
 ```
 
-Use `loom.config` for advanced config internals and compatibility objects. Use `loom.runtime` when directly testing or extending runtime mechanism contracts.
+Use `loom.config` for advanced config internals. Use `loom.runtime` when directly testing or extending runtime mechanism contracts.
 
 ## Common Development Paths
 
@@ -100,14 +102,14 @@ Good for multi-turn assistants and workflows that need run history.
 ### 3. Capabilities
 
 ```python
-from loom import Agent, Capability, Model, Runtime
+from loom import Agent, Files, Model, Runtime, Shell, Web
 
 agent = Agent(
     model=Model.openai("gpt-5.1"),
     capabilities=[
-        Capability.files(read_only=True),
-        Capability.web(),
-        Capability.shell(require_approval=True),
+        Files(read_only=True),
+        Web.enabled(),
+        Shell.approval_required(),
     ],
     runtime=Runtime.long_running(criteria=["tests stay green"]),
 )
@@ -172,14 +174,18 @@ result = await agent.run(
 
 ## Recommended Reading Order
 
+- [Public API System](public-api-system.md): active API shape, object boundaries, and maintenance rules
+- [Public User API Taxonomy](public-user-api-taxonomy.md): user-facing naming categories and supported constructor shape
 - [Agent API](agent-api.md): `Agent`, `Session`, `Run`, `RunContext`, `SessionConfig`
 - [Providers](providers.md): provider selection, environment variables, base URLs, fallback behavior
-- [Configuration](configuration.md): compatibility and advanced config objects
+- [Configuration](configuration.md): advanced config objects
 
 ## Quick Map
 
 | Goal | Start Here |
 |---|---|
+| Understand the active API system | [Public API System](public-api-system.md) |
+| Understand user-facing API names | [Public User API Taxonomy](public-user-api-taxonomy.md) |
 | Get an agent running fast | [Agent API](agent-api.md) |
 | Connect to OpenAI-compatible or other providers | [Providers](providers.md) |
 | Browse runnable examples | [examples directory](https://github.com/kongusen/loom-agent/tree/main/examples) |
@@ -187,16 +193,12 @@ result = await agent.run(
 
 ## Public Contract
 
-- `Agent.model` should be a `Model` / `ModelRef`
+- `Agent.model` should be a `Model`
 - `Agent.runtime` should be a `Runtime` profile or custom runtime config
 - `Agent.capabilities` should contain `Capability` declarations
 - `Agent.tools` should contain explicit `ToolSpec` or `@tool` functions
 - `RuntimeSignal` is the normalized external input contract
 - `RunContext` is the run-scoped structured input contract
-
-## Compatibility Contract
-
-`AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain exported through `0.8.x` for existing applications. New examples and docs should prefer the primary `Agent + Model + Runtime + Capability` path.
 
 ## Example Index
 

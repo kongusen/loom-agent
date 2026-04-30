@@ -2,8 +2,7 @@
 
 import pytest
 
-from loom.orchestration.gen_eval import SprintContract
-from loom.runtime.quality import QualityContract, QualityGate, QualityResult
+from loom.runtime.quality import QualityGate, QualityResult
 from loom.runtime.task import RuntimeTask
 from loom.types.results import SubAgentResult
 
@@ -36,26 +35,6 @@ def test_pass_fail_quality_gate_parses_fail() -> None:
 
     assert result.passed is False
     assert result.critique == "Missing required behavior"
-
-
-def test_sprint_contract_adapts_to_quality_contract() -> None:
-    sprint = SprintContract(
-        sprint=3,
-        goal="ship feature",
-        criteria=["tests pass"],
-        eval_tools=["pytest"],
-    )
-
-    contract = sprint.to_quality_contract()
-    restored = SprintContract.from_quality_contract(contract, sprint=3)
-
-    assert contract == QualityContract(
-        goal="ship feature",
-        criteria=["tests pass"],
-        eval_tools=["pytest"],
-        metadata={"sprint": 3},
-    )
-    assert restored == sprint
 
 
 @pytest.mark.asyncio

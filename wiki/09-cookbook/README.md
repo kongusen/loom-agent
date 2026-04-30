@@ -9,7 +9,9 @@ Use these pages when you already understand the basic API shape and want to buil
 Every pattern starts from the same public path:
 
 ```text
-Agent + Model + Runtime + Capability
+Agent + Model + Runtime
+    + capabilities=[Files/Web/Shell/MCP]
+    + skills=[Skill]
     -> Session / Run
     -> RunContext / RuntimeSignal
 ```
@@ -17,7 +19,7 @@ Agent + Model + Runtime + Capability
 The cookbook varies only:
 
 - which `Runtime` profile to use
-- which `Capability` declarations to enable
+- which user-facing ability declarations to enable
 - when to use `agent.run()` vs `agent.session(...)`
 - what to pass through `RunContext`
 - when to feed external events through `RuntimeSignal` / `SignalAdapter`

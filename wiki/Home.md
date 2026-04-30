@@ -1,25 +1,27 @@
 # Loom
 
-> Build stateful agents with a stable `Agent + Runtime + Capability` SDK.
+> Build stateful agents with a stable `Agent + Model + Runtime` SDK.
 
 Loom's `0.8.0` public contract is centered on the runtime kernel:
 
 ```text
 Agent
+    + Model
     + Runtime
-    + Capability
+    + capabilities=[Files/Web/Shell/MCP]
+    + skills=[Skill]
     -> Run / Session
     -> RuntimeTask / RuntimeSignal
 ```
 
-Application developers should start from `Agent(...)`, select a `Model`, choose a `Runtime` profile, and declare tool/MCP/skill access through `Capability`.
+Application developers should start from `Agent(...)`, select a `Model`, choose a `Runtime` profile, and declare access through direct user API entries such as `Files`, `Web`, `Shell`, `MCP`, and `Skill`.
 
 ## Quick Start
 
 ```python
 import asyncio
 
-from loom import Agent, Capability, Model, Runtime
+from loom import Agent, Files, Model, Runtime, Web
 
 
 async def main():
@@ -27,8 +29,8 @@ async def main():
         model=Model.anthropic("claude-sonnet-4"),
         instructions="You are a concise coding assistant.",
         capabilities=[
-            Capability.files(read_only=True),
-            Capability.web(),
+            Files(read_only=True),
+            Web.enabled(),
         ],
         runtime=Runtime.sdk(),
     )
@@ -59,7 +61,7 @@ Agent(...)
 ```python
 from loom import (
     Agent,
-    Capability,
+    Files,
     Model,
     Runtime,
     RuntimeSignal,
@@ -68,10 +70,11 @@ from loom import (
     SignalAdapter,
     RunContext,
     tool,
+    Web,
 )
 ```
 
-Use `from loom.config import ...` only for advanced configuration internals. `AgentConfig`, `ModelRef`, `GenerationConfig`, and `create_agent()` remain available through `0.8.x`, but they are no longer the recommended starting point for new applications.
+Use `from loom.config import ...` only for advanced configuration internals.
 
 ## Runtime Concepts
 
@@ -83,12 +86,12 @@ Use `from loom.config import ...` only for advanced configuration internals. `Ag
 | `RuntimeTask` | Structured work request |
 | `RuntimeSignal` | External input from gateways, cron, heartbeat, or apps |
 | `AttentionPolicy` | Decides whether a signal is observed, queued, or interrupts |
-| `ContextProtocol` | Context partitioning, rendering, compaction, renewal |
+| `ContextPolicy` | Context partitioning, rendering, compaction, renewal |
 | `ContinuityPolicy` | Continuation after reset or compaction |
 | `Harness` | Long-task execution strategy |
 | `QualityGate` | Acceptance criteria and PASS/FAIL evaluation |
 | `DelegationPolicy` | Subtask and sub-agent dispatch boundary |
-| `Capability` | Tools, Toolsets, MCP, skills, and future ability sources |
+| `Files` / `Web` / `Shell` / `MCP` / `Skill` | User-facing ability and skill declarations |
 | `GovernancePolicy` | Permission, veto, rate limit, read-only/destructive checks |
 | `FeedbackPolicy` | Runtime feedback collection and evolution input |
 
@@ -97,21 +100,16 @@ Use `from loom.config import ...` only for advanced configuration internals. `Ag
 | I want to... | Start here |
 |---|---|
 | Get running quickly | [Getting Started](01-getting-started/README.md) |
-| Understand the public API | [API Reference](07-api-reference/README.md) |
+| Understand the public API system | [Public API System](07-api-reference/public-api-system.md) |
+| Understand user-facing API names | [Public User API Taxonomy](07-api-reference/public-user-api-taxonomy.md) |
+| Browse the API reference | [API Reference](07-api-reference/README.md) |
 | Configure providers and env vars | [Providers](07-api-reference/providers.md) |
 | Understand runtime internals | [Runtime](03-runtime/README.md) |
 | Copy app-ready patterns | [Cookbook](09-cookbook/README.md) |
 | Understand architecture | [Architecture](Architecture.md) |
 | Compare against other frameworks | [Comparison](08-reference/comparison.md) |
-| Read historical design material | [hernss-agent-framework.md](hernss-agent-framework.md) |
 
 ## Version Policy
 
 - `0.8.0` is the public API stabilization line for the SDK runtime kernel.
-- `0.8.x` keeps compatibility exports for existing applications.
-- `loom.compat.v0` is the explicit legacy compatibility namespace.
-- `0.9.0` removes the legacy compatibility surface.
-
-## Historical Note
-
-If you see `AgentRuntime`, `SessionHandle`, `TaskHandle`, `RunHandle`, or `create_agent(AgentConfig(...))` presented as the main path, treat that page as older material. The supported `0.8.x` application path is `Agent + Model + Runtime/Capability + Session/RunContext`.
+- `0.8.x` now centers the active API on `Agent + Model + Runtime` with direct user-facing ability declarations.
